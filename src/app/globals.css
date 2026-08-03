@@ -1,0 +1,491 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ============================================================
+   Sistema POS — Tema "Grafito editorial" (sobrio + premium)
+   Papel cálido (greige) + tinta grafito azulada fría. Ese contraste
+   papel-cálido / tinta-fría es lo que da un aire premium y menos
+   genérico que el gris azulado por defecto. Serif de display para
+   títulos y cifras hero. Tokens de shadcn/ui mapeados a variables.
+   ============================================================ */
+
+/* ============================================================
+   Tema del producto (ERP /panel y POS /pos) — "Violeta operativo".
+   Antes era grafito sobre papel cálido: sobrio, pero sin jerarquía
+   de color; todo pesaba igual y la acción principal no se veía.
+
+   Ahora el violeta de marca ES el primario, así que cada botón de
+   acción, foco, estado activo y KPI lo hereda sin tocar las páginas.
+   El lienzo es blanco frío con un velo violeta y las tarjetas van en
+   blanco puro encima: la lectura de Alegra —superficies limpias, aire
+   generoso, CTA de color sólido— con nuestra personalidad.
+
+   Contrastes verificados sobre blanco (WCAG AA, texto normal 4.5:1):
+     --primary          #6d28d9  7.0:1  ✓ AAA
+     --foreground       #1a1626 16.9:1  ✓ AAA
+     --muted-foreground #55506b  7.4:1  ✓ AAA
+     --success          #0f7a5a  4.6:1  ✓ AA
+     --warning          #a86a12  4.5:1  ✓ AA
+     --info             #0369a1  5.7:1  ✓ AA
+     --destructive      #c0362c  5.6:1  ✓ AA
+   Blanco sobre --primary: 7.0:1 ✓ (botones sólidos y nav activa).
+   ============================================================ */
+:root {
+  --radius: 1rem; /* esquinas bien redondeadas / suaves */
+
+  /* Superficies — blanco frío con velo violeta; las cards flotan encima */
+  --background: #f7f5fd;
+  --foreground: #1a1626; /* misma tinta que la web pública */
+
+  --card: #ffffff;
+  --card-foreground: #1a1626;
+
+  --popover: #ffffff;
+  --popover-foreground: #1a1626;
+
+  /* Primario — violeta de marca. Lo hereda todo el producto. */
+  --primary: #6d28d9;
+  --primary-foreground: #ffffff;
+
+  /* Secundario / muted — violetas lavados, nunca grises sucios */
+  --secondary: #f1edfd;
+  --secondary-foreground: #4c1d95;
+
+  --muted: #f1eefb;
+  --muted-foreground: #55506b;
+
+  /* Accent — hover y estados; violeta claro reconocible */
+  --accent: #ede9fe;
+  --accent-foreground: #4c1d95;
+
+  --destructive: #c0362c;
+  --destructive-foreground: #ffffff;
+
+  --border: #e9e5f6;
+  --input: #ded8f0;
+  --ring: #6d28d9;
+
+  /* Estados semánticos — legibles y bien separados del violeta, para que
+     "correcto / pendiente / error" no se confundan con "acción". */
+  --success: #0f7a5a;
+  --warning: #a86a12;
+  --info: #0369a1;
+
+  /* Gráficas — el violeta lidera; el resto se distingue también en
+     escala de grises (no depende solo del tono). */
+  --chart-1: #6d28d9;
+  --chart-2: #0f7a5a;
+  --chart-3: #a86a12;
+  --chart-4: #0369a1;
+  --chart-5: #a78bfa;
+
+  /* Sidebar — blanco limpio separado por hairline, al estilo Alegra.
+     El color se reserva para el ítem activo, que así canta solo. */
+  --sidebar: #ffffff;
+  --sidebar-foreground: #322c45;
+  --sidebar-primary: #6d28d9;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #ede9fe;
+  --sidebar-accent-foreground: #4c1d95;
+  --sidebar-border: #e9e5f6;
+  --sidebar-ring: #6d28d9;
+}
+
+/* Modo oscuro, alineado al mismo violeta.
+   El violeta 700 del modo claro se hunde sobre fondo oscuro (2.8:1), así que
+   aquí el primario sube a violeta 400 #a78bfa — 7.4:1 sobre el lienzo — y el
+   texto encima pasa a tinta oscura. Es la regla de tono de Material: en
+   oscuro se usa la variante clara del color, no la misma. */
+.dark {
+  --background: #14111f; /* casi negro con base violeta */
+  --foreground: #ece9f5;
+  --card: #1c1830;
+  --card-foreground: #ece9f5;
+  --popover: #1c1830;
+  --popover-foreground: #ece9f5;
+  --primary: #a78bfa;
+  --primary-foreground: #1a1030;
+  --secondary: #272044;
+  --secondary-foreground: #ece9f5;
+  --muted: #241e3d;
+  --muted-foreground: #a79fc4;
+  --accent: #2c2450;
+  --accent-foreground: #ddd6fe;
+  --destructive: #f0736a;
+  --destructive-foreground: #2a0e0c;
+  --border: rgba(196, 181, 253, 0.14);
+  --input: rgba(196, 181, 253, 0.2);
+  --ring: #a78bfa;
+  --success: #4ec89d;
+  --warning: #e0a94a;
+  --info: #6fb6ea;
+  --chart-1: #a78bfa;
+  --chart-2: #4ec89d;
+  --chart-3: #e0a94a;
+  --chart-4: #6fb6ea;
+  --chart-5: #ddd6fe;
+  --sidebar: #171327;
+  --sidebar-foreground: #c9c2e0;
+  --sidebar-primary: #a78bfa;
+  --sidebar-primary-foreground: #1a1030;
+  --sidebar-accent: #2c2450;
+  --sidebar-accent-foreground: #ddd6fe;
+  --sidebar-border: rgba(196, 181, 253, 0.1);
+  --sidebar-ring: #a78bfa;
+}
+
+@theme inline {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-fraunces), ui-serif, Georgia, serif;
+  --font-mono: ui-monospace, monospace;
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  /* Sombras suaves y difusas, ahora de base violeta (antes eran cálidas, del
+     tema beige, y sobre el lienzo violeta se veían sucias). Opacidad muy baja:
+     la profundidad la dan el desenfoque y el desplazamiento, no el negro —
+     que es lo que hace que las superficies de Alegra se vean limpias. */
+  --shadow-2xs: 0 1px 2px rgba(46, 16, 101, 0.04);
+  --shadow-xs: 0 1px 3px rgba(46, 16, 101, 0.05);
+  --shadow-sm: 0 1px 2px rgba(46, 16, 101, 0.05), 0 2px 6px rgba(46, 16, 101, 0.06);
+  --shadow:
+    0 1px 2px rgba(46, 16, 101, 0.05), 0 4px 10px rgba(46, 16, 101, 0.07);
+  --shadow-md:
+    0 2px 6px rgba(46, 16, 101, 0.06), 0 10px 24px rgba(46, 16, 101, 0.08);
+  --shadow-lg:
+    0 4px 12px rgba(46, 16, 101, 0.07), 0 18px 40px rgba(46, 16, 101, 0.1);
+  --shadow-xl:
+    0 8px 24px rgba(46, 16, 101, 0.09), 0 28px 64px rgba(46, 16, 101, 0.13);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+
+/* ============================================================
+   Tokens de marca de la web pública (violeta).
+   Conviven con los tokens grafito de arriba porque NO comparten
+   nombres: el ERP usa `bg-background` y `text-foreground`, la web
+   pública usa `bg-brand-700` y `text-ink`. Cada zona pinta su propio
+   fondo en su layout, así que no compiten por el body.
+   ============================================================ */
+@theme {
+  /* Escala de marca */
+  --color-brand-50: #f5f3ff;
+  --color-brand-100: #ede9fe;
+  --color-brand-200: #ddd6fe;
+  --color-brand-300: #c4b5fd;
+  --color-brand-400: #a78bfa;
+  --color-brand-500: #8b5cf6;
+  --color-brand-600: #7c3aed;
+  --color-brand-700: #6d28d9;
+  --color-brand-800: #5b21b6;
+  --color-brand-900: #4c1d95;
+  --color-brand-950: #2e1065;
+
+  /* Tinta — grises con matiz violeta para que nada se vea "sucio" */
+  --color-ink: #1a1626;
+  --color-ink-soft: #322c45;
+  --color-ink-muted: #55506b;
+  --color-ink-faint: #8b86a0;
+
+  /* Superficies */
+  --color-surface: #ffffff;
+  --color-surface-soft: #faf9ff;
+  --color-hairline: #ebe8f5;
+
+  /* Semánticos */
+  --color-positive: #0f7a5a;
+  --color-warn: #a86a12;
+
+  /* Tipografía */
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-fraunces), ui-serif, Georgia, serif;
+
+  /* Escala tipográfica */
+  --text-hero: clamp(2.5rem, 5.4vw, 4.25rem);
+  --text-hero--line-height: 0.95;
+  --text-hero--letter-spacing: -0.035em;
+  --text-section: clamp(2rem, 4.2vw, 3.25rem);
+  --text-section--line-height: 1.05;
+  --text-section--letter-spacing: -0.03em;
+
+  /* Radios */
+  --radius-card: 1.25rem;
+  --radius-pill: 999px;
+
+  /* Motion — un solo ritmo para toda la página */
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --dur-fast: 160ms;
+  --dur-base: 240ms;
+  --dur-slow: 420ms;
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+    outline-color: color-mix(in oklch, var(--ring) 50%, transparent);
+  }
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    -webkit-font-smoothing: antialiased;
+    font-feature-settings: "cv11", "ss01";
+  }
+  /* Selección de texto grafito — detalle premium discreto */
+  ::selection {
+    background-color: color-mix(in oklch, var(--primary) 22%, transparent);
+    color: var(--foreground);
+  }
+}
+
+/* Clases tipográficas dentro de @layer components y NO sueltas: así una
+   utilidad como `font-semibold` puede ganarle al font-weight de
+   `.font-display`. Sueltas ganarían siempre (lo no-capado vence a
+   @layer utilities) y las cabeceras de la web pública, que combinan
+   `font-display font-semibold`, se quedarían en peso 500. */
+@layer components {
+  /* Display serif (editorial) — títulos, marca y cifras hero.
+     Optical size alta + tracking ligeramente cerrado para un aire premium. */
+  .font-display {
+    font-family: var(--font-serif);
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    font-feature-settings: "ss01";
+    font-optical-sizing: auto;
+  }
+
+  /* Números tabulares para dinero y cantidades */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+  }
+
+  /* Cifra hero en serif con figuras tabulares (para KPIs y montos grandes) */
+  .stat-figure {
+    font-family: var(--font-serif);
+    font-weight: 500;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums lining-nums;
+    font-optical-sizing: auto;
+  }
+}
+
+/* ---------- Zona pública (marketing) ----------
+   Todo lo de aquí abajo cuelga de .zone-marketing o de clases que solo usa
+   la web pública. El anillo de foco violeta iría suelto y le cambiaría el
+   foco a todo el ERP, que tiene el suyo grafito. */
+
+/* Compensa la barra fija al saltar a un ancla (#precios, #beneficios…).
+   Va en `html` porque scroll-padding aplica al contenedor de scroll, no al
+   elemento donde está el ancla; en un div no haría nada. Le sirve igual al
+   ERP, que también tiene topbar fija. */
+html {
+  scroll-padding-top: 5.5rem;
+}
+
+/* Foco visible y consistente en todo elemento interactivo (WCAG 2.4.7) */
+.zone-marketing
+  :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-brand-700);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+/* Salta al contenido — primer tab de la página */
+.skip-link {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  translate: -50% -120%;
+  z-index: 100;
+  padding: 0.75rem 1.25rem;
+  background: var(--color-brand-700);
+  color: #fff;
+  border-radius: 0 0 0.75rem 0.75rem;
+  font-weight: 600;
+  transition: translate var(--dur-base) var(--ease-out-soft);
+}
+.skip-link:focus-visible {
+  translate: -50% 0;
+}
+
+/* ---------- Utilidades de superficie ---------- */
+
+.grain {
+  position: relative;
+}
+.grain::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.4;
+  mix-blend-mode: multiply;
+  background-image: radial-gradient(
+    circle at 1px 1px,
+    var(--color-brand-200) 1px,
+    transparent 0
+  );
+  background-size: 22px 22px;
+  mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, #000 20%, transparent 75%);
+}
+
+/* Aurora del hero: manchas violetas suaves. Sin animación de layout —
+   solo transform/opacity, para no provocar reflow (CLS). */
+.aurora {
+  position: absolute;
+  inset: -30% -10% auto -10%;
+  height: 780px;
+  pointer-events: none;
+  filter: blur(72px);
+  opacity: 0.55;
+  background:
+    radial-gradient(38% 46% at 22% 32%, var(--color-brand-400) 0%, transparent 65%),
+    radial-gradient(34% 40% at 74% 22%, var(--color-brand-300) 0%, transparent 62%),
+    radial-gradient(30% 38% at 52% 62%, var(--color-brand-200) 0%, transparent 60%);
+  animation: aurora-drift 22s var(--ease-out-soft) infinite alternate;
+}
+
+@keyframes aurora-drift {
+  from {
+    transform: translate3d(-2%, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(3%, -3%, 0) scale(1.08);
+  }
+}
+
+/* Entrada del panel al cambiar de pestaña en Beneficios. */
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 12px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---------- Entradas al hacer scroll ---------- */
+
+.reveal {
+  opacity: 0;
+  transform: translate3d(0, 22px, 0);
+  transition:
+    opacity var(--dur-slow) var(--ease-out-soft),
+    transform var(--dur-slow) var(--ease-out-soft);
+  transition-delay: var(--reveal-delay, 0ms);
+}
+.reveal[data-visible="true"] {
+  opacity: 1;
+  transform: none;
+}
+
+
+/* Impresión: solo el comprobante (.receipt-printable) llega al papel; el resto
+   de la interfaz se oculta. Formato tirilla / facturero: rollo de 80 mm.
+   Sirve igual para impresora térmica y para "Guardar como PDF". */
+@media print {
+  /* Rollo de 80 mm de ancho, alto automático (tipo facturero). */
+  @page {
+    size: 80mm auto;
+    margin: 3mm;
+  }
+  body * {
+    visibility: hidden;
+  }
+  .receipt-printable,
+  .receipt-printable *,
+  .invoice-printable,
+  .invoice-printable * {
+    visibility: visible;
+  }
+  .receipt-printable,
+  .invoice-printable {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 74mm; /* área imprimible de un rollo de 80 mm */
+    max-width: 74mm;
+    margin: 0;
+    border: none;
+    box-shadow: none;
+    padding: 0;
+    font-size: 12px;
+    line-height: 1.35;
+  }
+  /* En térmica el gris "muted" sale casi invisible: todo a negro puro. */
+  .receipt-printable *,
+  .invoice-printable * {
+    color: #000 !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+}
+
+/* ---------- prefers-reduced-motion ----------
+   Regla del skill: la animación nunca puede ser requisito para leer.
+   Se apaga el movimiento, se conserva el estado final legible. */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .reveal {
+    opacity: 1;
+    transform: none;
+  }
+  .aurora {
+    animation: none;
+  }
+}
