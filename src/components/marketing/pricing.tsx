@@ -92,7 +92,11 @@ export function Pricing() {
                 </p>
 
                 <a
-                  href={plan.id === "personalizado" ? "#contacto" : "/login"}
+                  href={
+                    plan.id === "personalizado"
+                      ? "#contacto"
+                      : `/registro?plan=${plan.id}`
+                  }
                   className={cn(
                     "mt-8 inline-flex h-13 items-center justify-center rounded-full px-6 font-semibold transition-[background-color,background-image,transform] duration-150 active:scale-[0.98]",
                     plan.featured

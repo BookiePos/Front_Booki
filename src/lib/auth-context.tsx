@@ -9,11 +9,14 @@ import {
 } from "react"
 import {
   AuthUser,
+  RegisterPayload,
+  RegisterResponse,
   Tokens,
   apiLogin,
   apiLogout,
   apiMe,
   apiRefresh,
+  apiRegister,
 } from "@/lib/api"
 
 const STORAGE_KEY = "sistemapos.auth"
@@ -29,6 +32,7 @@ interface AuthContextValue {
   user: AuthUser | null
   status: Status
   login: (email: string, password: string) => Promise<void>
+  register: (payload: RegisterPayload) => Promise<RegisterResponse>
   logout: () => Promise<void>
   hasPermission: (permission: string) => boolean
 }
@@ -102,6 +106,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setStatus("authenticated")
   }, [])
 
+  const register = useCallback(async (payload: RegisterPayload) => {
+    const res = await apiRegister(payload)
+    // Alta = auto-login: guarda la sesión igual que login().
+    writeStored({ tokens: res.tokens, user: res.user })
+    setUser(res.user)
+    setStatus("authenticated")
+    return res
+  }, [])
+
   const logout = useCallback(async () => {
     const stored = readStored()
     if (stored) await apiLogout(stored.tokens.refreshToken)
@@ -117,7 +130,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, status, login, logout, hasPermission }}
+      value={{ user, status, login, register, logout, hasPermission }}
     >
       {children}
     </AuthContext.Provider>

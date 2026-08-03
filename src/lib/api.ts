@@ -61,6 +61,54 @@ export async function apiLogin(
   return res.json() as Promise<LoginResponse>
 }
 
+// ─── Registro de empresa (ruta pública) ──────────────────────────────────────
+
+export type BusinessPlan = "punto" | "operacion"
+export type BusinessType = "restaurante" | "retail"
+
+/** Datos para dar de alta una empresa nueva y su dueño. */
+export interface RegisterPayload {
+  // Negocio
+  businessName: string
+  plan: BusinessPlan
+  tipoNegocio: BusinessType
+  nit?: string
+  nitDv?: string
+  tipoPersona?: "natural" | "juridica"
+  responsabilidadFiscal?:
+    | "responsable_iva"
+    | "no_responsable_iva"
+    | "regimen_simple"
+    | "gran_contribuyente"
+  ciiu?: string
+  departamento?: string
+  ciudad?: string
+  address?: string
+  phone?: string
+  emailFacturacion?: string
+  // Dueño
+  ownerName: string
+  ownerEmail: string
+  password: string
+}
+
+export interface RegisterResponse extends LoginResponse {
+  plan: BusinessPlan
+}
+
+/** Crea la empresa + su dueño y devuelve la sesión (auto-login). */
+export async function apiRegister(
+  payload: RegisterPayload,
+): Promise<RegisterResponse> {
+  const res = await fetch(`${API_URL}/auth/register`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  })
+  if (!res.ok) return parseError(res)
+  return res.json() as Promise<RegisterResponse>
+}
+
 export async function apiMe(accessToken: string): Promise<AuthUser> {
   const res = await fetch(`${API_URL}/auth/me`, {
     headers: { Authorization: `Bearer ${accessToken}` },
