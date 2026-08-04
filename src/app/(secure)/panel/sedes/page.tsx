@@ -178,11 +178,11 @@ export default function SedesPage() {
                 key={sede._id}
                 role="button"
                 tabIndex={0}
-                onClick={() => router.push(`/sedes/${sede._id}`)}
+                onClick={() => router.push(`/panel/sedes/${sede._id}`)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault()
-                    router.push(`/sedes/${sede._id}`)
+                    router.push(`/panel/sedes/${sede._id}`)
                   }
                 }}
                 className="flex cursor-pointer flex-col justify-between transition-colors hover:border-primary/40 focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
