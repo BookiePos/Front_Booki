@@ -192,9 +192,10 @@ function AssignEmployeesSheet({
           employee: e,
           user: e.userId ? userById.get(e.userId) : undefined,
         }))
-        .filter(
-          ({ user }) => !user || !user.sedeIds.includes(sedeId),
-        ),
+        .filter(({ user }) => !user || !user.sedeIds.includes(sedeId))
+        // Primero los que ya tienen usuario (se pueden asignar), luego los que
+        // necesitan que se les cree el acceso.
+        .sort((a, b) => (a.user ? 0 : 1) - (b.user ? 0 : 1)),
     [employees, userById, sedeId],
   )
 
