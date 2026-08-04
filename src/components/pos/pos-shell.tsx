@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { Store, MapPin } from "lucide-react"
+import { Store, MapPin, LayoutDashboard } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/auth-context"
@@ -121,7 +121,7 @@ function SedeSelector() {
 }
 
 function UserMenu() {
-  const { user, logout } = useAuth()
+  const { user, logout, canUseOperation } = useAuth()
   const router = useRouter()
 
   const initials = (user?.name ?? "Usuario")
@@ -166,6 +166,15 @@ function UserMenu() {
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
+        {canUseOperation && (
+          <>
+            <DropdownMenuItem onClick={() => router.push("/panel")}>
+              <LayoutDashboard className="size-4" />
+              Ir a Operación
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
+        )}
         <DropdownMenuItem
           variant="destructive"
           onClick={() => {

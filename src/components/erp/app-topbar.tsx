@@ -1,6 +1,6 @@
 "use client"
 
-import { Bell, Search, Compass } from "lucide-react"
+import { Bell, Search, Compass, ShoppingCart } from "lucide-react"
 import { usePathname, useRouter } from "next/navigation"
 
 import { useAuth } from "@/lib/auth-context"
@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 
 export function AppTopbar() {
-  const { user, logout } = useAuth()
+  const { user, logout, canUsePos } = useAuth()
   const { openGuide, startSedeGuide } = useOnboarding()
   const router = useRouter()
   const pathname = usePathname()
@@ -152,6 +152,15 @@ export function AppTopbar() {
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
+            {canUsePos && (
+              <>
+                <DropdownMenuItem onClick={() => router.push("/pos")}>
+                  <ShoppingCart className="size-4" />
+                  Ir al punto de venta
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+              </>
+            )}
             <DropdownMenuItem>Mi perfil</DropdownMenuItem>
             <DropdownMenuItem>Preferencias</DropdownMenuItem>
             <DropdownMenuSeparator />
