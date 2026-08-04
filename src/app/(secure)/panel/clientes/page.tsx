@@ -203,7 +203,7 @@ export default function ClientesPage() {
         <RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />
       </Button>
       {canManage && (
-        <Button className="gap-1.5" onClick={() => setNewOpen(true)}>
+        <Button className="gap-1.5" onClick={() => setNewOpen(true)} data-tour="cxc-nuevo">
           <Plus className="size-4" />
           Nuevo fiado
         </Button>
@@ -220,14 +220,14 @@ export default function ClientesPage() {
         actions={actions}
       />
 
-      <div className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-3">
+      <div className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-3" data-tour="cxc-kpis">
         <Kpi label="Total por cobrar" value={money.format(totalPorCobrar)} />
         <Kpi label="Vencido" value={money.format(totalVencido)} danger />
         <Kpi label="Clientes con saldo" value={String(clientesConSaldo)} />
       </div>
 
       {/* Antigüedad de saldos (aging) */}
-      <Card className="mb-4">
+      <Card className="mb-4" data-tour="cxc-aging">
         <CardContent className="py-4">
           <p className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Antigüedad de saldos
@@ -291,7 +291,7 @@ export default function ClientesPage() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card data-tour="cxc-tabla">
         <CardContent className="p-0">
           {loading ? (
             <div className="flex flex-col gap-2 p-4">

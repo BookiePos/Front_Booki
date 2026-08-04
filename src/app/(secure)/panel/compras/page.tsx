@@ -163,7 +163,7 @@ export default function ComprasPage() {
               <RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />
             </Button>
             {canManage && (
-              <Button className="gap-1.5" onClick={() => setNewOpen(true)}>
+              <Button className="gap-1.5" onClick={() => setNewOpen(true)} data-tour="compras-nueva">
                 <Plus className="size-4" />
                 Nueva orden
               </Button>
@@ -172,12 +172,12 @@ export default function ComprasPage() {
         }
       />
 
-      <div className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-4" data-tour="compras-kpis">
         <Kpi label="Órdenes en curso" value={String(abiertas)} />
         <Kpi label="Pendiente por recibir" value={money.format(porRecibir)} accent />
       </div>
 
-      <Card className="mb-4">
+      <Card className="mb-4" data-tour="compras-filtros">
         <CardContent className="flex flex-wrap items-end gap-3 py-4">
           <div className="flex flex-col gap-1">
             <Label className="text-xs">Sede</Label>
@@ -210,7 +210,7 @@ export default function ComprasPage() {
         </Card>
       )}
 
-      <Card>
+      <Card data-tour="compras-tabla">
         <CardContent className="px-0 sm:px-2">
           <Table>
             <TableHeader>

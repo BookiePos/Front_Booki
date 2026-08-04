@@ -213,7 +213,7 @@ export default function FacturacionPage() {
       />
 
       {/* Normatividad DIAN (informativo) */}
-      <Card className="mb-4">
+      <Card data-tour="facturacion-dian" className="mb-4">
         <details open className="group">
           <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 font-medium">
             <BookOpen className="size-4 text-primary" />
@@ -321,7 +321,7 @@ export default function FacturacionPage() {
         </Card>
       )}
 
-      <Card>
+      <Card data-tour="facturacion-ventas">
         <CardContent className="p-0">
           {loading ? (
             <div className="flex flex-col gap-2 p-4">

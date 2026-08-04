@@ -161,7 +161,11 @@ export default function PresupuestosPage() {
         <RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />
       </Button>
       {canManage && (
-        <Button className="gap-1.5" onClick={() => setNewOpen(true)}>
+        <Button
+          data-tour="presupuestos-nuevo"
+          className="gap-1.5"
+          onClick={() => setNewOpen(true)}
+        >
           <Plus className="size-4" />
           Nuevo presupuesto
         </Button>
@@ -178,7 +182,7 @@ export default function PresupuestosPage() {
         actions={actions}
       />
 
-      <Card>
+      <Card data-tour="presupuestos-lista">
         <CardContent className="p-0">
           {loading ? (
             <div className="flex flex-col gap-2 p-4">

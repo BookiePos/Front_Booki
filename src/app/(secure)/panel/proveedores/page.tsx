@@ -439,6 +439,7 @@ export default function ProveedoresPage() {
         actions={
           canManage ? (
             <Button
+              data-tour="proveedores-nuevo"
               onClick={() => {
                 setSheetMode("create")
                 setEditingSupplier(undefined)
@@ -461,7 +462,10 @@ export default function ProveedoresPage() {
             </CardDescription>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <label className="flex items-center gap-2 text-sm text-muted-foreground">
+            <label
+              className="flex items-center gap-2 text-sm text-muted-foreground"
+              data-tour="proveedores-inactivos"
+            >
               <Checkbox
                 checked={includeInactive}
                 onCheckedChange={(v) => setIncludeInactive(Boolean(v))}
@@ -473,6 +477,7 @@ export default function ProveedoresPage() {
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Buscar por nombre o documento…"
               className="w-full sm:w-64"
+              data-tour="proveedores-buscar"
             />
           </div>
         </CardHeader>

@@ -130,25 +130,27 @@ export default function TurnosPage() {
   }
 
   const sedeSelector = (
-    <Select
-      value={sedeId}
-      items={sedeItems}
-      onValueChange={(v) => {
-        if (v !== null) setSedeId(v as string)
-      }}
-    >
-      <SelectTrigger className="w-52">
-        <SelectValue placeholder="Sede" />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value={ALL}>Todas las sedes</SelectItem>
-        {sedes.map((s) => (
-          <SelectItem key={s._id} value={s._id}>
-            {s.name}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+    <div data-tour="turnos-sede">
+      <Select
+        value={sedeId}
+        items={sedeItems}
+        onValueChange={(v) => {
+          if (v !== null) setSedeId(v as string)
+        }}
+      >
+        <SelectTrigger className="w-52">
+          <SelectValue placeholder="Sede" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={ALL}>Todas las sedes</SelectItem>
+          {sedes.map((s) => (
+            <SelectItem key={s._id} value={s._id}>
+              {s.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
   )
 
   return (
@@ -162,7 +164,7 @@ export default function TurnosPage() {
 
       {/* Filtros de rango + KPIs */}
       <div className="mb-4 grid gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-1">
+        <Card className="lg:col-span-1" data-tour="turnos-rango">
           <CardContent className="flex flex-wrap items-end gap-3 py-4">
             <div className="flex flex-col gap-1">
               <Label htmlFor="desde" className="text-xs">
@@ -194,14 +196,14 @@ export default function TurnosPage() {
           </CardContent>
         </Card>
 
-        <div className="grid grid-cols-3 gap-4 lg:col-span-2">
+        <div className="grid grid-cols-3 gap-4 lg:col-span-2" data-tour="turnos-kpis">
           <Kpi icon={Clock} label="Horas" value={fmtHours(totalHours)} />
           <Kpi icon={Users} label="Trabajadores" value={String(workerCount)} />
           <Kpi icon={CalendarClock} label="Días-turno" value={String(totalDays)} />
         </div>
       </div>
 
-      <Card>
+      <Card data-tour="turnos-tabla">
         <CardContent className="p-0">
           {loading ? (
             <div className="flex flex-col gap-2 p-4">

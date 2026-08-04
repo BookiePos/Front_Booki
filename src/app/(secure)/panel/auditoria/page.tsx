@@ -125,7 +125,7 @@ export default function AuditoriaPage() {
         }
       />
 
-      <Card className="mb-4">
+      <Card data-tour="auditoria-filtros" className="mb-4">
         <CardContent className="flex flex-wrap items-end gap-3 py-4">
           <div className="flex flex-col gap-1">
             <Label className="text-xs">Módulo</Label>
@@ -174,7 +174,7 @@ export default function AuditoriaPage() {
         </Card>
       )}
 
-      <Card>
+      <Card data-tour="auditoria-tabla">
         <CardContent className="px-0 sm:px-2">
           <Table>
             <TableHeader>

@@ -141,7 +141,7 @@ export default function DeduccionesPage() {
               <RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />
             </Button>
             {canManage && (
-              <Button className="gap-1.5" onClick={() => setNewOpen(true)}>
+              <Button className="gap-1.5" onClick={() => setNewOpen(true)} data-tour="deducciones-nuevo">
                 <Plus className="size-4" />
                 Nuevo consumo
               </Button>
@@ -150,12 +150,12 @@ export default function DeduccionesPage() {
         }
       />
 
-      <div className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-4" data-tour="deducciones-kpis">
         <Kpi label="Pendientes de aprobar" value={String(pendientes)} accent />
         <Kpi label="Aprobado por descontar" value={money.format(totalAprobado)} />
       </div>
 
-      <Card className="mb-4">
+      <Card className="mb-4" data-tour="deducciones-filtro">
         <CardContent className="flex items-center gap-3 py-3">
           <Label className="text-xs">Estado</Label>
           <select className={`${inputClass} w-48`} value={status} onChange={(e) => setStatus(e.target.value)}>
@@ -175,7 +175,7 @@ export default function DeduccionesPage() {
         </Card>
       )}
 
-      <Card>
+      <Card data-tour="deducciones-tabla">
         <CardContent className="px-0 sm:px-2">
           <Table>
             <TableHeader>

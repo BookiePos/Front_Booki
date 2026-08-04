@@ -108,7 +108,11 @@ export default function ImpuestosPage() {
             <Button variant="outline" size="icon" onClick={() => void load()} title="Actualizar">
               <RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />
             </Button>
-            <Button className="gap-1.5" onClick={() => setNewOpen(true)}>
+            <Button
+              data-tour="impuestos-nuevo"
+              className="gap-1.5"
+              onClick={() => setNewOpen(true)}
+            >
               <Plus className="size-4" />
               Nuevo impuesto
             </Button>
@@ -122,7 +126,7 @@ export default function ImpuestosPage() {
         </Card>
       )}
 
-      <Card>
+      <Card data-tour="impuestos-tabla">
         <CardContent className="px-0 sm:px-2">
           <Table>
             <TableHeader>

@@ -181,11 +181,17 @@ export default function RestaurantePage() {
                 </option>
               ))}
             </select>
-            <Button variant="outline" size="icon" onClick={() => void load()} title="Actualizar">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => void load()}
+              title="Actualizar"
+              data-tour="restaurante-refrescar"
+            >
               <RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />
             </Button>
             {canManageTables && (
-              <Button className="gap-1.5" onClick={() => setNewTableOpen(true)}>
+              <Button className="gap-1.5" onClick={() => setNewTableOpen(true)} data-tour="restaurante-mesa">
                 <Plus className="size-4" /> Mesa
               </Button>
             )}
@@ -216,7 +222,7 @@ export default function RestaurantePage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-6" data-tour="restaurante-salon">
           {zones.map((zone) => (
             <section key={zone}>
               <h2 className="mb-2 text-sm font-semibold text-muted-foreground">{zone}</h2>

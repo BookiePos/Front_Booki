@@ -2366,6 +2366,7 @@ export default function InventarioPage() {
               <>
                 <Button
                   variant="outline"
+                  data-tour="inv-entrada"
                   onClick={() => openOperation(setEntryOpen)}
                 >
                   <PackagePlus />
@@ -2408,6 +2409,7 @@ export default function InventarioPage() {
                   </Button>
                 )}
                 <Button
+                  data-tour="inv-nuevo"
                   onClick={() => {
                     setProductSheetMode("create")
                     setEditingProduct(undefined)
@@ -2512,7 +2514,7 @@ export default function InventarioPage() {
       )}
 
       {/* Segmented control */}
-      <div className="mb-5 flex w-fit gap-1 rounded-lg border border-border bg-muted p-1">
+      <div className="mb-5 flex w-fit gap-1 rounded-lg border border-border bg-muted p-1" data-tour="inv-tabs">
         {(
           [
             ["productos", "Productos"],
@@ -2552,6 +2554,7 @@ export default function InventarioPage() {
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Buscar por nombre, SKU, código…"
                 className="w-64"
+                data-tour="inv-buscar"
               />
             </div>
           </CardHeader>

@@ -98,7 +98,7 @@ export default function DirectorioClientesPage() {
               <RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />
             </Button>
             {canManage && (
-              <Button className="gap-1.5" onClick={() => setCreating(true)}>
+              <Button className="gap-1.5" onClick={() => setCreating(true)} data-tour="clientes-dir-nuevo">
                 <Plus className="size-4" />
                 Nuevo cliente
               </Button>
@@ -112,6 +112,7 @@ export default function DirectorioClientesPage() {
           <Search className="size-4 text-muted-foreground" />
           <Input
             className="max-w-sm"
+            data-tour="clientes-dir-buscar"
             placeholder="Buscar por nombre, documento o teléfono"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -129,7 +130,7 @@ export default function DirectorioClientesPage() {
         </Card>
       )}
 
-      <Card>
+      <Card data-tour="clientes-dir-tabla">
         <CardContent className="px-0 sm:px-2">
           <Table>
             <TableHeader>

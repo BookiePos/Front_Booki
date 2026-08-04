@@ -775,7 +775,7 @@ export default function ProductosPage() {
         description="Catálogo de productos vendibles para el punto de venta."
         actions={
           canManage ? (
-            <Button onClick={openCreate}>
+            <Button onClick={openCreate} data-tour="productos-nuevo">
               <Plus />
               Nuevo producto
             </Button>
@@ -783,7 +783,7 @@ export default function ProductosPage() {
         }
       />
 
-      <Card>
+      <Card data-tour="productos-tabla">
         <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <CardTitle>Productos</CardTitle>
@@ -796,6 +796,7 @@ export default function ProductosPage() {
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Buscar por nombre, SKU o categoría…"
             className="sm:w-72"
+            data-tour="productos-buscar"
           />
         </CardHeader>
         <CardContent className="p-0">

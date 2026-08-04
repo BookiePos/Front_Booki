@@ -158,7 +158,7 @@ export default function NominaPage() {
         description="Cálculo de nómina conforme a la normativa laboral colombiana 2026."
       />
 
-      <div className="mb-4 flex flex-wrap gap-1">
+      <div className="mb-4 flex flex-wrap gap-1" data-tour="nomina-tabs">
         {tabs.map((t) => {
           const Icon = t.icon
           return (
@@ -247,7 +247,7 @@ function CorrerNomina({
 
   return (
     <div className="flex flex-col gap-4">
-      <Card>
+      <Card data-tour="nomina-correr">
         <CardContent className="flex flex-wrap items-end gap-3 py-4">
           <div className="flex flex-col gap-1">
             <Label className="text-xs">Período</Label>

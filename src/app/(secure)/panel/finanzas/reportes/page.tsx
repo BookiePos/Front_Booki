@@ -116,7 +116,7 @@ export default function ReportesPage() {
         }
       />
 
-      <div className="mb-4 flex flex-wrap gap-2">
+      <div data-tour="reportes-tipos" className="mb-4 flex flex-wrap gap-2">
         {REPORTS.map((r) => (
           <Button
             key={r.key}
@@ -130,7 +130,7 @@ export default function ReportesPage() {
         ))}
       </div>
 
-      <Card className="mb-4">
+      <Card data-tour="reportes-filtro" className="mb-4">
         <CardContent className="flex flex-wrap items-end gap-3 py-4">
           <div className="flex flex-col gap-1">
             <Label className="text-xs">Sede</Label>

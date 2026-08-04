@@ -88,7 +88,13 @@ export default function ParametrosPage() {
         title="Parámetros"
         description="Tarifas, recargos y topes versionados por fecha de vigencia."
         actions={
-          <Button variant="outline" size="icon" onClick={() => void load()} title="Actualizar">
+          <Button
+            data-tour="parametros-actualizar"
+            variant="outline"
+            size="icon"
+            onClick={() => void load()}
+            title="Actualizar"
+          >
             <RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />
           </Button>
         }
@@ -107,7 +113,7 @@ export default function ParametrosPage() {
           ))}
         </div>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2">
+        <div data-tour="parametros-grupos" className="grid gap-4 md:grid-cols-2">
           {groups.map((g) => (
             <Card key={g}>
               <CardHeader className="pb-2">

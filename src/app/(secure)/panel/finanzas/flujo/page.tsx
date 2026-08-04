@@ -139,7 +139,7 @@ export default function FlujoCajaPage() {
         actions={actions}
       />
 
-      <Card className="mb-4">
+      <Card data-tour="flujo-filtro" className="mb-4">
         <CardContent className="flex flex-wrap items-end gap-3 py-4">
           <div className="flex flex-col gap-1">
             <Label className="text-xs">Sede</Label>
@@ -198,7 +198,10 @@ export default function FlujoCajaPage() {
         </Card>
       ) : data ? (
         <>
-          <div className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-5">
+          <div
+            data-tour="flujo-runway"
+            className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-5"
+          >
             <Kpi
               label="Saldo actual"
               value={money.format(data.openingBalance)}
@@ -247,7 +250,7 @@ export default function FlujoCajaPage() {
             </div>
           )}
 
-          <Card>
+          <Card data-tour="flujo-proyeccion">
             <CardContent className="p-0">
               <Table>
                 <TableHeader>

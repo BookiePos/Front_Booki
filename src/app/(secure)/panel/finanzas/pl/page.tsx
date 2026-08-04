@@ -98,8 +98,9 @@ export default function PlPage() {
         actions={sedeSelector}
       />
 
-      <div className="mb-4 flex flex-wrap gap-1">
+      <div data-tour="pl-vistas" className="mb-4 flex flex-wrap gap-1">
         <Button
+          data-tour="pl-estado"
           variant={view === "pl" ? "default" : "outline"}
           size="sm"
           className="gap-1.5"
@@ -109,6 +110,7 @@ export default function PlPage() {
           Estado de resultados
         </Button>
         <Button
+          data-tour="pl-vs"
           variant={view === "vs" ? "default" : "outline"}
           size="sm"
           className="gap-1.5"

@@ -193,11 +193,16 @@ export default function EmpleadosPage() {
 
   const actions = canManage ? (
     <div className="flex items-center gap-2">
-      <Button variant="outline" className="gap-2" onClick={() => setPositionsOpen(true)}>
+      <Button
+        variant="outline"
+        className="gap-2"
+        onClick={() => setPositionsOpen(true)}
+        data-tour="empleados-cargos"
+      >
         <Briefcase className="size-4" />
         Cargos
       </Button>
-      <Button className="gap-2" onClick={openNew}>
+      <Button className="gap-2" onClick={openNew} data-tour="empleados-nuevo">
         <Plus className="size-4" />
         Añadir empleado
       </Button>
@@ -214,7 +219,7 @@ export default function EmpleadosPage() {
       />
 
       {/* KPIs */}
-      <div className="mb-4 grid grid-cols-3 gap-4">
+      <div className="mb-4 grid grid-cols-3 gap-4" data-tour="empleados-kpis">
         <Kpi icon={Users} label="Total" value={String(employees.length)} />
         <Kpi icon={UserCheck} label="Activos" value={String(activeCount)} />
         <Kpi icon={UserMinus} label="Retirados" value={String(retiredCount)} />
@@ -229,6 +234,7 @@ export default function EmpleadosPage() {
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Buscar por nombre, documento o cargo"
             className="w-72 pl-8"
+            data-tour="empleados-buscar"
           />
         </div>
         <div className="flex gap-1">

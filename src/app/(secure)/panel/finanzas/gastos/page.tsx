@@ -165,7 +165,7 @@ export default function GastosPage() {
         <RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />
       </Button>
       {canManage && (
-        <Button className="gap-1.5" onClick={openNew}>
+        <Button data-tour="gastos-nuevo" className="gap-1.5" onClick={openNew}>
           <Plus className="size-4" />
           Nuevo gasto
         </Button>
@@ -182,12 +182,15 @@ export default function GastosPage() {
         actions={actions}
       />
 
-      <div className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div
+        data-tour="gastos-kpis"
+        className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-4"
+      >
         <Kpi label="Gasto del período" value={money.format(totalMes)} />
         <Kpi label="Por pagar" value={money.format(porPagar)} accent />
       </div>
 
-      <Card className="mb-4">
+      <Card data-tour="gastos-filtro" className="mb-4">
         <CardContent className="flex flex-wrap items-end gap-3 py-4">
           <div className="flex flex-col gap-1">
             <Label className="text-xs">Sede</Label>
@@ -241,7 +244,7 @@ export default function GastosPage() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card data-tour="gastos-tabla">
         <CardContent className="p-0">
           {loading ? (
             <div className="flex flex-col gap-2 p-4">

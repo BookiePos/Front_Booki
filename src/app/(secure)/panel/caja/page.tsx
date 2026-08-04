@@ -105,7 +105,7 @@ export default function CajaPage() {
 
   const actions = (
     <div className="flex items-end gap-2">
-      <div className="flex flex-col gap-1">
+      <div className="flex flex-col gap-1" data-tour="caja-dia">
         <Label htmlFor="fecha" className="text-xs">
           Día
         </Label>
@@ -133,7 +133,7 @@ export default function CajaPage() {
         actions={actions}
       />
 
-      <div className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-4" data-tour="caja-kpis">
         <Kpi
           icon={DoorOpen}
           label="Cajas abiertas"
@@ -165,7 +165,7 @@ export default function CajaPage() {
         />
       </div>
 
-      <Card>
+      <Card data-tour="caja-tabla">
         <CardContent className="p-0">
           {loading ? (
             <div className="flex flex-col gap-2 p-4">

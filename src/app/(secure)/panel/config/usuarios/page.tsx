@@ -1137,7 +1137,10 @@ export default function UsuariosPage() {
       />
 
       {/* Segmented control */}
-      <div className="mb-5 flex gap-1 rounded-lg border border-border bg-muted p-1 w-fit">
+      <div
+        data-tour="usuarios-tabs"
+        className="mb-5 flex gap-1 rounded-lg border border-border bg-muted p-1 w-fit"
+      >
         <button
           type="button"
           onClick={() => setTab("usuarios")}
@@ -1167,7 +1170,7 @@ export default function UsuariosPage() {
       {/* ── Usuarios view ──────────────────────────────────────────────────── */}
       {tab === "usuarios" && (
         <div className="flex flex-col gap-6">
-        <Card>
+        <Card data-tour="usuarios-lista">
           <CardHeader>
             <CardTitle className="font-display text-lg">Usuarios</CardTitle>
             <CardDescription>Cuentas con acceso al GoCheck.</CardDescription>
@@ -1253,7 +1256,7 @@ export default function UsuariosPage() {
         </Card>
 
         {/* Invitaciones pendientes */}
-        <Card>
+        <Card data-tour="usuarios-invitaciones">
           <CardHeader>
             <CardTitle className="font-display text-lg">Invitaciones</CardTitle>
             <CardDescription>

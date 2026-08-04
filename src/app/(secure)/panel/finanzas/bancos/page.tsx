@@ -155,7 +155,11 @@ export default function BancosPage() {
         <RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />
       </Button>
       {canManage && (
-        <Button className="gap-1.5" onClick={() => setNewAccOpen(true)}>
+        <Button
+          data-tour="bancos-nueva"
+          className="gap-1.5"
+          onClick={() => setNewAccOpen(true)}
+        >
           <Plus className="size-4" />
           Nueva cuenta
         </Button>
@@ -172,7 +176,10 @@ export default function BancosPage() {
         actions={actions}
       />
 
-      <div className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div
+        data-tour="bancos-saldo"
+        className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-4"
+      >
         <Kpi
           icon={CircleDollarSign}
           label="Saldo total"
@@ -187,7 +194,7 @@ export default function BancosPage() {
         )}
       </div>
 
-      <Card>
+      <Card data-tour="bancos-cuentas">
         <CardContent className="p-0">
           {loading ? (
             <div className="flex flex-col gap-2 p-4">
