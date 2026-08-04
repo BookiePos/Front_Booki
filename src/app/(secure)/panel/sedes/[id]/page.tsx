@@ -608,7 +608,12 @@ export default function SedeDetailPage() {
           {loading ? (
             <Skeleton className="h-72 w-full rounded-lg" />
           ) : (
-            <SedeMap address={sede?.address} name={sede?.name} />
+            <SedeMap
+              address={sede?.address}
+              ciudad={sede?.ciudad}
+              departamento={sede?.departamento}
+              name={sede?.name}
+            />
           )}
         </CardContent>
       </Card>

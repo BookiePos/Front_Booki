@@ -13,7 +13,17 @@ import { MapPin } from "lucide-react"
  * "Maps Embed API" en la consola de Google Cloud y restringir la key por
  * dominio (HTTP referrer) para que sea segura al exponerse en el cliente.
  */
-export function SedeMap({ address, name }: { address?: string | null; name?: string }) {
+export function SedeMap({
+  address,
+  ciudad,
+  departamento,
+  name,
+}: {
+  address?: string | null
+  ciudad?: string | null
+  departamento?: string | null
+  name?: string
+}) {
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY
 
   // Sin dirección no hay nada que geocodificar.
@@ -46,9 +56,14 @@ export function SedeMap({ address, name }: { address?: string | null; name?: str
     )
   }
 
-  // Sesgamos la geocodificación a Colombia para mejorar la precisión de
-  // direcciones locales (calles/carreras).
-  const query = encodeURIComponent(`${address}, Colombia`)
+  // Geocodificamos con la dirección COMPLETA (dirección + ciudad + departamento
+  // + país). Sin la ciudad, una "Calle 10 #5-20" es ambigua y Google la ubica
+  // en cualquier parte de Colombia; con ciudad y departamento cae en el punto
+  // correcto. Se descartan los campos vacíos.
+  const parts = [address, ciudad, departamento, "Colombia"]
+    .map((p) => p?.trim())
+    .filter(Boolean)
+  const query = encodeURIComponent(parts.join(", "))
   const src = `https://www.google.com/maps/embed/v1/place?key=${apiKey}&q=${query}&language=es&region=CO`
 
   return (
