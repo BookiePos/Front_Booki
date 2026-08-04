@@ -187,6 +187,8 @@ export interface PayrollRun {
   totals: PayrollTotals
   createdByEmail?: string
   createdAt: string
+  /** Fecha de cierre (si status === "cerrada"). */
+  closedAt?: string
 }
 
 export interface LiquidacionBreakdown {
@@ -311,6 +313,12 @@ export async function getPayrollRun(id: string): Promise<PayrollRun> {
 export async function deletePayrollRun(id: string): Promise<void> {
   const res = await authFetch(`/payroll/runs/${id}`, { method: "DELETE" })
   await parseResponse<{ ok: boolean }>(res)
+}
+
+/** Cierra una corrida (borrador → cerrada); queda fija en el historial. */
+export async function closePayrollRun(id: string): Promise<PayrollRun> {
+  const res = await authFetch(`/payroll/runs/${id}/close`, { method: "POST" })
+  return parseResponse<PayrollRun>(res)
 }
 
 export interface SendSlipResult {

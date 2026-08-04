@@ -15,6 +15,7 @@ import {
   CalendarClock,
   Mail,
   AlertTriangle,
+  Lock,
 } from "lucide-react"
 
 import { useAuth } from "@/lib/auth-context"
@@ -28,6 +29,7 @@ import {
   listPayrollRuns,
   getPayrollRun,
   deletePayrollRun,
+  closePayrollRun,
   computeLiquidacion,
   novedadesTurnos,
   sendPayrollSlip,
@@ -76,6 +78,13 @@ const inputClass =
 function currentMonth(): string {
   return new Date().toISOString().slice(0, 7)
 }
+function fmtDate(iso: string): string {
+  return new Date(iso).toLocaleDateString("es-CO", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  })
+}
 function errorMessage(err: unknown): string {
   if (err instanceof ApiError) return err.message
   if (err instanceof Error) return err.message
@@ -119,6 +128,17 @@ export default function NominaPage() {
       setError(errorMessage(err))
     } finally {
       setLoading(false)
+    }
+  }, [canManage])
+
+  // Refresco solo del historial de corridas, SIN togglear `loading` (que
+  // desmontaría la pestaña activa y perdería el detalle recién generado).
+  const refreshRuns = React.useCallback(async () => {
+    if (!canManage) return
+    try {
+      setRuns(await listPayrollRuns())
+    } catch {
+      /* no-op */
     }
   }, [canManage])
 
@@ -191,7 +211,8 @@ export default function NominaPage() {
             <CorrerNomina
               sedes={sedes}
               employees={employees}
-              onRan={() => void load()}
+              runs={runs}
+              onRan={() => void refreshRuns()}
             />
           )}
           {tab === "simulador" && (
@@ -201,7 +222,7 @@ export default function NominaPage() {
             <Liquidacion employees={employees} />
           )}
           {tab === "historial" && (
-            <Historial runs={runs} onChanged={() => void load()} />
+            <Historial runs={runs} onChanged={() => void refreshRuns()} />
           )}
           {tab === "parametros" && (
             <Parametros settings={settings} onSaved={(s) => setSettings(s)} />
@@ -216,10 +237,12 @@ export default function NominaPage() {
 function CorrerNomina({
   sedes,
   employees,
+  runs,
   onRan,
 }: {
   sedes: Sede[]
   employees: Employee[]
+  runs: PayrollRun[]
   onRan: () => void
 }) {
   const [period, setPeriod] = React.useState(currentMonth())
@@ -229,6 +252,45 @@ function CorrerNomina({
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [run, setRun] = React.useState<PayrollRun | null>(null)
+  // Id de la corrida que ya está mostrada (evita recargarla en bucle).
+  const shownIdRef = React.useRef<string | null>(null)
+
+  // La corrida más reciente que coincide con lo seleccionado (período +
+  // cobertura + sede). `runs` viene ordenado por fecha desc del backend.
+  const targetRun = React.useMemo(
+    () =>
+      runs.find(
+        (r) =>
+          r.period === period &&
+          r.coverage === coverage &&
+          (coverage === "all" || r.sedeId === sedeId),
+      ) ?? null,
+    [runs, period, coverage, sedeId],
+  )
+
+  // Muestra abajo "cómo va" la nómina del período: carga el detalle de la
+  // corrida objetivo (con sus desprendibles) cuando cambia.
+  React.useEffect(() => {
+    const id = targetRun?._id ?? null
+    if (id === shownIdRef.current) return
+    if (!id) {
+      shownIdRef.current = null
+      setRun(null)
+      return
+    }
+    let cancelled = false
+    getPayrollRun(id)
+      .then((full) => {
+        if (!cancelled) {
+          shownIdRef.current = id
+          setRun(full)
+        }
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [targetRun])
 
   // Empleados que realmente entran a la nómina: activos, con salario y —si la
   // cobertura es por sede— asignados a esa sede. Es lo mismo que exige el backend.
@@ -254,6 +316,7 @@ function CorrerNomina({
         sedeId: coverage === "sede" ? sedeId : undefined,
         label: label || undefined,
       })
+      shownIdRef.current = r._id
       setRun(r)
       onRan()
     } catch (err) {
@@ -363,22 +426,58 @@ function CorrerNomina({
         <span className="font-medium">Simulador</span>.
       </p>
 
-      {run && <RunDetail run={run} />}
+      {run && (
+        <RunDetail
+          run={run}
+          onChanged={(updated) => {
+            shownIdRef.current = updated._id
+            setRun(updated)
+            onRan()
+          }}
+        />
+      )}
     </div>
   )
 }
 
 // ── Detalle de una corrida (totales + tabla + desprendible) ──────────────────
-function RunDetail({ run }: { run: PayrollRun }) {
+function RunDetail({
+  run,
+  onChanged,
+}: {
+  run: PayrollRun
+  onChanged?: (updated: PayrollRun) => void
+}) {
   const [slip, setSlip] = React.useState<PayrollSlip | null>(null)
   const [sending, setSending] = React.useState(false)
+  const [closing, setClosing] = React.useState(false)
   const [sendMsg, setSendMsg] = React.useState<{ ok: boolean; text: string } | null>(
     null,
   )
 
+  const isClosed = run.status === "cerrada"
+
   function openSlip(s: PayrollSlip) {
     setSlip(s)
     setSendMsg(null)
+  }
+
+  async function handleClose() {
+    if (
+      !window.confirm(
+        `¿Generar el cierre de la nómina de ${run.period}? Quedará fija en el historial y no se podrá eliminar.`,
+      )
+    )
+      return
+    setClosing(true)
+    try {
+      const updated = await closePayrollRun(run._id)
+      onChanged?.(updated)
+    } catch (e) {
+      alert(e instanceof ApiError ? e.message : "No se pudo cerrar la nómina.")
+    } finally {
+      setClosing(false)
+    }
   }
 
   async function handleSend() {
@@ -409,6 +508,49 @@ function RunDetail({ run }: { run: PayrollRun }) {
 
   return (
     <div className="flex flex-col gap-4">
+      {/* Estado del período + cierre */}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card px-4 py-3">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium text-foreground">
+            Nómina {run.period}
+            {run.label ? ` · ${run.label}` : ""}
+          </span>
+          <Badge
+            className={
+              isClosed
+                ? "bg-green-500/10 text-green-600"
+                : "bg-amber-500/10 text-amber-600"
+            }
+          >
+            {isClosed ? "Cerrada" : "Borrador"}
+          </Badge>
+          <span className="text-xs text-muted-foreground">
+            {run.slips.length} empleado{run.slips.length !== 1 ? "s" : ""}
+          </span>
+        </div>
+        {isClosed ? (
+          <span className="text-xs text-muted-foreground">
+            Cerrada el {run.closedAt ? fmtDate(run.closedAt) : "—"}
+          </span>
+        ) : (
+          onChanged && (
+            <Button
+              size="sm"
+              className="gap-2"
+              disabled={closing || run.slips.length === 0}
+              onClick={() => void handleClose()}
+            >
+              {closing ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Lock className="size-4" />
+              )}
+              Generar cierre
+            </Button>
+          )
+        )}
+      </div>
+
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <Kpi label="Neto a pagar" value={money.format(run.totals.neto)} accent />
         <Kpi label="Total devengado" value={money.format(run.totals.devengado)} />
@@ -1067,6 +1209,7 @@ function Historial({
               <TableRow>
                 <TableHead>Período</TableHead>
                 <TableHead>Etiqueta</TableHead>
+                <TableHead>Estado</TableHead>
                 <TableHead className="text-right">Neto</TableHead>
                 <TableHead className="text-right">Costo</TableHead>
                 <TableHead className="text-right"></TableHead>
@@ -1077,6 +1220,17 @@ function Historial({
                 <TableRow key={r._id}>
                   <TableCell className="font-medium">{r.period}</TableCell>
                   <TableCell>{r.label ?? "—"}</TableCell>
+                  <TableCell>
+                    <Badge
+                      className={
+                        r.status === "cerrada"
+                          ? "bg-green-500/10 text-green-600"
+                          : "bg-amber-500/10 text-amber-600"
+                      }
+                    >
+                      {r.status === "cerrada" ? "Cerrada" : "Borrador"}
+                    </Badge>
+                  </TableCell>
                   <TableCell className="text-right tabular-nums">
                     {money.format(r.totals.neto)}
                   </TableCell>
@@ -1097,14 +1251,16 @@ function Historial({
                           "Ver"
                         )}
                       </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                        onClick={() => void remove(r._id)}
-                      >
-                        <Trash2 className="size-4" />
-                      </Button>
+                      {r.status !== "cerrada" && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                          onClick={() => void remove(r._id)}
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>
@@ -1116,7 +1272,13 @@ function Historial({
 
       {open && (
         <div className="mt-4">
-          <RunDetail run={open} />
+          <RunDetail
+            run={open}
+            onChanged={(updated) => {
+              setOpen(updated)
+              onChanged()
+            }}
+          />
         </div>
       )}
     </>
