@@ -496,7 +496,11 @@ export default function SedeDetailPage() {
             </Button>
             {sede && (
               <>
-                <Button variant="outline" onClick={() => setEditOpen(true)}>
+                <Button
+                  variant="outline"
+                  data-tour="sede-editar"
+                  onClick={() => setEditOpen(true)}
+                >
                   <Pencil />
                   Editar
                 </Button>

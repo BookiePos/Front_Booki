@@ -27,9 +27,12 @@ interface Step {
   id: string
   title: string
   body: string
+  /** Destino del CTA. Se ignora si el paso define `action`. */
   href: string
   cta: string
   icon: LucideIcon
+  /** Si se define, el CTA ejecuta esta acción en vez de navegar a `href`. */
+  action?: () => void
   /** Comprobación automática de "hecho" contra datos reales (opcional). */
   derive?: () => Promise<boolean>
 }
@@ -48,6 +51,7 @@ export function OnboardingChecklist() {
     isStepCompleted,
     markStepCompleted,
     openGuide,
+    startSedeGuide,
   } = useOnboarding()
 
   const steps = React.useMemo<Step[]>(() => {
@@ -55,10 +59,11 @@ export function OnboardingChecklist() {
       {
         id: "sede",
         title: "Personaliza tu sede",
-        body: "Agrega tu NIT y datos fiscales para poder facturar.",
+        body: "Te guío paso a paso para editar el nombre, la dirección y los datos fiscales.",
         href: "/panel/sedes",
-        cta: "Configurar",
+        cta: "Personalizar",
         icon: Store,
+        action: startSedeGuide,
       },
       {
         id: "productos",
@@ -112,7 +117,7 @@ export function OnboardingChecklist() {
     }
 
     return list
-  }, [isRetail, isRestaurant, hasPermission])
+  }, [isRetail, isRestaurant, hasPermission, startSedeGuide])
 
   // Estado "hecho" derivado de datos (best-effort, no bloquea el render).
   const [derived, setDerived] = React.useState<Record<string, boolean>>({})
@@ -260,6 +265,19 @@ export function OnboardingChecklist() {
                     <span className="shrink-0 text-xs font-medium text-success">
                       Hecho
                     </span>
+                  ) : step.action ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="shrink-0 gap-1"
+                      onClick={() => {
+                        markStepCompleted(step.id)
+                        step.action?.()
+                      }}
+                    >
+                      {step.cta}
+                      <ChevronRight className="size-4" />
+                    </Button>
                   ) : (
                     <Button
                       size="sm"

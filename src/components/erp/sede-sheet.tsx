@@ -260,7 +260,7 @@ export function SedeSheet({ open, onOpenChange, mode, sede, onSuccess }: SedeShe
             </p>
           </div>
 
-          <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-1.5" data-tour="sede-nombre">
             <Label htmlFor="s-name">Nombre</Label>
             <Input
               id="s-name"
@@ -285,7 +285,7 @@ export function SedeSheet({ open, onOpenChange, mode, sede, onSuccess }: SedeShe
             </p>
           </div>
 
-          <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-1.5" data-tour="sede-direccion">
             <Label htmlFor="s-address">Dirección (opcional)</Label>
             <Input
               id="s-address"
@@ -546,7 +546,7 @@ export function SedeSheet({ open, onOpenChange, mode, sede, onSuccess }: SedeShe
             <SheetClose render={<Button variant="outline" type="button" />}>
               Cancelar
             </SheetClose>
-            <Button type="submit" disabled={saving}>
+            <Button type="submit" data-tour="sede-guardar" disabled={saving}>
               {saving
                 ? "Guardando…"
                 : mode === "create"

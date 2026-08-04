@@ -31,6 +31,9 @@ const EMPTY: OnboardingState = {
   completedSteps: [],
 }
 
+/** Qué recorrido guiado está activo. */
+export type GuideId = "product" | "sede"
+
 interface OnboardingContextValue {
   /** El diálogo de bienvenida debe estar abierto. */
   welcomeOpen: boolean
@@ -39,11 +42,15 @@ interface OnboardingContextValue {
   /** Reabre la bienvenida (desde el botón "Guía"). */
   openGuide: () => void
 
-  /** El tour interactivo está activo. */
+  /** Recorrido guiado activo (o null si no hay ninguno). */
+  guide: GuideId | null
+  /** El tour interactivo está activo (cualquier recorrido). */
   tourOpen: boolean
-  /** Inicia el tour (cierra la bienvenida). */
+  /** Inicia el tour general de la app (cierra la bienvenida). */
   startTour: () => void
-  /** Termina el tour (por completarlo u omitirlo) y lo marca como visto. */
+  /** Inicia el recorrido paso a paso para personalizar una sede. */
+  startSedeGuide: () => void
+  /** Termina el recorrido activo (por completarlo u omitirlo). */
   finishTour: () => void
 
   /** La checklist de primeros pasos está oculta. */
@@ -91,7 +98,7 @@ export function OnboardingProvider({
 
   const [state, setState] = useState<OnboardingState>(EMPTY)
   const [ready, setReady] = useState(false)
-  const [tourOpen, setTourOpen] = useState(false)
+  const [guide, setGuide] = useState<GuideId | null>(null)
   /** Reapertura manual de la bienvenida aunque ya se haya visto. */
   const [guideForced, setGuideForced] = useState(false)
 
@@ -122,7 +129,7 @@ export function OnboardingProvider({
   }, [persist])
 
   const openGuide = useCallback(() => {
-    setTourOpen(false)
+    setGuide(null)
     setGuideForced(true)
     // Reabrir la guía también repone la checklist si estaba oculta.
     persist((prev) =>
@@ -133,11 +140,16 @@ export function OnboardingProvider({
   const startTour = useCallback(() => {
     setGuideForced(false)
     persist((prev) => ({ ...prev, welcomeSeen: true }))
-    setTourOpen(true)
+    setGuide("product")
   }, [persist])
 
+  const startSedeGuide = useCallback(() => {
+    setGuideForced(false)
+    setGuide("sede")
+  }, [])
+
   const finishTour = useCallback(() => {
-    setTourOpen(false)
+    setGuide(null)
     persist((prev) => ({ ...prev, tourSeen: true }))
   }, [persist])
 
@@ -177,8 +189,10 @@ export function OnboardingProvider({
       welcomeOpen,
       dismissWelcome,
       openGuide,
-      tourOpen,
+      guide,
+      tourOpen: guide !== null,
       startTour,
+      startSedeGuide,
       finishTour,
       checklistHidden: state.checklistHidden,
       hideChecklist,
@@ -190,8 +204,9 @@ export function OnboardingProvider({
       welcomeOpen,
       dismissWelcome,
       openGuide,
-      tourOpen,
+      guide,
       startTour,
+      startSedeGuide,
       finishTour,
       state.checklistHidden,
       hideChecklist,

@@ -173,9 +173,10 @@ export default function SedesPage() {
             {activeCount} activa{activeCount !== 1 ? "s" : ""}
           </p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {sedes.map((sede) => (
+            {sedes.map((sede, i) => (
               <Card
                 key={sede._id}
+                data-tour={i === 0 ? "sede-card" : undefined}
                 role="button"
                 tabIndex={0}
                 onClick={() => router.push(`/panel/sedes/${sede._id}`)}
