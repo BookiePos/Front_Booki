@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation"
 
 import { useAuth } from "@/lib/auth-context"
 import { useOnboarding } from "@/lib/onboarding/onboarding-context"
+import { guideForPath } from "@/lib/onboarding/guides"
 import { sedes } from "@/lib/erp/navigation"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
@@ -29,19 +30,15 @@ import {
 
 export function AppTopbar() {
   const { user, logout, canUsePos } = useAuth()
-  const { openGuide, startSedeGuide } = useOnboarding()
+  const { openGuide, startGuide } = useOnboarding()
   const router = useRouter()
   const pathname = usePathname()
 
-  // Guías dedicadas por sección: el botón "Guía" abre el recorrido de la
-  // pestaña actual. Si la sección no tiene uno propio, cae a la bienvenida.
-  const sectionGuides: { test: RegExp; start: () => void }[] = [
-    { test: /^\/panel\/sedes/, start: startSedeGuide },
-  ]
-
+  // El botón "Guía" abre el recorrido de la sección actual (registrado en
+  // `guides/`). Si la sección no tiene uno propio, cae a la bienvenida.
   function handleGuide() {
-    const match = sectionGuides.find((g) => g.test.test(pathname))
-    if (match) match.start()
+    const match = guideForPath(pathname)
+    if (match) startGuide(match.id)
     else openGuide()
   }
 

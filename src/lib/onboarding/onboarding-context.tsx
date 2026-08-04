@@ -31,8 +31,11 @@ const EMPTY: OnboardingState = {
   completedSteps: [],
 }
 
-/** Qué recorrido guiado está activo. */
-export type GuideId = "product" | "sede"
+/**
+ * Id del recorrido guiado activo. "product" = tour general de bienvenida; el
+ * resto son ids de recorridos por sección registrados en `guides/`.
+ */
+export type GuideId = string
 
 interface OnboardingContextValue {
   /** El diálogo de bienvenida debe estar abierto. */
@@ -46,6 +49,8 @@ interface OnboardingContextValue {
   guide: GuideId | null
   /** El tour interactivo está activo (cualquier recorrido). */
   tourOpen: boolean
+  /** Inicia un recorrido por su id (registrado en `guides/`). */
+  startGuide: (id: GuideId) => void
   /** Inicia el tour general de la app (cierra la bienvenida). */
   startTour: () => void
   /** Inicia el recorrido paso a paso para personalizar una sede. */
@@ -137,6 +142,11 @@ export function OnboardingProvider({
     )
   }, [persist])
 
+  const startGuide = useCallback((id: GuideId) => {
+    setGuideForced(false)
+    setGuide(id)
+  }, [])
+
   const startTour = useCallback(() => {
     setGuideForced(false)
     persist((prev) => ({ ...prev, welcomeSeen: true }))
@@ -191,6 +201,7 @@ export function OnboardingProvider({
       openGuide,
       guide,
       tourOpen: guide !== null,
+      startGuide,
       startTour,
       startSedeGuide,
       finishTour,
@@ -205,6 +216,7 @@ export function OnboardingProvider({
       dismissWelcome,
       openGuide,
       guide,
+      startGuide,
       startTour,
       startSedeGuide,
       finishTour,
