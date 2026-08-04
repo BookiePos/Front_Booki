@@ -151,7 +151,6 @@ function cashSuggestions(total: number): number[] {
 export default function VentaPage() {
   const { hasPermission, isRetail } = useAuth()
   const canSell = hasPermission("pos.sell")
-  const canDiscount = hasPermission("pos.discount.authorize")
 
   const { sedeId, sede, sedes, loading: sedesLoading } = useSede()
 
@@ -213,10 +212,6 @@ export default function VentaPage() {
   // La ayuda de "configurar impresión" solo se muestra hasta la primera
   // impresión; luego se recuerda en el navegador y deja de aparecer.
   const [printConfigured, setPrintConfigured] = React.useState(false)
-  const [discountType, setDiscountType] = React.useState<
-    "none" | "percent" | "amount"
-  >("none")
-  const [discountValue, setDiscountValue] = React.useState("")
   // Datos del cliente (factura)
   const [showCustomer, setShowCustomer] = React.useState(false)
   const [customer, setCustomer] = React.useState<Customer>({})
@@ -297,7 +292,7 @@ export default function VentaPage() {
   }, [sedeId])
 
   const fetchDiscounts = React.useCallback(async () => {
-    if (!sedeId || !canDiscount) {
+    if (!sedeId) {
       setDiscounts([])
       return
     }
@@ -306,7 +301,7 @@ export default function VentaPage() {
     } catch {
       setDiscounts([])
     }
-  }, [sedeId, canDiscount])
+  }, [sedeId])
 
   const refreshCaja = React.useCallback(async () => {
     if (!sedeId) {
@@ -716,8 +711,6 @@ export default function VentaPage() {
     setMethod("cash")
     setReceived("")
     setCreditDue("")
-    setDiscountType("none")
-    setDiscountValue("")
     setShowCustomer(false)
     setCustomer({})
     setCheckoutError(null)
@@ -737,17 +730,9 @@ export default function VentaPage() {
     if (method === "credit") setShowCustomer(true)
   }, [method])
 
-  // Descuento aplicado en el cobro (acotado a [0, total]).
-  const discountInput = discountValue ? Number(discountValue) : 0
-  const discountAmount =
-    discountType === "none" || !(discountInput > 0)
-      ? 0
-      : discountType === "percent"
-        ? Math.round(
-            Math.min((total * Math.min(discountInput, 100)) / 100, total) * 100,
-          ) / 100
-        : Math.min(discountInput, total)
-  const netTotal = Math.max(total - discountAmount, 0)
+  // Total a cobrar. Los descuentos son solo los predefinidos por línea (ya
+  // netos en `total`); en el POS no se permiten descuentos libres.
+  const netTotal = total
 
   const receivedNum = received ? Number(received) : undefined
   const change =
@@ -789,10 +774,6 @@ export default function VentaPage() {
       employeeId:
         method === "credit" && debtorType === "employee" ? empId : undefined,
     }
-    const discount =
-      discountType !== "none" && discountInput > 0
-        ? { type: discountType, value: discountInput }
-        : undefined
     const customerData = cleanCustomer()
     try {
       let sale: Sale
@@ -805,7 +786,6 @@ export default function VentaPage() {
         })
         sale = await checkoutOrder(activeOrderId, {
           payment,
-          discount,
           customer: customerData,
         })
         setOrders((prev) => prev.filter((o) => o._id !== activeOrderId))
@@ -821,7 +801,6 @@ export default function VentaPage() {
             discountId: i.discountId,
           })),
           payment,
-          discount,
           customer: customerData,
         })
       }
@@ -1385,7 +1364,7 @@ export default function VentaPage() {
                       )}
                     </div>
                     <div className="flex items-center gap-1">
-                      {canDiscount && discounts.length > 0 && (
+                      {discounts.length > 0 && (
                         <DropdownMenu>
                           <DropdownMenuTrigger
                             render={
@@ -1640,66 +1619,19 @@ export default function VentaPage() {
                 <p className="mt-2 text-sm text-primary-foreground/80">
                   {sede ? `${sede.name} · ` : ""}
                   {itemCount} ítem(s)
-                  {discountAmount > 0 && (
+                  {lineDiscountTotal > 0 && (
                     <>
                       {" · "}
                       <span className="line-through opacity-70">
-                        {money(total)}
+                        {money(total + lineDiscountTotal)}
                       </span>{" "}
-                      −{money(discountAmount)}
+                      −{money(lineDiscountTotal)}
                     </>
                   )}
                 </p>
               </div>
 
               <div className="flex flex-col gap-4 px-6 py-5">
-
-                {canDiscount && (
-                  <div className="flex flex-col gap-1.5">
-                    <Label>Descuento</Label>
-                    <div className="grid grid-cols-3 gap-1 rounded-lg border border-border bg-muted p-1">
-                      {(
-                        [
-                          ["none", "Ninguno"],
-                          ["percent", "%"],
-                          ["amount", "$"],
-                        ] as const
-                      ).map(([key, lbl]) => (
-                        <button
-                          key={key}
-                          type="button"
-                          onClick={() => {
-                            setDiscountType(key)
-                            if (key === "none") setDiscountValue("")
-                          }}
-                          className={cn(
-                            "rounded-md px-2 py-2 text-xs font-medium transition-colors",
-                            discountType === key
-                              ? "bg-background text-foreground shadow-xs"
-                              : "text-muted-foreground hover:text-foreground",
-                          )}
-                        >
-                          {lbl}
-                        </button>
-                      ))}
-                    </div>
-                    {discountType !== "none" && (
-                      <Input
-                        type="number"
-                        min="0"
-                        step="any"
-                        value={discountValue}
-                        onChange={(e) => setDiscountValue(e.target.value)}
-                        placeholder={
-                          discountType === "percent"
-                            ? "% de descuento"
-                            : "Monto en $"
-                        }
-                      />
-                    )}
-                  </div>
-                )}
-
                 <div className="flex flex-col gap-1.5">
                   <Label>Medio de pago</Label>
                   <div className="grid grid-cols-2 gap-1 rounded-lg border border-border bg-muted p-1">
