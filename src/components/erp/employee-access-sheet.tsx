@@ -163,8 +163,12 @@ export function EmployeeAccessSheet({
         role,
         sedeIds: sedeId ? [sedeId] : [],
       })
-      // Vincula el usuario al expediente del empleado.
-      await updateEmployee(employee._id, { userId: user.id })
+      // Vincula el usuario al expediente y, si se creó desde una sede, asigna
+      // también el empleado a esa sede (para su nómina y control de horas).
+      await updateEmployee(employee._id, {
+        userId: user.id,
+        ...(sedeId ? { sedeId } : {}),
+      })
       onSuccess(user)
       onOpenChange(false)
     } catch (err) {

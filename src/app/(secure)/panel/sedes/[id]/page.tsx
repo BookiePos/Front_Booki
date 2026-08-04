@@ -24,6 +24,7 @@ import {
   Tag,
   Trash2,
   ShoppingCart,
+  KeyRound,
 } from "lucide-react"
 
 import { useAuth } from "@/lib/auth-context"
@@ -50,7 +51,7 @@ import {
   type AdminUser,
   type AdminRole,
 } from "@/lib/api-admin"
-import { listEmployees, type Employee } from "@/lib/erp/api-employees"
+import { listEmployees, updateEmployee, type Employee } from "@/lib/erp/api-employees"
 import { ApiError } from "@/lib/api"
 
 import { PageHeader } from "@/components/erp/page-header"
@@ -182,28 +183,30 @@ function AssignEmployeesSheet({
     [users],
   )
 
-  // Empleados no retirados que aún no operan esta sede: los que tienen usuario
-  // (y no está ya asignado) se pueden asignar; a los que no, se les crea acceso.
+  // Empleados no retirados que aún no están asignados a esta sede. Se pueden
+  // asignar todos (con o sin usuario); los que tienen usuario se muestran primero.
   const candidates = React.useMemo(
     () =>
       employees
-        .filter((e) => e.status !== "retirado")
+        .filter((e) => e.status !== "retirado" && e.sedeId !== sedeId)
         .map((e) => ({
           employee: e,
           user: e.userId ? userById.get(e.userId) : undefined,
         }))
-        .filter(({ user }) => !user || !user.sedeIds.includes(sedeId))
-        // Primero los que ya tienen usuario (se pueden asignar), luego los que
-        // necesitan que se les cree el acceso.
         .sort((a, b) => (a.user ? 0 : 1) - (b.user ? 0 : 1)),
     [employees, userById, sedeId],
   )
 
-  async function assign(u: AdminUser) {
-    setBusyId(u.id)
+  async function assign(employee: Employee, user?: AdminUser) {
+    setBusyId(employee._id)
     setError(null)
     try {
-      await updateUser(u.id, { sedeIds: [...u.sedeIds, sedeId] })
+      // Asignar el expediente a la sede → aparece en su nómina y control de horas.
+      await updateEmployee(employee._id, { sedeId })
+      // Si tiene usuario, también habilitarlo para operar esta sede en el POS.
+      if (user && !user.sedeIds.includes(sedeId)) {
+        await updateUser(user.id, { sedeIds: [...user.sedeIds, sedeId] })
+      }
       onChanged()
     } catch (err) {
       setError(errorMessage(err))
@@ -221,9 +224,9 @@ function AssignEmployeesSheet({
               Asignar empleados
             </SheetTitle>
             <SheetDescription>
-              Empleados que pueden operar en{" "}
-              <span className="font-medium">{sedeName}</span>. Si ya tienen
-              usuario, asígnalos; si no, créales un acceso.
+              Asigna empleados a <span className="font-medium">{sedeName}</span>{" "}
+              para su nómina y control de horas. Si además van a vender, créales
+              un acceso al POS.
             </SheetDescription>
           </SheetHeader>
 
@@ -235,7 +238,7 @@ function AssignEmployeesSheet({
             )}
             {candidates.length === 0 ? (
               <p className="py-10 text-center text-sm text-muted-foreground">
-                No hay empleados disponibles. Regístralos en Personal →
+                No hay empleados por asignar. Regístralos en Personal →
                 Empleados.
               </p>
             ) : (
@@ -249,32 +252,31 @@ function AssignEmployeesSheet({
                       {employee.firstName} {employee.lastName}
                     </p>
                     <p className="truncate text-xs text-muted-foreground">
+                      {employee.positionName ?? "Sin cargo"}
                       {user
-                        ? user.username
-                          ? `@${user.username}`
-                          : user.email
-                        : employee.positionName ?? "Sin acceso al sistema"}
+                        ? ` · @${user.username ?? user.email}`
+                        : " · sin acceso"}
                     </p>
                   </div>
-                  {user ? (
+                  {!user && (
                     <Button
                       size="sm"
-                      disabled={busyId === user.id}
-                      onClick={() => void assign(user)}
-                    >
-                      <UserPlus />
-                      Asignar
-                    </Button>
-                  ) : (
-                    <Button
-                      size="sm"
-                      variant="outline"
+                      variant="ghost"
+                      disabled={busyId === employee._id}
                       onClick={() => setAccessFor(employee)}
                     >
-                      <UserPlus />
+                      <KeyRound />
                       Crear acceso
                     </Button>
                   )}
+                  <Button
+                    size="sm"
+                    disabled={busyId === employee._id}
+                    onClick={() => void assign(employee, user)}
+                  >
+                    <UserPlus />
+                    Asignar
+                  </Button>
                 </div>
               ))
             )}
@@ -416,10 +418,16 @@ export default function SedeDetailPage() {
     (alerts?.expired.length ?? 0) +
     (alerts?.expiringSoon.length ?? 0)
 
-  // Usuarios que ya operan en esta sede (los que muestra la tarjeta "Empleados").
-  const assignedUsers = React.useMemo(
-    () => users.filter((u) => u.sedeIds.includes(sedeId)),
-    [users, sedeId],
+  const userById = React.useMemo(
+    () => new Map(users.map((u) => [u.id, u])),
+    [users],
+  )
+
+  // Empleados asignados a esta sede (por `sedeId` del expediente): son los que
+  // aparecen en el control de horas y la nómina del POS de esta sede.
+  const assignedEmployees = React.useMemo(
+    () => employees.filter((e) => e.sedeId === sedeId),
+    [employees, sedeId],
   )
 
   async function handleToggle() {
@@ -443,14 +451,25 @@ export default function SedeDetailPage() {
     }
   }
 
-  async function removeEmployee(u: AdminUser) {
-    if (!window.confirm(`¿Quitar a ${u.name} de esta sede?`)) return
-    setBusyUserId(u.id)
+  async function removeEmployee(e: Employee) {
+    if (
+      !window.confirm(
+        `¿Quitar a ${e.firstName} ${e.lastName} de esta sede? Dejará de aparecer en su nómina y control de horas.`,
+      )
+    )
+      return
+    setBusyUserId(e._id)
     try {
-      await updateUser(u.id, {
-        sedeIds: u.sedeIds.filter((id) => id !== sedeId),
-      })
-      await fetchUsers()
+      // Desasigna el expediente de la sede.
+      await updateEmployee(e._id, { sedeId: "" })
+      // Si tiene usuario, también le quitamos el acceso a operar esta sede.
+      const u = e.userId ? userById.get(e.userId) : undefined
+      if (u && u.sedeIds.includes(sedeId)) {
+        await updateUser(u.id, {
+          sedeIds: u.sedeIds.filter((id) => id !== sedeId),
+        })
+      }
+      await Promise.all([fetchEmployees(), fetchUsers()])
     } catch (err) {
       alert(errorMessage(err))
     } finally {
@@ -918,7 +937,7 @@ export default function SedeDetailPage() {
                   <Skeleton key={i} className="h-12 rounded-lg" />
                 ))}
               </div>
-            ) : assignedUsers.length === 0 ? (
+            ) : assignedEmployees.length === 0 ? (
               <div className="flex flex-col items-center gap-2 py-8 text-center">
                 <Users className="size-8 text-muted-foreground" />
                 <p className="text-sm text-muted-foreground">
@@ -927,36 +946,42 @@ export default function SedeDetailPage() {
               </div>
             ) : (
               <ul className="flex flex-col gap-2">
-                {assignedUsers.map((u) => (
-                  <li
-                    key={u.id}
-                    className="flex items-center gap-3 rounded-lg border border-border px-3 py-2.5"
-                  >
-                    <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium uppercase text-muted-foreground">
-                      {u.name.slice(0, 2)}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">{u.name}</p>
-                      <p className="truncate text-xs text-muted-foreground">
-                        {u.username ? `@${u.username}` : u.email}
-                      </p>
-                    </div>
-                    <Badge variant="secondary">{roleName(u.role)}</Badge>
-                    <Badge variant={u.active ? "default" : "outline"}>
-                      {u.active ? "Activo" : "Inactivo"}
-                    </Badge>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                      disabled={busyUserId === u.id}
-                      onClick={() => void removeEmployee(u)}
+                {assignedEmployees.map((e) => {
+                  const u = e.userId ? userById.get(e.userId) : undefined
+                  return (
+                    <li
+                      key={e._id}
+                      className="flex items-center gap-3 rounded-lg border border-border px-3 py-2.5"
                     >
-                      <UserMinus />
-                      <span className="sr-only">Quitar a {u.name}</span>
-                    </Button>
-                  </li>
-                ))}
+                      <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium uppercase text-muted-foreground">
+                        {e.firstName.slice(0, 1)}
+                        {e.lastName.slice(0, 1)}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium">
+                          {e.firstName} {e.lastName}
+                        </p>
+                        <p className="truncate text-xs text-muted-foreground">
+                          {e.positionName ?? "Sin cargo"}
+                          {u ? ` · @${u.username ?? u.email}` : " · sin acceso"}
+                        </p>
+                      </div>
+                      {u && <Badge variant="secondary">{roleName(u.role)}</Badge>}
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                        disabled={busyUserId === e._id}
+                        onClick={() => void removeEmployee(e)}
+                      >
+                        <UserMinus />
+                        <span className="sr-only">
+                          Quitar a {e.firstName} {e.lastName}
+                        </span>
+                      </Button>
+                    </li>
+                  )
+                })}
               </ul>
             )}
           </CardContent>
