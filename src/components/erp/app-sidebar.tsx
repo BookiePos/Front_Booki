@@ -4,7 +4,8 @@ import { GoCheckMark } from "@/components/marketing/gocheck-logo"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 
-import { dashboardItem, navSections } from "@/lib/erp/navigation"
+import { useAuth } from "@/lib/auth-context"
+import { dashboardItem, getNavSections } from "@/lib/erp/navigation"
 import {
   Sidebar,
   SidebarContent,
@@ -31,8 +32,19 @@ function isActivePath(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(href + "/")
 }
 
+/** Rótulo del giro bajo la marca (Panel · Restaurante / Panel · Tienda). */
+const BUSINESS_LABEL: Record<string, string> = {
+  restaurante: "Panel · Restaurante",
+  retail: "Panel · Tienda",
+}
+
 export function AppSidebar() {
   const pathname = usePathname()
+  const { tipoNegocio } = useAuth()
+  const navSections = getNavSections(tipoNegocio)
+  const brandCaption = tipoNegocio
+    ? BUSINESS_LABEL[tipoNegocio]
+    : "Panel operativo"
 
   // Ítem activo: píldora violeta sólida, no una barrita de 3px. En una lista
   // de 27 destinos, un indicador de bajo contraste obliga a buscar dónde
@@ -63,7 +75,7 @@ export function AppSidebar() {
               GoCheck
             </span>
             <span className="text-[11px] tracking-wide text-muted-foreground uppercase">
-              Panel operativo
+              {brandCaption}
             </span>
           </div>
         </div>

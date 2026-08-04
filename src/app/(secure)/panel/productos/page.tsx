@@ -146,6 +146,8 @@ interface ProductSheetProps {
   invProducts: InvProduct[]
   categories: InvCategory[]
   onSuccess: () => void
+  /** Retail no maneja recetas: se oculta el selector de origen. */
+  isRetail?: boolean
 }
 
 function ProductSheet({
@@ -156,6 +158,7 @@ function ProductSheet({
   invProducts,
   categories,
   onSuccess,
+  isRetail = false,
 }: ProductSheetProps) {
   const [sku, setSku] = React.useState("")
   const [name, setName] = React.useState("")
@@ -222,7 +225,9 @@ function ProductSheet({
         setCategoryId(product.categoryId?._id ?? "none")
         setSalePrice(String(product.salePrice ?? ""))
         setIvaSel(ivaKey(product.ivaRate ?? 19, product.ivaType ?? "gravado"))
-        setSourceType(product.sourceType)
+        // Retail nunca usa receta; si por datos viejos llegara una, se trata
+        // como "del inventario" para que la ficha sea coherente con el giro.
+        setSourceType(isRetail ? "inventory" : product.sourceType)
         const linked =
           typeof product.inventoryProductId === "object"
             ? product.inventoryProductId
@@ -260,7 +265,7 @@ function ProductSheet({
       setError(null)
     }
     void reset()
-  }, [open, mode, product])
+  }, [open, mode, product, isRetail])
 
   function updateRecipeRow(i: number, patch: Partial<RecipeRow>) {
     setRecipe((rows) =>
@@ -353,42 +358,45 @@ function ProductSheet({
         </SheetHeader>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4 px-4 py-2">
-          {/* Origen del producto */}
-          <div className="flex flex-col gap-1.5">
-            <Label>Origen</Label>
-            <div className="grid grid-cols-2 gap-1 rounded-lg border border-border bg-muted p-1">
-              {(
-                [
-                  ["inventory", "Del inventario"],
-                  ["recipe", "Con receta"],
-                ] as [CatalogSourceType, string][]
-              ).map(([key, label]) => (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => {
-                    setSourceType(key)
-                    // En modo inventario el SKU lo fija el ítem; si aún no hay
-                    // ítem elegido, se limpia para no arrastrar el de una receta.
-                    if (key === "inventory" && !inventoryProductId) setSku("")
-                  }}
-                  className={cn(
-                    "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-                    sourceType === key
-                      ? "bg-background text-foreground shadow-xs"
-                      : "text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  {label}
-                </button>
-              ))}
+          {/* Origen del producto — retail solo vende ítems del inventario, así
+              que se oculta el selector (no maneja recetas). */}
+          {!isRetail && (
+            <div className="flex flex-col gap-1.5">
+              <Label>Origen</Label>
+              <div className="grid grid-cols-2 gap-1 rounded-lg border border-border bg-muted p-1">
+                {(
+                  [
+                    ["inventory", "Del inventario"],
+                    ["recipe", "Con receta"],
+                  ] as [CatalogSourceType, string][]
+                ).map(([key, label]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => {
+                      setSourceType(key)
+                      // En modo inventario el SKU lo fija el ítem; si aún no hay
+                      // ítem elegido, se limpia para no arrastrar el de una receta.
+                      if (key === "inventory" && !inventoryProductId) setSku("")
+                    }}
+                    className={cn(
+                      "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                      sourceType === key
+                        ? "bg-background text-foreground shadow-xs"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {sourceType === "inventory"
+                  ? "Se vende un ítem del inventario tal cual; cada venta lo descuenta."
+                  : "Se arma con varios ingredientes; cada venta descuenta cada uno."}
+              </p>
             </div>
-            <p className="text-xs text-muted-foreground">
-              {sourceType === "inventory"
-                ? "Se vende un ítem del inventario tal cual; cada venta lo descuenta."
-                : "Se arma con varios ingredientes; cada venta descuenta cada uno."}
-            </p>
-          </div>
+          )}
 
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-1.5">
@@ -670,7 +678,7 @@ function ProductSheet({
 // ─── Main page ───────────────────────────────────────────────────────────────
 
 export default function ProductosPage() {
-  const { hasPermission } = useAuth()
+  const { hasPermission, isRetail } = useAuth()
   const canView = hasPermission("inventory.view")
   const canManage = hasPermission("inventory.adjust")
 
@@ -800,7 +808,9 @@ export default function ProductosPage() {
               <Package className="size-9 text-muted-foreground" />
               <p className="text-sm text-muted-foreground">
                 {products.length === 0
-                  ? "Aún no hay productos. Crea el primero para venderlo en el POS."
+                  ? isRetail
+                    ? "Aún no hay productos. Crea el primero (con su código de barras) para escanearlo en el POS."
+                    : "Aún no hay productos. Crea el primero para venderlo en el POS."
                   : "Ningún producto coincide con la búsqueda."}
               </p>
             </div>
@@ -810,7 +820,7 @@ export default function ProductosPage() {
                 <TableRow>
                   <TableHead>Producto</TableHead>
                   <TableHead>Categoría</TableHead>
-                  <TableHead>Origen</TableHead>
+                  {!isRetail && <TableHead>Origen</TableHead>}
                   <TableHead>Composición</TableHead>
                   <TableHead className="text-right">Precio</TableHead>
                   <TableHead />
@@ -847,9 +857,11 @@ export default function ProductosPage() {
                           <span className="text-muted-foreground">—</span>
                         )}
                       </TableCell>
-                      <TableCell>
-                        <SourceBadge type={p.sourceType} />
-                      </TableCell>
+                      {!isRetail && (
+                        <TableCell>
+                          <SourceBadge type={p.sourceType} />
+                        </TableCell>
+                      )}
                       <TableCell className="max-w-64 text-sm text-muted-foreground">
                         {p.sourceType === "inventory" ? (
                           linked ? (
@@ -921,6 +933,7 @@ export default function ProductosPage() {
         invProducts={invProducts}
         categories={categories}
         onSuccess={fetchProducts}
+        isRetail={isRetail}
       />
     </>
   )

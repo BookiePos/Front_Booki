@@ -27,6 +27,7 @@ import {
   listSedes,
   listProducts,
   createProduct,
+  createProductVariants,
   updateProduct,
   deleteProduct,
   listCategories,
@@ -338,6 +339,7 @@ function ProductSheet({
   const [categoryId, setCategoryId] = React.useState<string>("none")
   const [unit, setUnit] = React.useState("und")
   const [weight, setWeight] = React.useState("")
+  const [barcode, setBarcode] = React.useState("")
   const [perishable, setPerishable] = React.useState(false)
   const [expiresAt, setExpiresAt] = React.useState("")
   const [minStock, setMinStock] = React.useState("")
@@ -389,6 +391,7 @@ function ProductSheet({
         setCategoryId(product.categoryId?._id ?? "none")
         setUnit(product.unit)
         setWeight(product.weight != null ? String(product.weight) : "")
+        setBarcode(product.barcode ?? "")
         setPerishable(product.perishable)
         setExpiresAt(product.expiresAt ? product.expiresAt.slice(0, 10) : "")
         setMinStock(String(product.minStock ?? 0))
@@ -405,6 +408,7 @@ function ProductSheet({
         setCategoryId("none")
         setUnit("und")
         setWeight("")
+        setBarcode("")
         setPerishable(false)
         setExpiresAt("")
         setMinStock("")
@@ -454,6 +458,7 @@ function ProductSheet({
         categoryId: catId,
         unit: isIngredient ? unit : "und",
         weight: weight ? Number(weight) : undefined,
+        barcode: barcode.trim() || undefined,
         perishable: perishableFinal,
         // Los montajes controlan lotes: cada entrada queda registrada.
         trackLots: isIngredient ? perishableFinal : true,
@@ -596,6 +601,21 @@ function ProductSheet({
               />
             </div>
           )}
+
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="p-barcode">Código de barras</Label>
+            <Input
+              id="p-barcode"
+              value={barcode}
+              onChange={(e) => setBarcode(e.target.value)}
+              placeholder="Escanéalo o escríbelo (opcional)"
+              inputMode="numeric"
+              autoComplete="off"
+            />
+            <span className="text-xs text-muted-foreground">
+              Permite agregarlo al carrito escaneándolo en el punto de venta.
+            </span>
+          </div>
 
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="p-desc">Descripción</Label>
@@ -1828,8 +1848,302 @@ function CategoriesSheet({
 
 type Tab = "productos" | "existencias" | "movimientos"
 
+// ─── Variants sheet (producto con variantes, retail) ─────────────────────────
+
+interface AxisRow {
+  name: string
+  /** Valores separados por coma, tal como los escribe el usuario. */
+  valuesText: string
+}
+
+function VariantsSheet({
+  open,
+  onOpenChange,
+  categories,
+  onSuccess,
+}: {
+  open: boolean
+  onOpenChange: (v: boolean) => void
+  categories: InvCategory[]
+  onSuccess: () => void
+}) {
+  const [skuPrefix, setSkuPrefix] = React.useState("")
+  const [name, setName] = React.useState("")
+  const [categoryId, setCategoryId] = React.useState("none")
+  const [salePrice, setSalePrice] = React.useState("")
+  const [cost, setCost] = React.useState("")
+  const [minStock, setMinStock] = React.useState("")
+  const [axes, setAxes] = React.useState<AxisRow[]>([
+    { name: "Talla", valuesText: "" },
+  ])
+  const [saving, setSaving] = React.useState(false)
+  const [error, setError] = React.useState<string | null>(null)
+  const [doneMsg, setDoneMsg] = React.useState<string | null>(null)
+
+  React.useEffect(() => {
+    if (!open) return
+    setSkuPrefix("")
+    setName("")
+    setCategoryId("none")
+    setSalePrice("")
+    setCost("")
+    setMinStock("")
+    setAxes([{ name: "Talla", valuesText: "" }])
+    setError(null)
+    setDoneMsg(null)
+  }, [open])
+
+  /** Ejes con nombre y al menos un valor, ya parseados. */
+  const parsedAxes = axes
+    .map((a) => ({
+      name: a.name.trim(),
+      values: a.valuesText
+        .split(",")
+        .map((v) => v.trim())
+        .filter(Boolean),
+    }))
+    .filter((a) => a.name && a.values.length > 0)
+
+  const comboCount = parsedAxes.reduce((n, a) => n * a.values.length, 1)
+  const willCreate = parsedAxes.length > 0 ? comboCount : 0
+
+  function updateAxis(i: number, patch: Partial<AxisRow>) {
+    setAxes((rows) => rows.map((r, idx) => (idx === i ? { ...r, ...patch } : r)))
+  }
+  function addAxis() {
+    setAxes((rows) => [...rows, { name: "", valuesText: "" }])
+  }
+  function removeAxis(i: number) {
+    setAxes((rows) => (rows.length > 1 ? rows.filter((_, idx) => idx !== i) : rows))
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!skuPrefix.trim()) {
+      setError("Escribe un SKU base para derivar los de cada variante")
+      return
+    }
+    if (!name.trim()) {
+      setError("Escribe el nombre del producto")
+      return
+    }
+    if (parsedAxes.length === 0) {
+      setError("Agrega al menos un eje (p. ej. Talla) con sus valores")
+      return
+    }
+    setSaving(true)
+    setError(null)
+    try {
+      const res = await createProductVariants({
+        skuPrefix: skuPrefix.trim(),
+        name: name.trim(),
+        categoryId: categoryId === "none" ? undefined : categoryId,
+        salePrice: salePrice ? Number(salePrice) : undefined,
+        cost: cost ? Number(cost) : undefined,
+        minStock: minStock ? Number(minStock) : undefined,
+        axes: parsedAxes,
+      })
+      onSuccess()
+      setDoneMsg(
+        `Se crearon ${res.variants.length} variante(s). Registra sus entradas de stock y publícalas en Productos para venderlas.`,
+      )
+    } catch (err) {
+      setError(errorMessage(err))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="right" className="sm:max-w-md overflow-y-auto">
+        <SheetHeader>
+          <SheetTitle className="font-display text-lg">
+            Producto con variantes
+          </SheetTitle>
+          <SheetDescription>
+            Define los ejes (talla, color…) y se crea una fila por cada
+            combinación, con su SKU y stock propios.
+          </SheetDescription>
+        </SheetHeader>
+
+        {doneMsg ? (
+          <div className="flex flex-col gap-4 px-4 py-6">
+            <div className="flex items-start gap-2 rounded-lg bg-success/10 p-3 text-sm text-success">
+              <Check className="mt-0.5 size-4 shrink-0" />
+              <span>{doneMsg}</span>
+            </div>
+            <Button onClick={() => onOpenChange(false)}>Listo</Button>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4 px-4 py-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="v-sku">SKU base</Label>
+                <Input
+                  id="v-sku"
+                  value={skuPrefix}
+                  onChange={(e) => setSkuPrefix(e.target.value.toUpperCase())}
+                  placeholder="p. ej. CAMISA"
+                  required
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="v-price">Precio de venta</Label>
+                <Input
+                  id="v-price"
+                  type="number"
+                  min="0"
+                  step="any"
+                  value={salePrice}
+                  onChange={(e) => setSalePrice(e.target.value)}
+                  placeholder="Opcional"
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="v-name">Nombre</Label>
+              <Input
+                id="v-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="p. ej. Camisa manga larga"
+                required
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="v-cat">Categoría</Label>
+                <Select
+                  value={categoryId}
+                  onValueChange={(val) => {
+                    if (val !== null) setCategoryId(val)
+                  }}
+                >
+                  <SelectTrigger id="v-cat" className="w-full">
+                    <SelectValue placeholder="Sin categoría" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Sin categoría</SelectItem>
+                    {categories.map((c) => (
+                      <SelectItem key={c._id} value={c._id}>
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="v-min">Stock mínimo</Label>
+                <Input
+                  id="v-min"
+                  type="number"
+                  min="0"
+                  step="any"
+                  value={minStock}
+                  onChange={(e) => setMinStock(e.target.value)}
+                  placeholder="Opcional"
+                />
+              </div>
+            </div>
+
+            <Separator />
+
+            <div className="flex items-center justify-between">
+              <Label>Ejes de variación</Label>
+              <Button type="button" variant="outline" size="sm" onClick={addAxis}>
+                <Plus />
+                Agregar eje
+              </Button>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              {axes.map((axis, i) => (
+                <div
+                  key={i}
+                  className="flex flex-col gap-2 rounded-lg border border-border p-2"
+                >
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={axis.name}
+                      onChange={(e) => updateAxis(i, { name: e.target.value })}
+                      placeholder="Eje (p. ej. Talla)"
+                      className="flex-1"
+                      aria-label="Nombre del eje"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label="Quitar eje"
+                      disabled={axes.length <= 1}
+                      onClick={() => removeAxis(i)}
+                    >
+                      <X />
+                    </Button>
+                  </div>
+                  <Input
+                    value={axis.valuesText}
+                    onChange={(e) => updateAxis(i, { valuesText: e.target.value })}
+                    placeholder="Valores separados por coma: S, M, L"
+                    aria-label="Valores del eje"
+                  />
+                </div>
+              ))}
+            </div>
+
+            <div className="rounded-lg bg-accent px-3 py-2 text-sm text-accent-foreground">
+              Se crearán{" "}
+              <span className="font-semibold">{willCreate}</span> variante(s)
+              {willCreate > 0 && skuPrefix.trim() && parsedAxes.length > 0 && (
+                <>
+                  {" "}· ej.{" "}
+                  <span className="font-mono">
+                    {skuPrefix.trim().toUpperCase()}-
+                    {parsedAxes
+                      .map((a) => slugPreview(a.values[0]))
+                      .join("-")}
+                  </span>
+                </>
+              )}
+              .
+            </div>
+
+            <FormError error={error} />
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+              >
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={saving || willCreate === 0}>
+                {saving ? "Creando…" : `Crear ${willCreate || ""} variante(s)`}
+              </Button>
+            </div>
+          </form>
+        )}
+      </SheetContent>
+    </Sheet>
+  )
+}
+
+/** Vista previa del token de SKU de un valor (igual criterio que el backend). */
+function slugPreview(value: string): string {
+  return value
+    .trim()
+    .toUpperCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^A-Z0-9]+/g, "")
+}
+
 export default function InventarioPage() {
-  const { hasPermission } = useAuth()
+  const { hasPermission, isRetail } = useAuth()
   const canView = hasPermission("inventory.view")
   const canAdjust = hasPermission("inventory.adjust")
   const canTransfer = hasPermission("inventory.transfer")
@@ -1874,6 +2188,7 @@ export default function InventarioPage() {
     InvProduct | undefined
   >()
   const [categoriesOpen, setCategoriesOpen] = React.useState(false)
+  const [variantsOpen, setVariantsOpen] = React.useState(false)
   const [entryOpen, setEntryOpen] = React.useState(false)
   const [adjustOpen, setAdjustOpen] = React.useState(false)
   const [transferOpen, setTransferOpen] = React.useState(false)
@@ -2083,6 +2398,15 @@ export default function InventarioPage() {
                   <Tags />
                   Categorías
                 </Button>
+                {isRetail && (
+                  <Button
+                    variant="outline"
+                    onClick={() => setVariantsOpen(true)}
+                  >
+                    <Layers />
+                    Con variantes
+                  </Button>
+                )}
                 <Button
                   onClick={() => {
                     setProductSheetMode("create")
@@ -2273,14 +2597,31 @@ export default function InventarioPage() {
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          <div className="flex flex-col">
-                            <span className="font-medium">{p.name}</span>
-                            {(p.brand || p.description) && (
-                              <span className="max-w-56 truncate text-xs text-muted-foreground">
-                                {[p.brand, p.description]
-                                  .filter(Boolean)
+                          <div className="flex flex-col gap-0.5">
+                            <span className="flex items-center gap-1.5 font-medium">
+                              {p.name}
+                              {p.variantAxes && p.variantAxes.length > 0 && (
+                                <Badge variant="secondary" className="gap-1">
+                                  <Layers className="size-3" />
+                                  Plantilla
+                                </Badge>
+                              )}
+                            </span>
+                            {p.variantAttrs &&
+                            Object.keys(p.variantAttrs).length > 0 ? (
+                              <span className="text-xs text-muted-foreground">
+                                {Object.entries(p.variantAttrs)
+                                  .map(([k, v]) => `${k}: ${v}`)
                                   .join(" · ")}
                               </span>
+                            ) : (
+                              (p.brand || p.description) && (
+                                <span className="max-w-56 truncate text-xs text-muted-foreground">
+                                  {[p.brand, p.description]
+                                    .filter(Boolean)
+                                    .join(" · ")}
+                                </span>
+                              )
                             )}
                           </div>
                         </TableCell>
@@ -2753,6 +3094,15 @@ export default function InventarioPage() {
         onChanged={() => {
           refreshCategories()
           void fetchProducts()
+        }}
+      />
+      <VariantsSheet
+        open={variantsOpen}
+        onOpenChange={setVariantsOpen}
+        categories={categories}
+        onSuccess={() => {
+          void fetchProducts()
+          fetchAllStock()
         }}
       />
       <EntrySheet

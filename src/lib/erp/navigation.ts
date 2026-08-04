@@ -1,3 +1,4 @@
+import type { BusinessType } from "@/lib/api"
 import type { LucideIcon } from "lucide-react"
 import {
   LayoutDashboard,
@@ -32,6 +33,11 @@ export type NavItem = {
   title: string
   href: string
   icon: LucideIcon
+  /**
+   * Giros de negocio en los que aparece el ítem. Si se omite, se muestra en
+   * todos. P. ej. "Restaurante" solo aplica a `restaurante`.
+   */
+  businessTypes?: BusinessType[]
 }
 
 export type NavSection = {
@@ -55,7 +61,12 @@ export const navSections: NavSection[] = [
       { title: "Caja", href: "/panel/caja", icon: Wallet },
       { title: "Inventario", href: "/panel/inventario", icon: Boxes },
       { title: "Productos", href: "/panel/productos", icon: Package },
-      { title: "Restaurante", href: "/panel/restaurante", icon: UtensilsCrossed },
+      {
+        title: "Restaurante",
+        href: "/panel/restaurante",
+        icon: UtensilsCrossed,
+        businessTypes: ["restaurante"],
+      },
     ],
   },
   {
@@ -105,6 +116,26 @@ export const navSections: NavSection[] = [
     ],
   },
 ]
+
+/**
+ * Navegación adaptada al giro del negocio: oculta los ítems marcados con
+ * `businessTypes` que no incluyan al tipo activo. Si `tipoNegocio` es
+ * `undefined` (sesión cargando o token viejo sin el claim) no oculta nada, para
+ * no dejar al usuario sin accesos por un dato que aún no llegó. Se descartan las
+ * secciones que queden vacías.
+ */
+export function getNavSections(tipoNegocio?: BusinessType): NavSection[] {
+  if (!tipoNegocio) return navSections
+  return navSections
+    .map((section) => ({
+      ...section,
+      items: section.items.filter(
+        (item) =>
+          !item.businessTypes || item.businessTypes.includes(tipoNegocio),
+      ),
+    }))
+    .filter((section) => section.items.length > 0)
+}
 
 /** Sedes disponibles para el selector del topbar. */
 export const sedes = [

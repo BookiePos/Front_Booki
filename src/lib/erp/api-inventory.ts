@@ -43,6 +43,12 @@ export interface InvProduct {
   salePrice?: number
   active: boolean
   createdAt: string
+  /** Si es una variante, apunta al producto padre (plantilla). */
+  variantOf?: string
+  /** Valores de los ejes de esta variante, p. ej. { Talla: "M", Color: "Rojo" }. */
+  variantAttrs?: Record<string, string>
+  /** Ejes de variación (solo en el padre): Talla, Color… */
+  variantAxes?: { name: string; values: string[] }[]
 }
 
 export interface SedeRef {
@@ -319,6 +325,37 @@ export async function createProduct(payload: ProductPayload): Promise<InvProduct
     body: JSON.stringify(payload),
   })
   return parseResponse<InvProduct>(res)
+}
+
+/** Un eje de variación (Talla, Color…) con sus valores. */
+export interface VariantAxis {
+  name: string
+  values: string[]
+}
+
+export interface CreateVariantsPayload {
+  skuPrefix: string
+  name: string
+  categoryId?: string
+  brand?: string
+  supplier?: string
+  supplierId?: string
+  description?: string
+  salePrice?: number
+  cost?: number
+  minStock?: number
+  axes: VariantAxis[]
+}
+
+/** Crea un producto con variantes: devuelve el padre y sus filas hijas. */
+export async function createProductVariants(
+  payload: CreateVariantsPayload,
+): Promise<{ parent: InvProduct; variants: InvProduct[] }> {
+  const res = await authFetch("/inventory/products/with-variants", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
+  return parseResponse<{ parent: InvProduct; variants: InvProduct[] }>(res)
 }
 
 export async function updateProduct(

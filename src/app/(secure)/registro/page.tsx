@@ -420,8 +420,10 @@ function RegistroForm() {
                 ¡Listo, {user?.name.split(" ")[0] ?? ""}!
               </h1>
               <p className="mt-3 leading-relaxed text-ink-muted">
-                Tu negocio <strong>{businessName}</strong> ya está creado.
-                ¿Por dónde quieres empezar?
+                Tu {tipoNegocio === "retail" ? "tienda" : "restaurante"}{" "}
+                <strong>{businessName}</strong> ya está{" "}
+                {tipoNegocio === "retail" ? "creada" : "creado"}. ¿Por dónde
+                quieres empezar?
               </p>
 
               <div className="mt-8 space-y-3">

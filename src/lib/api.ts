@@ -11,6 +11,8 @@ export interface AuthUser {
   role: string
   permissions: string[]
   sedeIds: string[]
+  /** Giro del negocio (restaurante | retail). Diferencia la experiencia. */
+  tipoNegocio?: BusinessType
 }
 
 export interface Tokens {

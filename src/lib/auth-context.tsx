@@ -9,6 +9,7 @@ import {
 } from "react"
 import {
   AuthUser,
+  BusinessType,
   RegisterPayload,
   RegisterResponse,
   Tokens,
@@ -35,6 +36,12 @@ interface AuthContextValue {
   register: (payload: RegisterPayload) => Promise<RegisterResponse>
   logout: () => Promise<void>
   hasPermission: (permission: string) => boolean
+  /** Giro del negocio activo (undefined mientras carga o si el token es viejo). */
+  tipoNegocio: BusinessType | undefined
+  /** Atajo: el negocio es retail / tienda. */
+  isRetail: boolean
+  /** Atajo: el negocio es restaurante. */
+  isRestaurant: boolean
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -128,9 +135,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [user],
   )
 
+  const tipoNegocio = user?.tipoNegocio
+
   return (
     <AuthContext.Provider
-      value={{ user, status, login, register, logout, hasPermission }}
+      value={{
+        user,
+        status,
+        login,
+        register,
+        logout,
+        hasPermission,
+        tipoNegocio,
+        isRetail: tipoNegocio === "retail",
+        isRestaurant: tipoNegocio === "restaurante",
+      }}
     >
       {children}
     </AuthContext.Provider>

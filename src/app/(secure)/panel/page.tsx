@@ -13,10 +13,14 @@ import {
   Receipt,
   HandCoins,
   UtensilsCrossed,
+  Package,
+  PackageX,
   RefreshCw,
+  type LucideIcon,
 } from "lucide-react"
 
 import { useAuth } from "@/lib/auth-context"
+import type { BusinessType } from "@/lib/api"
 import { getOverview, type FinanceOverview } from "@/lib/erp/api-finance"
 import { getSalesReport, type SalesReport } from "@/lib/erp/api-reports"
 import { listPurchaseOrders } from "@/lib/erp/api-purchasing"
@@ -42,12 +46,35 @@ import {
   TableRow,
 } from "@/components/ui/table"
 
-const quickActions = [
-  { title: "Abrir POS", href: "/pos", icon: ShoppingCart },
-  { title: "Nueva compra", href: "/panel/compras", icon: Truck },
-  { title: "Restaurante", href: "/panel/restaurante", icon: UtensilsCrossed },
-  { title: "Ver reportes", href: "/panel/finanzas/reportes", icon: BarChart3 },
-]
+type QuickAction = { title: string; href: string; icon: LucideIcon }
+
+/**
+ * Accesos rápidos priorizados por giro: retail arranca vendiendo/gestionando
+ * productos; restaurante arranca por las mesas. Mientras no se sabe el tipo
+ * (sesión cargando) se muestra un set neutral sin piezas de restaurante.
+ */
+function quickActionsFor(tipoNegocio?: BusinessType): QuickAction[] {
+  const common: QuickAction[] = [
+    { title: "Nueva compra", href: "/panel/compras", icon: Truck },
+    { title: "Ver reportes", href: "/panel/finanzas/reportes", icon: BarChart3 },
+  ]
+  if (tipoNegocio === "retail") {
+    return [
+      { title: "Nueva venta", href: "/pos", icon: ShoppingCart },
+      { title: "Productos", href: "/panel/productos", icon: Package },
+      { title: "Bajo stock", href: "/panel/inventario", icon: PackageX },
+      ...common,
+    ]
+  }
+  if (tipoNegocio === "restaurante") {
+    return [
+      { title: "Abrir mesa", href: "/panel/restaurante", icon: UtensilsCrossed },
+      { title: "Abrir POS", href: "/pos", icon: ShoppingCart },
+      ...common,
+    ]
+  }
+  return [{ title: "Abrir POS", href: "/pos", icon: ShoppingCart }, ...common]
+}
 
 function daysAgo(n: number): string {
   const d = new Date()
@@ -56,9 +83,13 @@ function daysAgo(n: number): string {
 }
 
 export default function DashboardPage() {
-  const { user, hasPermission } = useAuth()
+  const { user, hasPermission, tipoNegocio, isRestaurant } = useAuth()
   const canFinance = hasPermission("finance.view")
   const canReports = hasPermission("reports.view")
+  const quickActions = React.useMemo(
+    () => quickActionsFor(tipoNegocio),
+    [tipoNegocio],
+  )
 
   const [overview, setOverview] = React.useState<FinanceOverview | null>(null)
   const [sales, setSales] = React.useState<SalesReport | null>(null)
@@ -87,14 +118,15 @@ export default function DashboardPage() {
             )
             .catch(() => setPoCount(null))
         : Promise.resolve(),
-      hasPermission("pos.sell")
+      // Comandas: solo tiene sentido en restaurante; retail no abre mesas.
+      isRestaurant && hasPermission("pos.sell")
         ? listOrders()
             .then((o) => setOpenTables(o.filter((x) => x.status !== "closed" && x.status !== "cancelled").length))
             .catch(() => setOpenTables(null))
         : Promise.resolve(),
     ])
     setLoading(false)
-  }, [canFinance, canReports, hasPermission])
+  }, [canFinance, canReports, hasPermission, isRestaurant])
 
   React.useEffect(() => {
     void load()
@@ -119,7 +151,10 @@ export default function DashboardPage() {
         { label: "Por cobrar (CxC)", value: money.format(overview.receivablesOpen), icon: HandCoins, href: "/panel/clientes" },
         { label: "Por pagar (CxP)", value: money.format(overview.payablesOpen), icon: Receipt, href: "/panel/finanzas/cxp" },
         { label: "Órdenes en curso", value: poCount === null ? "—" : String(poCount), icon: Truck, href: "/panel/compras" },
-        { label: "Comandas abiertas", value: openTables === null ? "—" : String(openTables), icon: UtensilsCrossed, href: "/panel/restaurante" },
+        // Comandas abiertas: solo restaurante (retail no usa mesas).
+        ...(isRestaurant
+          ? [{ label: "Comandas abiertas", value: openTables === null ? "—" : String(openTables), icon: UtensilsCrossed, href: "/panel/restaurante" }]
+          : []),
       ]
     : []
 
@@ -128,7 +163,13 @@ export default function DashboardPage() {
       <PageHeader
         title="Panel ejecutivo"
         section="Panel"
-        description={`Bienvenido${user?.name ? `, ${user.name.split(" ")[0]}` : ""}. Resumen operativo del negocio.`}
+        description={`Bienvenido${user?.name ? `, ${user.name.split(" ")[0]}` : ""}. Resumen operativo de ${
+          tipoNegocio === "restaurante"
+            ? "tu restaurante"
+            : tipoNegocio === "retail"
+              ? "tu tienda"
+              : "tu negocio"
+        }.`}
         actions={
           <div className="flex items-center gap-2">
             <Button variant="outline" size="icon" onClick={() => void load()} title="Actualizar">

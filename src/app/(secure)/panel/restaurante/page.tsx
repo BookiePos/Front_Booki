@@ -57,7 +57,7 @@ const tableTone: Record<string, string> = {
 }
 
 export default function RestaurantePage() {
-  const { hasPermission } = useAuth()
+  const { hasPermission, isRetail } = useAuth()
   const canOperate = hasPermission("restaurant.operate")
   const canManageTables = hasPermission("sede.manage")
 
@@ -103,6 +103,28 @@ export default function RestaurantePage() {
   React.useEffect(() => {
     if (canOperate && sedeId) void load()
   }, [canOperate, sedeId, load])
+
+  // Retail no usa mesas/comandas: la ruta existe pero no es aplicable.
+  if (isRetail) {
+    return (
+      <>
+        <PageHeader section="Operación" title="Restaurante" />
+        <Card>
+          <CardContent className="flex flex-col items-center gap-3 py-14 text-center">
+            <UtensilsCrossed className="size-10 text-muted-foreground opacity-50" />
+            <p className="font-display text-lg text-foreground">
+              No disponible para tu tipo de negocio
+            </p>
+            <p className="max-w-xs text-sm text-muted-foreground">
+              Las mesas y comandas son de negocios tipo restaurante. Tu tienda
+              vende desde el <strong>Punto de venta</strong> y el catálogo de{" "}
+              <strong>Productos</strong>.
+            </p>
+          </CardContent>
+        </Card>
+      </>
+    )
+  }
 
   if (!canOperate) {
     return (

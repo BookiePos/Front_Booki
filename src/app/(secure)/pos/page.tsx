@@ -149,7 +149,7 @@ function cashSuggestions(total: number): number[] {
 }
 
 export default function VentaPage() {
-  const { hasPermission } = useAuth()
+  const { hasPermission, isRetail } = useAuth()
   const canSell = hasPermission("pos.sell")
   const canDiscount = hasPermission("pos.discount.authorize")
 
@@ -398,6 +398,17 @@ export default function VentaPage() {
     return () => clearTimeout(t)
   }, [flash])
 
+  // Retail: el POS se opera con escáner. Mantén el foco en el buscador al
+  // entrar y tras cada cobro (al cerrarse el modal), para escanear-escanear-
+  // cobrar sin tocar el mouse. En restaurante no se fuerza el foco.
+  React.useEffect(() => {
+    if (!isRetail) return
+    if (screen !== "sell" || checkoutOpen) return
+    if (loading || cajaLoading || !caja) return
+    const t = setTimeout(() => searchRef.current?.focus(), 40)
+    return () => clearTimeout(t)
+  }, [isRetail, screen, checkoutOpen, loading, cajaLoading, caja])
+
   // ── Auto-guardado de la cuenta activa (líneas + etiqueta) ──
   React.useEffect(() => {
     if (!activeOrderId) return
@@ -638,7 +649,11 @@ export default function VentaPage() {
   function handleScan() {
     const q = search.trim().toLowerCase()
     if (!q) return
-    const exact = products.find((p) => p.sku.toLowerCase() === q)
+    const exact = products.find(
+      (p) =>
+        p.sku.toLowerCase() === q ||
+        (p.barcode ?? "").toLowerCase() === q,
+    )
     const target = exact ?? (filtered.length === 1 ? filtered[0] : null)
     if (!target) {
       setFlash("Sin coincidencia exacta")
@@ -690,7 +705,9 @@ export default function VentaPage() {
       if (!inCat) return false
       if (!q) return true
       return (
-        p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q)
+        p.name.toLowerCase().includes(q) ||
+        p.sku.toLowerCase().includes(q) ||
+        (p.barcode ?? "").toLowerCase().includes(q)
       )
     })
   }, [products, search, category])
