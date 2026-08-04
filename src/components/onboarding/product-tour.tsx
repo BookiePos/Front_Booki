@@ -278,7 +278,12 @@ export function ProductTour() {
     : null
 
   return (
-    <div className="fixed inset-0 z-[70]" aria-live="polite" role="dialog" aria-modal="true">
+    <div
+      className="pointer-events-none fixed inset-0 z-[70]"
+      aria-live="polite"
+      role="dialog"
+      aria-modal="true"
+    >
       {/* Capa de fondo. En pasos interactivos deja pasar los clics (para que el
           usuario pueda pulsar el elemento resaltado); en los demás, bloquea. */}
       <div
