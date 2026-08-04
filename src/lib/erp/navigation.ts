@@ -136,10 +136,3 @@ export function getNavSections(tipoNegocio?: BusinessType): NavSection[] {
     }))
     .filter((section) => section.items.length > 0)
 }
-
-/** Sedes disponibles para el selector del topbar. */
-export const sedes = [
-  { id: "sede-centro", nombre: "Sede Centro" },
-  { id: "sede-norte", nombre: "Sede Norte" },
-  { id: "sede-sur", nombre: "Sede Sur" },
-]

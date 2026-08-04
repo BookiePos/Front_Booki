@@ -21,11 +21,6 @@ export function buildProductSteps(isRetail: boolean): TourStep[] {
       body: "Desde aquí llegas a todos los módulos: sedes, inventario, productos, finanzas y más.",
     },
     {
-      target: "sede",
-      title: "Tu sede activa",
-      body: "Si tienes varias sedes, elige con cuál estás trabajando aquí.",
-    },
-    {
       target: "buscar",
       title: "Búsqueda rápida",
       body: "Encuentra productos, facturas o clientes al instante.",

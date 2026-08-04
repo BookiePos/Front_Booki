@@ -16,6 +16,12 @@ interface SedeContextValue {
   sedeId: string
   sede: Sede | undefined
   setSedeId: (id: string) => void
+  /** ¿Ya se eligió la sede de trabajo de esta sesión del POS? */
+  chosen: boolean
+  /** Elige la sede de trabajo y entra al POS. */
+  chooseSede: (id: string) => void
+  /** Vuelve a la pantalla de elección de sede. */
+  changeSede: () => void
   loading: boolean
   error: string | null
 }
@@ -32,6 +38,9 @@ export function SedeProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth()
   const [sedes, setSedes] = useState<Sede[]>([])
   const [sedeId, setSedeIdState] = useState("")
+  // Al entrar al POS se elige la sede de trabajo. Con 0 o 1 sede no hay nada que
+  // elegir, así que se da por elegida automáticamente.
+  const [chosen, setChosen] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -56,6 +65,8 @@ export function SedeProvider({ children }: { children: React.ReactNode }) {
           mine[0]?._id ||
           ""
         setSedeIdState(initial)
+        // Solo se pide elegir cuando hay más de una sede.
+        setChosen(mine.length <= 1)
         setError(null)
       })
       .catch((err) =>
@@ -76,11 +87,30 @@ export function SedeProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  function chooseSede(id: string) {
+    setSedeId(id)
+    setChosen(true)
+  }
+
+  function changeSede() {
+    setChosen(false)
+  }
+
   const sede = sedes.find((s) => s._id === sedeId)
 
   return (
     <SedeContext.Provider
-      value={{ sedes, sedeId, sede, setSedeId, loading, error }}
+      value={{
+        sedes,
+        sedeId,
+        sede,
+        setSedeId,
+        chosen,
+        chooseSede,
+        changeSede,
+        loading,
+        error,
+      }}
     >
       {children}
     </SedeContext.Provider>

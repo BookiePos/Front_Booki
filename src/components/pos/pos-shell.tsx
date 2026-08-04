@@ -2,7 +2,14 @@
 
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { Store, MapPin, LayoutDashboard } from "lucide-react"
+import {
+  Store,
+  MapPin,
+  LayoutDashboard,
+  Loader2,
+  ChevronRight,
+  Repeat,
+} from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/auth-context"
@@ -10,13 +17,6 @@ import { useSede } from "@/lib/pos/sede-context"
 import { navItems } from "@/lib/pos/navigation"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -83,46 +83,74 @@ function NavLinks({ vertical }: { vertical?: boolean }) {
   )
 }
 
-function SedeSelector() {
-  const { sedes, sedeId, sede, setSedeId } = useSede()
-
-  if (sedes.length === 0) {
-    return (
-      <Badge variant="outline" className="gap-1.5 px-3 py-1.5">
-        <MapPin className="size-4" />
-        Sin sede
-      </Badge>
-    )
-  }
-
-  if (sedes.length === 1) {
-    return (
-      <Badge variant="outline" className="gap-1.5 px-3 py-1.5 text-sm">
-        <MapPin className="size-4" />
-        {sede?.name}
-      </Badge>
-    )
-  }
-
+/** Indicador (solo lectura) de la sede en la que se está trabajando. */
+function SedeBadge() {
+  const { sede } = useSede()
   return (
-    <Select value={sedeId} onValueChange={(v) => v && setSedeId(v)}>
-      <SelectTrigger className="h-10 w-[180px]" aria-label="Seleccionar sede">
-        <MapPin className="size-4 text-muted-foreground" />
-        <SelectValue placeholder="Sede" />
-      </SelectTrigger>
-      <SelectContent>
-        {sedes.map((s) => (
-          <SelectItem key={s._id} value={s._id}>
-            {s.name}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+    <Badge variant="outline" className="gap-1.5 px-3 py-1.5 text-sm">
+      <MapPin className="size-4" />
+      {sede?.name ?? "Sin sede"}
+    </Badge>
+  )
+}
+
+/** Pantalla de elección de sede al entrar al POS (cuando hay varias). */
+function SedePicker() {
+  const { sedes, chooseSede, error } = useSede()
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-muted p-6">
+      <div className="w-full max-w-md rounded-2xl border border-border bg-background p-6 shadow-sm">
+        <div className="mb-1 flex items-center gap-2">
+          <span className="flex size-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+            <Store className="size-5" />
+          </span>
+          <span className="font-display text-lg">Punto de venta</span>
+        </div>
+        <h1 className="mt-4 font-display text-2xl">
+          ¿En qué sede vas a trabajar?
+        </h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Elige tu sede para abrir el punto de venta. Todo lo que vendas y tu
+          caja quedan en esa sede.
+        </p>
+
+        {error && (
+          <p className="mt-4 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            {error}
+          </p>
+        )}
+
+        <div className="mt-5 flex flex-col gap-2">
+          {sedes.map((s) => (
+            <button
+              key={s._id}
+              type="button"
+              onClick={() => chooseSede(s._id)}
+              className="flex items-center gap-3 rounded-xl border border-border p-3 text-left transition-colors hover:border-primary/50 hover:bg-accent"
+            >
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <MapPin className="size-5" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-medium">{s.name}</p>
+                {s.address ? (
+                  <p className="truncate text-xs text-muted-foreground">
+                    {s.address}
+                  </p>
+                ) : null}
+              </div>
+              <ChevronRight className="size-5 text-muted-foreground" />
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
   )
 }
 
 function UserMenu() {
   const { user, logout, canUseOperation } = useAuth()
+  const { sedes, changeSede } = useSede()
   const router = useRouter()
 
   const initials = (user?.name ?? "Usuario")
@@ -169,15 +197,19 @@ function UserMenu() {
           </DropdownMenuLabel>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        {canUseOperation && (
-          <>
-            <DropdownMenuItem onClick={() => router.push("/panel")}>
-              <LayoutDashboard className="size-4" />
-              Ir a Operación
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-          </>
+        {sedes.length > 1 && (
+          <DropdownMenuItem onClick={changeSede}>
+            <Repeat className="size-4" />
+            Cambiar de sede
+          </DropdownMenuItem>
         )}
+        {canUseOperation && (
+          <DropdownMenuItem onClick={() => router.push("/panel")}>
+            <LayoutDashboard className="size-4" />
+            Ir a Operación
+          </DropdownMenuItem>
+        )}
+        {(sedes.length > 1 || canUseOperation) && <DropdownMenuSeparator />}
         <DropdownMenuItem
           variant="destructive"
           onClick={() => {
@@ -192,6 +224,22 @@ function UserMenu() {
 }
 
 export function PosShell({ children }: { children: React.ReactNode }) {
+  const { chosen, loading } = useSede()
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center gap-2 bg-muted text-sm text-muted-foreground">
+        <Loader2 className="size-4 animate-spin" />
+        Cargando…
+      </div>
+    )
+  }
+
+  // Al entrar al POS (con más de una sede) se elige primero dónde se trabaja.
+  if (!chosen) {
+    return <SedePicker />
+  }
+
   return (
     <div className="flex min-h-screen bg-muted">
       {/* Barra lateral (desktop / tablet) */}
@@ -211,7 +259,7 @@ export function PosShell({ children }: { children: React.ReactNode }) {
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Barra superior */}
         <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border bg-background/80 px-4 backdrop-blur-md supports-[backdrop-filter]:bg-background/70">
-          <SedeSelector />
+          <SedeBadge />
           <div className="ml-auto">
             <UserMenu />
           </div>

@@ -6,19 +6,11 @@ import { usePathname, useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
 import { useOnboarding } from "@/lib/onboarding/onboarding-context"
 import { guideForPath } from "@/lib/onboarding/guides"
-import { sedes } from "@/lib/erp/navigation"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -60,25 +52,6 @@ export function AppTopbar() {
     <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border bg-card/85 px-4 backdrop-blur-md supports-[backdrop-filter]:bg-card/75">
       <SidebarTrigger className="size-9" aria-label="Alternar menú lateral" />
       <Separator orientation="vertical" className="mr-1 hidden h-6 md:block" />
-
-      {/* Selector de sede */}
-      <div data-tour="sede" className="flex items-center">
-        <Select defaultValue={sedes[0].id}>
-          <SelectTrigger
-            className="h-9 w-[160px]"
-            aria-label="Seleccionar sede"
-          >
-            <SelectValue placeholder="Sede" />
-          </SelectTrigger>
-          <SelectContent>
-            {sedes.map((sede) => (
-              <SelectItem key={sede.id} value={sede.id}>
-                {sede.nombre}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
 
       {/* Buscador */}
       <div
