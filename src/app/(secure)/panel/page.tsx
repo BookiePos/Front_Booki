@@ -28,6 +28,7 @@ import { listOrders } from "@/lib/erp/api-restaurant"
 import { money, fmtDate, todayLocal } from "@/lib/erp/finance-format"
 
 import { PageHeader } from "@/components/erp/page-header"
+import { OnboardingChecklist } from "@/components/onboarding/onboarding-checklist"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
@@ -171,17 +172,19 @@ export default function DashboardPage() {
               : "tu negocio"
         }.`}
         actions={
-          <div className="flex items-center gap-2">
+          <div data-tour="nueva-venta" className="flex items-center gap-2">
             <Button variant="outline" size="icon" onClick={() => void load()} title="Actualizar">
               <RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />
             </Button>
-            <Button render={<Link href="/panel/pos" />}>
+            <Button render={<Link href="/pos" />}>
               <ShoppingCart />
               Nueva venta
             </Button>
           </div>
         }
       />
+
+      <OnboardingChecklist />
 
       {/* KPIs financieros */}
       {loading && !overview ? (

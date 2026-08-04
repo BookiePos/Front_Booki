@@ -1,9 +1,10 @@
 "use client"
 
-import { Bell, Search } from "lucide-react"
+import { Bell, Search, Compass } from "lucide-react"
 import { useRouter } from "next/navigation"
 
 import { useAuth } from "@/lib/auth-context"
+import { useOnboarding } from "@/lib/onboarding/onboarding-context"
 import { sedes } from "@/lib/erp/navigation"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
@@ -28,6 +29,7 @@ import {
 
 export function AppTopbar() {
   const { user, logout } = useAuth()
+  const { openGuide } = useOnboarding()
   const router = useRouter()
 
   const initials = (user?.name ?? "Usuario")
@@ -49,24 +51,29 @@ export function AppTopbar() {
       <Separator orientation="vertical" className="mr-1 hidden h-6 md:block" />
 
       {/* Selector de sede */}
-      <Select defaultValue={sedes[0].id}>
-        <SelectTrigger
-          className="h-9 w-[160px]"
-          aria-label="Seleccionar sede"
-        >
-          <SelectValue placeholder="Sede" />
-        </SelectTrigger>
-        <SelectContent>
-          {sedes.map((sede) => (
-            <SelectItem key={sede.id} value={sede.id}>
-              {sede.nombre}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <div data-tour="sede" className="flex items-center">
+        <Select defaultValue={sedes[0].id}>
+          <SelectTrigger
+            className="h-9 w-[160px]"
+            aria-label="Seleccionar sede"
+          >
+            <SelectValue placeholder="Sede" />
+          </SelectTrigger>
+          <SelectContent>
+            {sedes.map((sede) => (
+              <SelectItem key={sede.id} value={sede.id}>
+                {sede.nombre}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
       {/* Buscador */}
-      <div className="relative ml-1 hidden max-w-md flex-1 sm:block">
+      <div
+        data-tour="buscar"
+        className="relative ml-1 hidden max-w-md flex-1 sm:block"
+      >
         <Search
           className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
           aria-hidden
@@ -83,6 +90,18 @@ export function AppTopbar() {
       </div>
 
       <div className="ml-auto flex items-center gap-1.5">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="hidden gap-1.5 sm:inline-flex"
+          data-tour="guia"
+          onClick={openGuide}
+          aria-label="Abrir la guía de uso"
+          title="Guía de uso"
+        >
+          <Compass className="size-4" />
+          Guía
+        </Button>
         <Button
           variant="ghost"
           size="icon"

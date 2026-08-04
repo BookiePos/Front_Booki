@@ -81,7 +81,7 @@ export function AppSidebar() {
         </div>
       </SidebarHeader>
 
-      <SidebarContent className="gap-0.5">
+      <SidebarContent data-tour="menu" className="gap-0.5">
         {/* Panel — ítem suelto arriba */}
         <SidebarGroup className="py-1">
           <SidebarGroupContent>
