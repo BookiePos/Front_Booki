@@ -1370,12 +1370,14 @@ export default function VentaPage() {
                             render={
                               <Button
                                 variant={applied ? "default" : "outline"}
-                                size="icon-sm"
+                                size="sm"
+                                className="gap-1"
                                 aria-label={`Descuento para ${i.product.name}`}
                               />
                             }
                           >
                             <Tag />
+                            {applied ? "Desc." : "Descuento"}
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="w-56">
                             <div className="px-1.5 py-1 text-xs font-medium text-muted-foreground">
