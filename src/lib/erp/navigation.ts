@@ -6,7 +6,6 @@ import {
   Wallet,
   Boxes,
   Package,
-  UtensilsCrossed,
   Truck,
   Building2,
   Users,
@@ -61,12 +60,6 @@ export const navSections: NavSection[] = [
       { title: "Caja", href: "/panel/caja", icon: Wallet },
       { title: "Inventario", href: "/panel/inventario", icon: Boxes },
       { title: "Productos", href: "/panel/productos", icon: Package },
-      {
-        title: "Restaurante",
-        href: "/panel/restaurante",
-        icon: UtensilsCrossed,
-        businessTypes: ["restaurante"],
-      },
     ],
   },
   {
