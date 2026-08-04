@@ -1,7 +1,7 @@
 "use client"
 
 import { Bell, Search, Compass } from "lucide-react"
-import { useRouter } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 
 import { useAuth } from "@/lib/auth-context"
 import { useOnboarding } from "@/lib/onboarding/onboarding-context"
@@ -29,8 +29,21 @@ import {
 
 export function AppTopbar() {
   const { user, logout } = useAuth()
-  const { openGuide } = useOnboarding()
+  const { openGuide, startSedeGuide } = useOnboarding()
   const router = useRouter()
+  const pathname = usePathname()
+
+  // Guías dedicadas por sección: el botón "Guía" abre el recorrido de la
+  // pestaña actual. Si la sección no tiene uno propio, cae a la bienvenida.
+  const sectionGuides: { test: RegExp; start: () => void }[] = [
+    { test: /^\/panel\/sedes/, start: startSedeGuide },
+  ]
+
+  function handleGuide() {
+    const match = sectionGuides.find((g) => g.test.test(pathname))
+    if (match) match.start()
+    else openGuide()
+  }
 
   const initials = (user?.name ?? "Usuario")
     .split(" ")
@@ -95,7 +108,7 @@ export function AppTopbar() {
           size="sm"
           className="hidden gap-1.5 sm:inline-flex"
           data-tour="guia"
-          onClick={openGuide}
+          onClick={handleGuide}
           aria-label="Abrir la guía de uso"
           title="Guía de uso"
         >
