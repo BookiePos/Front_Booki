@@ -281,12 +281,14 @@ function AssignEmployeesSheet({
         </SheetContent>
       </Sheet>
 
-      {/* Crear acceso desde aquí ya deja al usuario asignado a esta sede. */}
+      {/* Crear acceso desde el POS: forzado a acceso POS y asignado a esta sede. */}
       <EmployeeAccessSheet
         open={accessFor !== null}
         onOpenChange={(v) => !v && setAccessFor(null)}
         employee={accessFor}
         sedeId={sedeId}
+        area="pos"
+        lockArea
         onSuccess={() => {
           setAccessFor(null)
           onChanged()

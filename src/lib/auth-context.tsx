@@ -19,6 +19,7 @@ import {
   apiRefresh,
   apiRegister,
 } from "@/lib/api"
+import { OPERATION_PERMISSIONS } from "@/lib/access"
 
 const STORAGE_KEY = "sistemapos.auth"
 
@@ -47,30 +48,6 @@ interface AuthContextValue {
   /** Puede entrar a la Operación / back-office (/panel). */
   canUseOperation: boolean
 }
-
-/**
- * Permisos de "Operación" (back-office): con cualquiera de ellos el usuario
- * tiene sentido en el panel administrativo. Un cajero puro (solo POS/caja) no
- * tiene ninguno, así que no ve el acceso a Operación.
- */
-const OPERATION_PERMISSIONS = [
-  "sede.manage",
-  "reports.view",
-  "finance.view",
-  "finance.manage",
-  "purchasing.manage",
-  "users.manage",
-  "roles.manage",
-  "params.manage",
-  "audit.view",
-  "tax.manage",
-  "inventory.adjust",
-  "inventory.transfer",
-  "payroll.view",
-  "payroll.manage",
-  "employees.view",
-  "employees.manage",
-]
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
