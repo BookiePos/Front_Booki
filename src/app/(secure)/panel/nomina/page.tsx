@@ -14,6 +14,7 @@ import {
   LogOut,
   CalendarClock,
   Mail,
+  AlertTriangle,
 } from "lucide-react"
 
 import { useAuth } from "@/lib/auth-context"
@@ -189,6 +190,7 @@ export default function NominaPage() {
           {tab === "correr" && (
             <CorrerNomina
               sedes={sedes}
+              employees={employees}
               onRan={() => void load()}
             />
           )}
@@ -213,9 +215,11 @@ export default function NominaPage() {
 // ── Correr nómina ────────────────────────────────────────────────────────────
 function CorrerNomina({
   sedes,
+  employees,
   onRan,
 }: {
   sedes: Sede[]
+  employees: Employee[]
   onRan: () => void
 }) {
   const [period, setPeriod] = React.useState(currentMonth())
@@ -225,6 +229,20 @@ function CorrerNomina({
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [run, setRun] = React.useState<PayrollRun | null>(null)
+
+  // Empleados que realmente entran a la nómina: activos, con salario y —si la
+  // cobertura es por sede— asignados a esa sede. Es lo mismo que exige el backend.
+  const eligible = React.useMemo(
+    () =>
+      employees.filter(
+        (e) =>
+          e.status === "activo" &&
+          (e.salary ?? 0) > 0 &&
+          (coverage === "all" || e.sedeId === sedeId),
+      ),
+    [employees, coverage, sedeId],
+  )
+  const sedeChosen = coverage === "all" || sedeId !== ""
 
   async function run_() {
     setBusy(true)
@@ -296,7 +314,7 @@ function CorrerNomina({
           </div>
           <Button
             className="gap-2"
-            disabled={busy || (coverage === "sede" && !sedeId)}
+            disabled={busy || !sedeChosen || eligible.length === 0}
             onClick={() => void run_()}
           >
             {busy ? <Loader2 className="size-4 animate-spin" /> : <Play className="size-4" />}
@@ -305,11 +323,44 @@ function CorrerNomina({
         </CardContent>
       </Card>
 
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {/* Aviso: por qué no se puede generar (evita el "no me genera" sin razón). */}
+      {sedeChosen && eligible.length === 0 ? (
+        <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2.5 text-sm text-amber-700">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+          <div>
+            <p className="font-medium">
+              No hay empleados para nominar en esta cobertura.
+            </p>
+            <p className="text-amber-700/90">
+              Solo se nomina a empleados <span className="font-medium">activos y
+              con salario</span> en su expediente
+              {coverage === "sede" && " y asignados a esta sede"}. Revísalo en{" "}
+              <span className="font-medium">Personal → Empleados</span>.
+            </p>
+          </div>
+        </div>
+      ) : (
+        sedeChosen && (
+          <p className="text-sm text-muted-foreground">
+            Se generará la nómina de{" "}
+            <span className="font-medium text-foreground">
+              {eligible.length} empleado{eligible.length !== 1 ? "s" : ""}
+            </span>{" "}
+            (activos y con salario, 30 días).
+          </p>
+        )
+      )}
+
+      {error && (
+        <div className="flex items-start gap-2 rounded-lg bg-destructive/10 px-3 py-2.5 text-sm text-destructive">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
+
       <p className="text-xs text-muted-foreground">
-        Se calcula con los empleados <span className="font-medium">activos y con
-        salario</span> del expediente, 30 días. Para casos con horas extra o
-        novedades usa el <span className="font-medium">Simulador</span>.
+        Para casos con horas extra o novedades usa el{" "}
+        <span className="font-medium">Simulador</span>.
       </p>
 
       {run && <RunDetail run={run} />}
