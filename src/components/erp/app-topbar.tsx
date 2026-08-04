@@ -22,6 +22,7 @@ import {
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -138,16 +139,18 @@ export function AppTopbar() {
             </Avatar>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-52">
-            <DropdownMenuLabel>
-              <div className="grid leading-tight">
-                <span className="text-sm font-semibold">
-                  {user?.name ?? "Usuario"}
-                </span>
-                <span className="text-xs font-normal text-muted-foreground">
-                  {user?.email ?? ""}
-                </span>
-              </div>
-            </DropdownMenuLabel>
+            <DropdownMenuGroup>
+              <DropdownMenuLabel>
+                <div className="grid leading-tight">
+                  <span className="text-sm font-semibold">
+                    {user?.name ?? "Usuario"}
+                  </span>
+                  <span className="text-xs font-normal text-muted-foreground">
+                    {user?.email ?? ""}
+                  </span>
+                </div>
+              </DropdownMenuLabel>
+            </DropdownMenuGroup>
             <DropdownMenuSeparator />
             {canUsePos && (
               <>
