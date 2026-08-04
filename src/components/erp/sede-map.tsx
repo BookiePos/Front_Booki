@@ -51,7 +51,7 @@ function normalizeAddress(address: string): string {
       const key = word
         .toLowerCase()
         .normalize("NFD")
-        .replace(/[̀-ͯ]/g, "")
+        .replace(/[\u0300-\u036f]/g, "")
       const full = STREET_TYPES[key]
       return full ? `${full} ` : match
     })
