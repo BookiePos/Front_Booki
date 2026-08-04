@@ -12,6 +12,7 @@ import {
   Briefcase,
   Loader2,
   Search,
+  KeyRound,
 } from "lucide-react"
 
 import { useAuth } from "@/lib/auth-context"
@@ -27,10 +28,12 @@ import {
   type EmployeeStatus,
   type ContractType,
 } from "@/lib/erp/api-employees"
+import { listUsers, type AdminUser } from "@/lib/api-admin"
 import { ApiError } from "@/lib/api"
 
 import { PageHeader } from "@/components/erp/page-header"
 import { EmployeeSheet } from "@/components/erp/employee-sheet"
+import { EmployeeAccessSheet } from "@/components/erp/employee-access-sheet"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -83,10 +86,13 @@ export default function EmpleadosPage() {
   const { hasPermission } = useAuth()
   const canView = hasPermission("employees.view")
   const canManage = hasPermission("employees.manage")
+  const canManageUsers = hasPermission("users.manage")
 
   const [employees, setEmployees] = React.useState<Employee[]>([])
   const [positions, setPositions] = React.useState<Position[]>([])
   const [sedes, setSedes] = React.useState<Sede[]>([])
+  const [users, setUsers] = React.useState<AdminUser[]>([])
+  const [accessFor, setAccessFor] = React.useState<Employee | null>(null)
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
   const [query, setQuery] = React.useState("")
@@ -103,6 +109,11 @@ export default function EmpleadosPage() {
     [sedes],
   )
 
+  const userById = React.useMemo(
+    () => new Map(users.map((u) => [u.id, u])),
+    [users],
+  )
+
   const load = React.useCallback(async () => {
     if (!canView) return
     setLoading(true)
@@ -116,12 +127,18 @@ export default function EmpleadosPage() {
       setEmployees(emps)
       setPositions(pos)
       setSedes(sd.filter((s) => s.active))
+      // Los usuarios permiten mostrar quién ya tiene acceso al sistema.
+      if (canManageUsers) {
+        listUsers()
+          .then(setUsers)
+          .catch(() => setUsers([]))
+      }
     } catch (err) {
       setError(errorMessage(err))
     } finally {
       setLoading(false)
     }
-  }, [canView])
+  }, [canView, canManageUsers])
 
   React.useEffect(() => {
     void load()
@@ -279,6 +296,7 @@ export default function EmpleadosPage() {
                   <TableHead>Sede</TableHead>
                   <TableHead>Contrato</TableHead>
                   <TableHead>Estado</TableHead>
+                  {canManageUsers && <TableHead>Acceso</TableHead>}
                   <TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
@@ -303,6 +321,28 @@ export default function EmpleadosPage() {
                         {STATUS_LABELS[e.status]}
                       </Badge>
                     </TableCell>
+                    {canManageUsers && (
+                      <TableCell>
+                        {e.userId ? (
+                          <Badge variant="secondary" className="gap-1 font-normal">
+                            <KeyRound className="size-3" />
+                            {userById.get(e.userId)?.username
+                              ? `@${userById.get(e.userId)!.username}`
+                              : "Con acceso"}
+                          </Badge>
+                        ) : (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-1.5"
+                            onClick={() => setAccessFor(e)}
+                          >
+                            <KeyRound className="size-4" />
+                            Crear acceso
+                          </Button>
+                        )}
+                      </TableCell>
+                    )}
                     <TableCell className="text-right">
                       {canManage ? (
                         <div className="flex justify-end gap-1">
@@ -350,6 +390,16 @@ export default function EmpleadosPage() {
         positions={positions}
         onOpenChange={setPositionsOpen}
         onChanged={() => void refreshPositions()}
+      />
+
+      <EmployeeAccessSheet
+        open={accessFor !== null}
+        onOpenChange={(v) => !v && setAccessFor(null)}
+        employee={accessFor}
+        onSuccess={() => {
+          setAccessFor(null)
+          void load()
+        }}
       />
     </>
   )

@@ -7,6 +7,8 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001"
 export interface AuthUser {
   id: string
   email: string
+  /** Nombre de usuario para login (si se creó con uno). */
+  username?: string
   name: string
   role: string
   permissions: string[]

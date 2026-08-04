@@ -12,6 +12,8 @@ const STORAGE_KEY = "sistemapos.auth"
 export interface AdminUser {
   id: string
   email: string
+  /** Nombre de usuario para login (si se creó con uno). */
+  username?: string
   name: string
   role: string
   active: boolean
@@ -157,7 +159,10 @@ export async function listUsers(): Promise<AdminUser[]> {
 }
 
 export interface CreateUserPayload {
-  email: string
+  /** Email de login. Opcional si se pasa `username` (se sintetiza uno interno). */
+  email?: string
+  /** Nombre de usuario para login (alternativa al email). */
+  username?: string
   password: string
   name: string
   role: string

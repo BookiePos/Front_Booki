@@ -121,18 +121,17 @@ export default function LoginPage() {
               <form onSubmit={onSubmit} className="mt-10 space-y-5" noValidate>
                 <div>
                   <label htmlFor={emailId} className="block text-sm font-semibold text-ink">
-                    Correo electrónico
+                    Correo o usuario
                   </label>
                   <input
                     id={emailId}
-                    type="email"
+                    type="text"
                     name="email"
                     required
                     autoComplete="username"
-                    inputMode="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="tu@negocio.com"
+                    placeholder="tu@negocio.com o tu usuario"
                     className="mt-2 h-13 w-full rounded-xl border border-hairline bg-white px-4 text-base text-ink outline-none transition-colors placeholder:text-ink-faint focus:border-brand-500"
                   />
                 </div>

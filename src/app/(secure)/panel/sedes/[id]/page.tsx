@@ -50,11 +50,13 @@ import {
   type AdminUser,
   type AdminRole,
 } from "@/lib/api-admin"
+import { listEmployees, type Employee } from "@/lib/erp/api-employees"
 import { ApiError } from "@/lib/api"
 
 import { PageHeader } from "@/components/erp/page-header"
 import { SedeSheet } from "@/components/erp/sede-sheet"
 import { SedeMap } from "@/components/erp/sede-map"
+import { EmployeeAccessSheet } from "@/components/erp/employee-access-sheet"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -157,8 +159,8 @@ interface AssignSheetProps {
   onOpenChange: (v: boolean) => void
   sedeId: string
   sedeName: string
+  employees: Employee[]
   users: AdminUser[]
-  roleName: (key: string) => string
   onChanged: () => void
 }
 
@@ -167,15 +169,33 @@ function AssignEmployeesSheet({
   onOpenChange,
   sedeId,
   sedeName,
+  employees,
   users,
-  roleName,
   onChanged,
 }: AssignSheetProps) {
   const [busyId, setBusyId] = React.useState<string | null>(null)
   const [error, setError] = React.useState<string | null>(null)
+  const [accessFor, setAccessFor] = React.useState<Employee | null>(null)
 
-  const candidates = users.filter(
-    (u) => u.active && !u.sedeIds.includes(sedeId),
+  const userById = React.useMemo(
+    () => new Map(users.map((u) => [u.id, u])),
+    [users],
+  )
+
+  // Empleados no retirados que aún no operan esta sede: los que tienen usuario
+  // (y no está ya asignado) se pueden asignar; a los que no, se les crea acceso.
+  const candidates = React.useMemo(
+    () =>
+      employees
+        .filter((e) => e.status !== "retirado")
+        .map((e) => ({
+          employee: e,
+          user: e.userId ? userById.get(e.userId) : undefined,
+        }))
+        .filter(
+          ({ user }) => !user || !user.sedeIds.includes(sedeId),
+        ),
+    [employees, userById, sedeId],
   )
 
   async function assign(u: AdminUser) {
@@ -192,55 +212,87 @@ function AssignEmployeesSheet({
   }
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="sm:max-w-md overflow-y-auto">
-        <SheetHeader>
-          <SheetTitle className="font-display text-lg">
-            Asignar empleados
-          </SheetTitle>
-          <SheetDescription>
-            Agrega empleados a <span className="font-medium">{sedeName}</span>.
-            Solo se muestran usuarios activos aún no asignados.
-          </SheetDescription>
-        </SheetHeader>
+    <>
+      <Sheet open={open} onOpenChange={onOpenChange}>
+        <SheetContent side="right" className="sm:max-w-md overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle className="font-display text-lg">
+              Asignar empleados
+            </SheetTitle>
+            <SheetDescription>
+              Empleados que pueden operar en{" "}
+              <span className="font-medium">{sedeName}</span>. Si ya tienen
+              usuario, asígnalos; si no, créales un acceso.
+            </SheetDescription>
+          </SheetHeader>
 
-        <div className="flex flex-col gap-2 px-4 py-2">
-          {error && (
-            <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
-              {error}
-            </p>
-          )}
-          {candidates.length === 0 ? (
-            <p className="py-10 text-center text-sm text-muted-foreground">
-              No hay usuarios disponibles para asignar.
-            </p>
-          ) : (
-            candidates.map((u) => (
-              <div
-                key={u.id}
-                className="flex items-center gap-3 rounded-lg border border-border p-2.5"
-              >
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{u.name}</p>
-                  <p className="truncate text-xs text-muted-foreground">
-                    {u.email}
-                  </p>
-                </div>
-                <Badge variant="secondary">{roleName(u.role)}</Badge>
-                <Button
-                  size="sm"
-                  disabled={busyId === u.id}
-                  onClick={() => void assign(u)}
+          <div className="flex flex-col gap-2 px-4 py-2">
+            {error && (
+              <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                {error}
+              </p>
+            )}
+            {candidates.length === 0 ? (
+              <p className="py-10 text-center text-sm text-muted-foreground">
+                No hay empleados disponibles. Regístralos en Personal →
+                Empleados.
+              </p>
+            ) : (
+              candidates.map(({ employee, user }) => (
+                <div
+                  key={employee._id}
+                  className="flex items-center gap-3 rounded-lg border border-border p-2.5"
                 >
-                  <UserPlus />
-                  Agregar
-                </Button>
-              </div>
-            ))
-          )}
-        </div>
-      </SheetContent>
-    </Sheet>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">
+                      {employee.firstName} {employee.lastName}
+                    </p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {user
+                        ? user.username
+                          ? `@${user.username}`
+                          : user.email
+                        : employee.positionName ?? "Sin acceso al sistema"}
+                    </p>
+                  </div>
+                  {user ? (
+                    <Button
+                      size="sm"
+                      disabled={busyId === user.id}
+                      onClick={() => void assign(user)}
+                    >
+                      <UserPlus />
+                      Asignar
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setAccessFor(employee)}
+                    >
+                      <UserPlus />
+                      Crear acceso
+                    </Button>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      {/* Crear acceso desde aquí ya deja al usuario asignado a esta sede. */}
+      <EmployeeAccessSheet
+        open={accessFor !== null}
+        onOpenChange={(v) => !v && setAccessFor(null)}
+        employee={accessFor}
+        sedeId={sedeId}
+        onSuccess={() => {
+          setAccessFor(null)
+          onChanged()
+        }}
+      />
+    </>
   )
 }
 
@@ -259,6 +311,7 @@ export default function SedeDetailPage() {
   const [stock, setStock] = React.useState<StockRow[]>([])
   const [alerts, setAlerts] = React.useState<InvAlerts | null>(null)
   const [users, setUsers] = React.useState<AdminUser[]>([])
+  const [employees, setEmployees] = React.useState<Employee[]>([])
   const [roles, setRoles] = React.useState<AdminRole[]>([])
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
@@ -286,6 +339,11 @@ export default function SedeDetailPage() {
     setUsers(await listUsers())
   }, [canManageUsers])
 
+  const fetchEmployees = React.useCallback(async () => {
+    if (!canManageUsers) return
+    setEmployees(await listEmployees())
+  }, [canManageUsers])
+
   const loadAll = React.useCallback(
     async (opts?: { silent?: boolean }) => {
       if (!opts?.silent) setLoading(true)
@@ -303,13 +361,14 @@ export default function SedeDetailPage() {
         getSalesStats(sedeId).then(setSalesStats).catch(() => setSalesStats(null)),
         listDiscounts(sedeId).then(setDiscounts).catch(() => setDiscounts([])),
         fetchUsers().catch(() => {}),
+        fetchEmployees().catch(() => {}),
         canManageUsers
           ? listRoles().then(setRoles).catch(() => {})
           : Promise.resolve(),
       ])
       setLoading(false)
     },
-    [sedeId, fetchSede, fetchUsers, canManageUsers],
+    [sedeId, fetchSede, fetchUsers, fetchEmployees, canManageUsers],
   )
 
   React.useEffect(() => {
@@ -354,7 +413,8 @@ export default function SedeDetailPage() {
     (alerts?.expired.length ?? 0) +
     (alerts?.expiringSoon.length ?? 0)
 
-  const employees = React.useMemo(
+  // Usuarios que ya operan en esta sede (los que muestra la tarjeta "Empleados").
+  const assignedUsers = React.useMemo(
     () => users.filter((u) => u.sedeIds.includes(sedeId)),
     [users, sedeId],
   )
@@ -855,7 +915,7 @@ export default function SedeDetailPage() {
                   <Skeleton key={i} className="h-12 rounded-lg" />
                 ))}
               </div>
-            ) : employees.length === 0 ? (
+            ) : assignedUsers.length === 0 ? (
               <div className="flex flex-col items-center gap-2 py-8 text-center">
                 <Users className="size-8 text-muted-foreground" />
                 <p className="text-sm text-muted-foreground">
@@ -864,7 +924,7 @@ export default function SedeDetailPage() {
               </div>
             ) : (
               <ul className="flex flex-col gap-2">
-                {employees.map((u) => (
+                {assignedUsers.map((u) => (
                   <li
                     key={u.id}
                     className="flex items-center gap-3 rounded-lg border border-border px-3 py-2.5"
@@ -875,7 +935,7 @@ export default function SedeDetailPage() {
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium">{u.name}</p>
                       <p className="truncate text-xs text-muted-foreground">
-                        {u.email}
+                        {u.username ? `@${u.username}` : u.email}
                       </p>
                     </div>
                     <Badge variant="secondary">{roleName(u.role)}</Badge>
@@ -917,9 +977,12 @@ export default function SedeDetailPage() {
           onOpenChange={setAssignOpen}
           sedeId={sedeId}
           sedeName={sede.name}
+          employees={employees}
           users={users}
-          roleName={roleName}
-          onChanged={fetchUsers}
+          onChanged={() => {
+            void fetchUsers()
+            void fetchEmployees()
+          }}
         />
       )}
 
