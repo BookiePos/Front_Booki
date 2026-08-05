@@ -43,6 +43,32 @@ export interface FinanceExpense {
   createdAt: string
 }
 
+export type RecurrenceFrequency = "weekly" | "monthly" | "quarterly" | "yearly"
+
+export interface FinanceRecurringExpense {
+  _id: string
+  sedeId: string
+  categoryId: string
+  categoryName: string
+  concept: string
+  amount: number
+  taxAmount: number
+  frequency: RecurrenceFrequency
+  dayOfMonth: number
+  startDate: string
+  endDate?: string | null
+  defaultStatus: ExpenseStatus
+  paymentMethod?: PaymentMethod
+  supplierId?: string
+  supplierName?: string
+  note?: string
+  active: boolean
+  autoGenerate: boolean
+  lastGeneratedDate?: string | null
+  createdByEmail: string
+  createdAt: string
+}
+
 export type PayableStatus = "open" | "partial" | "paid" | "void"
 
 export interface PayablePayment {
@@ -334,6 +360,74 @@ export async function updateExpense(
 export async function deleteExpense(id: string): Promise<void> {
   const res = await authFetch(`/finance/expenses/${id}`, { method: "DELETE" })
   await parseResponse<{ ok: boolean }>(res)
+}
+
+// ─── Gastos recurrentes (plantillas) ─────────────────────────────────────────
+
+export async function listRecurring(query: {
+  sedeId?: string
+  active?: boolean
+} = {}): Promise<FinanceRecurringExpense[]> {
+  const params = new URLSearchParams()
+  if (query.sedeId) params.set("sedeId", query.sedeId)
+  if (query.active !== undefined) params.set("active", String(query.active))
+  const qs = params.toString()
+  const res = await authFetch(`/finance/recurring${qs ? `?${qs}` : ""}`)
+  return parseResponse<FinanceRecurringExpense[]>(res)
+}
+
+export interface RecurringExpensePayload {
+  sedeId?: string
+  categoryId?: string
+  concept?: string
+  amount?: number
+  taxAmount?: number
+  frequency?: RecurrenceFrequency
+  dayOfMonth?: number
+  startDate?: string
+  endDate?: string | null
+  defaultStatus?: ExpenseStatus
+  paymentMethod?: PaymentMethod
+  supplierId?: string
+  supplierName?: string
+  note?: string
+  active?: boolean
+  autoGenerate?: boolean
+}
+
+export async function createRecurring(
+  payload: RecurringExpensePayload,
+): Promise<FinanceRecurringExpense> {
+  const res = await authFetch("/finance/recurring", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
+  return parseResponse<FinanceRecurringExpense>(res)
+}
+
+export async function updateRecurring(
+  id: string,
+  payload: RecurringExpensePayload,
+): Promise<FinanceRecurringExpense> {
+  const res = await authFetch(`/finance/recurring/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  })
+  return parseResponse<FinanceRecurringExpense>(res)
+}
+
+export async function deleteRecurring(id: string): Promise<void> {
+  const res = await authFetch(`/finance/recurring/${id}`, { method: "DELETE" })
+  await parseResponse<{ deleted: boolean }>(res)
+}
+
+/** Genera ahora los gastos recurrentes vencidos del tenant (manual). */
+export async function runRecurring(): Promise<{
+  generated: number
+  templates: number
+}> {
+  const res = await authFetch("/finance/recurring/run", { method: "POST" })
+  return parseResponse<{ generated: number; templates: number }>(res)
 }
 
 // ─── Cuentas por pagar ───────────────────────────────────────────────────────
@@ -652,6 +746,13 @@ export const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
 export const EXPENSE_STATUS_LABELS: Record<ExpenseStatus, string> = {
   paid: "Pagado",
   payable: "Por pagar",
+}
+
+export const RECURRENCE_FREQUENCY_LABELS: Record<RecurrenceFrequency, string> = {
+  weekly: "Semanal",
+  monthly: "Mensual",
+  quarterly: "Trimestral",
+  yearly: "Anual",
 }
 
 export const PAYABLE_STATUS_LABELS: Record<PayableStatus, string> = {
