@@ -69,6 +69,9 @@ export interface EmployeeForAccess {
   firstName: string
   lastName: string
   email?: string
+  /** Sede del expediente del empleado; se usa como sede del acceso si no se
+   * pasa una `sedeId` explícita. Sin ella, un acceso al POS quedaría sin sede. */
+  sedeId?: string
 }
 
 interface EmployeeAccessSheetProps {
@@ -153,6 +156,16 @@ export function EmployeeAccessSheet({
       setError("Elige un rol")
       return
     }
+    // Sede del acceso: la explícita (creado desde una sede) o, si no, la del
+    // expediente del empleado. El POS opera por sede: sin ella, el usuario
+    // entraría al terminal sin ninguna sede y no podría vender.
+    const effectiveSedeId = sedeId ?? employee.sedeId
+    if (area === "pos" && !effectiveSedeId) {
+      setError(
+        "Este empleado no tiene una sede asignada. Asígnale una sede en su expediente para poder darle acceso al POS.",
+      )
+      return
+    }
     setSaving(true)
     setError(null)
     try {
@@ -161,13 +174,13 @@ export function EmployeeAccessSheet({
         password,
         name: `${employee.firstName} ${employee.lastName}`.trim(),
         role,
-        sedeIds: sedeId ? [sedeId] : [],
+        sedeIds: effectiveSedeId ? [effectiveSedeId] : [],
       })
-      // Vincula el usuario al expediente y, si se creó desde una sede, asigna
-      // también el empleado a esa sede (para su nómina y control de horas).
+      // Vincula el usuario al expediente y asegura que el empleado quede en esa
+      // sede (para su nómina y control de horas).
       await updateEmployee(employee._id, {
         userId: user.id,
-        ...(sedeId ? { sedeId } : {}),
+        ...(effectiveSedeId ? { sedeId: effectiveSedeId } : {}),
       })
       onSuccess(user)
       onOpenChange(false)
