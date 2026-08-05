@@ -20,6 +20,7 @@ import {
   type ArlRiskLevel,
   type AccountType,
 } from "@/lib/erp/api-employees"
+import { getPayrollSettings } from "@/lib/erp/api-payroll"
 import { ApiError } from "@/lib/api"
 
 import { Button } from "@/components/ui/button"
@@ -208,6 +209,12 @@ function errorMessage(err: unknown): string {
   return "Error desconocido"
 }
 
+const copFormatter = new Intl.NumberFormat("es-CO", {
+  style: "currency",
+  currency: "COP",
+  maximumFractionDigits: 0,
+})
+
 export function EmployeeSheet({
   open,
   employee,
@@ -227,6 +234,25 @@ export function EmployeeSheet({
   const [docs, setDocs] = React.useState<DocRow[]>([])
   const [saving, setSaving] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+  // Salario mínimo legal vigente (SMMLV), tomado de los parámetros de nómina.
+  // Habilita el botón para llenar el salario con un clic. Se carga la primera
+  // vez que se abre el formulario.
+  const [smmlv, setSmmlv] = React.useState<number | null>(null)
+
+  React.useEffect(() => {
+    if (!open || smmlv != null) return
+    let active = true
+    getPayrollSettings()
+      .then((s) => {
+        if (active) setSmmlv(s.smmlv)
+      })
+      .catch(() => {
+        // Sin parámetros de nómina el botón queda deshabilitado; no es crítico.
+      })
+    return () => {
+      active = false
+    }
+  }, [open, smmlv])
 
   // Reinicia el formulario cada vez que se abre.
   React.useEffect(() => {
@@ -480,12 +506,35 @@ export function EmployeeSheet({
                 </Field>
               )}
               <Field label="Salario (COP)">
-                <Input
-                  type="number"
-                  inputMode="numeric"
-                  value={form.salary}
-                  onChange={(e) => set("salary", e.target.value)}
-                />
+                <div className="flex items-center gap-1.5">
+                  <Input
+                    type="number"
+                    inputMode="numeric"
+                    value={form.salary}
+                    onChange={(e) => set("salary", e.target.value)}
+                    className="flex-1"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="shrink-0 whitespace-nowrap"
+                    disabled={smmlv == null}
+                    onClick={() => smmlv != null && set("salary", String(smmlv))}
+                    title={
+                      smmlv != null
+                        ? `Salario mínimo legal vigente: ${copFormatter.format(smmlv)}`
+                        : "Cargando el salario mínimo…"
+                    }
+                  >
+                    Sueldo mínimo
+                  </Button>
+                </div>
+                {smmlv != null && (
+                  <span className="text-[11px] text-muted-foreground">
+                    Mínimo legal vigente: {copFormatter.format(smmlv)}
+                  </span>
+                )}
               </Field>
               <Field label="Tipo de salario">
                 <NativeSelect
