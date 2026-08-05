@@ -78,10 +78,10 @@ export function SiteNav() {
           <Link
             href="/login"
             className={cn(
-              "inline-flex h-11 items-center rounded-full px-5 text-[0.95rem] font-semibold transition-colors duration-300",
+              "inline-flex h-11 items-center rounded-full px-5 text-[0.95rem] font-semibold transition-colors duration-300 text-black",
               onDark
-                ? "text-brand-100 hover:bg-white/10 hover:text-white"
-                : "text-ink-soft hover:bg-brand-50 hover:text-brand-700",
+                ? "hover:bg-white/10"
+                : "hover:bg-brand-50",
             )}
           >
             Iniciar sesión
@@ -139,7 +139,7 @@ export function SiteNav() {
             <Link
               href="/login"
               onClick={() => setOpen(false)}
-              className="inline-flex h-13 items-center justify-center rounded-full border border-brand-200 px-6 font-semibold text-brand-700"
+              className="inline-flex h-13 items-center justify-center rounded-full border border-brand-200 px-6 font-semibold text-black"
             >
               Iniciar sesión
             </Link>
