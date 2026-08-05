@@ -267,7 +267,7 @@ export default function NominaPage() {
             Cada hora se registra una sola vez; al confirmarla queda bloqueada.
           </p>
         </div>
-        <div className="flex flex-col gap-1">
+        <div data-tour="pos-horas-fecha" className="flex flex-col gap-1">
           <Label htmlFor="fecha">Fecha</Label>
           <Input
             id="fecha"
@@ -281,7 +281,7 @@ export default function NominaPage() {
       </div>
 
       {/* Editor de horas del día */}
-      <Card>
+      <Card data-tour="pos-horas-editor">
         <CardContent className="p-0">
           {loading ? (
             <div className="flex flex-col gap-2 p-4">
@@ -361,7 +361,10 @@ export default function NominaPage() {
 
       {/* Barra de confirmación */}
       {!loading && workers.length > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-muted px-4 py-3">
+        <div
+          data-tour="pos-horas-confirmar"
+          className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-muted px-4 py-3"
+        >
           <div className="text-sm">
             <span className="text-muted-foreground">Total del día (borrador): </span>
             <span className="stat-figure text-base">{draftTotal.toFixed(2)}</span>
@@ -432,7 +435,7 @@ export default function NominaPage() {
       )}
 
       {/* Turnos: horas trabajadas por trabajador y sede en un rango */}
-      <Card>
+      <Card data-tour="pos-horas-turnos">
         <CardContent className="p-4">
           <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
             <div className="flex items-center gap-2">

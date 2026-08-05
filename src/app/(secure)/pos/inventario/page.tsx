@@ -183,7 +183,7 @@ export default function InventarioPage() {
           </p>
         </div>
         {canAdjust && (
-          <Button className="gap-2" onClick={() => openAdjust()}>
+          <Button data-tour="pos-inv-ajustar" className="gap-2" onClick={() => openAdjust()}>
             <SlidersHorizontal className="size-4" />
             Ajustar
           </Button>
@@ -191,7 +191,7 @@ export default function InventarioPage() {
       </div>
 
       {/* Resumen de alertas */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+      <div data-tour="pos-inv-kpis" className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         <StatCard
           icon={Boxes}
           label="Ítems con stock"
@@ -214,7 +214,7 @@ export default function InventarioPage() {
         />
       </div>
 
-      <div className="relative">
+      <div data-tour="pos-inv-buscar" className="relative">
         <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input
           value={search}
@@ -224,7 +224,7 @@ export default function InventarioPage() {
         />
       </div>
 
-      <Card>
+      <Card data-tour="pos-inv-tabla">
         <CardContent className="p-0">
           {loading ? (
             <div className="flex flex-col gap-2 p-4">

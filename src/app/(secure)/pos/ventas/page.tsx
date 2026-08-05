@@ -180,7 +180,7 @@ export default function VentasPage() {
       </div>
 
       {/* Resumen del día */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+      <div data-tour="pos-ventas-kpis" className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         <StatCard
           icon={ReceiptIcon}
           label="Ventas hoy"
@@ -202,7 +202,7 @@ export default function VentasPage() {
       </div>
 
       {/* Filtros */}
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+      <div data-tour="pos-ventas-buscar" className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -238,7 +238,7 @@ export default function VentasPage() {
         </div>
       </div>
 
-      <Card>
+      <Card data-tour="pos-ventas-lista">
         <CardContent className="p-0">
           {loading ? (
             <div className="flex flex-col gap-2 p-4">

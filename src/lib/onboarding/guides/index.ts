@@ -1,6 +1,7 @@
 import { sedeGuide } from "./core"
 import { guidesA } from "./registry-a"
 import { guidesB } from "./registry-b"
+import { guidesPos } from "./registry-pos"
 import type { GuideDescriptor } from "./types"
 
 export type { GuideDescriptor, TourStep } from "./types"
@@ -11,7 +12,12 @@ export { buildProductSteps } from "./core"
  * emparejamiento por ruta: los descriptores más específicos deben ir primero
  * (cada registro ya se ordena internamente).
  */
-export const GUIDES: GuideDescriptor[] = [sedeGuide, ...guidesA, ...guidesB]
+export const GUIDES: GuideDescriptor[] = [
+  sedeGuide,
+  ...guidesA,
+  ...guidesB,
+  ...guidesPos,
+]
 
 /** Devuelve el recorrido por su id (o undefined). */
 export function guideById(id: string): GuideDescriptor | undefined {

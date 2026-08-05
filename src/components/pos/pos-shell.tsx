@@ -9,14 +9,19 @@ import {
   Loader2,
   ChevronRight,
   Repeat,
+  Compass,
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/auth-context"
 import { useSede } from "@/lib/pos/sede-context"
 import { navItems } from "@/lib/pos/navigation"
+import { useOnboarding } from "@/lib/onboarding/onboarding-context"
+import { guideForPath } from "@/lib/onboarding/guides"
+import { ProductTour } from "@/components/onboarding/product-tour"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -44,6 +49,9 @@ function NavLinks({ vertical }: { vertical?: boolean }) {
   const pathname = usePathname()
   return (
     <nav
+      // El tour resalta la navegación del terminal; marca solo la barra lateral
+      // (vertical) para no apuntar dos veces al mismo objetivo en móvil.
+      data-tour={vertical ? "pos-nav" : undefined}
       className={cn(
         vertical
           ? "flex flex-col gap-1"
@@ -87,10 +95,37 @@ function NavLinks({ vertical }: { vertical?: boolean }) {
 function SedeBadge() {
   const { sede } = useSede()
   return (
-    <Badge variant="outline" className="gap-1.5 px-3 py-1.5 text-sm">
+    <Badge
+      data-tour="pos-sede"
+      variant="outline"
+      className="gap-1.5 px-3 py-1.5 text-sm"
+    >
       <MapPin className="size-4" />
       {sede?.name ?? "Sin sede"}
     </Badge>
+  )
+}
+
+/** Botón “Guía”: abre el recorrido de la pantalla actual del terminal. */
+function GuideButton() {
+  const pathname = usePathname()
+  const { startGuide } = useOnboarding()
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      className="gap-1.5"
+      data-tour="pos-guia"
+      aria-label="Abrir la guía de esta pantalla"
+      title="Guía de uso"
+      onClick={() => {
+        const match = guideForPath(pathname)
+        if (match) startGuide(match.id)
+      }}
+    >
+      <Compass className="size-4" />
+      <span className="hidden sm:inline">Guía</span>
+    </Button>
   )
 }
 
@@ -260,7 +295,8 @@ export function PosShell({ children }: { children: React.ReactNode }) {
         {/* Barra superior */}
         <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border bg-background/80 px-4 backdrop-blur-md supports-[backdrop-filter]:bg-background/70">
           <SedeBadge />
-          <div className="ml-auto">
+          <div className="ml-auto flex items-center gap-1.5">
+            <GuideButton />
             <UserMenu />
           </div>
         </header>
@@ -272,6 +308,9 @@ export function PosShell({ children }: { children: React.ReactNode }) {
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 backdrop-blur md:hidden">
         <NavLinks />
       </div>
+
+      {/* Recorrido guiado (spotlight) del terminal. */}
+      <ProductTour />
     </div>
   )
 }

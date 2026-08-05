@@ -1103,6 +1103,7 @@ export default function VentaPage() {
               para que se vea si hay mesas pendientes sin salir de la venta. */}
           {!isOrder && (
             <Button
+              data-tour="pos-cuentas"
               variant="outline"
               className="gap-2"
               onClick={() => void backToList()}
@@ -1127,6 +1128,7 @@ export default function VentaPage() {
             <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               ref={searchRef}
+              data-tour="pos-buscar"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               onKeyDown={(e) => {
@@ -1257,7 +1259,7 @@ export default function VentaPage() {
         </div>
 
         {/* ── Cuenta ── */}
-        <Card className="h-fit lg:sticky lg:top-20">
+        <Card data-tour="pos-carrito" className="h-fit lg:sticky lg:top-20">
           <CardContent className="flex flex-col gap-3 p-4">
             <div className="flex items-center gap-2">
               <ShoppingCart className="size-5 text-muted-foreground" />
@@ -1469,6 +1471,7 @@ export default function VentaPage() {
             {/* 56px de alto: es el objetivo táctil que fija nuestro sistema de
                 diseño para la acción principal del POS, y se pulsa con prisa. */}
             <Button
+              data-tour="pos-cobrar"
               size="lg"
               className="h-14 text-base font-semibold shadow-[0_10px_26px_-12px_var(--primary)]"
               disabled={cart.length === 0 || !sedeId}

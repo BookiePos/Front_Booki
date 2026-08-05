@@ -149,7 +149,7 @@ export default function FacturacionPage() {
         </p>
       </div>
 
-      <Card>
+      <Card data-tour="pos-fact-lista">
         <CardContent className="p-0">
           {loading ? (
             <div className="flex flex-col gap-2 p-4">

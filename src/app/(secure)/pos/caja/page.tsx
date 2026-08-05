@@ -298,6 +298,7 @@ function ClosedCaja({
             </div>
             {error && <p className="text-sm text-destructive">{error}</p>}
             <Button
+              data-tour="pos-caja-abrir"
               size="lg"
               className="gap-2"
               disabled={saving || !canSubmit}
@@ -366,7 +367,7 @@ function OpenCaja({
       </Card>
 
       {/* Arqueo en vivo */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div data-tour="pos-caja-arqueo" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat
           icon={ReceiptIcon}
           label="Ventas del turno"
@@ -397,6 +398,7 @@ function OpenCaja({
             <p className="font-display text-lg">Movimientos</p>
             {canClose && (
               <Button
+                data-tour="pos-caja-cerrar"
                 variant="destructive"
                 size="sm"
                 className="gap-1.5"
@@ -514,7 +516,10 @@ function MovementForm({
   }
 
   return (
-    <div className="flex flex-col gap-2 rounded-xl border border-border bg-muted/40 p-3">
+    <div
+      data-tour="pos-caja-mov"
+      className="flex flex-col gap-2 rounded-xl border border-border bg-muted/40 p-3"
+    >
       <div
         className={cn(
           "grid gap-1 rounded-lg border border-border bg-muted p-1",
