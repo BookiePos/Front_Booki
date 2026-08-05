@@ -315,6 +315,16 @@ export async function deletePayrollRun(id: string): Promise<void> {
   await parseResponse<{ ok: boolean }>(res)
 }
 
+/**
+ * Recalcula una corrida en borrador: vuelve a jalar los consumos aprobados y
+ * actualiza colillas y totales (útil si se aprobó un consumo después de
+ * generarla).
+ */
+export async function recalcPayrollRun(id: string): Promise<PayrollRun> {
+  const res = await authFetch(`/payroll/runs/${id}/recalc`, { method: "POST" })
+  return parseResponse<PayrollRun>(res)
+}
+
 /** Cierra una corrida (borrador → cerrada); queda fija en el historial. */
 export async function closePayrollRun(id: string): Promise<PayrollRun> {
   const res = await authFetch(`/payroll/runs/${id}/close`, { method: "POST" })

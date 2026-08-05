@@ -16,6 +16,7 @@ import {
   Mail,
   AlertTriangle,
   Lock,
+  RefreshCw,
 } from "lucide-react"
 
 import { useAuth } from "@/lib/auth-context"
@@ -30,6 +31,7 @@ import {
   getPayrollRun,
   deletePayrollRun,
   closePayrollRun,
+  recalcPayrollRun,
   computeLiquidacion,
   novedadesTurnos,
   sendPayrollSlip,
@@ -451,11 +453,26 @@ function RunDetail({
   const [slip, setSlip] = React.useState<PayrollSlip | null>(null)
   const [sending, setSending] = React.useState(false)
   const [closing, setClosing] = React.useState(false)
+  const [recalcing, setRecalcing] = React.useState(false)
   const [sendMsg, setSendMsg] = React.useState<{ ok: boolean; text: string } | null>(
     null,
   )
 
   const isClosed = run.status === "cerrada"
+
+  async function handleRecalc() {
+    setRecalcing(true)
+    try {
+      const updated = await recalcPayrollRun(run._id)
+      onChanged?.(updated)
+    } catch (e) {
+      alert(
+        e instanceof ApiError ? e.message : "No se pudo recalcular la nómina.",
+      )
+    } finally {
+      setRecalcing(false)
+    }
+  }
 
   function openSlip(s: PayrollSlip) {
     setSlip(s)
@@ -534,19 +551,38 @@ function RunDetail({
           </span>
         ) : (
           onChanged && (
-            <Button
-              size="sm"
-              className="gap-2"
-              disabled={closing || run.slips.length === 0}
-              onClick={() => void handleClose()}
-            >
-              {closing ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                <Lock className="size-4" />
-              )}
-              Generar cierre
-            </Button>
+            <div className="flex items-center gap-2">
+              {/* Recalcular: vuelve a jalar los consumos aprobados (p. ej. si se
+                  aprobó uno después de generar la corrida). */}
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-2"
+                disabled={recalcing || closing}
+                onClick={() => void handleRecalc()}
+                title="Vuelve a calcular con los consumos aprobados y las horas actuales"
+              >
+                {recalcing ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="size-4" />
+                )}
+                Recalcular
+              </Button>
+              <Button
+                size="sm"
+                className="gap-2"
+                disabled={closing || recalcing || run.slips.length === 0}
+                onClick={() => void handleClose()}
+              >
+                {closing ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <Lock className="size-4" />
+                )}
+                Generar cierre
+              </Button>
+            </div>
           )
         )}
       </div>

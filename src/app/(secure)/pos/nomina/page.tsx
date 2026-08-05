@@ -11,6 +11,8 @@ import {
   Loader2,
   CalendarClock,
   Lock,
+  Pencil,
+  X,
 } from "lucide-react"
 
 import { useAuth } from "@/lib/auth-context"
@@ -20,6 +22,7 @@ import {
   listAttendance,
   upsertAttendance,
   attendanceSummary,
+  requestAttendanceEdit,
   type Worker,
   type AttendanceSummaryRow,
 } from "@/lib/pos/api-attendance"
@@ -93,6 +96,54 @@ export default function NominaPage() {
   const [error, setError] = React.useState<string | null>(null)
   const [confirming, setConfirming] = React.useState(false)
   const [flash, setFlash] = React.useState<string | null>(null)
+
+  // Solicitud de edición de horas ya bloqueadas (la aprueba Operación).
+  const [reqWorker, setReqWorker] = React.useState<Worker | null>(null)
+  const [reqIn, setReqIn] = React.useState("")
+  const [reqOut, setReqOut] = React.useState("")
+  const [reqReason, setReqReason] = React.useState("")
+  const [reqBusy, setReqBusy] = React.useState(false)
+  const [reqError, setReqError] = React.useState<string | null>(null)
+
+  function openEditRequest(w: Worker) {
+    const cur = saved[w.id] ?? EMPTY
+    setReqWorker(w)
+    setReqIn(cur.checkIn)
+    setReqOut(cur.checkOut)
+    setReqReason("")
+    setReqError(null)
+  }
+
+  async function submitEditRequest() {
+    if (!reqWorker || !sedeId) return
+    if (reqReason.trim().length < 3) {
+      setReqError("Escribe el motivo del cambio.")
+      return
+    }
+    const cur = saved[reqWorker.id] ?? EMPTY
+    if (reqIn === cur.checkIn && reqOut === cur.checkOut) {
+      setReqError("Cambia la entrada o la salida que quieres corregir.")
+      return
+    }
+    setReqBusy(true)
+    setReqError(null)
+    try {
+      await requestAttendanceEdit({
+        sedeId,
+        employeeId: reqWorker.id,
+        workDate: date,
+        proposedCheckIn: reqIn || undefined,
+        proposedCheckOut: reqOut || undefined,
+        reason: reqReason.trim(),
+      })
+      setReqWorker(null)
+      setFlash("Solicitud enviada a Operación para aprobación")
+    } catch (err) {
+      setReqError(errorMessage(err))
+    } finally {
+      setReqBusy(false)
+    }
+  }
 
   const load = React.useCallback(async () => {
     if (!sedeId) return
@@ -351,6 +402,20 @@ export default function NominaPage() {
                       <p className="text-xs text-muted-foreground">Horas</p>
                       <p className="stat-figure text-base">{hours.toFixed(2)}</p>
                     </div>
+
+                    {/* Horas ya registradas (bloqueadas): no se editan aquí, se
+                        solicita el cambio para que Operación lo apruebe. */}
+                    {(savedRow.checkIn || savedRow.checkOut) && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="gap-1.5 text-xs text-muted-foreground"
+                        onClick={() => openEditRequest(w)}
+                      >
+                        <Pencil className="size-3.5" />
+                        Solicitar edición
+                      </Button>
+                    )}
                   </li>
                 )
               })}
@@ -538,6 +603,105 @@ export default function NominaPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Modal: solicitar edición de horas bloqueadas */}
+      {reqWorker && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-brand-950/45 p-4 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Solicitar edición de horas"
+          onClick={() => !reqBusy && setReqWorker(null)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl bg-card p-5 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <p className="font-display text-lg">Solicitar edición</p>
+                <p className="text-sm text-muted-foreground">
+                  {reqWorker.name} · {date}
+                </p>
+              </div>
+              <button
+                type="button"
+                aria-label="Cerrar"
+                onClick={() => !reqBusy && setReqWorker(null)}
+                className="-mr-1 -mt-1 inline-flex size-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+
+            <p className="mt-2 rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
+              Las horas registradas están bloqueadas. Tu solicitud queda
+              pendiente hasta que Operación la apruebe.
+            </p>
+
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="req-in" className="text-xs">
+                  Entrada
+                </Label>
+                <Input
+                  id="req-in"
+                  type="time"
+                  value={reqIn}
+                  onChange={(e) => setReqIn(e.target.value)}
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="req-out" className="text-xs">
+                  Salida
+                </Label>
+                <Input
+                  id="req-out"
+                  type="time"
+                  value={reqOut}
+                  onChange={(e) => setReqOut(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="mt-3 flex flex-col gap-1">
+              <Label htmlFor="req-reason" className="text-xs">
+                Motivo del cambio
+              </Label>
+              <Input
+                id="req-reason"
+                value={reqReason}
+                onChange={(e) => setReqReason(e.target.value)}
+                placeholder="Ej. marqué mal la salida"
+              />
+            </div>
+
+            {reqError && (
+              <p className="mt-2 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                {reqError}
+              </p>
+            )}
+
+            <div className="mt-4 flex justify-end gap-2">
+              <Button
+                variant="outline"
+                disabled={reqBusy}
+                onClick={() => setReqWorker(null)}
+              >
+                Cancelar
+              </Button>
+              <Button
+                className="gap-2"
+                disabled={reqBusy}
+                onClick={() => void submitEditRequest()}
+              >
+                {reqBusy && <Loader2 className="size-4 animate-spin" />}
+                Enviar solicitud
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

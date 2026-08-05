@@ -78,3 +78,23 @@ export async function attendanceSummary(
   const res = await authFetch(`/attendance/summary?${params.toString()}`)
   return parseResponse<AttendanceSummaryRow[]>(res)
 }
+
+export interface EditRequestPayload {
+  sedeId: string
+  employeeId: string
+  workDate: string
+  proposedCheckIn?: string
+  proposedCheckOut?: string
+  reason: string
+}
+
+/** Solicita a Operación corregir las horas ya registradas de un día. */
+export async function requestAttendanceEdit(
+  payload: EditRequestPayload,
+): Promise<{ _id: string; status: string }> {
+  const res = await authFetch("/attendance/requests", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
+  return parseResponse<{ _id: string; status: string }>(res)
+}
