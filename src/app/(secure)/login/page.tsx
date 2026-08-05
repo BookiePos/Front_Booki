@@ -28,7 +28,7 @@ export default function LoginPage() {
   const emailId = useId();
   const passId = useId();
   const router = useRouter();
-  const { login, user, hasPermission } = useAuth();
+  const { login, user, canUsePos, canUseOperation } = useAuth();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -56,10 +56,12 @@ export default function LoginPage() {
     }
   }
 
-  const canPos = hasPermission("pos.sell");
-  const canPanel = ["reports.view", "finance.view", "inventory.view", "users.manage"].some(
-    (permission) => hasPermission(permission),
-  );
+  // Áreas a las que el usuario tiene acceso real. Se usan los mismos flags que
+  // guardan cada zona (canUsePos / canUseOperation), para no ofrecer aquí una
+  // puerta que luego el guard rebota. `inventory.view` u otros permisos que el
+  // POS también usa NO habilitan el panel: eso lo decide OPERATION_PERMISSIONS.
+  const canPos = canUsePos;
+  const canPanel = canUseOperation;
 
   return (
     <main className="zone-marketing grid min-h-svh bg-surface text-ink lg:grid-cols-[1fr_1.1fr]">
