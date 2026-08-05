@@ -83,6 +83,8 @@ export interface Sale {
   discountTotal: number
   taxTotal: number
   total: number
+  /** Propina (restaurante): se cobró encima del total. */
+  tip?: number
   payment: { method: PaymentMethod; received?: number; change?: number }
   customer?: Customer
   orderId?: string
@@ -116,6 +118,8 @@ export interface CreateSalePayload {
   payment: SalePaymentInput
   discount?: { type: DiscountType; value: number }
   customer?: Customer
+  /** Propina voluntaria (restaurante), en pesos. */
+  tip?: number
 }
 
 // ─── Cuentas abiertas (comandas / mesas) ─────────────────────────────────────
@@ -163,6 +167,8 @@ export interface CheckoutOrderPayload {
   payment: SalePaymentInput
   discount?: { type: DiscountType; value: number }
   customer?: Customer
+  /** Propina voluntaria (restaurante), en pesos. */
+  tip?: number
 }
 
 // ─── API ─────────────────────────────────────────────────────────────────────

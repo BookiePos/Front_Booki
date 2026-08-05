@@ -149,7 +149,7 @@ function cashSuggestions(total: number): number[] {
 }
 
 export default function VentaPage() {
-  const { hasPermission, isRetail } = useAuth()
+  const { hasPermission, isRetail, isRestaurant } = useAuth()
   const canSell = hasPermission("pos.sell")
 
   const { sedeId, sede, sedes, loading: sedesLoading } = useSede()
@@ -163,6 +163,10 @@ export default function VentaPage() {
   const [flash, setFlash] = React.useState<string | null>(null)
 
   const [cart, setCart] = React.useState<CartItem[]>([])
+
+  // Propina (restaurante): null = no hay; número = monto en pesos (editable).
+  // Es voluntaria: se puede poner y quitar, con el 10% sugerido o un monto libre.
+  const [tip, setTip] = React.useState<number | null>(null)
 
   // Descuentos predefinidos de la sede (activos), para aplicar por línea.
   const [discounts, setDiscounts] = React.useState<Discount[]>([])
@@ -323,6 +327,7 @@ export default function VentaPage() {
   React.useEffect(() => {
     if (!canSell) return
     setCart([])
+    setTip(null)
     setActiveOrderId(null)
     setLabel("")
     setSaveState("idle")
@@ -523,6 +528,7 @@ export default function VentaPage() {
 
   function clearCart() {
     setCart([])
+    setTip(null)
   }
 
   // ── Gestión de cuentas ──
@@ -533,6 +539,7 @@ export default function VentaPage() {
     setLabel("")
     setSaveState("idle")
     setCart([])
+    setTip(null)
     setScreen("sell")
   }
 
@@ -542,6 +549,7 @@ export default function VentaPage() {
     setActiveOrderId(o._id)
     setLabel(o.label ?? "")
     setCart(orderToCart(o, products))
+    setTip(null)
     setSaveState("saved")
     setScreen("sell")
   }
@@ -553,6 +561,7 @@ export default function VentaPage() {
     setLabel("")
     setSaveState("idle")
     setCart([])
+    setTip(null)
     setScreen("list")
     void refreshOrders()
   }
@@ -691,6 +700,10 @@ export default function VentaPage() {
   const lineDiscountTotal = cart.reduce((s, i) => s + lineDiscount(i), 0)
   const itemCount = cart.reduce((s, i) => s + i.qty, 0)
 
+  // Propina en pesos (0 si no hay). El 10% se sugiere sobre el total de bienes.
+  const tipAmount = tip ?? 0
+  const suggestedTip = Math.round(total * 0.1)
+
   const filtered = React.useMemo(() => {
     const q = search.trim().toLowerCase()
     return products.filter((p) => {
@@ -731,8 +744,9 @@ export default function VentaPage() {
   }, [method])
 
   // Total a cobrar. Los descuentos son solo los predefinidos por línea (ya
-  // netos en `total`); en el POS no se permiten descuentos libres.
-  const netTotal = total
+  // netos en `total`); en el POS no se permiten descuentos libres. La propina
+  // (restaurante) se cobra ENCIMA del total de bienes.
+  const netTotal = total + tipAmount
 
   const receivedNum = received ? Number(received) : undefined
   const change =
@@ -787,6 +801,7 @@ export default function VentaPage() {
         sale = await checkoutOrder(activeOrderId, {
           payment,
           customer: customerData,
+          tip: tipAmount || undefined,
         })
         setOrders((prev) => prev.filter((o) => o._id !== activeOrderId))
         setActiveOrderId(null)
@@ -802,10 +817,12 @@ export default function VentaPage() {
           })),
           payment,
           customer: customerData,
+          tip: tipAmount || undefined,
         })
       }
       setCompletedSale(sale)
       setCart([])
+      setTip(null)
       void fetchProducts()
 
       // La venta ya está registrada. Lo que sigue (factura DIAN y alta del
@@ -1458,13 +1475,86 @@ export default function VentaPage() {
 
             <Separator />
 
+            {/* Propina (restaurante): voluntaria, se cobra encima del total. Se
+                pone/quita con el 10% sugerido o un monto libre. Va arriba del
+                total para que el cliente decida antes de ver el total a pagar. */}
+            {isRestaurant && cart.length > 0 && (
+              <div className="rounded-xl border border-dashed border-border p-3">
+                <div className="flex items-center justify-between">
+                  <span className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+                    <HandCoins className="size-4 text-muted-foreground" />
+                    Propina
+                    <span className="text-xs font-normal text-muted-foreground">
+                      (opcional)
+                    </span>
+                  </span>
+                  {tip !== null && (
+                    <button
+                      type="button"
+                      onClick={() => setTip(null)}
+                      className="text-xs font-medium text-muted-foreground transition-colors hover:text-destructive"
+                    >
+                      Quitar
+                    </button>
+                  )}
+                </div>
+                {tip === null ? (
+                  <div className="mt-2 flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1"
+                      disabled={total <= 0}
+                      onClick={() => setTip(suggestedTip)}
+                    >
+                      10% · {money(suggestedTip)}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => setTip(0)}
+                    >
+                      Otro monto
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="mt-2 flex items-center gap-2">
+                    <MoneyInput
+                      value={tip}
+                      onValueChange={(v) => setTip(v ?? 0)}
+                      placeholder="$0"
+                      className="flex-1"
+                    />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={total <= 0}
+                      onClick={() => setTip(suggestedTip)}
+                    >
+                      10%
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* El total es la cifra que el cajero canta en voz alta y que el
                 cliente mira: va en panel violeta y grande, no como una fila
-                más de la lista. */}
+                más de la lista. Con propina, el grande es el total a pagar. */}
             <div className="flex items-baseline justify-between rounded-xl bg-accent px-4 py-3">
-              <span className="font-display text-lg text-accent-foreground">Total</span>
+              <div className="flex flex-col">
+                <span className="font-display text-lg text-accent-foreground">
+                  {tipAmount > 0 ? "Total a pagar" : "Total"}
+                </span>
+                {tipAmount > 0 && (
+                  <span className="text-xs text-accent-foreground/70">
+                    Bienes {money(total)} · Propina {money(tipAmount)}
+                  </span>
+                )}
+              </div>
               <span className="stat-figure text-[1.75rem] leading-none text-primary">
-                {money(total)}
+                {money(netTotal)}
               </span>
             </div>
 
@@ -1477,7 +1567,7 @@ export default function VentaPage() {
               disabled={cart.length === 0 || !sedeId}
               onClick={openCheckout}
             >
-              Cobrar {total > 0 ? money(total) : ""}
+              Cobrar {netTotal > 0 ? money(netTotal) : ""}
             </Button>
 
             {/* En venta directa se puede aparcar el carrito como cuenta. */}
@@ -1632,6 +1722,9 @@ export default function VentaPage() {
                       </span>{" "}
                       −{money(lineDiscountTotal)}
                     </>
+                  )}
+                  {tipAmount > 0 && (
+                    <> · Bienes {money(total)} + Propina {money(tipAmount)}</>
                   )}
                 </p>
               </div>

@@ -140,6 +140,17 @@ export function Receipt({
           <span>TOTAL</span>
           <span className="tabular-nums">{money(sale.total)}</span>
         </div>
+        {(sale.tip ?? 0) > 0 && (
+          <>
+            <Row label="Propina" value={money(sale.tip ?? 0)} muted />
+            <div className="flex justify-between text-sm font-semibold">
+              <span>TOTAL A PAGAR</span>
+              <span className="tabular-nums">
+                {money(sale.total + (sale.tip ?? 0))}
+              </span>
+            </div>
+          </>
+        )}
       </div>
 
       <Dashed />
