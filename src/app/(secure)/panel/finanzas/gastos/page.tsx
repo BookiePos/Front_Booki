@@ -21,6 +21,7 @@ import { listSedes, type Sede } from "@/lib/erp/api-inventory"
 import {
   listExpenses,
   listCategories,
+  createCategory,
   createExpense,
   updateExpense,
   deleteExpense,
@@ -98,10 +99,17 @@ export default function GastosPage() {
   const { hasPermission } = useAuth()
   const canView = hasPermission("finance.view")
   const canManage = hasPermission("purchasing.manage")
+  const canManageCategories = hasPermission("finance.manage")
 
   const [tab, setTab] = React.useState<Tab>("gastos")
   const [sedes, setSedes] = React.useState<Sede[]>([])
   const [categories, setCategories] = React.useState<FinanceCategory[]>([])
+
+  const addCategory = React.useCallback((cat: FinanceCategory) => {
+    setCategories((prev) =>
+      prev.some((c) => c._id === cat._id) ? prev : [...prev, cat],
+    )
+  }, [])
 
   // Filtros de la vista Gastos.
   const [sedeId, setSedeId] = React.useState<string>(ALL)
@@ -446,6 +454,8 @@ export default function GastosPage() {
           sedes={sedes}
           categories={categories}
           canManage={canManage}
+          canManageCategories={canManageCategories}
+          onCategoryCreated={addCategory}
           onChanged={() => void load()}
         />
       )}
@@ -459,6 +469,8 @@ export default function GastosPage() {
           editing={editing}
           sedes={sedes}
           categories={categories}
+          canManageCategories={canManageCategories}
+          onCategoryCreated={addCategory}
           onSaved={() => {
             setSheetOpen(false)
             void load()
@@ -511,11 +523,15 @@ function RecurringPanel({
   sedes,
   categories,
   canManage,
+  canManageCategories,
+  onCategoryCreated,
   onChanged,
 }: {
   sedes: Sede[]
   categories: FinanceCategory[]
   canManage: boolean
+  canManageCategories: boolean
+  onCategoryCreated: (cat: FinanceCategory) => void
   onChanged: () => void
 }) {
   const [rows, setRows] = React.useState<FinanceRecurringExpense[]>([])
@@ -742,6 +758,8 @@ function RecurringPanel({
           editing={editing}
           sedes={sedes}
           categories={categories}
+          canManageCategories={canManageCategories}
+          onCategoryCreated={onCategoryCreated}
           onSaved={() => {
             setSheetOpen(false)
             void load()
@@ -758,6 +776,8 @@ function RecurringSheet({
   editing,
   sedes,
   categories,
+  canManageCategories,
+  onCategoryCreated,
   onSaved,
 }: {
   open: boolean
@@ -765,6 +785,8 @@ function RecurringSheet({
   editing: FinanceRecurringExpense | null
   sedes: Sede[]
   categories: FinanceCategory[]
+  canManageCategories: boolean
+  onCategoryCreated: (cat: FinanceCategory) => void
   onSaved: () => void
 }) {
   const expenseCats = categories.filter((c) => c.kind === "expense" && c.active)
@@ -886,21 +908,16 @@ function RecurringSheet({
             </select>
           </div>
 
-          <div className="flex flex-col gap-1">
-            <Label className="text-xs">Categoría</Label>
-            <select
-              className={inputClass}
-              value={categoryId}
-              onChange={(e) => setCategoryId(e.target.value)}
-            >
-              <option value="">Selecciona…</option>
-              {expenseCats.map((c) => (
-                <option key={c._id} value={c._id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          <ExpenseCategorySelect
+            value={categoryId}
+            onChange={setCategoryId}
+            categories={expenseCats}
+            canCreate={canManageCategories}
+            onCreated={(cat) => {
+              onCategoryCreated(cat)
+              setCategoryId(cat._id)
+            }}
+          />
 
           <div className="flex flex-col gap-1">
             <Label className="text-xs">Concepto</Label>
@@ -1061,6 +1078,8 @@ function ExpenseSheet({
   editing,
   sedes,
   categories,
+  canManageCategories,
+  onCategoryCreated,
   onSaved,
 }: {
   open: boolean
@@ -1068,6 +1087,8 @@ function ExpenseSheet({
   editing: FinanceExpense | null
   sedes: Sede[]
   categories: FinanceCategory[]
+  canManageCategories: boolean
+  onCategoryCreated: (cat: FinanceCategory) => void
   onSaved: () => void
 }) {
   const expenseCats = categories.filter((c) => c.kind === "expense" && c.active)
@@ -1177,21 +1198,16 @@ function ExpenseSheet({
             </select>
           </div>
 
-          <div className="flex flex-col gap-1">
-            <Label className="text-xs">Categoría</Label>
-            <select
-              className={inputClass}
-              value={categoryId}
-              onChange={(e) => setCategoryId(e.target.value)}
-            >
-              <option value="">Selecciona…</option>
-              {expenseCats.map((c) => (
-                <option key={c._id} value={c._id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          <ExpenseCategorySelect
+            value={categoryId}
+            onChange={setCategoryId}
+            categories={expenseCats}
+            canCreate={canManageCategories}
+            onCreated={(cat) => {
+              onCategoryCreated(cat)
+              setCategoryId(cat._id)
+            }}
+          />
 
           <div className="flex flex-col gap-1">
             <Label className="text-xs">Concepto</Label>
@@ -1300,6 +1316,114 @@ function ExpenseSheet({
         </div>
       </SheetContent>
     </Sheet>
+  )
+}
+
+/** Selector de categoría de gasto con opción inline de crear una nueva. */
+function ExpenseCategorySelect({
+  value,
+  onChange,
+  categories,
+  canCreate,
+  onCreated,
+}: {
+  value: string
+  onChange: (v: string) => void
+  categories: FinanceCategory[]
+  canCreate: boolean
+  onCreated: (cat: FinanceCategory) => void
+}) {
+  const [creating, setCreating] = React.useState(false)
+  const [name, setName] = React.useState("")
+  const [busy, setBusy] = React.useState(false)
+  const [error, setError] = React.useState<string | null>(null)
+
+  async function create() {
+    const clean = name.trim()
+    if (!clean) return
+    setBusy(true)
+    setError(null)
+    try {
+      const cat = await createCategory({ name: clean, kind: "expense" })
+      onCreated(cat)
+      setName("")
+      setCreating(false)
+    } catch (err) {
+      setError(errorMessage(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center justify-between">
+        <Label className="text-xs">Categoría</Label>
+        {canCreate && !creating && (
+          <button
+            type="button"
+            className="text-[11px] font-medium text-primary hover:underline"
+            onClick={() => setCreating(true)}
+          >
+            + Nueva categoría
+          </button>
+        )}
+      </div>
+      {creating ? (
+        <div className="flex flex-col gap-1.5 rounded-lg border border-border p-2">
+          <Input
+            value={name}
+            autoFocus
+            placeholder="Nombre de la categoría"
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault()
+                void create()
+              }
+            }}
+          />
+          {error && <p className="text-xs text-destructive">{error}</p>}
+          <div className="flex justify-end gap-1.5">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setCreating(false)
+                setName("")
+                setError(null)
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              className="gap-1.5"
+              disabled={busy || !name.trim()}
+              onClick={() => void create()}
+            >
+              {busy && <Loader2 className="size-3.5 animate-spin" />}
+              Crear
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <select
+          className={inputClass}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+        >
+          <option value="">Selecciona…</option>
+          {categories.map((c) => (
+            <option key={c._id} value={c._id}>
+              {c.name}
+            </option>
+          ))}
+        </select>
+      )}
+    </div>
   )
 }
 
