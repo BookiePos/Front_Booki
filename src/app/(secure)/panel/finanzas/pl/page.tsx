@@ -14,10 +14,13 @@ import { useAuth } from "@/lib/auth-context"
 import { listSedes, type Sede } from "@/lib/erp/api-inventory"
 import {
   getPL,
+  getPLMonthly,
   listBudgets,
   getBudgetVsActual,
   MONTHS_SHORT,
   type PLReport,
+  type PLMonthlyReport,
+  type PLMonthRow,
   type FinanceBudget,
   type BudgetVsActual,
 } from "@/lib/erp/api-finance"
@@ -29,12 +32,13 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
+import { CalendarRange } from "lucide-react"
 
 const ALL = "all"
 const inputClass =
   "h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
 
-type View = "pl" | "vs"
+type View = "pl" | "mensual" | "vs"
 
 export default function PlPage() {
   const { hasPermission } = useAuth()
@@ -110,6 +114,15 @@ export default function PlPage() {
           Estado de resultados
         </Button>
         <Button
+          variant={view === "mensual" ? "default" : "outline"}
+          size="sm"
+          className="gap-1.5"
+          onClick={() => setView("mensual")}
+        >
+          <CalendarRange className="size-4" />
+          Mes a mes
+        </Button>
+        <Button
           data-tour="pl-vs"
           variant={view === "vs" ? "default" : "outline"}
           size="sm"
@@ -129,6 +142,8 @@ export default function PlPage() {
           setTo={setTo}
           sedeId={sedeId === ALL ? undefined : sedeId}
         />
+      ) : view === "mensual" ? (
+        <MonthlyView sedeId={sedeId === ALL ? undefined : sedeId} />
       ) : (
         <VsActualView sedeId={sedeId === ALL ? undefined : sedeId} />
       )}
@@ -300,6 +315,170 @@ function PLLine({
       >
         {money.format(value)}
       </span>
+    </div>
+  )
+}
+
+// ── P&L mes a mes ────────────────────────────────────────────────────────────
+function MonthlyView({ sedeId }: { sedeId?: string }) {
+  const nowYear = new Date().getFullYear()
+  const [year, setYear] = React.useState(nowYear)
+  const [data, setData] = React.useState<PLMonthlyReport | null>(null)
+  const [loading, setLoading] = React.useState(true)
+  const [error, setError] = React.useState<string | null>(null)
+
+  const load = React.useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      setData(await getPLMonthly({ year, sedeId }))
+    } catch (err) {
+      setError(errorMessage(err))
+    } finally {
+      setLoading(false)
+    }
+  }, [year, sedeId])
+
+  React.useEffect(() => {
+    void load()
+  }, [load])
+
+  const years = [nowYear + 1, nowYear, nowYear - 1, nowYear - 2]
+  const compact = new Intl.NumberFormat("es-CO", {
+    notation: "compact",
+    maximumFractionDigits: 1,
+  })
+
+  // Filas del estado de resultados. `neg` = se muestra como resta.
+  const rowDefs: {
+    key: keyof PLMonthRow
+    label: string
+    neg?: boolean
+    strong?: boolean
+    accent?: boolean
+    divider?: boolean
+  }[] = [
+    { key: "ingresos", label: "Ingresos" },
+    { key: "cogs", label: "(−) Costo de ventas", neg: true },
+    { key: "margenBruto", label: "Margen bruto", strong: true, divider: true },
+    { key: "nomina", label: "(−) Nómina", neg: true },
+    { key: "gastos", label: "(−) Gastos", neg: true },
+    {
+      key: "utilidad",
+      label: "Utilidad operativa",
+      strong: true,
+      accent: true,
+      divider: true,
+    },
+  ]
+
+  return (
+    <div className="flex flex-col gap-4">
+      <Card>
+        <CardContent className="flex flex-wrap items-end gap-3 py-4">
+          <div className="flex flex-col gap-1">
+            <Label className="text-xs">Año</Label>
+            <select
+              className={`${inputClass} w-28`}
+              value={year}
+              onChange={(e) => setYear(Number(e.target.value))}
+            >
+              {years.map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
+            </select>
+          </div>
+          <Button variant="outline" size="icon" onClick={() => void load()} title="Actualizar">
+            <RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />
+          </Button>
+        </CardContent>
+      </Card>
+
+      {loading ? (
+        <Skeleton className="h-80 rounded-lg" />
+      ) : error ? (
+        <p className="py-10 text-center text-sm text-destructive">{error}</p>
+      ) : data ? (
+        <Card>
+          <CardContent className="overflow-x-auto p-0">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-border">
+                  <th className="sticky left-0 z-10 bg-card px-3 py-2 text-left font-medium">
+                    Concepto
+                  </th>
+                  {MONTHS_SHORT.map((m) => (
+                    <th key={m} className="px-2 py-2 text-right font-medium">
+                      {m}
+                    </th>
+                  ))}
+                  <th className="px-3 py-2 text-right font-semibold">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rowDefs.map((row) => (
+                  <tr
+                    key={row.key}
+                    className={`border-b border-border/60 ${
+                      row.divider ? "border-t border-border" : ""
+                    }`}
+                  >
+                    <td
+                      className={`sticky left-0 z-10 bg-card px-3 py-1.5 ${
+                        row.strong ? "font-semibold" : "text-muted-foreground"
+                      }`}
+                    >
+                      {row.label}
+                    </td>
+                    {data.months.map((mo) => {
+                      const raw = mo[row.key]
+                      const shown = row.neg ? -raw : raw
+                      return (
+                        <td
+                          key={mo.month}
+                          className={`px-2 py-1.5 text-right tabular-nums ${
+                            row.accent
+                              ? shown < 0
+                                ? "text-destructive"
+                                : "text-primary"
+                              : row.strong
+                                ? ""
+                                : "text-muted-foreground"
+                          }`}
+                        >
+                          {raw ? compact.format(shown) : "—"}
+                        </td>
+                      )
+                    })}
+                    <td
+                      className={`px-3 py-1.5 text-right font-medium tabular-nums ${
+                        row.accent
+                          ? (row.neg ? -data.totals[row.key] : data.totals[row.key]) < 0
+                            ? "text-destructive"
+                            : "text-primary"
+                          : row.strong
+                            ? "font-semibold"
+                            : ""
+                      }`}
+                    >
+                      {compact.format(
+                        row.neg ? -data.totals[row.key] : data.totals[row.key],
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      <p className="text-[11px] text-muted-foreground">
+        Cifras en formato corto (ej. 1,2 M). Utilidad operativa = margen bruto −
+        nómina − gastos, con las mismas fuentes del estado de resultados.
+      </p>
     </div>
   )
 }

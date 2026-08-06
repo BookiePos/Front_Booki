@@ -247,6 +247,23 @@ export interface PLReport {
   ivaPorPagar: number
 }
 
+export interface PLMonthRow {
+  month: number
+  ingresos: number
+  cogs: number
+  margenBruto: number
+  nomina: number
+  gastos: number
+  utilidad: number
+}
+
+export interface PLMonthlyReport {
+  year: number
+  sedeId?: string | null
+  months: PLMonthRow[]
+  totals: PLMonthRow
+}
+
 export interface FinanceOverview {
   sedeId?: string
   cashToday: number
@@ -747,6 +764,17 @@ export async function getPL(query: {
   if (query.sedeId) params.set("sedeId", query.sedeId)
   const res = await authFetch(`/finance/pl?${params.toString()}`)
   return parseResponse<PLReport>(res)
+}
+
+export async function getPLMonthly(query: {
+  year: number
+  sedeId?: string
+}): Promise<PLMonthlyReport> {
+  const params = new URLSearchParams()
+  params.set("year", String(query.year))
+  if (query.sedeId) params.set("sedeId", query.sedeId)
+  const res = await authFetch(`/finance/pl-monthly?${params.toString()}`)
+  return parseResponse<PLMonthlyReport>(res)
 }
 
 export async function getOverview(sedeId?: string): Promise<FinanceOverview> {

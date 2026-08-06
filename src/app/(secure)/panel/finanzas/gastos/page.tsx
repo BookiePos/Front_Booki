@@ -117,6 +117,9 @@ export default function GastosPage() {
   const [to, setTo] = React.useState(todayLocal())
   const [status, setStatus] = React.useState<string>(ALL)
   const [categoryId, setCategoryId] = React.useState<string>(ALL)
+  const [gastoView, setGastoView] = React.useState<"categoria" | "detalle">(
+    "categoria",
+  )
   const [rows, setRows] = React.useState<FinanceExpense[]>([])
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
@@ -204,6 +207,30 @@ export default function GastosPage() {
     .filter((r) => r.status === "payable")
     .reduce((s, r) => s + r.amount + r.taxAmount, 0)
   const obligaciones = gastosPorPagar + cxpOpen
+
+  // Gastos agrupados por categoría (vista por defecto).
+  const grouped = React.useMemo(() => {
+    const map = new Map<
+      string,
+      { categoryId: string; name: string; count: number; amount: number; tax: number }
+    >()
+    for (const r of visibleRows) {
+      const g = map.get(r.categoryId) ?? {
+        categoryId: r.categoryId,
+        name: r.categoryName,
+        count: 0,
+        amount: 0,
+        tax: 0,
+      }
+      g.count += 1
+      g.amount += r.amount
+      g.tax += r.taxAmount
+      map.set(r.categoryId, g)
+    }
+    return [...map.values()].sort(
+      (a, b) => b.amount + b.tax - (a.amount + a.tax),
+    )
+  }, [visibleRows])
 
   function openNew() {
     setEditing(null)
@@ -340,6 +367,27 @@ export default function GastosPage() {
             </CardContent>
           </Card>
 
+          <div className="mb-3 inline-flex rounded-lg border border-border bg-muted/40 p-1">
+            {(
+              [
+                { v: "categoria", l: "Por categoría" },
+                { v: "detalle", l: "Detalle" },
+              ] as const
+            ).map((t) => (
+              <button
+                key={t.v}
+                onClick={() => setGastoView(t.v)}
+                className={`rounded-md px-3 py-1 text-sm font-medium transition-colors ${
+                  gastoView === t.v
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {t.l}
+              </button>
+            ))}
+          </div>
+
           <Card data-tour="gastos-tabla">
             <CardContent className="p-0">
               {loading ? (
@@ -357,6 +405,82 @@ export default function GastosPage() {
                     No hay gastos en este rango.
                   </p>
                 </div>
+              ) : gastoView === "categoria" ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Categoría</TableHead>
+                      <TableHead className="text-right">Gastos</TableHead>
+                      <TableHead>Participación</TableHead>
+                      <TableHead className="text-right">Monto</TableHead>
+                      <TableHead className="text-right">IVA</TableHead>
+                      <TableHead className="text-right">Total</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {grouped.map((g) => {
+                      const total = g.amount + g.tax
+                      const share = totalPeriodo > 0 ? (total / totalPeriodo) * 100 : 0
+                      return (
+                        <TableRow
+                          key={g.categoryId}
+                          className="cursor-pointer"
+                          onClick={() => {
+                            setCategoryId(g.categoryId)
+                            setGastoView("detalle")
+                          }}
+                        >
+                          <TableCell className="font-medium">{g.name}</TableCell>
+                          <TableCell className="text-right tabular-nums text-muted-foreground">
+                            {g.count}
+                          </TableCell>
+                          <TableCell>
+                            <span className="flex items-center gap-2">
+                              <span className="flex h-1.5 w-24 overflow-hidden rounded-full bg-muted">
+                                <span
+                                  className="h-full rounded-full bg-primary"
+                                  style={{ width: `${share}%` }}
+                                />
+                              </span>
+                              <span className="text-xs tabular-nums text-muted-foreground">
+                                {share.toFixed(0)}%
+                              </span>
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {money.format(g.amount)}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums text-muted-foreground">
+                            {g.tax ? money.format(g.tax) : "—"}
+                          </TableCell>
+                          <TableCell className="text-right font-medium tabular-nums">
+                            {money.format(total)}
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
+                  </TableBody>
+                  <TableFooter>
+                    <TableRow>
+                      <TableCell className="font-semibold">
+                        Total ({grouped.length} categoría{grouped.length === 1 ? "" : "s"})
+                      </TableCell>
+                      <TableCell className="text-right font-semibold tabular-nums">
+                        {visibleRows.length}
+                      </TableCell>
+                      <TableCell />
+                      <TableCell className="text-right font-semibold tabular-nums">
+                        {money.format(visibleRows.reduce((s, r) => s + r.amount, 0))}
+                      </TableCell>
+                      <TableCell className="text-right font-semibold tabular-nums">
+                        {money.format(visibleRows.reduce((s, r) => s + r.taxAmount, 0))}
+                      </TableCell>
+                      <TableCell className="text-right font-semibold tabular-nums">
+                        {money.format(totalPeriodo)}
+                      </TableCell>
+                    </TableRow>
+                  </TableFooter>
+                </Table>
               ) : (
                 <Table>
                   <TableHeader>
