@@ -61,7 +61,16 @@ export interface SalesReport {
     tickets: number
     avgTicket: number
   }[]
+  byMethod: { method: string; revenue: number; tickets: number }[]
+  bySede: { sedeId: string | null; revenue: number; tickets: number }[]
+  topProducts: {
+    productId: string | null
+    name: string
+    qty: number
+    revenue: number
+  }[]
   totalRevenue: number
+  totalTax: number
   totalTickets: number
   avgTicket: number
 }

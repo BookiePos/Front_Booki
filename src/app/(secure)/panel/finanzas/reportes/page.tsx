@@ -173,7 +173,9 @@ export default function ReportesPage() {
           {report === "income-statement" && data && <IncomeView r={data as IncomeStatement} />}
           {report === "balance-sheet" && data && <BalanceView r={data as BalanceSheet} />}
           {report === "trial-balance" && data && <TrialView r={data as TrialBalance} />}
-          {report === "sales" && data && <SalesView r={data as SalesReport} />}
+          {report === "sales" && data && (
+            <SalesView r={data as SalesReport} sedes={sedes} />
+          )}
         </>
       )}
     </>
@@ -299,16 +301,161 @@ function TrialView({ r }: { r: TrialBalance }) {
   )
 }
 
-function SalesView({ r }: { r: SalesReport }) {
+const SALES_METHOD_LABELS: Record<string, string> = {
+  cash: "Efectivo",
+  card: "Tarjeta",
+  transfer: "Transferencia",
+  credit: "Fiado",
+}
+
+function SalesView({ r, sedes }: { r: SalesReport; sedes: Sede[] }) {
+  const sedeName = (id: string | null) =>
+    id ? (sedes.find((s) => s._id === id)?.name ?? "—") : "—"
+  const share = (v: number) => (r.totalRevenue > 0 ? (v / r.totalRevenue) * 100 : 0)
+
   return (
     <div className="flex flex-col gap-4">
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <Kpi label="Ingresos" value={money.format(r.totalRevenue)} />
         <Kpi label="Tiquetes" value={String(r.totalTickets)} />
         <Kpi label="Ticket promedio" value={money.format(r.avgTicket)} />
+        <Kpi label="IVA generado" value={money.format(r.totalTax)} />
       </div>
+
+      {/* Desglose por medio de pago y por sede */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <CardContent className="px-0 sm:px-2">
+            <p className="px-4 pt-3 text-sm font-semibold text-foreground">
+              Por medio de pago
+            </p>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Medio</TableHead>
+                  <TableHead className="text-right">Tiquetes</TableHead>
+                  <TableHead className="text-right">Ingresos</TableHead>
+                  <TableHead className="text-right">%</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {r.byMethod.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={4} className="py-6 text-center text-sm text-muted-foreground">
+                      Sin ventas.
+                    </TableCell>
+                  </TableRow>
+                )}
+                {r.byMethod.map((m) => (
+                  <TableRow key={m.method}>
+                    <TableCell>{SALES_METHOD_LABELS[m.method] ?? m.method}</TableCell>
+                    <TableCell className="tnum text-right text-muted-foreground">
+                      {m.tickets}
+                    </TableCell>
+                    <TableCell className="tnum text-right font-medium">
+                      {money.format(m.revenue)}
+                    </TableCell>
+                    <TableCell className="tnum text-right text-muted-foreground">
+                      {share(m.revenue).toFixed(0)}%
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="px-0 sm:px-2">
+            <p className="px-4 pt-3 text-sm font-semibold text-foreground">
+              Por sede
+            </p>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Sede</TableHead>
+                  <TableHead className="text-right">Tiquetes</TableHead>
+                  <TableHead className="text-right">Ingresos</TableHead>
+                  <TableHead className="text-right">%</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {r.bySede.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={4} className="py-6 text-center text-sm text-muted-foreground">
+                      Sin ventas.
+                    </TableCell>
+                  </TableRow>
+                )}
+                {r.bySede.map((s) => (
+                  <TableRow key={s.sedeId ?? "none"}>
+                    <TableCell>{sedeName(s.sedeId)}</TableCell>
+                    <TableCell className="tnum text-right text-muted-foreground">
+                      {s.tickets}
+                    </TableCell>
+                    <TableCell className="tnum text-right font-medium">
+                      {money.format(s.revenue)}
+                    </TableCell>
+                    <TableCell className="tnum text-right text-muted-foreground">
+                      {share(s.revenue).toFixed(0)}%
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Top productos */}
       <Card>
         <CardContent className="px-0 sm:px-2">
+          <p className="px-4 pt-3 text-sm font-semibold text-foreground">
+            Top productos (por ingresos)
+          </p>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Producto</TableHead>
+                <TableHead className="text-right">Cantidad</TableHead>
+                <TableHead className="text-right">Ingresos</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {r.topProducts.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={3} className="py-6 text-center text-sm text-muted-foreground">
+                    Sin ventas de productos en este rango.
+                  </TableCell>
+                </TableRow>
+              )}
+              {r.topProducts.map((p, i) => (
+                <TableRow key={p.productId ?? `p-${i}`}>
+                  <TableCell className="font-medium">
+                    <span className="mr-1.5 text-xs text-muted-foreground">
+                      {i + 1}.
+                    </span>
+                    {p.name}
+                  </TableCell>
+                  <TableCell className="tnum text-right text-muted-foreground">
+                    {p.qty}
+                  </TableCell>
+                  <TableCell className="tnum text-right font-medium">
+                    {money.format(p.revenue)}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      {/* Ventas por día */}
+      <Card>
+        <CardContent className="px-0 sm:px-2">
+          <p className="px-4 pt-3 text-sm font-semibold text-foreground">
+            Ventas por día
+          </p>
           <Table>
             <TableHeader>
               <TableRow>

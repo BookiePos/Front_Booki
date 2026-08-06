@@ -13,7 +13,13 @@ import {
 } from "lucide-react"
 
 import { useAuth } from "@/lib/auth-context"
-import { getCajaOverview, type CajaOverviewRow, type CajaOverview } from "@/lib/erp/api-caja"
+import {
+  getCajaOverview,
+  getCajaClosings,
+  type CajaOverviewRow,
+  type CajaOverview,
+  type CajaClosingsReport,
+} from "@/lib/erp/api-caja"
 import { ApiError } from "@/lib/api"
 
 import { PageHeader } from "@/components/erp/page-header"
@@ -64,6 +70,7 @@ export default function CajaPage() {
 
   const [date, setDate] = React.useState(todayLocal())
   const [data, setData] = React.useState<CajaOverview | null>(null)
+  const [closings, setClosings] = React.useState<CajaClosingsReport | null>(null)
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
 
@@ -71,7 +78,12 @@ export default function CajaPage() {
     setLoading(true)
     setError(null)
     try {
-      setData(await getCajaOverview(date))
+      const [ov, cl] = await Promise.all([
+        getCajaOverview(date),
+        getCajaClosings(date, date).catch(() => null),
+      ])
+      setData(ov)
+      setClosings(cl)
     } catch (err) {
       setError(errorMessage(err))
     } finally {
@@ -213,6 +225,113 @@ export default function CajaPage() {
                     {money.format(data.totals.expectedCashTotal)}
                   </TableCell>
                   <TableCell colSpan={2} />
+                </TableRow>
+              </TableFooter>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ── Cierres del día (arqueos): dinero en cada caja al cerrar ── */}
+      <div className="mt-6 mb-2 flex items-center gap-2">
+        <Banknote className="size-4 text-muted-foreground" />
+        <h2 className="font-display text-sm text-foreground">
+          Cierres del día — dinero en caja al cerrar
+        </h2>
+      </div>
+      <Card>
+        <CardContent className="p-0">
+          {loading ? (
+            <div className="flex flex-col gap-2 p-4">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <Skeleton key={i} className="h-10 rounded-lg" />
+              ))}
+            </div>
+          ) : !closings || closings.rows.length === 0 ? (
+            <div className="flex flex-col items-center gap-1.5 py-10 text-center">
+              <Banknote className="size-8 text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">
+                No hay cierres de caja este día.
+              </p>
+              <p className="max-w-md text-xs text-muted-foreground">
+                Cada vez que un turno se cierra en el POS, queda aquí con el
+                efectivo contado y su diferencia — aunque se abra un turno nuevo.
+              </p>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Sede</TableHead>
+                  <TableHead className="text-right">Cerrada</TableHead>
+                  <TableHead className="text-right">Base</TableHead>
+                  <TableHead className="text-right">Ventas</TableHead>
+                  <TableHead className="text-right">Efectivo esperado</TableHead>
+                  <TableHead className="text-right">Contado</TableHead>
+                  <TableHead className="text-right">Diferencia</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {closings.rows.map((c) => (
+                  <TableRow key={c.sessionId}>
+                    <TableCell className="font-medium">
+                      <span className="flex items-center gap-1.5">
+                        <MapPin className="size-3.5 text-muted-foreground" />
+                        {c.sedeName}
+                      </span>
+                      {c.closedByEmail && (
+                        <span className="block text-[11px] text-muted-foreground">
+                          {c.closedByEmail}
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums text-muted-foreground">
+                      {fmtTime(c.closedAt)}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums text-muted-foreground">
+                      {money.format(c.openingAmount)}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      <div className="flex flex-col items-end">
+                        <span>{money.format(c.salesTotal)}</span>
+                        <span className="text-[11px] text-muted-foreground">
+                          {c.salesCount} venta{c.salesCount === 1 ? "" : "s"}
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {money.format(c.expectedCash)}
+                    </TableCell>
+                    <TableCell className="text-right font-medium tabular-nums">
+                      {money.format(c.countedAmount)}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      <DifferenceCell value={c.difference} />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+              <TableFooter>
+                <TableRow>
+                  <TableCell className="font-semibold" colSpan={2}>
+                    Total ({closings.totals.count} cierre
+                    {closings.totals.count === 1 ? "" : "s"})
+                  </TableCell>
+                  <TableCell className="text-right font-semibold tabular-nums">
+                    {money.format(closings.totals.openingTotal)}
+                  </TableCell>
+                  <TableCell className="text-right font-semibold tabular-nums">
+                    {money.format(closings.totals.salesTotal)}
+                  </TableCell>
+                  <TableCell className="text-right font-semibold tabular-nums">
+                    {money.format(closings.totals.expectedCash)}
+                  </TableCell>
+                  <TableCell className="text-right font-semibold tabular-nums">
+                    {money.format(closings.totals.countedAmount)}
+                  </TableCell>
+                  <TableCell className="text-right font-semibold tabular-nums">
+                    <DifferenceCell value={closings.totals.difference} />
+                  </TableCell>
                 </TableRow>
               </TableFooter>
             </Table>
