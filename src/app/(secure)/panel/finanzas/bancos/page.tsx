@@ -365,7 +365,7 @@ export default function BancosPage() {
                               variant="outline"
                               size="sm"
                               className="gap-1.5"
-                              render={<Link href={`/finanzas/bancos/${a._id}/conciliar`} />}
+                              render={<Link href={`/panel/finanzas/bancos/${a._id}/conciliar`} />}
                             >
                               <Scale className="size-3.5" />
                               Conciliar
