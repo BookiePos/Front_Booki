@@ -1,5 +1,5 @@
 import type * as React from "react"
-import type { FinanceOverview } from "@/lib/erp/api-finance"
+import type { FinanceOverview, PLMonthlyReport } from "@/lib/erp/api-finance"
 import type { SalesReport } from "@/lib/erp/api-reports"
 import type { CajaOverview } from "@/lib/erp/api-caja"
 import type { BusinessType } from "@/lib/api"
@@ -22,6 +22,7 @@ export interface DashboardData {
   openTables: number | null
   lowStock: number | null
   expiring: number | null
+  plMonthly: PLMonthlyReport | null
 }
 
 /** Props que recibe cada widget. */

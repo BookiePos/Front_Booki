@@ -3,7 +3,7 @@
 import * as React from "react"
 
 import { useAuth } from "@/lib/auth-context"
-import { getOverview } from "@/lib/erp/api-finance"
+import { getOverview, getPLMonthly } from "@/lib/erp/api-finance"
 import { getSalesReport } from "@/lib/erp/api-reports"
 import { getCajaOverview } from "@/lib/erp/api-caja"
 import { listPurchaseOrders } from "@/lib/erp/api-purchasing"
@@ -26,6 +26,7 @@ const EMPTY: DashboardData = {
   openTables: null,
   lowStock: null,
   expiring: null,
+  plMonthly: null,
 }
 
 /**
@@ -51,6 +52,11 @@ export function useDashboardData() {
         ? getOverview()
             .then((overview) => patch({ overview }))
             .catch(() => patch({ overview: null }))
+        : Promise.resolve(),
+      canFinance
+        ? getPLMonthly({ year: new Date().getFullYear() })
+            .then((plMonthly) => patch({ plMonthly }))
+            .catch(() => patch({ plMonthly: null }))
         : Promise.resolve(),
       canReports
         ? getSalesReport({ from: daysAgo(6), to: todayLocal() })

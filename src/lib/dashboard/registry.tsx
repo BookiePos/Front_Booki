@@ -23,6 +23,8 @@ import {
   Ticket,
   Percent,
   CalendarClock,
+  ArrowUpRight,
+  ArrowDownRight,
   type LucideIcon,
 } from "lucide-react"
 
@@ -600,7 +602,10 @@ function TopProductsWidget({ data, loading }: WidgetProps) {
   return (
     <Card className="h-full">
       <CardHeader>
-        <CardTitle className="font-display text-lg">Top productos (7 días)</CardTitle>
+        <CardTitle className="flex items-center gap-2 font-display text-lg">
+          <Trophy className="size-4 text-primary" />
+          Top productos (7 días)
+        </CardTitle>
         <CardDescription>Los más vendidos por ingresos.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-2">
@@ -712,6 +717,118 @@ function ExpiringWidget(p: WidgetProps) {
       href="/panel/inventario"
       loading={p.loading}
     />
+  )
+}
+
+/** Chip de variación % entre el valor actual y el del mes anterior. */
+function DeltaChip({
+  current,
+  previous,
+  goodWhenUp,
+}: {
+  current: number
+  previous: number
+  goodWhenUp: boolean
+}) {
+  const up = current >= previous
+  const good = up === goodWhenUp
+  const cls = good
+    ? "bg-success/10 text-success"
+    : "bg-destructive/10 text-destructive"
+  const pct =
+    previous !== 0 ? Math.round(((current - previous) / Math.abs(previous)) * 100) : null
+  const Arrow = up ? ArrowUpRight : ArrowDownRight
+  return (
+    <span
+      className={`inline-flex shrink-0 items-center gap-0.5 rounded-full px-2 py-0.5 text-xs font-semibold ${cls}`}
+    >
+      <Arrow className="size-3.5" />
+      {pct === null
+        ? previous === 0 && current > 0
+          ? "nuevo"
+          : "—"
+        : `${pct > 0 ? "+" : ""}${pct}%`}
+    </span>
+  )
+}
+
+/** Comparativo del mes en curso contra el mes anterior (ventas, gastos, utilidad). */
+function ComparativeWidget({ data, loading }: WidgetProps) {
+  const report = data.plMonthly
+  const now = new Date()
+  const curIdx = now.getMonth() // 0..11 (igual que el backend)
+  const cur = report?.months.find((m) => m.month === curIdx) ?? null
+  const prev = report?.months.find((m) => m.month === curIdx - 1) ?? null
+
+  const curName = now.toLocaleDateString("es-CO", { month: "long" })
+  const prevName = new Date(now.getFullYear(), curIdx - 1, 1).toLocaleDateString(
+    "es-CO",
+    { month: "long" },
+  )
+
+  const rows = cur
+    ? [
+        {
+          label: "Ventas",
+          current: cur.ingresos,
+          previous: prev?.ingresos ?? 0,
+          goodWhenUp: true,
+        },
+        {
+          label: "Gastos y nómina",
+          current: cur.gastos + cur.nomina,
+          previous: (prev?.gastos ?? 0) + (prev?.nomina ?? 0),
+          goodWhenUp: false,
+        },
+        {
+          label: "Utilidad",
+          current: cur.utilidad,
+          previous: prev?.utilidad ?? 0,
+          goodWhenUp: true,
+        },
+      ]
+    : []
+
+  return (
+    <Card className="h-full">
+      <CardHeader>
+        <CardTitle className="font-display text-lg">Comparativo mensual</CardTitle>
+        <CardDescription className="capitalize">
+          {curName} vs {prevName}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {loading && !report ? (
+          <Skeleton className="h-28 w-full" />
+        ) : rows.length > 0 ? (
+          rows.map((r) => (
+            <div
+              key={r.label}
+              className="flex items-center justify-between gap-3 rounded-lg border border-border p-3"
+            >
+              <div className="min-w-0">
+                <p className="text-sm text-muted-foreground">{r.label}</p>
+                <p className="tnum text-lg font-semibold text-foreground">
+                  {money.format(r.current)}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  vs {money.format(r.previous)}
+                </p>
+              </div>
+              <DeltaChip
+                current={r.current}
+                previous={r.previous}
+                goodWhenUp={r.goodWhenUp}
+              />
+            </div>
+          ))
+        ) : (
+          <p className="py-8 text-center text-sm text-muted-foreground">
+            Aún no hay datos del mes para comparar.
+          </p>
+        )}
+      </CardContent>
+    </Card>
   )
 }
 
@@ -932,6 +1049,15 @@ export const WIDGETS: WidgetDef[] = [
     permission: "inventory.view",
     Component: ExpiringWidget,
   },
+  {
+    id: "comparative",
+    title: "Comparativo mensual",
+    description: "Ventas, gastos y utilidad de este mes vs el anterior.",
+    defaultSize: "wide",
+    sizes: ["compact", "wide", "full"],
+    permission: "finance.view",
+    Component: ComparativeWidget,
+  },
 ]
 
 /** Índice por id para acceso O(1). */
@@ -954,23 +1080,16 @@ export function availableWidgets(
   )
 }
 
-/** Orden y tamaños por defecto del tablero (se filtra por disponibilidad). */
+/**
+ * Tablero por defecto para quien recién se registra: solo 5 widgets, los más
+ * importantes para arrancar (bienvenida, guía, la venta del mes, la tendencia
+ * de ventas y los accesos rápidos). El resto queda disponible en "Agregar
+ * widgets". Se filtra por disponibilidad según permisos/giro.
+ */
 export const DEFAULT_LAYOUT: LayoutItem[] = [
   { id: "greeting", size: "wide" },
   { id: "guide", size: "compact" },
   { id: "sales-month", size: "compact" },
-  { id: "cash-today", size: "compact" },
-  { id: "profit-month", size: "compact" },
-  { id: "margin-month", size: "compact" },
   { id: "sales-chart", size: "wide" },
-  { id: "top-products", size: "wide" },
-  { id: "receivables", size: "compact" },
-  { id: "payables", size: "compact" },
-  { id: "payroll", size: "compact" },
-  { id: "purchase-orders", size: "compact" },
-  { id: "caja-sedes", size: "wide" },
-  { id: "low-stock", size: "compact" },
-  { id: "expiring", size: "compact" },
-  { id: "open-tables", size: "compact" },
   { id: "quick-actions", size: "wide" },
 ]
