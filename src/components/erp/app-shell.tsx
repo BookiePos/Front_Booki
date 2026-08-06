@@ -4,6 +4,7 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { OnboardingProvider } from "@/lib/onboarding/onboarding-context"
 import { WelcomeDialog } from "@/components/onboarding/welcome-dialog"
 import { ProductTour } from "@/components/onboarding/product-tour"
+import { GuideAutoStart } from "@/components/onboarding/guide-autostart"
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
@@ -17,6 +18,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {/* Onboarding: bienvenida + tour interactivo (montados una sola vez). */}
         <WelcomeDialog />
         <ProductTour />
+        <GuideAutoStart />
       </SidebarProvider>
     </OnboardingProvider>
   )

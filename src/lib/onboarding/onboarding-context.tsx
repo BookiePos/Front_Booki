@@ -22,6 +22,8 @@ interface OnboardingState {
   tourSeen: boolean
   checklistHidden: boolean
   completedSteps: string[]
+  /** Ids de las guías de sección que ya se abrieron solas (una vez por módulo). */
+  seenGuides: string[]
 }
 
 const EMPTY: OnboardingState = {
@@ -29,6 +31,7 @@ const EMPTY: OnboardingState = {
   tourSeen: false,
   checklistHidden: false,
   completedSteps: [],
+  seenGuides: [],
 }
 
 /**
@@ -67,6 +70,11 @@ interface OnboardingContextValue {
   isStepCompleted: (id: string) => boolean
   /** Marca un paso como hecho (p. ej. al abrir su sección). */
   markStepCompleted: (id: string) => void
+
+  /** ¿La guía de sección ya se abrió automáticamente alguna vez? */
+  hasSeenGuide: (id: string) => boolean
+  /** Registra que una guía de sección ya se mostró sola (no repetir). */
+  markGuideSeen: (id: string) => void
 }
 
 const OnboardingContext = createContext<OnboardingContextValue | null>(null)
@@ -187,6 +195,22 @@ export function OnboardingProvider({
     [persist],
   )
 
+  const hasSeenGuide = useCallback(
+    (id: string) => state.seenGuides.includes(id),
+    [state.seenGuides],
+  )
+
+  const markGuideSeen = useCallback(
+    (id: string) => {
+      persist((prev) =>
+        prev.seenGuides.includes(id)
+          ? prev
+          : { ...prev, seenGuides: [...prev.seenGuides, id] },
+      )
+    },
+    [persist],
+  )
+
   // La bienvenida se abre la primera vez (tras registrarse/iniciar sesión) o
   // cuando el usuario la reabre desde el botón "Guía".
   const welcomeOpen =
@@ -210,6 +234,8 @@ export function OnboardingProvider({
       showChecklist,
       isStepCompleted,
       markStepCompleted,
+      hasSeenGuide,
+      markGuideSeen,
     }),
     [
       welcomeOpen,
@@ -225,6 +251,8 @@ export function OnboardingProvider({
       showChecklist,
       isStepCompleted,
       markStepCompleted,
+      hasSeenGuide,
+      markGuideSeen,
     ],
   )
 

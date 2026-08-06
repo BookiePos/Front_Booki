@@ -19,6 +19,7 @@ import { navItems } from "@/lib/pos/navigation"
 import { useOnboarding } from "@/lib/onboarding/onboarding-context"
 import { guideForPath } from "@/lib/onboarding/guides"
 import { ProductTour } from "@/components/onboarding/product-tour"
+import { GuideAutoStart } from "@/components/onboarding/guide-autostart"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -311,6 +312,7 @@ export function PosShell({ children }: { children: React.ReactNode }) {
 
       {/* Recorrido guiado (spotlight) del terminal. */}
       <ProductTour />
+      <GuideAutoStart />
     </div>
   )
 }

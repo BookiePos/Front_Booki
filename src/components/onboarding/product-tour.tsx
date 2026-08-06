@@ -29,15 +29,15 @@ const GAP = 14
 
 export function ProductTour() {
   const { guide, tourOpen, finishTour } = useOnboarding()
-  const { isRetail } = useAuth()
+  const { isRetail, hasPermission } = useAuth()
   const router = useRouter()
   const pathname = usePathname()
 
   const steps = React.useMemo<TourStep[]>(() => {
-    if (guide === "product") return buildProductSteps(isRetail)
+    if (guide === "product") return buildProductSteps(isRetail, hasPermission)
     if (guide) return guideById(guide)?.build() ?? []
     return []
-  }, [guide, isRetail])
+  }, [guide, isRetail, hasPermission])
   const [index, setIndex] = React.useState(0)
   const [rect, setRect] = React.useState<Rect | null>(null)
   const bubbleRef = React.useRef<HTMLDivElement>(null)
