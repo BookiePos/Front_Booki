@@ -4,7 +4,7 @@ import type { GuideDescriptor } from "./types"
  * Registro B de recorridos por sección (lo mantiene el Agente B).
  *
  * Módulos cubiertos: Finanzas (Caja y bancos, Gastos, Cuentas por pagar,
- * Estado de resultados, Reportes, Presupuestos, Flujo de caja), Cumplimiento
+ * Estado de resultados, Reportes, Metas, Flujo de caja), Cumplimiento
  * (Impuestos, Facturación electrónica, Auditoría) y Configuración (Usuarios y
  * roles, Parámetros).
  *
@@ -131,7 +131,7 @@ export const guidesB: GuideDescriptor[] = [
       {
         target: null,
         title: "Estado de resultados",
-        body: "Aquí ves tu P&L del período (ingresos, costos, gastos y utilidad) y el comparativo Presupuesto vs Real.",
+        body: "Aquí ves tu P&L del período (ingresos, costos, gastos y utilidad) y el comparativo Metas vs Real.",
       },
       {
         target: "pl-estado",
@@ -141,8 +141,8 @@ export const guidesB: GuideDescriptor[] = [
       },
       {
         target: "pl-vs",
-        title: "Presupuesto vs Real",
-        body: "Cambia a esta vista para contrastar, mes a mes, lo que presupuestaste contra lo que realmente ocurrió.",
+        title: "Metas vs Real",
+        body: "Cambia a esta vista para contrastar, mes a mes, tus metas contra lo que realmente ocurrió.",
       },
       {
         target: "pl-vistas",
@@ -184,29 +184,29 @@ export const guidesB: GuideDescriptor[] = [
     ],
   },
   {
-    id: "finanzas-presupuestos",
-    match: /^\/panel\/finanzas\/presupuestos/,
+    id: "finanzas-metas",
+    match: /^\/panel\/finanzas\/metas/,
     build: () => [
       {
         target: null,
-        title: "Presupuestos",
-        body: "Planea tu año por categoría y escenario. Este presupuesto es la base del comparativo vs Real. Empecemos.",
+        title: "Metas",
+        body: "Planea tu año por categoría y escenario. Estas metas son la base del comparativo vs Real. Empecemos.",
       },
       {
-        target: "presupuestos-lista",
-        navigateTo: "/panel/finanzas/presupuestos",
-        title: "Tus presupuestos del año",
-        body: "Cada fila es un presupuesto con su escenario, estado y total anual. Entra a “Editar” para ajustar sus líneas.",
+        target: "metas-lista",
+        navigateTo: "/panel/finanzas/metas",
+        title: "Tus metas del año",
+        body: "Cada fila es una meta con su escenario, estado y total anual. Entra a “Editar” para ajustar sus líneas.",
       },
       {
-        target: "presupuestos-nuevo",
-        title: "Crea un presupuesto",
-        body: "Con “Nuevo presupuesto” defines nombre, año, sede y escenario; luego capturas los montos mes a mes.",
+        target: "metas-nuevo",
+        title: "Crea una meta",
+        body: "Con “Nueva meta” defines nombre, año, sede y escenario; luego capturas los montos mes a mes.",
       },
       {
         target: null,
         title: "¡Listo!",
-        body: "Eso es todo. Marca el presupuesto como “Activo” para verlo en el comparativo Presupuesto vs Real.",
+        body: "Eso es todo. Marca la meta como “Activa” para verla en el comparativo Metas vs Real.",
       },
     ],
   },

@@ -98,7 +98,7 @@ export default function PlPage() {
       <PageHeader
         section="Finanzas"
         title="Estado de resultados"
-        description="P&L del período e IVA, y comparativo Presupuesto vs Real."
+        description="P&L del período e IVA, y comparativo Metas vs Real."
         actions={sedeSelector}
       />
 
@@ -130,7 +130,7 @@ export default function PlPage() {
           onClick={() => setView("vs")}
         >
           <BarChart3 className="size-4" />
-          Presupuesto vs Real
+          Metas vs Real
         </Button>
       </div>
 
@@ -483,7 +483,7 @@ function MonthlyView({ sedeId }: { sedeId?: string }) {
   )
 }
 
-// ── Presupuesto vs Real ──────────────────────────────────────────────────────
+// ── Metas vs Real ────────────────────────────────────────────────────────────
 function VsActualView({ sedeId }: { sedeId?: string }) {
   const nowYear = new Date().getFullYear()
   const [year, setYear] = React.useState(nowYear)
@@ -553,14 +553,14 @@ function VsActualView({ sedeId }: { sedeId?: string }) {
             </select>
           </div>
           <div className="flex flex-col gap-1">
-            <Label className="text-xs">Presupuesto</Label>
+            <Label className="text-xs">Meta</Label>
             <select
               className={`${inputClass} w-64`}
               value={budgetId}
               onChange={(e) => setBudgetId(e.target.value)}
               disabled={loadingList || budgets.length === 0}
             >
-              {budgets.length === 0 && <option value="">Sin presupuestos</option>}
+              {budgets.length === 0 && <option value="">Sin metas</option>}
               {budgets.map((b) => (
                 <option key={b._id} value={b._id}>
                   {b.name} · {b.scenario}
@@ -581,7 +581,7 @@ function VsActualView({ sedeId }: { sedeId?: string }) {
           <CardContent className="flex flex-col items-center gap-2 py-14 text-center">
             <BarChart3 className="size-9 text-muted-foreground" />
             <p className="max-w-xs text-sm text-muted-foreground">
-              No hay presupuestos para {year}. Crea uno en la página de Presupuestos.
+              No hay metas para {year}. Crea una en la página de Metas.
             </p>
           </CardContent>
         </Card>
@@ -625,7 +625,7 @@ function VsActualMatrix({ data }: { data: BudgetVsActual }) {
                     {line.categoryName}
                   </td>
                   <RowCells
-                    label="Ppto"
+                    label="Meta"
                     values={line.monthlyBudget}
                     total={line.totalBudget}
                     fmt={compact}
@@ -657,7 +657,7 @@ function VsActualMatrix({ data }: { data: BudgetVsActual }) {
             <tr className="border-t border-border font-semibold">
               <td className="sticky left-0 z-10 bg-card px-3 py-2">Totales</td>
               <td colSpan={12} className="px-2 py-2 text-right text-muted-foreground">
-                Ppto {money.format(data.totals.budget)} · Real{" "}
+                Meta {money.format(data.totals.budget)} · Real{" "}
                 {money.format(data.totals.actual)}
               </td>
               <td className="px-3 py-2 text-right">
@@ -704,8 +704,8 @@ function RowCells({
   )
 }
 
-/** Fila de varianza (Real − Ppto). Para ingresos, positivo es bueno (verde);
- *  para costos/gastos, gastar menos que el presupuesto es bueno (verde). */
+/** Fila de varianza (Real − Meta). Para ingresos, positivo es bueno (verde);
+ *  para costos/gastos, gastar menos que la meta es bueno (verde). */
 function VarRowCells({
   budget,
   actual,

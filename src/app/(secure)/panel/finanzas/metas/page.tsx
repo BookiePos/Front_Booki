@@ -66,7 +66,7 @@ function emptyMonths(): number[] {
   return Array.from({ length: 12 }, () => 0)
 }
 
-export default function PresupuestosPage() {
+export default function MetasPage() {
   const { hasPermission } = useAuth()
   const canView = hasPermission("finance.view")
   const canManage = hasPermission("finance.manage")
@@ -116,13 +116,13 @@ export default function PresupuestosPage() {
   if (!canView) {
     return (
       <>
-        <PageHeader section="Finanzas" title="Presupuestos" />
+        <PageHeader section="Finanzas" title="Metas" />
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-14 text-center">
             <ShieldOff className="size-10 text-muted-foreground" />
             <p className="font-display text-lg text-foreground">Sin acceso</p>
             <p className="max-w-xs text-sm text-muted-foreground">
-              No tienes permiso para ver los presupuestos.
+              No tienes permiso para ver las metas.
             </p>
           </CardContent>
         </Card>
@@ -167,12 +167,12 @@ export default function PresupuestosPage() {
       </Button>
       {canManage && (
         <Button
-          data-tour="presupuestos-nuevo"
+          data-tour="metas-nuevo"
           className="gap-1.5"
           onClick={() => setNewOpen(true)}
         >
           <Plus className="size-4" />
-          Nuevo presupuesto
+          Nueva meta
         </Button>
       )}
     </div>
@@ -182,12 +182,12 @@ export default function PresupuestosPage() {
     <>
       <PageHeader
         section="Finanzas"
-        title="Presupuestos"
-        description="Planeación anual por categoría y escenario, base del comparativo vs Real."
+        title="Metas"
+        description="Metas anuales por categoría y escenario, base del comparativo vs Real."
         actions={actions}
       />
 
-      <Card data-tour="presupuestos-lista">
+      <Card data-tour="metas-lista">
         <CardContent className="p-0">
           {loading ? (
             <div className="flex flex-col gap-2 p-4">
@@ -201,7 +201,7 @@ export default function PresupuestosPage() {
             <div className="flex flex-col items-center gap-2 py-14 text-center">
               <Target className="size-9 text-muted-foreground" />
               <p className="text-sm text-muted-foreground">
-                No hay presupuestos para {year}.
+                No hay metas para {year}.
               </p>
             </div>
           ) : (
@@ -299,7 +299,7 @@ function DeleteBudgetButton({
 }) {
   const [busy, setBusy] = React.useState(false)
   async function remove() {
-    if (!window.confirm("¿Eliminar este presupuesto?")) return
+    if (!window.confirm("¿Eliminar esta meta?")) return
     setBusy(true)
     try {
       await deleteBudget(id)
@@ -380,7 +380,7 @@ function NewBudgetSheet({
       <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-md">
         <div className="flex flex-col gap-4 px-4 py-2">
           <SheetHeader className="px-0">
-            <SheetTitle className="font-display text-lg">Nuevo presupuesto</SheetTitle>
+            <SheetTitle className="font-display text-lg">Nueva meta</SheetTitle>
             <SheetDescription>
               Define año, sede y escenario. Las líneas se editan después.
             </SheetDescription>
@@ -391,7 +391,7 @@ function NewBudgetSheet({
             <Input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Ej. Presupuesto 2026"
+              placeholder="Ej. Metas 2026"
             />
           </div>
 
@@ -545,7 +545,7 @@ function BudgetEditor({
     try {
       const b = await updateBudget(budgetId, payload)
       setBudget(b)
-      setMsg("Presupuesto guardado.")
+      setMsg("Meta guardada.")
     } catch (err) {
       setError(errorMessage(err))
     } finally {
@@ -562,7 +562,7 @@ function BudgetEditor({
     <>
       <PageHeader
         section="Finanzas"
-        title={budget ? budget.name : "Presupuesto"}
+        title={budget ? budget.name : "Meta"}
         description={
           budget
             ? `Año ${budget.fiscalYear} · ${BUDGET_SCENARIO_LABELS[budget.scenario]}`
@@ -668,7 +668,7 @@ function BudgetEditor({
                 <div className="flex flex-col items-center gap-2 py-14 text-center">
                   <Target className="size-9 text-muted-foreground" />
                   <p className="text-sm text-muted-foreground">
-                    Agrega categorías para empezar a presupuestar.
+                    Agrega categorías para empezar a definir tus metas.
                   </p>
                 </div>
               ) : (
@@ -755,7 +755,7 @@ function BudgetEditor({
   )
 }
 
-// ── Comparativo Presupuesto vs Real ──────────────────────────────────────────
+// ── Comparativo Metas vs Real ────────────────────────────────────────────────
 function BudgetVsActualView({
   budgetId,
   sedes,
@@ -824,13 +824,13 @@ function BudgetVsActualView({
         <div className="flex flex-col items-center gap-2 py-14 text-center">
           <Target className="size-9 text-muted-foreground" />
           <p className="text-sm text-muted-foreground">
-            Este presupuesto no tiene categorías para comparar.
+            Esta meta no tiene categorías para comparar.
           </p>
         </div>
       ) : (
         <>
           <div className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
-            <VsKpi label="Presupuestado (año)" value={money.format(totalBudget)} />
+            <VsKpi label="Meta (año)" value={money.format(totalBudget)} />
             <VsKpi label="Real (año)" value={money.format(totalActual)} />
             <VsKpi
               label="Variación"
@@ -846,7 +846,7 @@ function BudgetVsActualView({
                 <thead>
                   <tr className="border-b border-border text-xs">
                     <th className="px-3 py-2 text-left font-medium">Categoría</th>
-                    <th className="px-3 py-2 text-right font-medium">Presupuesto</th>
+                    <th className="px-3 py-2 text-right font-medium">Meta</th>
                     <th className="px-3 py-2 text-right font-medium">Real</th>
                     <th className="px-3 py-2 text-right font-medium">Variación</th>
                     <th className="px-3 py-2 text-right font-medium">Ejec.</th>

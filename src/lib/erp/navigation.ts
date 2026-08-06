@@ -79,7 +79,7 @@ export const navSections: NavSection[] = [
       { title: "Cuentas por pagar", href: "/panel/finanzas/cxp", icon: Receipt },
       { title: "P&L", href: "/panel/finanzas/pl", icon: TrendingUp },
       { title: "Reportes", href: "/panel/finanzas/reportes", icon: BarChart3 },
-      { title: "Presupuestos", href: "/panel/finanzas/presupuestos", icon: Target },
+      { title: "Metas", href: "/panel/finanzas/metas", icon: Target },
       { title: "Flujo de caja", href: "/panel/finanzas/flujo", icon: LineChart },
     ],
   },
