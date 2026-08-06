@@ -16,6 +16,7 @@ import {
   Package,
   PackageX,
   RefreshCw,
+  Users,
   type LucideIcon,
 } from "lucide-react"
 
@@ -149,6 +150,7 @@ export default function DashboardPage() {
 
   const secondary = overview
     ? [
+        { label: "Nómina del mes", value: money.format(overview.nomina), icon: Users, href: "/panel/nomina" },
         { label: "Por cobrar (CxC)", value: money.format(overview.receivablesOpen), icon: HandCoins, href: "/panel/clientes" },
         { label: "Por pagar (CxP)", value: money.format(overview.payablesOpen), icon: Receipt, href: "/panel/finanzas/cxp" },
         { label: "Órdenes en curso", value: poCount === null ? "—" : String(poCount), icon: Truck, href: "/panel/compras" },

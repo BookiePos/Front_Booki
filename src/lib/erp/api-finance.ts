@@ -252,6 +252,8 @@ export interface FinanceOverview {
   cashToday: number
   salesMonth: number
   expensesMonth: number
+  nomina: number
+  margenBruto: number
   payablesOpen: number
   payablesOverdue: number
   receivablesOpen: number
