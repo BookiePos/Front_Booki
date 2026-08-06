@@ -25,6 +25,7 @@ const EMPTY: DashboardData = {
   poCount: null,
   openTables: null,
   lowStock: null,
+  expiring: null,
 }
 
 /**
@@ -85,8 +86,13 @@ export function useDashboardData() {
         : Promise.resolve(),
       canInventory
         ? getAlerts()
-            .then((a) => patch({ lowStock: a.lowStock.length }))
-            .catch(() => patch({ lowStock: null }))
+            .then((a) =>
+              patch({
+                lowStock: a.lowStock.length,
+                expiring: a.expiringSoon.length,
+              }),
+            )
+            .catch(() => patch({ lowStock: null, expiring: null }))
         : Promise.resolve(),
     ])
     setLoading(false)

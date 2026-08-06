@@ -19,6 +19,10 @@ import {
   CalendarDays,
   CreditCard,
   Store,
+  Trophy,
+  Ticket,
+  Percent,
+  CalendarClock,
   type LucideIcon,
 } from "lucide-react"
 
@@ -590,6 +594,127 @@ function QuickActionsWidget() {
   )
 }
 
+/** Top de productos más vendidos por ingresos (últimos 7 días). */
+function TopProductsWidget({ data, loading }: WidgetProps) {
+  const items = (data.sales?.topProducts ?? []).slice(0, 5)
+  return (
+    <Card className="h-full">
+      <CardHeader>
+        <CardTitle className="font-display text-lg">Top productos (7 días)</CardTitle>
+        <CardDescription>Los más vendidos por ingresos.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {loading && !data.sales ? (
+          <Skeleton className="h-32 w-full" />
+        ) : items.length > 0 ? (
+          items.map((p, i) => (
+            <div
+              key={p.productId ?? p.name}
+              className="flex items-center gap-3 rounded-lg border border-border p-2.5"
+            >
+              <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-accent text-xs font-semibold text-primary">
+                {i + 1}
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-foreground">
+                  {p.name}
+                </p>
+                <p className="text-xs text-muted-foreground">{p.qty} vendidos</p>
+              </div>
+              <span className="tnum shrink-0 text-sm font-semibold">
+                {money.format(p.revenue)}
+              </span>
+            </div>
+          ))
+        ) : (
+          <p className="py-8 text-center text-sm text-muted-foreground">
+            Sin ventas en el período.
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+function AvgTicketWidget(p: WidgetProps) {
+  return (
+    <KpiCard
+      label="Ticket promedio (7 días)"
+      value={p.data.sales ? money.format(p.data.sales.avgTicket) : null}
+      icon={Receipt}
+      tone="text-info"
+      loading={p.loading}
+    />
+  )
+}
+
+function TicketsWidget(p: WidgetProps) {
+  return (
+    <KpiCard
+      label="Tiquetes (7 días)"
+      value={p.data.sales ? String(p.data.sales.totalTickets) : null}
+      icon={Ticket}
+      href="/panel/finanzas/reportes"
+      loading={p.loading}
+    />
+  )
+}
+
+function CashExpectedTotalWidget(p: WidgetProps) {
+  return (
+    <KpiCard
+      label="Efectivo esperado (cajas)"
+      value={p.data.caja ? money.format(p.data.caja.totals.expectedCashTotal) : null}
+      icon={Banknote}
+      tone="text-info"
+      href="/panel/caja"
+      loading={p.loading}
+    />
+  )
+}
+
+function OpenCajasWidget(p: WidgetProps) {
+  const t = p.data.caja?.totals
+  return (
+    <KpiCard
+      label="Cajas abiertas"
+      value={t ? `${t.openCount}/${t.sedes}` : null}
+      icon={Store}
+      tone="text-success"
+      href="/panel/caja"
+      loading={p.loading}
+    />
+  )
+}
+
+function MarginMonthWidget(p: WidgetProps) {
+  const o = p.data.overview
+  const margin =
+    o && o.salesMonth > 0 ? Math.round((o.utilidadMonth / o.salesMonth) * 100) : null
+  return (
+    <KpiCard
+      label="Margen del mes"
+      value={o ? (margin === null ? "—" : `${margin}%`) : null}
+      icon={Percent}
+      tone={(margin ?? 0) >= 0 ? "text-success" : "text-destructive"}
+      loading={p.loading}
+    />
+  )
+}
+
+function ExpiringWidget(p: WidgetProps) {
+  return (
+    <KpiCard
+      label="Próximos a vencer"
+      value={p.data.expiring === null ? null : String(p.data.expiring)}
+      icon={CalendarClock}
+      tone="text-warning"
+      href="/panel/inventario"
+      loading={p.loading}
+    />
+  )
+}
+
 // ─── Registro ─────────────────────────────────────────────────────────────────
 
 export const WIDGETS: WidgetDef[] = [
@@ -744,6 +869,69 @@ export const WIDGETS: WidgetDef[] = [
     sizes: ["wide", "full"],
     Component: QuickActionsWidget,
   },
+  {
+    id: "top-products",
+    title: "Top productos",
+    description: "Los más vendidos por ingresos (7 días).",
+    defaultSize: "wide",
+    sizes: ["wide", "full"],
+    permission: "reports.view",
+    Component: TopProductsWidget,
+  },
+  {
+    id: "avg-ticket",
+    title: "Ticket promedio",
+    description: "Valor promedio por tiquete (7 días).",
+    defaultSize: "compact",
+    sizes: ["compact"],
+    permission: "reports.view",
+    Component: AvgTicketWidget,
+  },
+  {
+    id: "tickets",
+    title: "Tiquetes (7 días)",
+    description: "Cantidad de ventas de la última semana.",
+    defaultSize: "compact",
+    sizes: ["compact"],
+    permission: "reports.view",
+    Component: TicketsWidget,
+  },
+  {
+    id: "cash-expected-total",
+    title: "Efectivo esperado (cajas)",
+    description: "Efectivo esperado sumando todas las cajas de hoy.",
+    defaultSize: "compact",
+    sizes: ["compact"],
+    permission: "pos.sell",
+    Component: CashExpectedTotalWidget,
+  },
+  {
+    id: "open-cajas",
+    title: "Cajas abiertas",
+    description: "Cuántas sedes tienen la caja abierta ahora.",
+    defaultSize: "compact",
+    sizes: ["compact"],
+    permission: "pos.sell",
+    Component: OpenCajasWidget,
+  },
+  {
+    id: "margin-month",
+    title: "Margen del mes",
+    description: "Utilidad como porcentaje de las ventas del mes.",
+    defaultSize: "compact",
+    sizes: ["compact"],
+    permission: "finance.view",
+    Component: MarginMonthWidget,
+  },
+  {
+    id: "expiring",
+    title: "Próximos a vencer",
+    description: "Lotes de inventario cerca de su vencimiento.",
+    defaultSize: "compact",
+    sizes: ["compact"],
+    permission: "inventory.view",
+    Component: ExpiringWidget,
+  },
 ]
 
 /** Índice por id para acceso O(1). */
@@ -773,13 +961,16 @@ export const DEFAULT_LAYOUT: LayoutItem[] = [
   { id: "sales-month", size: "compact" },
   { id: "cash-today", size: "compact" },
   { id: "profit-month", size: "compact" },
+  { id: "margin-month", size: "compact" },
   { id: "sales-chart", size: "wide" },
+  { id: "top-products", size: "wide" },
   { id: "receivables", size: "compact" },
   { id: "payables", size: "compact" },
   { id: "payroll", size: "compact" },
   { id: "purchase-orders", size: "compact" },
   { id: "caja-sedes", size: "wide" },
   { id: "low-stock", size: "compact" },
+  { id: "expiring", size: "compact" },
   { id: "open-tables", size: "compact" },
   { id: "quick-actions", size: "wide" },
 ]

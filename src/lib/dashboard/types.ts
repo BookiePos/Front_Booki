@@ -21,6 +21,7 @@ export interface DashboardData {
   poCount: number | null
   openTables: number | null
   lowStock: number | null
+  expiring: number | null
 }
 
 /** Props que recibe cada widget. */
