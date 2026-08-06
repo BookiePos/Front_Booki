@@ -19,6 +19,10 @@ import {
   ChevronLeft,
   ChevronRight,
   Layers,
+  Download,
+  Upload,
+  FileUp,
+  CheckCircle2,
 } from "lucide-react"
 
 import { useAuth } from "@/lib/auth-context"
@@ -41,6 +45,9 @@ import {
   createEntry,
   createAdjustment,
   createTransfer,
+  importProducts,
+  type ImportProductRow,
+  type ImportResult,
   ADJUST_REASON_LABELS,
   MOVEMENT_TYPE_LABELS,
   ITEM_TYPE_LABELS,
@@ -56,6 +63,7 @@ import {
   type MovementType,
 } from "@/lib/erp/api-inventory"
 import { listSuppliers, type Supplier } from "@/lib/erp/api-suppliers"
+import { serializeCsv, parseCsv, downloadCsv } from "@/lib/erp/csv"
 
 import { PageHeader } from "@/components/erp/page-header"
 import { Button } from "@/components/ui/button"
@@ -166,6 +174,200 @@ function errorMessage(err: unknown): string {
   if (err instanceof ApiError) return err.message
   if (err instanceof Error) return err.message
   return "Error desconocido"
+}
+
+// ─── CSV de inventario (importar / exportar) ──────────────────────────────────
+
+/** Columnas del CSV, en orden. Se usan como encabezado al exportar. */
+const CSV_COLUMNS = [
+  "sku",
+  "name",
+  "itemType",
+  "category",
+  "unit",
+  "barcode",
+  "brand",
+  "supplier",
+  "description",
+  "weight",
+  "perishable",
+  "trackLots",
+  "shelfLifeDays",
+  "minStock",
+  "cost",
+  "salePrice",
+  "active",
+] as const
+type CsvKey = (typeof CSV_COLUMNS)[number]
+
+/** Normaliza un encabezado para comparar (minúsculas, sin tildes ni símbolos). */
+function normHeader(h: string): string {
+  return h
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9]/g, "")
+}
+
+/** Alias aceptados de cada columna (encabezado normalizado → clave canónica). */
+const HEADER_ALIASES: Record<string, CsvKey> = {
+  sku: "sku",
+  codigo: "sku",
+  cod: "sku",
+  name: "name",
+  nombre: "name",
+  producto: "name",
+  itemtype: "itemType",
+  tipo: "itemType",
+  category: "category",
+  categoria: "category",
+  unit: "unit",
+  unidad: "unit",
+  um: "unit",
+  barcode: "barcode",
+  codigobarras: "barcode",
+  codigodebarras: "barcode",
+  ean: "barcode",
+  brand: "brand",
+  marca: "brand",
+  supplier: "supplier",
+  proveedor: "supplier",
+  description: "description",
+  descripcion: "description",
+  weight: "weight",
+  peso: "weight",
+  contenido: "weight",
+  perishable: "perishable",
+  perecedero: "perishable",
+  tracklots: "trackLots",
+  lotes: "trackLots",
+  controlalotes: "trackLots",
+  shelflifedays: "shelfLifeDays",
+  vidautil: "shelfLifeDays",
+  diasvida: "shelfLifeDays",
+  minstock: "minStock",
+  stockminimo: "minStock",
+  minimo: "minStock",
+  existenciaminima: "minStock",
+  cost: "cost",
+  costo: "cost",
+  saleprice: "salePrice",
+  precio: "salePrice",
+  precioventa: "salePrice",
+  preciodeventa: "salePrice",
+  pvp: "salePrice",
+  active: "active",
+  activo: "active",
+  estado: "active",
+}
+
+const NUMERIC_KEYS = new Set<CsvKey>([
+  "weight",
+  "shelfLifeDays",
+  "minStock",
+  "cost",
+  "salePrice",
+])
+const BOOLEAN_KEYS = new Set<CsvKey>(["perishable", "trackLots", "active"])
+const VALID_ITEM_TYPES = new Set(["product", "ingredient", "assembly"])
+
+function parseCsvNumber(raw: string): number | undefined {
+  const s = raw.trim().replace(",", ".")
+  if (!s) return undefined
+  const n = Number(s)
+  return Number.isFinite(n) && n >= 0 ? n : undefined
+}
+
+function parseCsvBool(raw: string): boolean | undefined {
+  const s = normHeader(raw)
+  if (["true", "1", "si", "x", "yes", "y", "verdadero", "activo", "v"].includes(s))
+    return true
+  if (["false", "0", "no", "n", "inactivo", "f"].includes(s)) return false
+  return undefined
+}
+
+/** Convierte los productos a filas CSV (incluye inactivos para respaldo). */
+function productsToCsv(products: InvProduct[]): string {
+  const rows = products.map((p) => [
+    p.sku,
+    p.name,
+    p.itemType,
+    p.categoryId?.name ?? "",
+    p.unit,
+    p.barcode ?? "",
+    p.brand ?? "",
+    p.supplier ?? "",
+    p.description ?? "",
+    p.weight ?? "",
+    p.perishable,
+    p.trackLots,
+    p.shelfLifeDays ?? "",
+    p.minStock,
+    p.cost,
+    p.salePrice ?? "",
+    p.active,
+  ])
+  return serializeCsv([...CSV_COLUMNS], rows)
+}
+
+/**
+ * Convierte la matriz parseada del CSV a filas de importación. La primera fila
+ * son encabezados (se mapean por alias). Solo se incluyen los campos con valor,
+ * para no sobrescribir con vacío al actualizar.
+ */
+function csvToImportRows(matrix: string[][]): ImportProductRow[] {
+  if (matrix.length < 2) return []
+  const headers = matrix[0]!.map((h) => HEADER_ALIASES[normHeader(h)])
+  const out: ImportProductRow[] = []
+  for (let r = 1; r < matrix.length; r += 1) {
+    const cells = matrix[r]!
+    const row: ImportProductRow = {}
+    const target = row as Record<string, unknown>
+    headers.forEach((key, c) => {
+      if (!key) return
+      const raw = (cells[c] ?? "").trim()
+      if (!raw) return
+      if (NUMERIC_KEYS.has(key)) {
+        const n = parseCsvNumber(raw)
+        if (n !== undefined) target[key] = n
+      } else if (BOOLEAN_KEYS.has(key)) {
+        const b = parseCsvBool(raw)
+        if (b !== undefined) target[key] = b
+      } else if (key === "itemType") {
+        if (VALID_ITEM_TYPES.has(raw)) target[key] = raw
+      } else {
+        target[key] = raw
+      }
+    })
+    // Ignora filas sin ningún dato útil.
+    if (row.sku || row.name) out.push(row)
+  }
+  return out
+}
+
+/** CSV de ejemplo (encabezados + una fila) para descargar como plantilla. */
+function csvTemplate(): string {
+  const example = [
+    "SKU-001",
+    "Producto de ejemplo",
+    "product",
+    "Bebidas",
+    "und",
+    "7701234567890",
+    "Marca",
+    "Proveedor",
+    "Descripción opcional",
+    "",
+    "false",
+    "false",
+    "",
+    "5",
+    "1000",
+    "2500",
+    "true",
+  ]
+  return serializeCsv([...CSV_COLUMNS], [example])
 }
 
 /**
@@ -2142,6 +2344,178 @@ function slugPreview(value: string): string {
     .replace(/[^A-Z0-9]+/g, "")
 }
 
+// ─── Sheet de importación CSV ─────────────────────────────────────────────────
+
+function ImportProductsSheet({
+  open,
+  onOpenChange,
+  onImported,
+}: {
+  open: boolean
+  onOpenChange: (v: boolean) => void
+  onImported: () => void
+}) {
+  const [fileName, setFileName] = React.useState<string | null>(null)
+  const [rows, setRows] = React.useState<ImportProductRow[]>([])
+  const [parseError, setParseError] = React.useState<string | null>(null)
+  const [importing, setImporting] = React.useState(false)
+  const [result, setResult] = React.useState<ImportResult | null>(null)
+  const inputRef = React.useRef<HTMLInputElement>(null)
+
+  function reset() {
+    setFileName(null)
+    setRows([])
+    setParseError(null)
+    setResult(null)
+    setImporting(false)
+    if (inputRef.current) inputRef.current.value = ""
+  }
+
+  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setResult(null)
+    setParseError(null)
+    try {
+      const matrix = parseCsv(await file.text())
+      const parsed = csvToImportRows(matrix)
+      setFileName(file.name)
+      setRows(parsed)
+      if (parsed.length === 0) {
+        setParseError(
+          "No se detectaron filas válidas. La primera fila debe tener los encabezados (sku, name, …).",
+        )
+      }
+    } catch {
+      setParseError("No se pudo leer el archivo CSV.")
+      setRows([])
+    }
+  }
+
+  async function doImport() {
+    if (rows.length === 0) return
+    setImporting(true)
+    setParseError(null)
+    try {
+      const res = await importProducts(rows)
+      setResult(res)
+      onImported()
+    } catch (err) {
+      setParseError(errorMessage(err))
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  return (
+    <Sheet
+      open={open}
+      onOpenChange={(v) => {
+        onOpenChange(v)
+        if (!v) reset()
+      }}
+    >
+      <SheetContent side="right" className="flex flex-col sm:max-w-md">
+        <SheetHeader>
+          <SheetTitle>Importar productos (CSV)</SheetTitle>
+          <SheetDescription>
+            Se hace match por SKU: crea los nuevos y actualiza los existentes. La
+            categoría se resuelve por nombre (se crea si no existe).
+          </SheetDescription>
+        </SheetHeader>
+
+        <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => downloadCsv("plantilla-inventario.csv", csvTemplate())}
+          >
+            <Download />
+            Descargar plantilla
+          </Button>
+
+          <input
+            ref={inputRef}
+            type="file"
+            accept=".csv,text/csv"
+            onChange={onFile}
+            className="hidden"
+          />
+          <Button
+            variant="outline"
+            className="w-full justify-start"
+            onClick={() => inputRef.current?.click()}
+          >
+            <FileUp />
+            <span className="truncate">{fileName ?? "Elegir archivo CSV…"}</span>
+          </Button>
+
+          {parseError && (
+            <p className="text-sm text-destructive">{parseError}</p>
+          )}
+
+          {rows.length > 0 && !result && (
+            <p className="text-sm text-muted-foreground">
+              <strong className="text-foreground">{rows.length}</strong> fila(s)
+              listas para importar.
+            </p>
+          )}
+
+          {result && (
+            <div className="space-y-2 rounded-lg border border-border p-3 text-sm">
+              <p className="flex items-center gap-2 font-medium text-success">
+                <CheckCircle2 className="size-4" />
+                Importación completada
+              </p>
+              <p className="text-muted-foreground">
+                Creados:{" "}
+                <strong className="text-foreground">{result.created}</strong> ·
+                Actualizados:{" "}
+                <strong className="text-foreground">{result.updated}</strong> ·
+                Errores:{" "}
+                <strong
+                  className={
+                    result.errors.length ? "text-destructive" : "text-foreground"
+                  }
+                >
+                  {result.errors.length}
+                </strong>
+              </p>
+              {result.errors.length > 0 && (
+                <ul className="max-h-40 space-y-1 overflow-y-auto text-xs text-destructive">
+                  {result.errors.slice(0, 50).map((er, i) => (
+                    <li key={i}>
+                      Fila {er.row}
+                      {er.sku ? ` (${er.sku})` : ""}: {er.message}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+
+          <p className="text-xs text-muted-foreground">
+            Columnas: {CSV_COLUMNS.join(", ")}. Solo <code>sku</code> y{" "}
+            <code>name</code> son obligatorios; el resto es opcional.
+          </p>
+        </div>
+
+        <div className="flex justify-end gap-2 border-t border-border px-4 py-3">
+          <Button variant="ghost" onClick={() => onOpenChange(false)}>
+            {result ? "Cerrar" : "Cancelar"}
+          </Button>
+          {!result && (
+            <Button onClick={doImport} disabled={rows.length === 0 || importing}>
+              <Upload />
+              {importing ? "Importando…" : "Importar"}
+            </Button>
+          )}
+        </div>
+      </SheetContent>
+    </Sheet>
+  )
+}
+
 export default function InventarioPage() {
   const { hasPermission, isRetail } = useAuth()
   const canView = hasPermission("inventory.view")
@@ -2195,6 +2569,26 @@ export default function InventarioPage() {
   const [opPreset, setOpPreset] = React.useState<
     { productId?: string; sedeId?: string } | undefined
   >()
+
+  // Importar / exportar CSV
+  const [importOpen, setImportOpen] = React.useState(false)
+  const [exporting, setExporting] = React.useState(false)
+
+  const handleExport = React.useCallback(async () => {
+    setExporting(true)
+    try {
+      // Se exporta todo el catálogo (incluidos inactivos) como respaldo.
+      const all = await listProducts(true)
+      downloadCsv(
+        `inventario-${new Date().toLocaleDateString("en-CA")}.csv`,
+        productsToCsv(all),
+      )
+    } catch {
+      // best-effort: si falla, no bloquea la pantalla
+    } finally {
+      setExporting(false)
+    }
+  }, [])
 
   // ── Fetchers ───────────────────────────────────────────────────────────────
 
@@ -2362,6 +2756,20 @@ export default function InventarioPage() {
         description="Catálogo de productos, existencias por sede y kardex."
         actions={
           <>
+            <Button
+              variant="outline"
+              onClick={() => void handleExport()}
+              disabled={exporting}
+            >
+              <Download />
+              Exportar
+            </Button>
+            {canAdjust && (
+              <Button variant="outline" onClick={() => setImportOpen(true)}>
+                <Upload />
+                Importar
+              </Button>
+            )}
             {canAdjust && (
               <>
                 <Button
@@ -3107,6 +3515,11 @@ export default function InventarioPage() {
           void fetchProducts()
           fetchAllStock()
         }}
+      />
+      <ImportProductsSheet
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        onImported={refreshAfterOperation}
       />
       <EntrySheet
         open={entryOpen}

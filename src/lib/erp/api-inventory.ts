@@ -358,6 +358,46 @@ export async function createProductVariants(
   return parseResponse<{ parent: InvProduct; variants: InvProduct[] }>(res)
 }
 
+/** Una fila de importación de productos (la categoría va por NOMBRE). */
+export interface ImportProductRow {
+  sku?: string
+  name?: string
+  itemType?: ItemType
+  brand?: string
+  supplier?: string
+  description?: string
+  category?: string
+  unit?: string
+  barcode?: string
+  weight?: number
+  perishable?: boolean
+  trackLots?: boolean
+  shelfLifeDays?: number
+  minStock?: number
+  cost?: number
+  salePrice?: number
+  active?: boolean
+}
+
+/** Resumen del resultado de una importación masiva. */
+export interface ImportResult {
+  total: number
+  created: number
+  updated: number
+  errors: { row: number; sku: string; message: string }[]
+}
+
+/** Importa (upsert por SKU) un lote de productos desde filas de CSV. */
+export async function importProducts(
+  rows: ImportProductRow[],
+): Promise<ImportResult> {
+  const res = await authFetch("/inventory/products/import", {
+    method: "POST",
+    body: JSON.stringify({ rows }),
+  })
+  return parseResponse<ImportResult>(res)
+}
+
 export async function updateProduct(
   id: string,
   payload: ProductPayload,
