@@ -1,0 +1,785 @@
+"use client"
+
+import * as React from "react"
+import Link from "next/link"
+import {
+  ShoppingCart,
+  Truck,
+  BarChart3,
+  Banknote,
+  TrendingUp,
+  TrendingDown,
+  Receipt,
+  HandCoins,
+  UtensilsCrossed,
+  Package,
+  PackageX,
+  Users,
+  Compass,
+  CalendarDays,
+  CreditCard,
+  Store,
+  type LucideIcon,
+} from "lucide-react"
+
+import { useAuth } from "@/lib/auth-context"
+import { useOnboarding } from "@/lib/onboarding/onboarding-context"
+import type { BusinessType } from "@/lib/api"
+import { money, fmtDate } from "@/lib/erp/finance-format"
+import { Button } from "@/components/ui/button"
+import { Skeleton } from "@/components/ui/skeleton"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import type { LayoutItem, WidgetDef, WidgetProps } from "./types"
+
+// ─── Piezas reutilizables ─────────────────────────────────────────────────────
+
+/** Tarjeta de cifra (KPI). Muestra “—” si no hay dato y esqueleto si carga. */
+function KpiCard({
+  label,
+  value,
+  icon: Icon,
+  tone = "text-primary",
+  href,
+  loading,
+  featured,
+}: {
+  label: string
+  value: string | null
+  icon: LucideIcon
+  tone?: string
+  href?: string
+  loading?: boolean
+  featured?: boolean
+}) {
+  const inner = (
+    <Card
+      className={
+        featured
+          ? "h-full border-primary/30 bg-gradient-to-br from-primary to-[#5b21b6] text-primary-foreground shadow-[0_18px_40px_-24px_var(--primary)]"
+          : "h-full transition-colors hover:border-primary/40"
+      }
+    >
+      <CardContent className="p-5">
+        <div className="flex items-center justify-between">
+          <span
+            className={
+              featured
+                ? "text-sm font-medium text-primary-foreground/85"
+                : "text-sm font-medium text-muted-foreground"
+            }
+          >
+            {label}
+          </span>
+          <span
+            className={
+              featured
+                ? "flex size-9 items-center justify-center rounded-lg bg-white/15 text-primary-foreground [&_svg]:size-4"
+                : `flex size-9 items-center justify-center rounded-lg bg-accent [&_svg]:size-4 ${tone}`
+            }
+          >
+            <Icon />
+          </span>
+        </div>
+        {loading && value === null ? (
+          <Skeleton className="mt-3 h-8 w-28" />
+        ) : (
+          <p
+            className={
+              featured
+                ? "stat-figure mt-3 text-[2rem] leading-none text-primary-foreground"
+                : "stat-figure mt-3 text-[2rem] leading-none text-foreground"
+            }
+          >
+            {value ?? "—"}
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  )
+  return href ? (
+    <Link href={href} className="block h-full">
+      {inner}
+    </Link>
+  ) : (
+    inner
+  )
+}
+
+/** Helper: valor monetario del overview o null si aún no cargó / sin permiso. */
+function ovMoney(
+  { data }: WidgetProps,
+  pick: (o: NonNullable<WidgetProps["data"]["overview"]>) => number,
+): string | null {
+  return data.overview ? money.format(pick(data.overview)) : null
+}
+
+// ─── Accesos rápidos por giro (reutilizado por el widget) ─────────────────────
+
+type QuickAction = { title: string; href: string; icon: LucideIcon }
+function quickActionsFor(tipoNegocio?: BusinessType): QuickAction[] {
+  const common: QuickAction[] = [
+    { title: "Nueva compra", href: "/panel/compras", icon: Truck },
+    { title: "Ver reportes", href: "/panel/finanzas/reportes", icon: BarChart3 },
+  ]
+  if (tipoNegocio === "retail") {
+    return [
+      { title: "Nueva venta", href: "/pos", icon: ShoppingCart },
+      { title: "Productos", href: "/panel/productos", icon: Package },
+      { title: "Bajo stock", href: "/panel/inventario", icon: PackageX },
+      ...common,
+    ]
+  }
+  if (tipoNegocio === "restaurante") {
+    return [
+      { title: "Abrir mesa", href: "/panel/restaurante", icon: UtensilsCrossed },
+      { title: "Abrir POS", href: "/pos", icon: ShoppingCart },
+      ...common,
+    ]
+  }
+  return [{ title: "Abrir POS", href: "/pos", icon: ShoppingCart }, ...common]
+}
+
+// ─── Widgets ──────────────────────────────────────────────────────────────────
+
+function GreetingWidget() {
+  const { user, tipoNegocio } = useAuth()
+  const first = user?.name?.split(" ")[0] ?? ""
+  const today = new Date().toLocaleDateString("es-CO", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  })
+  const negocio =
+    tipoNegocio === "restaurante"
+      ? "tu restaurante"
+      : tipoNegocio === "retail"
+        ? "tu tienda"
+        : "tu negocio"
+  return (
+    <Card className="h-full border-primary/25 bg-gradient-to-br from-accent/60 to-card">
+      <CardContent className="flex h-full flex-col justify-between gap-4 p-5">
+        <div>
+          <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+            <CalendarDays className="size-3.5" />
+            <span className="capitalize">{today}</span>
+          </p>
+          <p className="mt-2 font-display text-xl text-foreground">
+            Hola{first ? `, ${first}` : ""} 👋
+          </p>
+          <p className="text-sm text-muted-foreground">
+            Este es el resumen de {negocio} de hoy.
+          </p>
+        </div>
+        <Button size="sm" className="w-fit" render={<Link href="/pos" />}>
+          <ShoppingCart />
+          Nueva venta
+        </Button>
+      </CardContent>
+    </Card>
+  )
+}
+
+function GuideWidget() {
+  const { openGuide } = useOnboarding()
+  return (
+    <Card className="h-full">
+      <CardContent className="flex h-full flex-col justify-between gap-3 p-5">
+        <div>
+          <span className="flex size-9 items-center justify-center rounded-lg bg-accent text-primary [&_svg]:size-4">
+            <Compass />
+          </span>
+          <p className="mt-3 font-display text-base text-foreground">
+            Recorrido guiado
+          </p>
+          <p className="text-sm text-muted-foreground">
+            ¿Nuevo por aquí? Te muestro GoCheck paso a paso, área por área.
+          </p>
+        </div>
+        <Button variant="outline" size="sm" className="w-fit" onClick={openGuide}>
+          Ver el recorrido
+        </Button>
+      </CardContent>
+    </Card>
+  )
+}
+
+function SalesMonthWidget(p: WidgetProps) {
+  return (
+    <KpiCard
+      label="Ventas del mes"
+      value={ovMoney(p, (o) => o.salesMonth)}
+      icon={TrendingUp}
+      tone="text-success"
+      loading={p.loading}
+      featured
+    />
+  )
+}
+function CashTodayWidget(p: WidgetProps) {
+  return (
+    <KpiCard
+      label="Efectivo hoy"
+      value={ovMoney(p, (o) => o.cashToday)}
+      icon={Banknote}
+      tone="text-info"
+      loading={p.loading}
+    />
+  )
+}
+function ExpensesMonthWidget(p: WidgetProps) {
+  return (
+    <KpiCard
+      label="Gastos del mes"
+      value={ovMoney(p, (o) => o.expensesMonth)}
+      icon={TrendingDown}
+      tone="text-warning"
+      loading={p.loading}
+    />
+  )
+}
+function ProfitMonthWidget(p: WidgetProps) {
+  const positive = (p.data.overview?.utilidadMonth ?? 0) >= 0
+  return (
+    <KpiCard
+      label="Utilidad del mes"
+      value={ovMoney(p, (o) => o.utilidadMonth)}
+      icon={BarChart3}
+      tone={positive ? "text-success" : "text-destructive"}
+      loading={p.loading}
+    />
+  )
+}
+function ReceivablesWidget(p: WidgetProps) {
+  return (
+    <KpiCard
+      label="Por cobrar (CxC)"
+      value={ovMoney(p, (o) => o.receivablesOpen)}
+      icon={HandCoins}
+      href="/panel/clientes"
+      loading={p.loading}
+    />
+  )
+}
+function PayablesWidget(p: WidgetProps) {
+  return (
+    <KpiCard
+      label="Por pagar (CxP)"
+      value={ovMoney(p, (o) => o.payablesOpen)}
+      icon={Receipt}
+      href="/panel/finanzas/cxp"
+      loading={p.loading}
+    />
+  )
+}
+function PayrollWidget(p: WidgetProps) {
+  return (
+    <KpiCard
+      label="Nómina del mes"
+      value={ovMoney(p, (o) => o.nomina)}
+      icon={Users}
+      href="/panel/nomina"
+      loading={p.loading}
+    />
+  )
+}
+function PurchaseOrdersWidget(p: WidgetProps) {
+  return (
+    <KpiCard
+      label="Órdenes en curso"
+      value={p.data.poCount === null ? null : String(p.data.poCount)}
+      icon={Truck}
+      href="/panel/compras"
+      loading={p.loading}
+    />
+  )
+}
+function LowStockWidget(p: WidgetProps) {
+  return (
+    <KpiCard
+      label="Productos bajo stock"
+      value={p.data.lowStock === null ? null : String(p.data.lowStock)}
+      icon={PackageX}
+      tone="text-warning"
+      href="/panel/inventario"
+      loading={p.loading}
+    />
+  )
+}
+function OpenTablesWidget(p: WidgetProps) {
+  return (
+    <KpiCard
+      label="Comandas abiertas"
+      value={p.data.openTables === null ? null : String(p.data.openTables)}
+      icon={UtensilsCrossed}
+      href="/panel/restaurante"
+      loading={p.loading}
+    />
+  )
+}
+
+/** Mini gráfico de barras (CSS) de ingresos por día, últimos 7 días. */
+function SalesChartWidget({ data, loading }: WidgetProps) {
+  const days = data.sales?.days ?? []
+  const max = Math.max(1, ...days.map((d) => d.revenue))
+  return (
+    <Card className="h-full">
+      <CardHeader>
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <CardTitle className="font-display text-lg">
+              Ventas últimos 7 días
+            </CardTitle>
+            <CardDescription>Ingresos por día (todas las sedes).</CardDescription>
+          </div>
+          {data.sales && (
+            <span className="tnum text-sm font-semibold text-foreground">
+              {money.format(data.sales.totalRevenue)}
+            </span>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent>
+        {loading && !data.sales ? (
+          <Skeleton className="h-40 w-full" />
+        ) : days.length > 0 ? (
+          <div className="flex h-40 items-end gap-2">
+            {days.map((d) => (
+              <div
+                key={d.date}
+                className="flex flex-1 flex-col items-center gap-1"
+                title={`${fmtDate(d.date)}: ${money.format(d.revenue)} · ${d.tickets} tiquetes`}
+              >
+                <div className="flex w-full flex-1 items-end">
+                  <div
+                    className="w-full rounded-t-md bg-primary/80 transition-all hover:bg-primary"
+                    style={{
+                      height: `${Math.max(4, Math.round((d.revenue / max) * 100))}%`,
+                    }}
+                  />
+                </div>
+                <span className="text-[10px] text-muted-foreground">
+                  {new Date(`${d.date}T00:00:00`).toLocaleDateString("es-CO", {
+                    weekday: "short",
+                  })}
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="py-12 text-center text-sm text-muted-foreground">
+            Aún no hay ventas en el período.
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+/** Tabla de ventas por día (últimos 7 días). */
+function SalesTableWidget({ data, loading }: WidgetProps) {
+  const days = data.sales?.days ?? []
+  return (
+    <Card className="h-full">
+      <CardHeader>
+        <CardTitle className="font-display text-lg">Detalle de ventas (7 días)</CardTitle>
+        <CardDescription>Tiquetes, ticket promedio e ingresos por día.</CardDescription>
+      </CardHeader>
+      <CardContent className="px-0 sm:px-2">
+        {loading && !data.sales ? (
+          <div className="px-4">
+            <Skeleton className="h-40 w-full" />
+          </div>
+        ) : days.length > 0 ? (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Día</TableHead>
+                <TableHead className="text-right">Tiquetes</TableHead>
+                <TableHead className="text-right">Ticket prom.</TableHead>
+                <TableHead className="text-right">Ingresos</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {days.map((d) => (
+                <TableRow key={d.date}>
+                  <TableCell>{fmtDate(d.date)}</TableCell>
+                  <TableCell className="tnum text-right text-muted-foreground">
+                    {d.tickets}
+                  </TableCell>
+                  <TableCell className="tnum text-right text-muted-foreground">
+                    {money.format(d.avgTicket)}
+                  </TableCell>
+                  <TableCell className="tnum text-right font-semibold">
+                    {money.format(d.revenue)}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        ) : (
+          <p className="px-4 py-10 text-center text-sm text-muted-foreground">
+            Aún no hay ventas registradas en el período.
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+const METHOD_LABEL: Record<string, string> = {
+  cash: "Efectivo",
+  card: "Tarjeta",
+  transfer: "Transferencia",
+  credit: "Fiado",
+}
+/** Desglose de ingresos por método de pago (últimos 7 días). */
+function PaymentMethodsWidget({ data, loading }: WidgetProps) {
+  const rows = data.sales?.byMethod ?? []
+  const total = rows.reduce((s, r) => s + r.revenue, 0) || 1
+  return (
+    <Card className="h-full">
+      <CardHeader>
+        <CardTitle className="font-display text-lg">Métodos de pago</CardTitle>
+        <CardDescription>Ingresos por medio (7 días).</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {loading && !data.sales ? (
+          <Skeleton className="h-24 w-full" />
+        ) : rows.length > 0 ? (
+          rows.map((r) => (
+            <div key={r.method}>
+              <div className="flex items-center justify-between text-sm">
+                <span className="flex items-center gap-1.5 text-muted-foreground">
+                  <CreditCard className="size-3.5" />
+                  {METHOD_LABEL[r.method] ?? r.method}
+                </span>
+                <span className="tnum font-semibold">{money.format(r.revenue)}</span>
+              </div>
+              <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted">
+                <div
+                  className="h-full rounded-full bg-primary"
+                  style={{ width: `${Math.round((r.revenue / total) * 100)}%` }}
+                />
+              </div>
+            </div>
+          ))
+        ) : (
+          <p className="py-6 text-center text-sm text-muted-foreground">
+            Sin ventas en el período.
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+const CAJA_STATUS: Record<string, { label: string; cls: string }> = {
+  open: { label: "Abierta", cls: "bg-success/15 text-success" },
+  closed: { label: "Cerrada", cls: "bg-muted text-muted-foreground" },
+  none: { label: "Sin abrir", cls: "bg-warning/15 text-warning" },
+}
+/** Estado de la caja de hoy por sede. */
+function CajaSedesWidget({ data, loading }: WidgetProps) {
+  const rows = data.caja?.rows ?? []
+  return (
+    <Card className="h-full">
+      <CardHeader>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <CardTitle className="font-display text-lg">Caja por sede (hoy)</CardTitle>
+            <CardDescription>Estado y efectivo esperado de cada sede.</CardDescription>
+          </div>
+          <Button variant="ghost" size="sm" render={<Link href="/panel/caja" />}>
+            Ver caja
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent className="px-0 sm:px-2">
+        {loading && !data.caja ? (
+          <div className="px-4">
+            <Skeleton className="h-32 w-full" />
+          </div>
+        ) : rows.length > 0 ? (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Sede</TableHead>
+                <TableHead>Estado</TableHead>
+                <TableHead className="text-right">Ventas</TableHead>
+                <TableHead className="text-right">Efectivo esp.</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.map((r) => {
+                const st = CAJA_STATUS[r.status] ?? CAJA_STATUS.none
+                return (
+                  <TableRow key={r.sedeId}>
+                    <TableCell className="flex items-center gap-1.5">
+                      <Store className="size-3.5 text-muted-foreground" />
+                      {r.sedeName}
+                    </TableCell>
+                    <TableCell>
+                      <span
+                        className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${st.cls}`}
+                      >
+                        {st.label}
+                      </span>
+                    </TableCell>
+                    <TableCell className="tnum text-right text-muted-foreground">
+                      {money.format(r.salesTotal)}
+                    </TableCell>
+                    <TableCell className="tnum text-right font-semibold">
+                      {r.expectedCash === undefined ? "—" : money.format(r.expectedCash)}
+                    </TableCell>
+                  </TableRow>
+                )
+              })}
+            </TableBody>
+          </Table>
+        ) : (
+          <p className="px-4 py-10 text-center text-sm text-muted-foreground">
+            No hay cajas para mostrar.
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+/** Accesos rápidos según el giro. */
+function QuickActionsWidget() {
+  const { tipoNegocio } = useAuth()
+  const actions = React.useMemo(() => quickActionsFor(tipoNegocio), [tipoNegocio])
+  return (
+    <Card className="h-full">
+      <CardHeader>
+        <CardTitle className="font-display text-lg">Accesos rápidos</CardTitle>
+        <CardDescription>Acciones frecuentes del día a día.</CardDescription>
+      </CardHeader>
+      <CardContent className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        {actions.map((action) => (
+          <Link
+            key={action.href}
+            href={action.href}
+            className="group flex min-h-[96px] flex-col items-start justify-between rounded-xl border border-border bg-card p-4 transition-all hover:-translate-y-0.5 hover:border-primary/50 hover:bg-accent/40 hover:shadow-[0_12px_28px_-18px_var(--primary)]"
+          >
+            <span className="flex size-9 items-center justify-center rounded-lg bg-accent text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground [&_svg]:size-4">
+              <action.icon />
+            </span>
+            <span className="text-sm font-semibold text-foreground">
+              {action.title}
+            </span>
+          </Link>
+        ))}
+      </CardContent>
+    </Card>
+  )
+}
+
+// ─── Registro ─────────────────────────────────────────────────────────────────
+
+export const WIDGETS: WidgetDef[] = [
+  {
+    id: "greeting",
+    title: "Bienvenida",
+    description: "Saludo, fecha y acceso a una nueva venta.",
+    defaultSize: "wide",
+    sizes: ["compact", "wide"],
+    Component: GreetingWidget,
+  },
+  {
+    id: "guide",
+    title: "Recorrido guiado",
+    description: "Reabre el tour de bienvenida de GoCheck.",
+    defaultSize: "compact",
+    sizes: ["compact", "wide"],
+    Component: GuideWidget,
+  },
+  {
+    id: "sales-month",
+    title: "Ventas del mes",
+    description: "Total facturado en el mes en curso.",
+    defaultSize: "compact",
+    sizes: ["compact"],
+    permission: "finance.view",
+    Component: SalesMonthWidget,
+  },
+  {
+    id: "cash-today",
+    title: "Efectivo hoy",
+    description: "Efectivo esperado en caja hoy.",
+    defaultSize: "compact",
+    sizes: ["compact"],
+    permission: "finance.view",
+    Component: CashTodayWidget,
+  },
+  {
+    id: "expenses-month",
+    title: "Gastos del mes",
+    description: "Gasto operativo del mes en curso.",
+    defaultSize: "compact",
+    sizes: ["compact"],
+    permission: "finance.view",
+    Component: ExpensesMonthWidget,
+  },
+  {
+    id: "profit-month",
+    title: "Utilidad del mes",
+    description: "Utilidad estimada del mes (ingresos − costos).",
+    defaultSize: "compact",
+    sizes: ["compact"],
+    permission: "finance.view",
+    Component: ProfitMonthWidget,
+  },
+  {
+    id: "sales-chart",
+    title: "Gráfico de ventas (7 días)",
+    description: "Barras de ingresos por día de la última semana.",
+    defaultSize: "wide",
+    sizes: ["wide", "full"],
+    permission: "reports.view",
+    Component: SalesChartWidget,
+  },
+  {
+    id: "sales-table",
+    title: "Detalle de ventas (7 días)",
+    description: "Tabla con tiquetes, ticket promedio e ingresos.",
+    defaultSize: "full",
+    sizes: ["wide", "full"],
+    permission: "reports.view",
+    Component: SalesTableWidget,
+  },
+  {
+    id: "payment-methods",
+    title: "Métodos de pago",
+    description: "Ingresos por medio de pago (7 días).",
+    defaultSize: "compact",
+    sizes: ["compact", "wide"],
+    permission: "reports.view",
+    Component: PaymentMethodsWidget,
+  },
+  {
+    id: "caja-sedes",
+    title: "Caja por sede",
+    description: "Estado y efectivo esperado de cada sede hoy.",
+    defaultSize: "wide",
+    sizes: ["wide", "full"],
+    permission: "pos.sell",
+    Component: CajaSedesWidget,
+  },
+  {
+    id: "receivables",
+    title: "Cuentas por cobrar",
+    description: "Total del fiado pendiente por cobrar.",
+    defaultSize: "compact",
+    sizes: ["compact"],
+    permission: "finance.view",
+    Component: ReceivablesWidget,
+  },
+  {
+    id: "payables",
+    title: "Cuentas por pagar",
+    description: "Total pendiente de pago a proveedores.",
+    defaultSize: "compact",
+    sizes: ["compact"],
+    permission: "finance.view",
+    Component: PayablesWidget,
+  },
+  {
+    id: "payroll",
+    title: "Nómina del mes",
+    description: "Costo de nómina del mes en curso.",
+    defaultSize: "compact",
+    sizes: ["compact"],
+    permission: "finance.view",
+    Component: PayrollWidget,
+  },
+  {
+    id: "purchase-orders",
+    title: "Órdenes en curso",
+    description: "Órdenes de compra enviadas o parciales.",
+    defaultSize: "compact",
+    sizes: ["compact"],
+    permission: "finance.view",
+    Component: PurchaseOrdersWidget,
+  },
+  {
+    id: "low-stock",
+    title: "Bajo stock",
+    description: "Productos por debajo de su mínimo.",
+    defaultSize: "compact",
+    sizes: ["compact"],
+    permission: "inventory.view",
+    Component: LowStockWidget,
+  },
+  {
+    id: "open-tables",
+    title: "Comandas abiertas",
+    description: "Mesas con cuenta abierta ahora mismo.",
+    defaultSize: "compact",
+    sizes: ["compact"],
+    permission: "pos.sell",
+    businessTypes: ["restaurante"],
+    Component: OpenTablesWidget,
+  },
+  {
+    id: "quick-actions",
+    title: "Accesos rápidos",
+    description: "Atajos a las acciones más frecuentes.",
+    defaultSize: "wide",
+    sizes: ["wide", "full"],
+    Component: QuickActionsWidget,
+  },
+]
+
+/** Índice por id para acceso O(1). */
+export const WIDGET_BY_ID: Record<string, WidgetDef> = Object.fromEntries(
+  WIDGETS.map((w) => [w.id, w]),
+)
+
+/**
+ * Widgets ofrecidos al usuario según sus permisos y el giro del negocio.
+ */
+export function availableWidgets(
+  hasPermission: (perm: string) => boolean,
+  tipoNegocio?: BusinessType,
+): WidgetDef[] {
+  return WIDGETS.filter(
+    (w) =>
+      (!w.permission || hasPermission(w.permission)) &&
+      (!w.businessTypes ||
+        (tipoNegocio ? w.businessTypes.includes(tipoNegocio) : false)),
+  )
+}
+
+/** Orden y tamaños por defecto del tablero (se filtra por disponibilidad). */
+export const DEFAULT_LAYOUT: LayoutItem[] = [
+  { id: "greeting", size: "wide" },
+  { id: "guide", size: "compact" },
+  { id: "sales-month", size: "compact" },
+  { id: "cash-today", size: "compact" },
+  { id: "profit-month", size: "compact" },
+  { id: "sales-chart", size: "wide" },
+  { id: "receivables", size: "compact" },
+  { id: "payables", size: "compact" },
+  { id: "payroll", size: "compact" },
+  { id: "purchase-orders", size: "compact" },
+  { id: "caja-sedes", size: "wide" },
+  { id: "low-stock", size: "compact" },
+  { id: "open-tables", size: "compact" },
+  { id: "quick-actions", size: "wide" },
+]
