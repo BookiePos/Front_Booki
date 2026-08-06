@@ -10,6 +10,8 @@ import {
   Save,
   Trash2,
   ArrowLeft,
+  TrendingUp,
+  TrendingDown,
 } from "lucide-react"
 
 import { useAuth } from "@/lib/auth-context"
@@ -21,6 +23,7 @@ import {
   updateBudget,
   deleteBudget,
   listCategories,
+  getBudgetVsActual,
   BUDGET_SCENARIO_LABELS,
   CATEGORY_KIND_LABELS,
   MONTHS_SHORT,
@@ -29,6 +32,7 @@ import {
   type BudgetScenario,
   type BudgetLine,
   type BudgetPayload,
+  type BudgetVsActual,
 } from "@/lib/erp/api-finance"
 import { money, errorMessage, numOr } from "@/lib/erp/finance-format"
 
@@ -131,6 +135,7 @@ export default function PresupuestosPage() {
       <BudgetEditor
         budgetId={editingId}
         categories={categories}
+        sedes={sedes}
         canManage={canManage}
         onBack={() => {
           setEditingId(null)
@@ -452,14 +457,17 @@ function NewBudgetSheet({
 function BudgetEditor({
   budgetId,
   categories,
+  sedes,
   canManage,
   onBack,
 }: {
   budgetId: string
   categories: FinanceCategory[]
+  sedes: Sede[]
   canManage: boolean
   onBack: () => void
 }) {
+  const [view, setView] = React.useState<"plan" | "real">("plan")
   const [budget, setBudget] = React.useState<FinanceBudget | null>(null)
   const [lines, setLines] = React.useState<BudgetLine[]>([])
   const [status, setStatus] = React.useState<"draft" | "active">("draft")
@@ -566,7 +574,7 @@ function BudgetEditor({
               <ArrowLeft className="size-4" />
               Volver
             </Button>
-            {canManage && (
+            {canManage && view === "plan" && (
               <Button className="gap-2" disabled={busy || loading} onClick={() => void save()}>
                 {busy ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
                 Guardar
@@ -576,7 +584,33 @@ function BudgetEditor({
         }
       />
 
-      {loading ? (
+      <div className="mb-4 inline-flex rounded-lg border border-border bg-muted/40 p-1">
+        {(
+          [
+            { v: "plan", l: "Planeación" },
+            { v: "real", l: "Ejecución vs Real" },
+          ] as const
+        ).map((t) => (
+          <button
+            key={t.v}
+            onClick={() => setView(t.v)}
+            className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+              view === t.v
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {t.l}
+          </button>
+        ))}
+      </div>
+
+      {view === "real" ? (
+        <BudgetVsActualView budgetId={budgetId} sedes={sedes} />
+      ) : null}
+
+      {view === "plan" &&
+        (loading ? (
         <Skeleton className="h-72 rounded-lg" />
       ) : error && !budget ? (
         <p className="py-10 text-center text-sm text-destructive">{error}</p>
@@ -716,7 +750,201 @@ function BudgetEditor({
           )}
           {msg && <p className="mt-3 text-sm text-emerald-600">{msg}</p>}
         </>
+      ))}
+    </>
+  )
+}
+
+// ── Comparativo Presupuesto vs Real ──────────────────────────────────────────
+function BudgetVsActualView({
+  budgetId,
+  sedes,
+}: {
+  budgetId: string
+  sedes: Sede[]
+}) {
+  const ALL = "all"
+  const [sedeId, setSedeId] = React.useState<string>(ALL)
+  const [data, setData] = React.useState<BudgetVsActual | null>(null)
+  const [loading, setLoading] = React.useState(true)
+  const [error, setError] = React.useState<string | null>(null)
+
+  const load = React.useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      setData(await getBudgetVsActual(budgetId, sedeId === ALL ? undefined : sedeId))
+    } catch (err) {
+      setError(errorMessage(err))
+    } finally {
+      setLoading(false)
+    }
+  }, [budgetId, sedeId])
+
+  React.useEffect(() => {
+    void load()
+  }, [load])
+
+  const totalBudget = data?.totals.budget ?? 0
+  const totalActual = data?.totals.actual ?? 0
+  const variance = totalActual - totalBudget
+  const execPct = totalBudget > 0 ? Math.round((totalActual / totalBudget) * 100) : 0
+
+  return (
+    <>
+      <Card className="mb-4">
+        <CardContent className="flex flex-wrap items-end gap-3 py-4">
+          <div className="flex flex-col gap-1">
+            <Label className="text-xs">Sede</Label>
+            <select
+              className={`${inputClass} w-48`}
+              value={sedeId}
+              onChange={(e) => setSedeId(e.target.value)}
+            >
+              <option value={ALL}>Consolidado (todas)</option>
+              {sedes.map((s) => (
+                <option key={s._id} value={s._id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <p className="pb-1.5 text-xs text-muted-foreground">
+            El &quot;Real&quot; se calcula de tus ventas, nómina y gastos ya
+            registrados. No hay que digitar nada.
+          </p>
+        </CardContent>
+      </Card>
+
+      {loading ? (
+        <Skeleton className="h-72 rounded-lg" />
+      ) : error ? (
+        <p className="py-10 text-center text-sm text-destructive">{error}</p>
+      ) : !data || data.lines.length === 0 ? (
+        <div className="flex flex-col items-center gap-2 py-14 text-center">
+          <Target className="size-9 text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">
+            Este presupuesto no tiene categorías para comparar.
+          </p>
+        </div>
+      ) : (
+        <>
+          <div className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
+            <VsKpi label="Presupuestado (año)" value={money.format(totalBudget)} />
+            <VsKpi label="Real (año)" value={money.format(totalActual)} />
+            <VsKpi
+              label="Variación"
+              value={`${variance >= 0 ? "+" : ""}${money.format(variance)}`}
+              tone={variance > 0 ? "up" : variance < 0 ? "down" : undefined}
+            />
+            <VsKpi label="Ejecución" value={`${execPct}%`} />
+          </div>
+
+          <Card>
+            <CardContent className="overflow-x-auto p-0">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border text-xs">
+                    <th className="px-3 py-2 text-left font-medium">Categoría</th>
+                    <th className="px-3 py-2 text-right font-medium">Presupuesto</th>
+                    <th className="px-3 py-2 text-right font-medium">Real</th>
+                    <th className="px-3 py-2 text-right font-medium">Variación</th>
+                    <th className="px-3 py-2 text-right font-medium">Ejec.</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.lines.map((l) => {
+                    const v = l.totalActual - l.totalBudget
+                    const pct =
+                      l.totalBudget > 0
+                        ? Math.round((l.totalActual / l.totalBudget) * 100)
+                        : 0
+                    // Para ingresos, quedar por debajo es malo; para gastos, sobrepasar es malo.
+                    const bad =
+                      l.kind === "income" ? v < 0 : v > 0
+                    return (
+                      <tr key={l.categoryId} className="border-b border-border/60">
+                        <td className="px-3 py-2 font-medium">
+                          {l.categoryName}
+                          <span className="ml-1 text-[10px] text-muted-foreground">
+                            {CATEGORY_KIND_LABELS[l.kind]}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
+                          {money.format(l.totalBudget)}
+                        </td>
+                        <td className="px-3 py-2 text-right tabular-nums font-medium">
+                          {money.format(l.totalActual)}
+                        </td>
+                        <td
+                          className={`px-3 py-2 text-right tabular-nums ${
+                            v === 0
+                              ? "text-muted-foreground"
+                              : bad
+                                ? "text-destructive"
+                                : "text-emerald-600"
+                          }`}
+                        >
+                          {v >= 0 ? "+" : ""}
+                          {money.format(v)}
+                        </td>
+                        <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
+                          {l.totalBudget > 0 ? `${pct}%` : "—"}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t border-border font-semibold">
+                    <td className="px-3 py-2">Total</td>
+                    <td className="px-3 py-2 text-right tabular-nums">
+                      {money.format(totalBudget)}
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums">
+                      {money.format(totalActual)}
+                    </td>
+                    <td
+                      className={`px-3 py-2 text-right tabular-nums ${
+                        variance === 0 ? "" : variance > 0 ? "text-emerald-600" : "text-destructive"
+                      }`}
+                    >
+                      {variance >= 0 ? "+" : ""}
+                      {money.format(variance)}
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums">{execPct}%</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </CardContent>
+          </Card>
+        </>
       )}
     </>
+  )
+}
+
+function VsKpi({
+  label,
+  value,
+  tone,
+}: {
+  label: string
+  value: string
+  tone?: "up" | "down"
+}) {
+  const color =
+    tone === "up" ? "text-emerald-600" : tone === "down" ? "text-destructive" : "text-foreground"
+  return (
+    <Card>
+      <CardContent className="flex flex-col gap-1 py-4">
+        <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          {tone === "up" && <TrendingUp className="size-3.5" />}
+          {tone === "down" && <TrendingDown className="size-3.5" />}
+          {label}
+        </span>
+        <span className={`font-display text-xl leading-tight ${color}`}>{value}</span>
+      </CardContent>
+    </Card>
   )
 }

@@ -44,6 +44,73 @@ function bucketLabel(b: CashflowBucket): string {
   return `${fmtDate(b.from)} – ${fmtDate(b.to)}`
 }
 
+const MONTH_NAMES = [
+  "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+  "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
+]
+
+/** Fila de la proyección (semana o mes agregado). */
+interface FlowRow {
+  key: string
+  label: string
+  sub: string
+  inflows: { receivables: number; projectedSales: number; total: number }
+  outflows: {
+    payables: number
+    recurringExpenses: number
+    payroll: number
+    total: number
+  }
+  net: number
+  balance: number
+}
+
+/** Convierte los buckets semanales del backend en filas por semana o por mes. */
+function buildRows(buckets: CashflowBucket[], groupBy: "week" | "month"): FlowRow[] {
+  if (groupBy === "week") {
+    return buckets.map((b) => ({
+      key: String(b.index),
+      label: `Sem ${b.index + 1}`,
+      sub: bucketLabel(b),
+      inflows: { ...b.inflows },
+      outflows: { ...b.outflows },
+      net: b.net,
+      balance: b.balance,
+    }))
+  }
+  // Agrupa por mes calendario del inicio del bucket; el saldo del mes = saldo
+  // del último bucket que cae en ese mes.
+  const groups = new Map<string, FlowRow>()
+  for (const b of buckets) {
+    const ym = b.from.slice(0, 7)
+    const [y, m] = ym.split("-")
+    const label = `${MONTH_NAMES[Number(m) - 1]} ${y}`
+    const prev = groups.get(ym)
+    if (!prev) {
+      groups.set(ym, {
+        key: ym,
+        label,
+        sub: "",
+        inflows: { ...b.inflows },
+        outflows: { ...b.outflows },
+        net: b.net,
+        balance: b.balance,
+      })
+    } else {
+      prev.inflows.receivables += b.inflows.receivables
+      prev.inflows.projectedSales += b.inflows.projectedSales
+      prev.inflows.total += b.inflows.total
+      prev.outflows.payables += b.outflows.payables
+      prev.outflows.recurringExpenses += b.outflows.recurringExpenses
+      prev.outflows.payroll += b.outflows.payroll
+      prev.outflows.total += b.outflows.total
+      prev.net += b.net
+      prev.balance = b.balance // último del mes
+    }
+  }
+  return [...groups.values()]
+}
+
 export default function FlujoCajaPage() {
   const { hasPermission } = useAuth()
   const canView = hasPermission("finance.view")
@@ -51,6 +118,7 @@ export default function FlujoCajaPage() {
   const [sedes, setSedes] = React.useState<Sede[]>([])
   const [sedeId, setSedeId] = React.useState<string>(ALL)
   const [days, setDays] = React.useState<number>(90)
+  const [groupBy, setGroupBy] = React.useState<"week" | "month">("week")
   const [includeProjections, setIncludeProjections] = React.useState(true)
   const [data, setData] = React.useState<CashflowProjection | null>(null)
   const [loading, setLoading] = React.useState(true)
@@ -111,11 +179,12 @@ export default function FlujoCajaPage() {
     </Button>
   )
 
+  const rows = data ? buildRows(data.buckets, groupBy) : []
   const maxAbs = data
     ? Math.max(
-        data.openingBalance,
+        Math.abs(data.openingBalance),
         1,
-        ...data.buckets.map((b) => Math.abs(b.balance)),
+        ...rows.map((b) => Math.abs(b.balance)),
       )
     : 1
 
@@ -169,6 +238,17 @@ export default function FlujoCajaPage() {
               <option value={180}>180 días</option>
             </select>
           </div>
+          <div className="flex flex-col gap-1">
+            <Label className="text-xs">Agrupar por</Label>
+            <select
+              className={`${inputClass} w-28`}
+              value={groupBy}
+              onChange={(e) => setGroupBy(e.target.value as "week" | "month")}
+            >
+              <option value="week">Semana</option>
+              <option value="month">Mes</option>
+            </select>
+          </div>
           <label className="flex items-center gap-2 pb-1 text-sm">
             <input
               type="checkbox"
@@ -203,8 +283,9 @@ export default function FlujoCajaPage() {
             className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-5"
           >
             <Kpi
-              label="Saldo actual"
+              label="Tesorería actual"
               value={money.format(data.openingBalance)}
+              sub="bancos + efectivo en caja"
               icon={Wallet}
             />
             <Kpi
@@ -255,7 +336,7 @@ export default function FlujoCajaPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Semana</TableHead>
+                    <TableHead>{groupBy === "week" ? "Semana" : "Mes"}</TableHead>
                     <TableHead className="text-right">Entradas</TableHead>
                     <TableHead className="text-right">Salidas</TableHead>
                     <TableHead className="text-right">Neto</TableHead>
@@ -263,13 +344,15 @@ export default function FlujoCajaPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {data.buckets.map((b) => (
-                    <TableRow key={b.index}>
+                  {rows.map((b) => (
+                    <TableRow key={b.key}>
                       <TableCell className="whitespace-nowrap">
-                        <span className="font-medium">Sem {b.index + 1}</span>
-                        <span className="block text-xs text-muted-foreground">
-                          {bucketLabel(b)}
-                        </span>
+                        <span className="font-medium">{b.label}</span>
+                        {b.sub && (
+                          <span className="block text-xs text-muted-foreground">
+                            {b.sub}
+                          </span>
+                        )}
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
                         {money.format(b.inflows.total)}
@@ -323,7 +406,7 @@ export default function FlujoCajaPage() {
                 <TableFooter>
                   <TableRow>
                     <TableCell className="font-semibold">
-                      Total ({data.buckets.length} sem)
+                      Total ({rows.length} {groupBy === "week" ? "sem" : "meses"})
                     </TableCell>
                     <TableCell className="text-right font-semibold tabular-nums">
                       {money.format(data.totals.inflows)}

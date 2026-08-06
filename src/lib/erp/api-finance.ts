@@ -135,12 +135,38 @@ export interface FinanceAccount {
   type: AccountType
   openingBalance: number
   active: boolean
+  autoMethods: PaymentMethod[]
   note?: string
   balance?: number
   lastReconciledDate?: string | null
   lastReconciledBalance?: number | null
   lastReconciledAt?: string | null
 }
+
+/** Resumen de tesorería: efectivo (caja POS) + cuentas de banco/billetera. */
+export interface TreasuryCajaRow {
+  sedeId: string
+  sedeName: string
+  expectedCash: number
+  salesTotal: number
+  openedAt: string
+}
+
+export interface TreasurySummary {
+  sedeId?: string | null
+  cajaCash: number
+  cajaRows: TreasuryCajaRow[]
+  accountsBalance: number
+  total: number
+}
+
+export type MovementSource =
+  | "manual"
+  | "sale"
+  | "expense"
+  | "payable_payment"
+  | "receivable_payment"
+  | "reconcile"
 
 export interface FinanceMovement {
   _id: string
@@ -152,6 +178,9 @@ export interface FinanceMovement {
   categoryId?: string
   concept: string
   reconciled: boolean
+  sourceType: MovementSource
+  sourceId?: string | null
+  auto: boolean
   createdByEmail: string
 }
 
@@ -549,6 +578,7 @@ export interface AccountPayload {
   name?: string
   type?: AccountType
   openingBalance?: number
+  autoMethods?: PaymentMethod[]
   active?: boolean
   note?: string
 }
@@ -561,6 +591,23 @@ export async function createAccount(
     body: JSON.stringify(payload),
   })
   return parseResponse<FinanceAccount>(res)
+}
+
+export async function updateAccount(
+  id: string,
+  payload: AccountPayload,
+): Promise<FinanceAccount> {
+  const res = await authFetch(`/finance/accounts/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  })
+  return parseResponse<FinanceAccount>(res)
+}
+
+export async function getTreasury(sedeId?: string): Promise<TreasurySummary> {
+  const qs = sedeId ? `?sedeId=${encodeURIComponent(sedeId)}` : ""
+  const res = await authFetch(`/finance/treasury${qs}`)
+  return parseResponse<TreasurySummary>(res)
 }
 
 export async function listAccountMovements(
