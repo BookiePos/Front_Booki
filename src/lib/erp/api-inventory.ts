@@ -398,6 +398,36 @@ export async function importProducts(
   return parseResponse<ImportResult>(res)
 }
 
+/** Una fila de carga de existencias (entrada). La sede va por nombre o código. */
+export interface ImportStockRow {
+  sku?: string
+  sede?: string
+  qty?: number
+  unitCost?: number
+  lotCode?: string
+  expiresAt?: string
+  supplier?: string
+  note?: string
+}
+
+/** Resumen del resultado de una carga de existencias. */
+export interface ImportStockResult {
+  total: number
+  imported: number
+  errors: { row: number; sku: string; sede: string; message: string }[]
+}
+
+/** Carga masiva de existencias (una entrada por fila) desde un CSV. */
+export async function importStock(
+  rows: ImportStockRow[],
+): Promise<ImportStockResult> {
+  const res = await authFetch("/inventory/stock/import", {
+    method: "POST",
+    body: JSON.stringify({ rows }),
+  })
+  return parseResponse<ImportStockResult>(res)
+}
+
 export async function updateProduct(
   id: string,
   payload: ProductPayload,

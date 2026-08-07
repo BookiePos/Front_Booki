@@ -46,8 +46,11 @@ import {
   createAdjustment,
   createTransfer,
   importProducts,
+  importStock,
   type ImportProductRow,
   type ImportResult,
+  type ImportStockRow,
+  type ImportStockResult,
   ADJUST_REASON_LABELS,
   MOVEMENT_TYPE_LABELS,
   ITEM_TYPE_LABELS,
@@ -368,6 +371,117 @@ function csvTemplate(): string {
     "true",
   ]
   return serializeCsv([...CSV_COLUMNS], [example])
+}
+
+// ─── CSV de existencias (exportar snapshot / importar carga) ──────────────────
+
+/** Columnas del snapshot de existencias que se exporta. */
+const STOCK_EXPORT_COLUMNS = [
+  "sku",
+  "name",
+  "sede",
+  "qty",
+  "minStock",
+  "value",
+] as const
+/** Columnas de la plantilla de carga (importación = entradas). */
+const STOCK_IMPORT_COLUMNS = [
+  "sku",
+  "sede",
+  "qty",
+  "unitCost",
+  "lotCode",
+  "expiresAt",
+  "supplier",
+  "note",
+] as const
+type StockCsvKey = (typeof STOCK_IMPORT_COLUMNS)[number]
+
+const STOCK_HEADER_ALIASES: Record<string, StockCsvKey> = {
+  sku: "sku",
+  codigo: "sku",
+  sede: "sede",
+  sucursal: "sede",
+  local: "sede",
+  qty: "qty",
+  cantidad: "qty",
+  existencia: "qty",
+  existencias: "qty",
+  stock: "qty",
+  unitcost: "unitCost",
+  costo: "unitCost",
+  costounitario: "unitCost",
+  lotcode: "lotCode",
+  lote: "lotCode",
+  codigolote: "lotCode",
+  expiresat: "expiresAt",
+  vencimiento: "expiresAt",
+  vence: "expiresAt",
+  caducidad: "expiresAt",
+  fechavencimiento: "expiresAt",
+  supplier: "supplier",
+  proveedor: "supplier",
+  note: "note",
+  nota: "note",
+  observacion: "note",
+}
+
+const STOCK_NUMERIC_KEYS = new Set<StockCsvKey>(["qty", "unitCost"])
+
+/** Normaliza una fecha del CSV a YYYY-MM-DD (acepta DD/MM/AAAA). */
+function normCsvDate(raw: string): string | undefined {
+  const s = raw.trim()
+  if (!s) return undefined
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10)
+  const m = s.match(/^(\d{2})[/-](\d{2})[/-](\d{4})$/)
+  if (m) return `${m[3]}-${m[2]}-${m[1]}`
+  return s
+}
+
+/** Snapshot de existencias (lo que se ve) a CSV. */
+function stockToCsv(rows: StockRow[]): string {
+  const data = rows.map((r) => [
+    r.product.sku,
+    r.product.name,
+    r.sede?.name ?? "",
+    r.qty,
+    r.minStock,
+    r.value,
+  ])
+  return serializeCsv([...STOCK_EXPORT_COLUMNS], data)
+}
+
+/** Convierte la matriz del CSV a filas de carga de existencias. */
+function csvToStockRows(matrix: string[][]): ImportStockRow[] {
+  if (matrix.length < 2) return []
+  const headers = matrix[0]!.map((h) => STOCK_HEADER_ALIASES[normHeader(h)])
+  const out: ImportStockRow[] = []
+  for (let r = 1; r < matrix.length; r += 1) {
+    const cells = matrix[r]!
+    const row: ImportStockRow = {}
+    const target = row as Record<string, unknown>
+    headers.forEach((key, c) => {
+      if (!key) return
+      const raw = (cells[c] ?? "").trim()
+      if (!raw) return
+      if (STOCK_NUMERIC_KEYS.has(key)) {
+        const n = parseCsvNumber(raw)
+        if (n !== undefined) target[key] = n
+      } else if (key === "expiresAt") {
+        target[key] = normCsvDate(raw)
+      } else {
+        target[key] = raw
+      }
+    })
+    if (row.sku || row.sede || row.qty !== undefined) out.push(row)
+  }
+  return out
+}
+
+/** Plantilla de carga de existencias (encabezados + una fila de ejemplo). */
+function stockTemplate(): string {
+  const example = ["SKU-001", "Principal", "20", "1000", "", "", "Proveedor", ""]
+  return serializeCsv([...STOCK_IMPORT_COLUMNS], [example])
 }
 
 /**
@@ -2516,6 +2630,187 @@ function ImportProductsSheet({
   )
 }
 
+function StockImportSheet({
+  open,
+  onOpenChange,
+  onImported,
+}: {
+  open: boolean
+  onOpenChange: (v: boolean) => void
+  onImported: () => void
+}) {
+  const [fileName, setFileName] = React.useState<string | null>(null)
+  const [rows, setRows] = React.useState<ImportStockRow[]>([])
+  const [parseError, setParseError] = React.useState<string | null>(null)
+  const [importing, setImporting] = React.useState(false)
+  const [result, setResult] = React.useState<ImportStockResult | null>(null)
+  const inputRef = React.useRef<HTMLInputElement>(null)
+
+  function reset() {
+    setFileName(null)
+    setRows([])
+    setParseError(null)
+    setResult(null)
+    setImporting(false)
+    if (inputRef.current) inputRef.current.value = ""
+  }
+
+  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setResult(null)
+    setParseError(null)
+    try {
+      const parsed = csvToStockRows(parseCsv(await file.text()))
+      setFileName(file.name)
+      setRows(parsed)
+      if (parsed.length === 0) {
+        setParseError(
+          "No se detectaron filas válidas. La primera fila debe tener los encabezados (sku, sede, qty, …).",
+        )
+      }
+    } catch {
+      setParseError("No se pudo leer el archivo CSV.")
+      setRows([])
+    }
+  }
+
+  async function doImport() {
+    if (rows.length === 0) return
+    setImporting(true)
+    setParseError(null)
+    try {
+      const res = await importStock(rows)
+      setResult(res)
+      onImported()
+    } catch (err) {
+      setParseError(errorMessage(err))
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  return (
+    <Sheet
+      open={open}
+      onOpenChange={(v) => {
+        onOpenChange(v)
+        if (!v) reset()
+      }}
+    >
+      <SheetContent side="right" className="flex flex-col sm:max-w-md">
+        <SheetHeader>
+          <SheetTitle>Cargar existencias (CSV)</SheetTitle>
+          <SheetDescription>
+            Cada fila registra una ENTRADA de mercancía (suma stock) del producto
+            (por SKU) en la sede (por nombre o código).
+          </SheetDescription>
+        </SheetHeader>
+
+        <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4">
+          <div className="flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/5 p-3 text-sm text-muted-foreground">
+            <TriangleAlert className="mt-0.5 size-4 shrink-0 text-warning" />
+            <span>
+              Importar <strong className="text-foreground">suma</strong> las
+              cantidades como entradas; no reemplaza el stock actual. Úsalo para
+              carga inicial o recepción masiva.
+            </span>
+          </div>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              downloadCsv("plantilla-existencias.csv", stockTemplate())
+            }
+          >
+            <Download />
+            Descargar plantilla
+          </Button>
+
+          <input
+            ref={inputRef}
+            type="file"
+            accept=".csv,text/csv"
+            onChange={onFile}
+            className="hidden"
+          />
+          <Button
+            variant="outline"
+            className="w-full justify-start"
+            onClick={() => inputRef.current?.click()}
+          >
+            <FileUp />
+            <span className="truncate">{fileName ?? "Elegir archivo CSV…"}</span>
+          </Button>
+
+          {parseError && (
+            <p className="text-sm text-destructive">{parseError}</p>
+          )}
+
+          {rows.length > 0 && !result && (
+            <p className="text-sm text-muted-foreground">
+              <strong className="text-foreground">{rows.length}</strong>{" "}
+              entrada(s) listas para cargar.
+            </p>
+          )}
+
+          {result && (
+            <div className="space-y-2 rounded-lg border border-border p-3 text-sm">
+              <p className="flex items-center gap-2 font-medium text-success">
+                <CheckCircle2 className="size-4" />
+                Carga completada
+              </p>
+              <p className="text-muted-foreground">
+                Entradas:{" "}
+                <strong className="text-foreground">{result.imported}</strong> ·
+                Errores:{" "}
+                <strong
+                  className={
+                    result.errors.length ? "text-destructive" : "text-foreground"
+                  }
+                >
+                  {result.errors.length}
+                </strong>
+              </p>
+              {result.errors.length > 0 && (
+                <ul className="max-h-40 space-y-1 overflow-y-auto text-xs text-destructive">
+                  {result.errors.slice(0, 50).map((er, i) => (
+                    <li key={i}>
+                      Fila {er.row}
+                      {er.sku ? ` (${er.sku}` : ""}
+                      {er.sku && er.sede ? ` · ${er.sede})` : er.sku ? ")" : ""}:{" "}
+                      {er.message}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+
+          <p className="text-xs text-muted-foreground">
+            Columnas: {STOCK_IMPORT_COLUMNS.join(", ")}. Obligatorias:{" "}
+            <code>sku</code>, <code>sede</code> y <code>qty</code>. Los
+            perecederos requieren <code>expiresAt</code>.
+          </p>
+        </div>
+
+        <div className="flex justify-end gap-2 border-t border-border px-4 py-3">
+          <Button variant="ghost" onClick={() => onOpenChange(false)}>
+            {result ? "Cerrar" : "Cancelar"}
+          </Button>
+          {!result && (
+            <Button onClick={doImport} disabled={rows.length === 0 || importing}>
+              <Upload />
+              {importing ? "Cargando…" : "Cargar"}
+            </Button>
+          )}
+        </div>
+      </SheetContent>
+    </Sheet>
+  )
+}
+
 export default function InventarioPage() {
   const { hasPermission, isRetail } = useAuth()
   const canView = hasPermission("inventory.view")
@@ -2570,9 +2865,11 @@ export default function InventarioPage() {
     { productId?: string; sedeId?: string } | undefined
   >()
 
-  // Importar / exportar CSV
+  // Importar / exportar CSV (catálogo de productos)
   const [importOpen, setImportOpen] = React.useState(false)
   const [exporting, setExporting] = React.useState(false)
+  // Importar / exportar CSV (existencias)
+  const [stockImportOpen, setStockImportOpen] = React.useState(false)
 
   const handleExport = React.useCallback(async () => {
     setExporting(true)
@@ -2589,6 +2886,14 @@ export default function InventarioPage() {
       setExporting(false)
     }
   }, [])
+
+  const handleExportStock = React.useCallback(() => {
+    // Exporta el snapshot que se está viendo (respeta el filtro de sede).
+    downloadCsv(
+      `existencias-${new Date().toLocaleDateString("en-CA")}.csv`,
+      stockToCsv(stock),
+    )
+  }, [stock])
 
   // ── Fetchers ───────────────────────────────────────────────────────────────
 
@@ -3095,25 +3400,46 @@ export default function InventarioPage() {
                 Stock consolidado por producto y sede
               </CardDescription>
             </div>
-            <Select
-              value={stockSede}
-              items={{ all: "Todas las sedes", ...sedeItems(sedes) }}
-              onValueChange={(v) => {
-                if (v !== null) setStockSede(v)
-              }}
-            >
-              <SelectTrigger className="w-52">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todas las sedes</SelectItem>
-                {sedes.map((s) => (
-                  <SelectItem key={s._id} value={s._id}>
-                    {s.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleExportStock}
+                disabled={stock.length === 0}
+              >
+                <Download />
+                Exportar
+              </Button>
+              {canAdjust && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setStockImportOpen(true)}
+                >
+                  <Upload />
+                  Cargar
+                </Button>
+              )}
+              <Select
+                value={stockSede}
+                items={{ all: "Todas las sedes", ...sedeItems(sedes) }}
+                onValueChange={(v) => {
+                  if (v !== null) setStockSede(v)
+                }}
+              >
+                <SelectTrigger className="w-52">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas las sedes</SelectItem>
+                  {sedes.map((s) => (
+                    <SelectItem key={s._id} value={s._id}>
+                      {s.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </CardHeader>
           <CardContent className="p-0">
             {stockLoading ? (
@@ -3519,6 +3845,11 @@ export default function InventarioPage() {
       <ImportProductsSheet
         open={importOpen}
         onOpenChange={setImportOpen}
+        onImported={refreshAfterOperation}
+      />
+      <StockImportSheet
+        open={stockImportOpen}
+        onOpenChange={setStockImportOpen}
         onImported={refreshAfterOperation}
       />
       <EntrySheet
