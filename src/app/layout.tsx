@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Fraunces } from "next/font/google";
 import "./globals.css";
+import { Toaster } from "sonner";
 
 // Un solo par de fuentes para las tres zonas: la marca no se parte en dos y
 // el navegador las descarga una sola vez para toda la sesión.
@@ -42,7 +43,10 @@ export default function RootLayout({
       {/* El layout raíz es deliberadamente delgado: solo fuentes y estilos.
           La sesión la monta `(secure)/layout.tsx`, para que la portada pública
           no cargue el contexto de auth ni el cliente de API. */}
-      <body className="min-h-full font-sans antialiased">{children}</body>
+      <body className="min-h-full font-sans antialiased">
+        {children}
+        <Toaster position="top-center" richColors closeButton />
+      </body>
     </html>
   );
 }
