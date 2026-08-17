@@ -71,6 +71,8 @@ import {
 } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Checkbox } from "@/components/ui/checkbox"
+import { useConfirm } from "@/components/ui/confirm-dialog"
+import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -257,10 +259,13 @@ function UserSheet({ open, onOpenChange, mode, user, roles, sedes, permissionGro
         if (password.trim()) payload.password = password
         await updateUser(user.id, payload)
       }
+      toast.success(mode === "create" ? "Usuario creado" : "Usuario actualizado")
       onSuccess()
       onOpenChange(false)
     } catch (err) {
-      setError(errorMessage(err))
+      const msg = errorMessage(err)
+      setError(msg)
+      toast.error(msg)
     } finally {
       setSaving(false)
     }
@@ -930,6 +935,7 @@ function InvitationBadge({ status }: { status: AdminInvitation["status"] }) {
 
 export default function UsuariosPage() {
   const { hasPermission } = useAuth()
+  const confirm = useConfirm()
 
   // Tab state
   const [tab, setTab] = React.useState<"usuarios" | "roles">("usuarios")
@@ -1048,7 +1054,7 @@ export default function UsuariosPage() {
   }
 
   async function handleRevokeInvite(inv: AdminInvitation) {
-    if (!window.confirm(`¿Revocar la invitación de ${inv.email}?`)) return
+    if (!(await confirm({ title: `¿Revocar la invitación de ${inv.email}?`, destructive: true }))) return
     try {
       await revokeInvitation(inv.id)
       await fetchInvitations()
@@ -1085,7 +1091,7 @@ export default function UsuariosPage() {
   const sedeNameMap = Object.fromEntries(sedes.map((s) => [s._id, s.name]))
 
   async function handleDeleteRole(r: AdminRole) {
-    if (!window.confirm(`¿Eliminar el rol "${r.name}"? Esta acción no se puede deshacer.`)) return
+    if (!(await confirm({ title: `¿Eliminar el rol "${r.name}"?`, description: "Esta acción no se puede deshacer.", destructive: true }))) return
     try {
       await deleteRole(r.id)
       await fetchRoles()

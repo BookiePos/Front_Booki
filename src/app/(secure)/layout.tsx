@@ -1,4 +1,5 @@
 import { AuthProvider } from "@/lib/auth-context"
+import { ConfirmProvider } from "@/components/ui/confirm-dialog"
 
 /**
  * Zonas con sesión: /login, /invitacion, /panel y /pos.
@@ -16,5 +17,9 @@ export default function SecureLayout({
 }: {
   children: React.ReactNode
 }) {
-  return <AuthProvider>{children}</AuthProvider>
+  return (
+    <AuthProvider>
+      <ConfirmProvider>{children}</ConfirmProvider>
+    </AuthProvider>
+  )
 }

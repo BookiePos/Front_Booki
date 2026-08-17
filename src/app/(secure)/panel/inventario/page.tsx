@@ -103,6 +103,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
+import { useConfirm } from "@/components/ui/confirm-dialog"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Separator } from "@/components/ui/separator"
 import { cn } from "@/lib/utils"
@@ -1977,6 +1978,7 @@ function CategoriesSheet({
   const [editName, setEditName] = React.useState("")
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+  const confirm = useConfirm()
 
   React.useEffect(() => {
     async function reset() {
@@ -2034,7 +2036,7 @@ function CategoriesSheet({
   }
 
   async function handleDelete(cat: InvCategory) {
-    if (!window.confirm(`¿Eliminar la categoría "${cat.name}"?`)) return
+    if (!(await confirm({ title: `¿Eliminar la categoría "${cat.name}"?`, destructive: true }))) return
     setBusy(true)
     setError(null)
     try {
@@ -2816,6 +2818,7 @@ export default function InventarioPage() {
   const canView = hasPermission("inventory.view")
   const canAdjust = hasPermission("inventory.adjust")
   const canTransfer = hasPermission("inventory.transfer")
+  const confirm = useConfirm()
 
   const [tab, setTab] = React.useState<Tab>("productos")
 
@@ -3032,9 +3035,12 @@ export default function InventarioPage() {
 
   async function handleDelete(p: InvProduct) {
     if (
-      !window.confirm(
-        `¿Eliminar "${p.name}" definitivamente? Se borrarán también sus existencias, lotes y movimientos de kardex. Esta acción no se puede deshacer.`,
-      )
+      !(await confirm({
+        title: `¿Eliminar "${p.name}" definitivamente?`,
+        description:
+          "Se borrarán también sus existencias, lotes y movimientos de kardex. Esta acción no se puede deshacer.",
+        destructive: true,
+      }))
     )
       return
     try {

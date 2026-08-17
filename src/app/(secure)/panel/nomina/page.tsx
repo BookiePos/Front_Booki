@@ -52,6 +52,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
+import { useConfirm } from "@/components/ui/confirm-dialog"
 import {
   Table,
   TableBody,
@@ -457,6 +458,7 @@ function RunDetail({
   const [sendMsg, setSendMsg] = React.useState<{ ok: boolean; text: string } | null>(
     null,
   )
+  const confirm = useConfirm()
 
   const isClosed = run.status === "cerrada"
 
@@ -481,9 +483,12 @@ function RunDetail({
 
   async function handleClose() {
     if (
-      !window.confirm(
-        `¿Generar el cierre de la nómina de ${run.period}? Quedará fija en el historial y no se podrá eliminar.`,
-      )
+      !(await confirm({
+        title: `¿Generar el cierre de la nómina de ${run.period}?`,
+        description:
+          "Quedará fija en el historial y no se podrá eliminar.",
+        destructive: true,
+      }))
     )
       return
     setClosing(true)
@@ -1200,6 +1205,7 @@ function Historial({
 }) {
   const [open, setOpen] = React.useState<PayrollRun | null>(null)
   const [loadingId, setLoadingId] = React.useState<string | null>(null)
+  const confirm = useConfirm()
 
   async function openRun(id: string) {
     setLoadingId(id)
@@ -1213,7 +1219,7 @@ function Historial({
   }
 
   async function remove(id: string) {
-    if (!window.confirm("¿Eliminar esta corrida de nómina?")) return
+    if (!(await confirm({ title: "¿Eliminar esta corrida de nómina?", destructive: true }))) return
     try {
       await deletePayrollRun(id)
       onChanged()

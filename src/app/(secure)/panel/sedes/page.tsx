@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
+import { useConfirm } from "@/components/ui/confirm-dialog"
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -38,6 +39,7 @@ export default function SedesPage() {
   const router = useRouter()
   const { hasPermission } = useAuth()
   const canManage = hasPermission("sede.manage")
+  const confirm = useConfirm()
 
   const [sedes, setSedes] = React.useState<Sede[]>([])
   const [loading, setLoading] = React.useState(true)
@@ -67,11 +69,15 @@ export default function SedesPage() {
 
   async function handleToggle(sede: Sede) {
     if (
-      !window.confirm(
+      !(await confirm(
         sede.active
-          ? `¿Desactivar la sede "${sede.name}"? No aparecerá para operar hasta reactivarla.`
-          : `¿Reactivar la sede "${sede.name}"?`,
-      )
+          ? {
+              title: `¿Desactivar la sede "${sede.name}"?`,
+              description: "No aparecerá para operar hasta reactivarla.",
+              destructive: true,
+            }
+          : { title: `¿Reactivar la sede "${sede.name}"?` },
+      ))
     )
       return
     setTogglingId(sede._id)

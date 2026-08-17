@@ -14,6 +14,7 @@ import {
   type ResponsabilidadFiscal,
 } from "@/lib/erp/api-inventory"
 import { ApiError } from "@/lib/api"
+import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -222,10 +223,13 @@ export function SedeSheet({ open, onOpenChange, mode, sede, onSuccess }: SedeShe
       } else {
         return
       }
+      toast.success(mode === "create" ? "Sede creada" : "Sede actualizada")
       onSuccess(result)
       onOpenChange(false)
     } catch (err) {
-      setError(errorMessage(err))
+      const msg = errorMessage(err)
+      setError(msg)
+      toast.error(msg)
     } finally {
       setSaving(false)
     }

@@ -43,6 +43,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
+import { useConfirm } from "@/components/ui/confirm-dialog"
 import {
   Table,
   TableBody,
@@ -298,8 +299,9 @@ function DeleteBudgetButton({
   onDeleted: () => void
 }) {
   const [busy, setBusy] = React.useState(false)
+  const confirm = useConfirm()
   async function remove() {
-    if (!window.confirm("¿Eliminar esta meta?")) return
+    if (!(await confirm({ title: "¿Eliminar esta meta?", destructive: true }))) return
     setBusy(true)
     try {
       await deleteBudget(id)

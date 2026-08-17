@@ -49,6 +49,7 @@ import {
   SheetDescription,
 } from "@/components/ui/sheet"
 import { Skeleton } from "@/components/ui/skeleton"
+import { useConfirm } from "@/components/ui/confirm-dialog"
 import { Separator } from "@/components/ui/separator"
 import { cn } from "@/lib/utils"
 
@@ -88,6 +89,7 @@ const ADMIN_PAYMENT_METHODS: PaymentMethod[] = ["cash", "card", "transfer"]
 export default function PosPage() {
   const { user, hasPermission } = useAuth()
   const canSell = hasPermission("pos.sell")
+  const confirm = useConfirm()
 
   // Sedes del usuario (JWT ∩ sedes activas de la BD).
   const [sedes, setSedes] = React.useState<Sede[]>([])
@@ -176,12 +178,14 @@ export default function PosPage() {
     setCart((prev) => prev.filter((i) => i.product._id !== productId))
   }
 
-  function handleSedeChange(next: string) {
+  async function handleSedeChange(next: string) {
     if (next === sedeId) return
     if (cart.length > 0) {
-      const ok = window.confirm(
-        "Cambiar de sede vacía la cuenta actual. ¿Continuar?",
-      )
+      const ok = await confirm({
+        title: "¿Cambiar de sede?",
+        description: "Cambiar de sede vacía la cuenta actual.",
+        destructive: true,
+      })
       if (!ok) return
     }
     setCart([])

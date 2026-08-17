@@ -60,6 +60,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
+import { useConfirm } from "@/components/ui/confirm-dialog"
 import {
   Table,
   TableBody,
@@ -615,8 +616,9 @@ function DeleteButton({
   onDeleted: () => void
 }) {
   const [busy, setBusy] = React.useState(false)
+  const confirm = useConfirm()
   async function remove() {
-    if (!window.confirm(label)) return
+    if (!(await confirm({ title: label, destructive: true }))) return
     setBusy(true)
     try {
       await onConfirm()

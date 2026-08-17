@@ -40,6 +40,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
+import { useConfirm } from "@/components/ui/confirm-dialog"
 import {
   Table,
   TableBody,
@@ -87,6 +88,7 @@ export default function EmpleadosPage() {
   const canView = hasPermission("employees.view")
   const canManage = hasPermission("employees.manage")
   const canManageUsers = hasPermission("users.manage")
+  const confirm = useConfirm()
 
   const [employees, setEmployees] = React.useState<Employee[]>([])
   const [positions, setPositions] = React.useState<Position[]>([])
@@ -178,9 +180,11 @@ export default function EmpleadosPage() {
 
   async function handleDelete(e: Employee) {
     if (
-      !window.confirm(
-        `¿Eliminar a ${e.firstName} ${e.lastName}? Esta acción no se puede deshacer.`,
-      )
+      !(await confirm({
+        title: `¿Eliminar a ${e.firstName} ${e.lastName}?`,
+        description: "Esta acción no se puede deshacer.",
+        destructive: true,
+      }))
     )
       return
     try {

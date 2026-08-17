@@ -62,6 +62,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
+import { useConfirm } from "@/components/ui/confirm-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -310,6 +311,7 @@ export default function SedeDetailPage() {
   const { hasPermission } = useAuth()
   const canManage = hasPermission("sede.manage")
   const canManageUsers = hasPermission("users.manage")
+  const confirm = useConfirm()
 
   const [sede, setSede] = React.useState<Sede | null>(null)
   const [notFound, setNotFound] = React.useState(false)
@@ -433,11 +435,12 @@ export default function SedeDetailPage() {
   async function handleToggle() {
     if (!sede) return
     if (
-      !window.confirm(
-        sede.active
+      !(await confirm({
+        title: sede.active
           ? `¿Desactivar la sede "${sede.name}"?`
           : `¿Reactivar la sede "${sede.name}"?`,
-      )
+        destructive: sede.active,
+      }))
     )
       return
     setToggling(true)
@@ -453,9 +456,12 @@ export default function SedeDetailPage() {
 
   async function removeEmployee(e: Employee) {
     if (
-      !window.confirm(
-        `¿Quitar a ${e.firstName} ${e.lastName} de esta sede? Dejará de aparecer en su nómina y control de horas.`,
-      )
+      !(await confirm({
+        title: `¿Quitar a ${e.firstName} ${e.lastName} de esta sede?`,
+        description:
+          "Dejará de aparecer en su nómina y control de horas.",
+        destructive: true,
+      }))
     )
       return
     setBusyUserId(e._id)
@@ -498,7 +504,7 @@ export default function SedeDetailPage() {
   }
 
   async function handleDeleteDiscount(d: Discount) {
-    if (!window.confirm(`¿Eliminar el descuento "${d.name}"?`)) return
+    if (!(await confirm({ title: `¿Eliminar el descuento "${d.name}"?`, destructive: true }))) return
     setBusyDiscountId(d._id)
     try {
       await deleteDiscount(d._id)

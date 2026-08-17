@@ -73,6 +73,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
+import { useConfirm } from "@/components/ui/confirm-dialog"
 import { Separator } from "@/components/ui/separator"
 import { MoneyInput } from "@/components/ui/money-input"
 import {
@@ -153,6 +154,7 @@ export default function VentaPage() {
   const canSell = hasPermission("pos.sell")
 
   const { sedeId, sede, sedes, loading: sedesLoading } = useSede()
+  const confirm = useConfirm()
 
   const [products, setProducts] = React.useState<PosProduct[]>([])
   const [loading, setLoading] = React.useState(true)
@@ -623,10 +625,14 @@ export default function VentaPage() {
 
   async function closeActiveOrder() {
     if (!activeOrderId) return
-    const ok = window.confirm(
+    const ok = await confirm(
       cart.length === 0
-        ? "¿Cerrar esta cuenta vacía?"
-        : "¿Cerrar esta cuenta sin cobrar? Se descartarán sus ítems.",
+        ? { title: "¿Cerrar esta cuenta vacía?", destructive: true }
+        : {
+            title: "¿Cerrar esta cuenta sin cobrar?",
+            description: "Se descartarán sus ítems.",
+            destructive: true,
+          },
     )
     if (!ok) return
     setOrderBusy(true)

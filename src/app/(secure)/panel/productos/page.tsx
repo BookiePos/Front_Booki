@@ -68,6 +68,8 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
+import { useConfirm } from "@/components/ui/confirm-dialog"
+import { toast } from "sonner"
 import { Separator } from "@/components/ui/separator"
 import { cn } from "@/lib/utils"
 
@@ -335,10 +337,13 @@ function ProductSheet({
           active,
         })
       }
+      toast.success(mode === "create" ? "Producto creado" : "Producto actualizado")
       onSuccess()
       onOpenChange(false)
     } catch (err) {
-      setError(errorMessage(err))
+      const msg = errorMessage(err)
+      setError(msg)
+      toast.error(msg)
     } finally {
       setSaving(false)
     }
@@ -681,6 +686,7 @@ export default function ProductosPage() {
   const { hasPermission, isRetail } = useAuth()
   const canView = hasPermission("inventory.view")
   const canManage = hasPermission("inventory.adjust")
+  const confirm = useConfirm()
 
   const [products, setProducts] = React.useState<CatalogProduct[]>([])
   const [invProducts, setInvProducts] = React.useState<InvProduct[]>([])
@@ -725,7 +731,7 @@ export default function ProductosPage() {
   }
 
   async function handleDelete(p: CatalogProduct) {
-    if (!window.confirm(`¿Eliminar el producto "${p.name}"?`)) return
+    if (!(await confirm({ title: `¿Eliminar el producto "${p.name}"?`, destructive: true }))) return
     try {
       await deleteCatalogProduct(p._id)
       void fetchProducts()

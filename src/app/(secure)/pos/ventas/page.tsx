@@ -32,6 +32,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
+import { useConfirm } from "@/components/ui/confirm-dialog"
 import {
   Sheet,
   SheetContent,
@@ -56,6 +57,7 @@ export default function VentasPage() {
   const canView = hasPermission("pos.sell")
   const canVoid = hasPermission("pos.void.authorize")
   const { sedeId, sede } = useSede()
+  const confirm = useConfirm()
 
   const [rows, setRows] = React.useState<Sale[]>([])
   const [total, setTotal] = React.useState(0)
@@ -125,9 +127,12 @@ export default function VentasPage() {
 
   async function handleVoid() {
     if (!selected) return
-    const ok = window.confirm(
-      `¿Anular la venta ${selected.saleNumber}? Se devolverá su consumo al inventario. Esta acción no se puede deshacer.`,
-    )
+    const ok = await confirm({
+      title: `¿Anular la venta ${selected.saleNumber}?`,
+      description:
+        "Se devolverá su consumo al inventario. Esta acción no se puede deshacer.",
+      destructive: true,
+    })
     if (!ok) return
     setVoiding(true)
     setVoidError(null)
