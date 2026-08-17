@@ -59,6 +59,8 @@ export interface RestaurantOrder {
   tipAmount: number
   total: number
   waiterEmail: string
+  /** Cuenta del POS creada al enviar a caja (puente restaurante → POS). */
+  posOrderId?: string | null
   createdAt: string
 }
 
@@ -166,6 +168,17 @@ export async function setOrderTip(
   const res = await authFetch(`/restaurant/orders/${id}/tip`, {
     method: "POST",
     body: JSON.stringify(payload),
+  })
+  return parseResponse<RestaurantOrder>(res)
+}
+
+/**
+ * Envía la comanda a caja: crea una cuenta del POS para que el cajero la cobre
+ * (venta + inventario + caja). Exige que todos los ítems sean del catálogo.
+ */
+export async function sendOrderToCaja(id: string): Promise<RestaurantOrder> {
+  const res = await authFetch(`/restaurant/orders/${id}/send-to-caja`, {
+    method: "POST",
   })
   return parseResponse<RestaurantOrder>(res)
 }

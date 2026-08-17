@@ -12,6 +12,7 @@ import {
   Receipt,
   CheckCircle2,
   Ban,
+  Banknote,
 } from "lucide-react"
 
 import { useAuth } from "@/lib/auth-context"
@@ -26,6 +27,7 @@ import {
   sendOrderToKitchen,
   requestOrderBill,
   setOrderTip,
+  sendOrderToCaja,
   closeOrder,
   cancelOrder,
   TABLE_STATUS_LABELS,
@@ -419,7 +421,12 @@ function OrderSheet({
     setItemPrice("0")
   }
 
-  const editable = order && order.status !== "closed" && order.status !== "cancelled"
+  const sentToCaja = !!order?.posOrderId
+  const editable =
+    order &&
+    order.status !== "closed" &&
+    order.status !== "cancelled" &&
+    !sentToCaja
 
   return (
     <Sheet open={!!orderId} onOpenChange={(o) => !o && onClose()}>
@@ -462,6 +469,17 @@ function OrderSheet({
                   ))
                 )}
               </div>
+
+              {sentToCaja && order.status !== "closed" && (
+                <div className="flex items-start gap-2 rounded-lg border border-border bg-muted/50 p-3 text-sm">
+                  <Banknote className="mt-0.5 size-4 shrink-0 text-success" />
+                  <p className="text-muted-foreground">
+                    Enviada a caja. El cobro (venta + inventario + caja) se hace
+                    desde el <span className="font-medium text-foreground">POS</span>.
+                    Al cobrarla, la mesa se libera sola.
+                  </p>
+                </div>
+              )}
 
               {editable && (
                 <div className="rounded-lg border border-border p-2">
@@ -549,12 +567,22 @@ function OrderSheet({
                       <Ban className="size-4" /> Anular
                     </Button>
                   )}
+                  {canVoid && (
+                    <Button
+                      variant="outline"
+                      disabled={busy || order.items.length === 0}
+                      onClick={() => void run(() => closeOrder(order._id), true)}
+                      title="Cierra la comanda sin registrar venta (cortesía / ajuste)"
+                    >
+                      <CheckCircle2 className="size-4" /> Cerrar sin cobrar
+                    </Button>
+                  )}
                   <Button
                     disabled={busy || order.items.length === 0}
-                    onClick={() => void run(() => closeOrder(order._id), true)}
+                    onClick={() => void run(() => sendOrderToCaja(order._id), true)}
                   >
-                    {busy ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}
-                    Cerrar / pagar
+                    {busy ? <Loader2 className="size-4 animate-spin" /> : <Banknote className="size-4" />}
+                    Enviar a caja
                   </Button>
                 </div>
               )}
