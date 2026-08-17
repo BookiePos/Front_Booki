@@ -91,10 +91,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setStatus("authenticated")
       } catch {
         try {
-          const tokens = await apiRefresh(stored.tokens.refreshToken)
+          const tokens = await apiRefresh()
           const me = await apiMe(tokens.accessToken)
           if (!active) return
-          writeStored({ tokens, user: me })
+          writeStored({ tokens: { accessToken: tokens.accessToken }, user: me })
           setUser(me)
           setStatus("authenticated")
         } catch {
@@ -113,7 +113,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = useCallback(async (email: string, password: string) => {
     const res = await apiLogin(email, password)
-    writeStored({ tokens: res.tokens, user: res.user })
+    // El refresh token queda en la cookie HttpOnly; solo persistimos el access.
+    writeStored({ tokens: { accessToken: res.tokens.accessToken }, user: res.user })
     setUser(res.user)
     setStatus("authenticated")
   }, [])
@@ -121,15 +122,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const register = useCallback(async (payload: RegisterPayload) => {
     const res = await apiRegister(payload)
     // Alta = auto-login: guarda la sesión igual que login().
-    writeStored({ tokens: res.tokens, user: res.user })
+    writeStored({ tokens: { accessToken: res.tokens.accessToken }, user: res.user })
     setUser(res.user)
     setStatus("authenticated")
     return res
   }, [])
 
   const logout = useCallback(async () => {
-    const stored = readStored()
-    if (stored) await apiLogout(stored.tokens.refreshToken)
+    await apiLogout()
     writeStored(null)
     setUser(null)
     setStatus("unauthenticated")

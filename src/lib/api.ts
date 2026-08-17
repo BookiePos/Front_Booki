@@ -19,7 +19,9 @@ export interface AuthUser {
 
 export interface Tokens {
   accessToken: string
-  refreshToken: string
+  /** El refresh token ya no se usa desde JS: viaja en una cookie HttpOnly.
+   *  Se mantiene opcional porque el backend aún lo incluye en la respuesta. */
+  refreshToken?: string
 }
 
 export interface LoginResponse {
@@ -59,6 +61,7 @@ export async function apiLogin(
   const res = await fetch(`${API_URL}/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    credentials: "include", // recibe la cookie HttpOnly del refresh token
     body: JSON.stringify({ email, password }),
   })
   if (!res.ok) return parseError(res)
@@ -107,6 +110,7 @@ export async function apiRegister(
   const res = await fetch(`${API_URL}/auth/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    credentials: "include", // recibe la cookie HttpOnly del refresh token
     body: JSON.stringify(payload),
   })
   if (!res.ok) return parseError(res)
@@ -121,21 +125,20 @@ export async function apiMe(accessToken: string): Promise<AuthUser> {
   return res.json() as Promise<AuthUser>
 }
 
-export async function apiRefresh(refreshToken: string): Promise<Tokens> {
+export async function apiRefresh(): Promise<Tokens> {
+  // El refresh token viaja en la cookie HttpOnly; no se envía desde JS.
   const res = await fetch(`${API_URL}/auth/refresh`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ refreshToken }),
+    credentials: "include",
   })
   if (!res.ok) return parseError(res)
   return res.json() as Promise<Tokens>
 }
 
-export async function apiLogout(refreshToken: string): Promise<void> {
+export async function apiLogout(): Promise<void> {
   await fetch(`${API_URL}/auth/logout`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ refreshToken }),
+    credentials: "include", // envía la cookie para revocarla y limpiarla
   }).catch(() => {
     // el logout es best-effort
   })
@@ -170,6 +173,7 @@ export async function apiAcceptInvitation(
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      credentials: "include", // recibe la cookie HttpOnly del refresh token
       body: JSON.stringify(data),
     },
   )

@@ -83,9 +83,10 @@ function writeTokens(tokens: Tokens): void {
   if (typeof window === "undefined") return
   const stored = readStored()
   if (!stored) return
+  // Solo persistimos el access token; el refresh vive en la cookie HttpOnly.
   window.localStorage.setItem(
     STORAGE_KEY,
-    JSON.stringify({ ...stored, tokens }),
+    JSON.stringify({ ...stored, tokens: { accessToken: tokens.accessToken } }),
   )
 }
 
@@ -112,10 +113,10 @@ export async function authFetch(
   // Happy path
   if (res.ok || res.status !== 401) return res
 
-  // 401 → try refresh once
+  // 401 → try refresh once (el refresh token va en la cookie HttpOnly)
   let newTokens: Tokens
   try {
-    newTokens = await apiRefresh(stored.tokens.refreshToken)
+    newTokens = await apiRefresh()
   } catch {
     throw new ApiError(401, "Sesión expirada. Vuelve a iniciar sesión.")
   }
