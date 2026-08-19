@@ -41,6 +41,12 @@ const EMPTY: OnboardingState = {
 export type GuideId = string
 
 interface OnboardingContextValue {
+  /**
+   * El estado guardado (localStorage) ya se cargó para el usuario actual. Hasta
+   * que sea `true`, `seenGuides`/`welcomeSeen` están vacíos y no se debe decidir
+   * nada de auto-apertura: hacerlo mostraría guías ya vistas en cada login.
+   */
+  ready: boolean
   /** El diálogo de bienvenida debe estar abierto. */
   welcomeOpen: boolean
   /** Cierra la bienvenida y la marca como vista. */
@@ -220,6 +226,7 @@ export function OnboardingProvider({
 
   const value = useMemo<OnboardingContextValue>(
     () => ({
+      ready,
       welcomeOpen,
       dismissWelcome,
       openGuide,
@@ -238,6 +245,7 @@ export function OnboardingProvider({
       markGuideSeen,
     }),
     [
+      ready,
       welcomeOpen,
       dismissWelcome,
       openGuide,

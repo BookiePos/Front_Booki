@@ -17,10 +17,15 @@ import { guideForPath } from "@/lib/onboarding/guides"
  */
 export function GuideAutoStart() {
   const pathname = usePathname()
-  const { guide, welcomeOpen, hasSeenGuide, markGuideSeen, startGuide } =
+  const { ready, guide, welcomeOpen, hasSeenGuide, markGuideSeen, startGuide } =
     useOnboarding()
 
   React.useEffect(() => {
+    // Espera a que el estado guardado (seenGuides) se cargue: sin esto, al
+    // recién montar el shell (cada login) `hasSeenGuide` leería el estado vacío
+    // y reabriría guías ya vistas. Esta es la corrección del "aparece en cada
+    // login" en vez de solo la primera vez.
+    if (!ready) return
     // Un recorrido o la bienvenida ya están en pantalla: no interrumpir.
     if (guide !== null || welcomeOpen) return
     const match = guideForPath(pathname)
@@ -28,7 +33,15 @@ export function GuideAutoStart() {
     // Marca antes de abrir para que no se reintente en el mismo módulo.
     markGuideSeen(match.id)
     startGuide(match.id)
-  }, [pathname, guide, welcomeOpen, hasSeenGuide, markGuideSeen, startGuide])
+  }, [
+    ready,
+    pathname,
+    guide,
+    welcomeOpen,
+    hasSeenGuide,
+    markGuideSeen,
+    startGuide,
+  ])
 
   return null
 }
