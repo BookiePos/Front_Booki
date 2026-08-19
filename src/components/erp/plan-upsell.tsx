@@ -129,11 +129,11 @@ export function PlanUpsell({ feature }: { feature: PlanFeature }) {
           </div>
           <div className="mt-2 flex flex-wrap items-center justify-center gap-3">
             <Link
-              href="/#precios"
+              href="/panel/config/plan"
               className="inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-[0_10px_30px_-12px_var(--primary)] transition-opacity hover:opacity-90"
             >
               <Sparkles className="size-4" aria-hidden="true" />
-              Ver planes
+              Mejorar mi plan
             </Link>
             <Link
               href="/panel"

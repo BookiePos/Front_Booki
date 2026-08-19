@@ -26,6 +26,7 @@ import {
   ScrollText,
   ShieldCheck,
   SlidersHorizontal,
+  CreditCard,
 } from "lucide-react"
 
 export type NavItem = {
@@ -118,6 +119,7 @@ export const navSections: NavSection[] = [
     items: [
       { title: "Usuarios y roles", href: "/panel/config/usuarios", icon: UserCog, requiredPermissions: ["users.manage"] },
       { title: "Parámetros", href: "/panel/config/parametros", icon: SlidersHorizontal, requiredPermissions: ["params.manage"] },
+      { title: "Plan y facturación", href: "/panel/config/plan", icon: CreditCard, requiredPermissions: ["params.manage"] },
     ],
   },
 ]
