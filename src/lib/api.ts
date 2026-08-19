@@ -15,6 +15,10 @@ export interface AuthUser {
   sedeIds: string[]
   /** Giro del negocio (restaurante | retail). Diferencia la experiencia. */
   tipoNegocio?: BusinessType
+  /** Plan comercial contratado. Undefined en tokens viejos (fail-open). */
+  plan?: BusinessPlan
+  /** Capacidades habilitadas por el plan. Undefined en tokens viejos. */
+  entitlements?: Entitlements
 }
 
 export interface Tokens {
@@ -70,8 +74,42 @@ export async function apiLogin(
 
 // ─── Registro de empresa (ruta pública) ──────────────────────────────────────
 
-export type BusinessPlan = "punto" | "operacion"
+export type BusinessPlan = "punto" | "negocio" | "control" | "cadena"
 export type BusinessType = "restaurante" | "retail"
+
+/** Capacidad de plan. Debe calzar EXACTO con el backend. */
+export type PlanFeature =
+  | "pos"
+  | "inventory"
+  | "caja"
+  | "customers"
+  | "reports"
+  | "einvoicing"
+  | "restaurant"
+  | "lots"
+  | "purchasing"
+  | "expenses"
+  | "accounting"
+  | "audit"
+  | "multi_sede"
+  | "transfers"
+  | "roles_per_sede"
+  | "payroll"
+
+/** Cupos del plan. `null` = ilimitado. */
+export interface PlanQuotas {
+  sedes: number
+  users: number | null
+  documentsPerMonth: number
+  payrollEmployees: number
+}
+
+/** Capacidades y cupos que el backend calcula a partir del plan. */
+export interface Entitlements {
+  plan: BusinessPlan
+  features: PlanFeature[]
+  quotas: PlanQuotas
+}
 
 /** Datos para dar de alta una empresa nueva y su dueño. */
 export interface RegisterPayload {

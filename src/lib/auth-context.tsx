@@ -9,7 +9,10 @@ import {
 } from "react"
 import {
   AuthUser,
+  BusinessPlan,
   BusinessType,
+  Entitlements,
+  PlanFeature,
   RegisterPayload,
   RegisterResponse,
   Tokens,
@@ -37,6 +40,15 @@ interface AuthContextValue {
   register: (payload: RegisterPayload) => Promise<RegisterResponse>
   logout: () => Promise<void>
   hasPermission: (permission: string) => boolean
+  /** Plan comercial activo (undefined mientras carga o si el token es viejo). */
+  plan: BusinessPlan | undefined
+  /** Capacidades habilitadas por el plan (undefined si el token es viejo). */
+  entitlements: Entitlements | undefined
+  /**
+   * ¿El plan incluye esta capacidad? Fail-open: si aún no hay `entitlements`
+   * (sesión cargando o token viejo) devuelve `true` para no bloquear de más.
+   */
+  hasFeature: (feature: PlanFeature) => boolean
   /** Giro del negocio activo (undefined mientras carga o si el token es viejo). */
   tipoNegocio: BusinessType | undefined
   /** Atajo: el negocio es retail / tienda. */
@@ -140,6 +152,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [user],
   )
 
+  const hasFeature = useCallback(
+    (feature: PlanFeature) => {
+      // Fail-open: sin entitlements (token viejo o sesión cargando) no bloquea.
+      if (!user?.entitlements) return true
+      return user.entitlements.features.includes(feature)
+    },
+    [user],
+  )
+
+  const plan = user?.plan
+  const entitlements = user?.entitlements
   const tipoNegocio = user?.tipoNegocio
   const permissions = user?.permissions ?? []
   const canUsePos = permissions.includes("pos.sell")
@@ -156,6 +179,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         register,
         logout,
         hasPermission,
+        plan,
+        entitlements,
+        hasFeature,
         tipoNegocio,
         isRetail: tipoNegocio === "retail",
         isRestaurant: tipoNegocio === "restaurante",

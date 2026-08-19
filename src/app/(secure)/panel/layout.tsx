@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
 import { AppShell } from "@/components/erp/app-shell"
+import { FeatureGuard } from "@/components/erp/feature-guard"
 import { RequireAuth } from "@/components/erp/require-auth"
 import { TooltipProvider } from "@/components/ui/tooltip"
 
@@ -21,7 +22,9 @@ export default function PanelLayout({
   return (
     <RequireAuth>
       <TooltipProvider>
-        <AppShell>{children}</AppShell>
+        <AppShell>
+          <FeatureGuard>{children}</FeatureGuard>
+        </AppShell>
       </TooltipProvider>
     </RequireAuth>
   )

@@ -188,6 +188,8 @@ export interface Plan {
   id: string;
   name: string;
   price: number | null;
+  /** Precio anual (número). El mensual vive en `price`. */
+  priceAnnual?: number;
   priceLabel?: string;
   cadence: string;
   pitch: string;
@@ -200,56 +202,157 @@ export const PLANS: Plan[] = [
   {
     id: "punto",
     name: "Punto",
-    price: 150_000,
-    cadence: "/ mes + IVA",
-    pitch: "Un local que necesita vender y cuadrar caja.",
+    price: 49_900,
+    priceAnnual: 499_000,
+    cadence: "/mes",
+    pitch: "Tienda, cafetería, panadería, peluquería. Un local, sin contador de planta.",
     featured: false,
     cta: "Empezar con Punto",
     features: [
-      "1 sede · hasta 3 usuarios",
-      "POS táctil, mesas y comandas",
-      "Caja, arqueo y sangrías",
-      "Inventario y productos",
-      "Factura electrónica DIAN",
-      "Soporte por WhatsApp",
+      "POS con cajas ilimitadas",
+      "Inventario y control de stock",
+      "Caja: apertura, arqueo y cierre",
+      "Clientes y reportes de venta",
+      "Factura y POS electrónico DIAN",
+      "1 sede · 3 usuarios",
+      "400 documentos electrónicos",
+      "Soporte por chat y centro de ayuda",
     ],
   },
   {
-    id: "operacion",
-    name: "Operación",
-    price: 450_000,
-    cadence: "/ mes + IVA",
-    pitch: "Varias sedes, con nómina y contabilidad adentro.",
+    id: "negocio",
+    name: "Negocio",
+    price: 119_900,
+    priceAnnual: 1_199_000,
+    cadence: "/mes",
+    pitch: "Restaurante, minimercado, ferretería. Compra a proveedores y maneja mermas.",
     featured: true,
-    cta: "Empezar con Operación",
+    cta: "Empezar con Negocio",
     features: [
-      "Hasta 5 sedes · usuarios ilimitados",
       "Todo lo de Punto, más:",
-      "Contabilidad y libro mayor automático",
-      "Nómina, asistencia y PILA",
-      "Clientes, cartera y CxC",
-      "Compras, proveedores y traslados",
-      "Permisos granulares por rol",
-      "Soporte prioritario",
+      "Restaurante: mesas, comandas, propinas",
+      "Lotes, vencimientos y trazabilidad",
+      "Compras, órdenes y proveedores",
+      "Gastos y flujo de caja",
+      "1 sede · usuarios ilimitados",
+      "2.000 documentos electrónicos",
+      "Capacitación de arranque + soporte en horario comercial",
     ],
   },
   {
-    id: "personalizado",
-    name: "Personalizado",
-    price: null,
-    priceLabel: "A la medida",
-    cadence: "hablemos",
-    pitch: "Cadenas y franquicias con sistemas que ya usas.",
+    id: "control",
+    name: "Control",
+    price: 229_900,
+    priceAnnual: 2_299_000,
+    cadence: "/mes",
+    pitch: "Pyme formal con contador. Necesita estados financieros, no solo reportes de venta.",
     featured: false,
-    cta: "Agendar una llamada",
+    cta: "Empezar con Control",
     features: [
-      "Sedes y usuarios sin límite",
-      "Todo lo de Operación, más:",
-      "Integraciones a la medida (API)",
-      "Migración de datos asistida",
-      "Capacitación presencial",
-      "SLA y ambiente dedicado",
+      "Todo lo de Negocio, más:",
+      "Contabilidad de partida doble",
+      "Estados financieros y balance de prueba",
+      "Impuestos con versiones por vigencia",
+      "Cuentas por pagar y por cobrar",
+      "Presupuestos, tesorería y auditoría",
+      "Nómina hasta 10 empleados",
+      "1 sede · 5.000 documentos",
+      "Soporte prioritario + capacitación trimestral",
     ],
+  },
+  {
+    id: "cadena",
+    name: "Cadena",
+    price: 449_900,
+    priceAnnual: 4_499_000,
+    cadence: "/mes",
+    pitch: "Dos o más locales con inventario y caja consolidados.",
+    featured: false,
+    cta: "Empezar con Cadena",
+    features: [
+      "Todo lo de Control, más:",
+      "Hasta 3 sedes con consolidado",
+      "Traslados de stock entre sedes",
+      "Permisos y roles por sede",
+      "Nómina hasta 25 empleados",
+      "12.000 documentos electrónicos",
+      "Sede adicional: $89.900",
+      "Gerente de cuenta + soporte extendido",
+    ],
+  },
+];
+
+/** Fila de la tabla comparativa de planes. */
+export interface PlanComparisonRow {
+  feature: string;
+  punto: string;
+  negocio: string;
+  control: string;
+  cadena: string;
+}
+
+export const PLAN_COMPARISON: PlanComparisonRow[] = [
+  { feature: "POS y cajas ilimitadas", punto: "Sí", negocio: "Sí", control: "Sí", cadena: "Sí" },
+  { feature: "Facturación y POS electrónico DIAN", punto: "Sí", negocio: "Sí", control: "Sí", cadena: "Sí" },
+  { feature: "Inventario y arqueo de caja", punto: "Sí", negocio: "Sí", control: "Sí", cadena: "Sí" },
+  { feature: "Mesas, comandas y propinas", punto: "—", negocio: "Sí", control: "Sí", cadena: "Sí" },
+  { feature: "Lotes, vencimientos y trazabilidad", punto: "—", negocio: "Sí", control: "Sí", cadena: "Sí" },
+  { feature: "Compras, órdenes y proveedores", punto: "—", negocio: "Sí", control: "Sí", cadena: "Sí" },
+  { feature: "Contabilidad y estados financieros", punto: "—", negocio: "—", control: "Sí", cadena: "Sí" },
+  { feature: "CxP, CxC, presupuestos y tesorería", punto: "—", negocio: "—", control: "Sí", cadena: "Sí" },
+  { feature: "Nómina colombiana", punto: "Complemento", negocio: "Complemento", control: "10 empleados", cadena: "25 empleados" },
+  { feature: "Multi-sede y traslados", punto: "—", negocio: "—", control: "—", cadena: "3 sedes" },
+  { feature: "Auditoría y permisos por rol", punto: "—", negocio: "Básico", control: "Sí", cadena: "Por sede" },
+  { feature: "Documentos electrónicos / mes", punto: "400", negocio: "2.000", control: "5.000", cadena: "12.000" },
+];
+
+/** Complemento (add-on) contratable sobre cualquier plan. */
+export interface AddOn {
+  name: string;
+  /** Precio en pesos. 0 cuando es sin costo (usa `priceLabel`). */
+  price: number;
+  priceLabel?: string;
+  unit: string;
+  note: string;
+}
+
+export const ADD_ONS: AddOn[] = [
+  {
+    name: "Nómina hasta 10 empleados",
+    price: 34_900,
+    unit: "/mes",
+    note: "Incluida en Control y Cadena. Alegra cobra $29.900 aquí, pero salta a $69.000 en el empleado 11.",
+  },
+  {
+    name: "Empleado adicional",
+    price: 2_900,
+    unit: "/mes",
+    note: "Con 15 empleados quedas en $49.400 contra $69.000 de Alegra.",
+  },
+  {
+    name: "Sede adicional",
+    price: 89_900,
+    unit: "/mes",
+    note: "Sobre Cadena, sin límite de sedes.",
+  },
+  {
+    name: "Paquete de 1.000 documentos",
+    price: 29_900,
+    unit: "único",
+    note: "No expira; se consume solo al pasar el cupo del plan.",
+  },
+  {
+    name: "Migración desde Siigo, Alegra o Excel",
+    price: 0,
+    priceLabel: "Sin costo",
+    unit: "",
+    note: "El importador CSV de catálogo y existencias ya está construido.",
+  },
+  {
+    name: "Capacitación adicional en sitio",
+    price: 180_000,
+    unit: "por sesión",
+    note: "Solo Bogotá.",
   },
 ];
 
@@ -268,7 +371,7 @@ export const FAQS = [
   },
   {
     q: "¿Puedo migrar de mi sistema actual?",
-    a: "En Operación y Personalizado acompañamos la migración de productos, clientes y saldos, normalmente desde Excel o archivo plano.",
+    a: "Sí, y sin costo. Nuestro importador CSV carga catálogo, existencias, clientes y saldos desde Siigo, Alegra o Excel.",
   },
   {
     q: "¿Qué pasa con mis datos si me voy?",
@@ -276,6 +379,6 @@ export const FAQS = [
   },
   {
     q: "¿El precio es por sede o por empresa?",
-    a: "Por empresa. Punto cubre una sede, Operación incluye hasta cinco. Si necesitas más, ahí entra Personalizado.",
+    a: "Por empresa. Punto, Negocio y Control cubren una sede; Cadena incluye hasta tres. ¿Necesitas más? Cada sede adicional cuesta $89.900 al mes.",
   },
 ];

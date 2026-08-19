@@ -28,9 +28,17 @@ const PLANS: Record<BusinessPlan, { name: string; blurb: string }> = {
     name: "Punto",
     blurb: "Un local: vender y cuadrar caja.",
   },
-  operacion: {
-    name: "Operación",
-    blurb: "Varias sedes, con nómina y contabilidad.",
+  negocio: {
+    name: "Negocio",
+    blurb: "Compras, restaurante y flujo de caja.",
+  },
+  control: {
+    name: "Control",
+    blurb: "Contabilidad, estados y nómina.",
+  },
+  cadena: {
+    name: "Cadena",
+    blurb: "Varias sedes con consolidado.",
   },
 };
 
@@ -47,7 +55,13 @@ function RegistroForm() {
   const { register, hasPermission, user } = useAuth();
 
   const planParam = params.get("plan");
-  const initialPlan: BusinessPlan = planParam === "punto" ? "punto" : "operacion";
+  const initialPlan: BusinessPlan =
+    planParam === "punto" ||
+    planParam === "negocio" ||
+    planParam === "control" ||
+    planParam === "cadena"
+      ? planParam
+      : "negocio";
 
   const [plan, setPlan] = useState<BusinessPlan>(initialPlan);
   const [tipoNegocio, setTipoNegocio] = useState<BusinessType>("restaurante");

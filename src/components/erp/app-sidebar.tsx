@@ -40,8 +40,8 @@ const BUSINESS_LABEL: Record<string, string> = {
 
 export function AppSidebar() {
   const pathname = usePathname()
-  const { tipoNegocio, hasPermission } = useAuth()
-  const navSections = getNavSections(tipoNegocio, hasPermission)
+  const { tipoNegocio, hasPermission, hasFeature } = useAuth()
+  const navSections = getNavSections(tipoNegocio, hasPermission, hasFeature)
   const brandCaption = tipoNegocio
     ? BUSINESS_LABEL[tipoNegocio]
     : "Panel operativo"

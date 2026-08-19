@@ -1,4 +1,4 @@
-import type { BusinessType } from "@/lib/api"
+import type { BusinessType, PlanFeature } from "@/lib/api"
 import type { LucideIcon } from "lucide-react"
 import {
   LayoutDashboard,
@@ -44,6 +44,11 @@ export type NavItem = {
    * del catálogo de permisos y con el `hasPermission("...")` de cada página.
    */
   requiredPermissions?: string[]
+  /**
+   * Capacidad de plan que la página exige. Si se omite, es una función base
+   * visible en todos los planes. Se filtra con `hasFeature` en `getNavSections`.
+   */
+  requiredFeature?: PlanFeature
 }
 
 export type NavSection = {
@@ -72,40 +77,40 @@ export const navSections: NavSection[] = [
   {
     label: "Comercial",
     items: [
-      { title: "Compras", href: "/panel/compras", icon: Truck, requiredPermissions: ["finance.view", "purchasing.manage"] },
-      { title: "Proveedores", href: "/panel/proveedores", icon: Building2, requiredPermissions: ["inventory.view"] },
+      { title: "Compras", href: "/panel/compras", icon: Truck, requiredPermissions: ["finance.view", "purchasing.manage"], requiredFeature: "purchasing" },
+      { title: "Proveedores", href: "/panel/proveedores", icon: Building2, requiredPermissions: ["inventory.view"], requiredFeature: "purchasing" },
       { title: "Directorio clientes", href: "/panel/clientes/directorio", icon: Contact, requiredPermissions: ["customers.view"] },
-      { title: "Clientes (CxC)", href: "/panel/clientes", icon: Users, requiredPermissions: ["finance.view"] },
+      { title: "Clientes (CxC)", href: "/panel/clientes", icon: Users, requiredPermissions: ["finance.view"], requiredFeature: "accounting" },
     ],
   },
   {
     label: "Finanzas",
     items: [
-      { title: "Caja y bancos", href: "/panel/finanzas/bancos", icon: Landmark, requiredPermissions: ["finance.view"] },
-      { title: "Gastos", href: "/panel/finanzas/gastos", icon: FileMinus, requiredPermissions: ["finance.view"] },
-      { title: "Cuentas por pagar", href: "/panel/finanzas/cxp", icon: Receipt, requiredPermissions: ["finance.view"] },
-      { title: "P&L", href: "/panel/finanzas/pl", icon: TrendingUp, requiredPermissions: ["finance.view"] },
+      { title: "Caja y bancos", href: "/panel/finanzas/bancos", icon: Landmark, requiredPermissions: ["finance.view"], requiredFeature: "accounting" },
+      { title: "Gastos", href: "/panel/finanzas/gastos", icon: FileMinus, requiredPermissions: ["finance.view"], requiredFeature: "expenses" },
+      { title: "Cuentas por pagar", href: "/panel/finanzas/cxp", icon: Receipt, requiredPermissions: ["finance.view"], requiredFeature: "accounting" },
+      { title: "P&L", href: "/panel/finanzas/pl", icon: TrendingUp, requiredPermissions: ["finance.view"], requiredFeature: "accounting" },
       { title: "Reportes", href: "/panel/finanzas/reportes", icon: BarChart3, requiredPermissions: ["reports.view"] },
-      { title: "Metas", href: "/panel/finanzas/metas", icon: Target, requiredPermissions: ["finance.view"] },
-      { title: "Flujo de caja", href: "/panel/finanzas/flujo", icon: LineChart, requiredPermissions: ["finance.view"] },
+      { title: "Metas", href: "/panel/finanzas/metas", icon: Target, requiredPermissions: ["finance.view"], requiredFeature: "accounting" },
+      { title: "Flujo de caja", href: "/panel/finanzas/flujo", icon: LineChart, requiredPermissions: ["finance.view"], requiredFeature: "expenses" },
     ],
   },
   {
     label: "Personal",
     items: [
       { title: "Empleados", href: "/panel/empleados", icon: BadgeDollarSign, requiredPermissions: ["employees.view", "employees.manage"] },
-      { title: "Nómina", href: "/panel/nomina", icon: Wallet, requiredPermissions: ["payroll.manage"] },
-      { title: "Consumos / deducciones", href: "/panel/nomina/deducciones", icon: ReceiptText, requiredPermissions: ["payroll.view", "payroll.deduction.approve", "payroll.manage"] },
+      { title: "Nómina", href: "/panel/nomina", icon: Wallet, requiredPermissions: ["payroll.manage"], requiredFeature: "payroll" },
+      { title: "Consumos / deducciones", href: "/panel/nomina/deducciones", icon: ReceiptText, requiredPermissions: ["payroll.view", "payroll.deduction.approve", "payroll.manage"], requiredFeature: "payroll" },
       { title: "Turnos", href: "/panel/turnos", icon: CalendarClock, requiredPermissions: ["attendance.manage"] },
     ],
   },
   {
     label: "Cumplimiento",
     items: [
-      { title: "Impuestos", href: "/panel/impuestos", icon: Percent, requiredPermissions: ["tax.manage"] },
+      { title: "Impuestos", href: "/panel/impuestos", icon: Percent, requiredPermissions: ["tax.manage"], requiredFeature: "accounting" },
       { title: "Facturación electrónica", href: "/panel/facturacion", icon: FileText, requiredPermissions: ["einvoicing.issue"] },
       { title: "Resoluciones", href: "/panel/resoluciones", icon: ScrollText, requiredPermissions: ["einvoicing.issue"] },
-      { title: "Auditoría", href: "/panel/auditoria", icon: ShieldCheck, requiredPermissions: ["audit.view"] },
+      { title: "Auditoría", href: "/panel/auditoria", icon: ShieldCheck, requiredPermissions: ["audit.view"], requiredFeature: "audit" },
     ],
   },
   {
@@ -128,12 +133,16 @@ export const navSections: NavSection[] = [
  *   Basta con tener uno de los permisos listados (OR). Si no se pasa
  *   `hasPermission`, no se filtra por permiso (compatibilidad hacia atrás). El
  *   Dueño tiene todos los permisos, así que ve todo.
+ * - Plan: oculta los ítems cuyo `requiredFeature` el plan no incluye. Si no se
+ *   pasa `hasFeature`, no se filtra por plan (compatibilidad hacia atrás).
+ *   `hasFeature` es fail-open mientras la sesión carga.
  *
  * Se descartan las secciones que queden sin ítems visibles.
  */
 export function getNavSections(
   tipoNegocio?: BusinessType,
   hasPermission?: (permission: string) => boolean,
+  hasFeature?: (feature: PlanFeature) => boolean,
 ): NavSection[] {
   return navSections
     .map((section) => ({
@@ -148,7 +157,11 @@ export function getNavSections(
           !item.requiredPermissions ||
           item.requiredPermissions.length === 0 ||
           item.requiredPermissions.some((p) => hasPermission(p))
-        return okBusiness && okPermission
+        const okFeature =
+          !hasFeature ||
+          !item.requiredFeature ||
+          hasFeature(item.requiredFeature)
+        return okBusiness && okPermission && okFeature
       }),
     }))
     .filter((section) => section.items.length > 0)
