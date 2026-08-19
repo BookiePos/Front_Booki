@@ -36,9 +36,17 @@ export interface PaymentView {
   docPackages?: number
 }
 
+export interface DocumentUsage {
+  used: number
+  base: number
+  credits: number
+  period: string
+}
+
 export interface BillingStatus {
   subscription: SubscriptionView | null
   payments: PaymentView[]
+  documents: DocumentUsage
 }
 
 export interface ChargeResult {

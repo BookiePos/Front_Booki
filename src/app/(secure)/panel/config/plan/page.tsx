@@ -280,10 +280,20 @@ export default function PlanBillingPage() {
                     {entitlements.quotas.sedes} sede(s) ·{" "}
                     {entitlements.quotas.users === null
                       ? "usuarios ilimitados"
-                      : `${entitlements.quotas.users} usuarios`}{" "}
-                    · {formatNumber(entitlements.quotas.documentsPerMonth)} docs/mes
+                      : `${entitlements.quotas.users} usuarios`}
                     {entitlements.quotas.payrollEmployees > 0 &&
                       ` · nómina ${entitlements.quotas.payrollEmployees} empl.`}
+                  </p>
+                )}
+                {status?.documents && (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Documentos este mes:{" "}
+                    <span className="font-medium text-foreground">
+                      {formatNumber(status.documents.used)}
+                    </span>{" "}
+                    / {formatNumber(status.documents.base)}
+                    {status.documents.credits > 0 &&
+                      ` · ${formatNumber(status.documents.credits)} créditos comprados`}
                   </p>
                 )}
               </div>
