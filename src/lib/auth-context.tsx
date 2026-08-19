@@ -8,6 +8,9 @@ import {
   useState,
 } from "react"
 import {
+  ACCOUNT_SUSPENDED_CODE,
+  ACCOUNT_SUSPENDED_EVENT,
+  ApiError,
   AuthUser,
   BusinessPlan,
   BusinessType,
@@ -15,6 +18,7 @@ import {
   PlanFeature,
   RegisterPayload,
   RegisterResponse,
+  SuspensionReason,
   Tokens,
   apiLogin,
   apiLogout,
@@ -59,6 +63,15 @@ interface AuthContextValue {
   canUsePos: boolean
   /** Puede entrar a la Operación / back-office (/panel). */
   canUseOperation: boolean
+  /**
+   * La empresa está suspendida o con el trial vencido: el backend corta el
+   * acceso a toda la API menos facturación/plan. Se detecta al recibir el 403
+   * con `code: ACCOUNT_SUSPENDED`. Al estar `true`, el panel muestra el bloqueo
+   * de reactivación en vez de datos vacíos.
+   */
+  suspended: boolean
+  /** Motivo del bloqueo, para adaptar el mensaje. */
+  suspensionReason: SuspensionReason | null
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -85,6 +98,21 @@ function writeStored(value: StoredAuth | null): void {
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null)
   const [status, setStatus] = useState<Status>("loading")
+  const [suspended, setSuspended] = useState(false)
+  const [suspensionReason, setSuspensionReason] =
+    useState<SuspensionReason | null>(null)
+
+  // Cualquier respuesta 403 de suspensión (desde cualquier llamada) emite este
+  // evento global; aquí se traduce a estado para bloquear el panel.
+  useEffect(() => {
+    function onSuspended(e: Event) {
+      const detail = (e as CustomEvent<{ reason?: SuspensionReason }>).detail
+      setSuspended(true)
+      setSuspensionReason(detail?.reason ?? "suspended")
+    }
+    window.addEventListener(ACCOUNT_SUSPENDED_EVENT, onSuspended)
+    return () => window.removeEventListener(ACCOUNT_SUSPENDED_EVENT, onSuspended)
+  }, [])
 
   // Al montar: valida el token guardado; si venció, intenta refrescarlo.
   useEffect(() => {
@@ -101,7 +129,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!active) return
         setUser(me)
         setStatus("authenticated")
-      } catch {
+      } catch (err) {
+        // Cuenta suspendida: NO cerrar sesión. Mantener al usuario dentro
+        // (con los datos guardados del login) para mostrarle el bloqueo de
+        // reactivación. El evento global ya marcó `suspended`.
+        if (err instanceof ApiError && err.code === ACCOUNT_SUSPENDED_CODE) {
+          if (!active) return
+          setUser(stored.user)
+          setStatus("authenticated")
+          setSuspended(true)
+          return
+        }
         try {
           const tokens = await apiRefresh()
           const me = await apiMe(tokens.accessToken)
@@ -145,6 +183,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     writeStored(null)
     setUser(null)
     setStatus("unauthenticated")
+    setSuspended(false)
+    setSuspensionReason(null)
   }, [])
 
   const hasPermission = useCallback(
@@ -187,6 +227,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isRestaurant: tipoNegocio === "restaurante",
         canUsePos,
         canUseOperation,
+        suspended,
+        suspensionReason,
       }}
     >
       {children}

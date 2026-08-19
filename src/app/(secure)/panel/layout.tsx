@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 import { AppShell } from "@/components/erp/app-shell"
 import { FeatureGuard } from "@/components/erp/feature-guard"
 import { RequireAuth } from "@/components/erp/require-auth"
+import { SuspensionGuard } from "@/components/erp/suspension-guard"
 import { TooltipProvider } from "@/components/ui/tooltip"
 
 export const metadata: Metadata = {
@@ -23,7 +24,9 @@ export default function PanelLayout({
     <RequireAuth>
       <TooltipProvider>
         <AppShell>
-          <FeatureGuard>{children}</FeatureGuard>
+          <SuspensionGuard>
+            <FeatureGuard>{children}</FeatureGuard>
+          </SuspensionGuard>
         </AppShell>
       </TooltipProvider>
     </RequireAuth>

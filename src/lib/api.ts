@@ -37,25 +37,60 @@ export class ApiError extends Error {
   constructor(
     public readonly status: number,
     message: string,
+    /** Discriminador de negocio del backend (p. ej. "ACCOUNT_SUSPENDED"). */
+    public readonly code?: string,
   ) {
     super(message)
     this.name = "ApiError"
   }
 }
 
+/** Código que el backend envía cuando la empresa está suspendida o el trial venció. */
+export const ACCOUNT_SUSPENDED_CODE = "ACCOUNT_SUSPENDED"
+
+/** Evento global que se emite al detectar una respuesta de cuenta suspendida. */
+export const ACCOUNT_SUSPENDED_EVENT = "gocheck:account-suspended"
+
+export type SuspensionReason = "suspended" | "trial_expired"
+
+/**
+ * Avisa a toda la app (vía un evento en `window`) que la cuenta está suspendida.
+ * El `AuthProvider` lo escucha y muestra el bloqueo de reactivación. Se llama
+ * desde el único punto por donde pasan las respuestas del backend, así cualquier
+ * llamada que reciba el 403 de suspensión dispara el aviso una sola vez.
+ */
+export function notifyAccountSuspended(reason?: SuspensionReason): void {
+  if (typeof window === "undefined") return
+  window.dispatchEvent(
+    new CustomEvent(ACCOUNT_SUSPENDED_EVENT, {
+      detail: { reason: reason ?? "suspended" },
+    }),
+  )
+}
+
+/** Cuerpo de error del backend (Nest): incluye el discriminador `code` opcional. */
+interface ErrorBody {
+  message?: string | string[]
+  code?: string
+  reason?: SuspensionReason
+}
+
 async function parseError(res: Response): Promise<never> {
   let message = `Error ${res.status}`
+  let code: string | undefined
   try {
-    const body = (await res.json()) as { message?: string | string[] }
+    const body = (await res.json()) as ErrorBody
     if (body?.message) {
       message = Array.isArray(body.message)
         ? body.message.join(", ")
         : body.message
     }
+    code = body?.code
+    if (code === ACCOUNT_SUSPENDED_CODE) notifyAccountSuspended(body?.reason)
   } catch {
     // respuesta sin cuerpo JSON
   }
-  throw new ApiError(res.status, message)
+  throw new ApiError(res.status, message, code)
 }
 
 export async function apiLogin(

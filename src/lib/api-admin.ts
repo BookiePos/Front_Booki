@@ -2,7 +2,14 @@
  * Cliente HTTP para los endpoints de administración (usuarios, roles, permisos).
  * Maneja auth automática con refresh token transparente.
  */
-import { ApiError, apiRefresh, type Tokens } from "@/lib/api"
+import {
+  ACCOUNT_SUSPENDED_CODE,
+  ApiError,
+  apiRefresh,
+  notifyAccountSuspended,
+  type SuspensionReason,
+  type Tokens,
+} from "@/lib/api"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001"
 const STORAGE_KEY = "sistemapos.auth"
@@ -139,17 +146,25 @@ export async function parseResponse<T>(res: Response): Promise<T> {
     return res.json() as Promise<T>
   }
   let message = `Error ${res.status}`
+  let code: string | undefined
   try {
-    const body = (await res.json()) as { message?: string | string[] }
+    const body = (await res.json()) as {
+      message?: string | string[]
+      code?: string
+      reason?: SuspensionReason
+    }
     if (body?.message) {
       message = Array.isArray(body.message)
         ? body.message.join(", ")
         : body.message
     }
+    code = body?.code
+    // Suspensión/trial vencido: avisa a toda la app para mostrar el bloqueo.
+    if (code === ACCOUNT_SUSPENDED_CODE) notifyAccountSuspended(body?.reason)
   } catch {
     // no JSON body
   }
-  throw new ApiError(res.status, message)
+  throw new ApiError(res.status, message, code)
 }
 
 // ─── User endpoints ───────────────────────────────────────────────────────────
