@@ -1,0 +1,140 @@
+# ===========================================================================
+# BookiPos — Frontend (Next.js 16 + React 19 + Tailwind v4 + TypeScript)
+# Gestor de paquetes: pnpm · E2E: Playwright · Despliegue: Vercel
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# Dependencias
+# ---------------------------------------------------------------------------
+node_modules/
+.pnpm-store/
+.pnpm-debug.log*
+.yarn/cache/
+.yarn/install-state.gz
+
+# NOTA: pnpm-lock.yaml y pnpm-workspace.yaml SI se versionan (no ignorar).
+
+# ---------------------------------------------------------------------------
+# Next.js — artefactos de build
+# ---------------------------------------------------------------------------
+.next/
+out/
+build/
+dist/
+*.tsbuildinfo
+next-env.d.ts.timestamp
+
+# next-env.d.ts SI forma parte del repo (esta versionado): nunca ignorarlo.
+!next-env.d.ts
+
+# ---------------------------------------------------------------------------
+# Vercel
+# ---------------------------------------------------------------------------
+.vercel/
+.vercel
+
+# ---------------------------------------------------------------------------
+# Variables de entorno (SECRETOS)
+# En Next.js las variables NEXT_PUBLIC_* se inlinean en el bundle del cliente,
+# pero el .env.local tambien suele contener secretos de servidor.
+# Se ignoran TODAS las variantes reales; solo se versiona la plantilla.
+# ---------------------------------------------------------------------------
+.env
+.env.local
+.env.*.local
+.env.development
+.env.development.local
+.env.production
+.env.production.local
+.env.staging
+.env.test
+.env.test.local
+
+# Unica excepcion: la plantilla de ejemplo si se versiona.
+!.env.example
+
+# ---------------------------------------------------------------------------
+# Playwright (E2E)
+# reporter html -> playwright-report/ · reporter junit -> test-results/
+# ---------------------------------------------------------------------------
+test-results/
+playwright-report/
+playwright/.cache/
+playwright/.auth/
+blob-report/
+
+# ---------------------------------------------------------------------------
+# Cobertura de pruebas
+# ---------------------------------------------------------------------------
+coverage/
+*.lcov
+.nyc_output/
+
+# ---------------------------------------------------------------------------
+# Logs
+# ---------------------------------------------------------------------------
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# ---------------------------------------------------------------------------
+# Cachés y herramientas de build
+# ---------------------------------------------------------------------------
+.cache/
+.turbo/
+.eslintcache
+.swc/
+.stylelintcache
+.parcel-cache/
+
+# ---------------------------------------------------------------------------
+# Secretos y credenciales
+# ---------------------------------------------------------------------------
+*.pem
+*.key
+*.crt
+*.cer
+*.p12
+*.pfx
+credentials.json
+secrets/
+*.keystore
+
+# ---------------------------------------------------------------------------
+# Sistema operativo
+# ---------------------------------------------------------------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+desktop.ini
+$RECYCLE.BIN/
+
+# ---------------------------------------------------------------------------
+# Editores / IDE
+# Se ignora el contenido de .vscode/ salvo los archivos compartibles del equipo.
+# ---------------------------------------------------------------------------
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+*.swo
+*~
+*.sublime-workspace
+*.sublime-project
+
+# ---------------------------------------------------------------------------
+# Temporales varios
+# ---------------------------------------------------------------------------
+tmp/
+temp/
+*.tmp
+*.bak
+*.orig
