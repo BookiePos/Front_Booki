@@ -1,10 +1,10 @@
 /**
- * Playwright E2E — GoCheck
+ * Playwright E2E — BookiPos
  *
  * PRECONDICIONES para correr los tests:
  *   1. MongoDB standalone corriendo (ert)
  *   2. Backend:  cd backend && npm run seed:demo && npm run dev   → http://localhost:3001
- *   3. Frontend: cd frontend/gocheck && pnpm dev                  → http://localhost:3000
+ *   3. Frontend: cd frontend/bookipos && pnpm dev                  → http://localhost:3000
  *
  * NO se define webServer aquí porque el stack completo (Mongo + NestJS + Next.js)
  * no se puede orquestar de forma fiable en este contexto.

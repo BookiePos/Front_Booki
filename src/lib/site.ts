@@ -119,7 +119,7 @@ export interface ModuleTab {
 export const MODULES: ModuleTab[] = [
   {
     id: "pos",
-    name: "GoCheck POS",
+    name: "BookiPos POS",
     tag: "Para la barra y la mesa",
     claim: "Cobrar toma dos toques. Nada más.",
     points: [
@@ -138,7 +138,7 @@ export const MODULES: ModuleTab[] = [
   },
   {
     id: "erp",
-    name: "GoCheck Operación",
+    name: "BookiPos Operación",
     tag: "Para la oficina",
     claim: "El negocio entero en una pantalla.",
     points: [
@@ -363,7 +363,7 @@ export const FAQS = [
   },
   {
     q: "¿Funciona sin internet?",
-    a: "Hoy no, y no queremos prometerlo. GoCheck es web y requiere conexión; el modo offline está en la hoja de ruta. Si tu local tiene internet inestable, hablemos antes de que compres.",
+    a: "Hoy no, y no queremos prometerlo. BookiPos es web y requiere conexión; el modo offline está en la hoja de ruta. Si tu local tiene internet inestable, hablemos antes de que compres.",
   },
   {
     q: "¿La factura es válida ante la DIAN?",

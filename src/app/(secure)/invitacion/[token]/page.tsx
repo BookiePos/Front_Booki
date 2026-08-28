@@ -106,7 +106,7 @@ export default function AcceptInvitationPage() {
             <div className="font-display flex size-9 items-center justify-center rounded-lg bg-primary text-[18px] leading-none text-primary-foreground">
               S
             </div>
-            <span className="font-display text-lg">GoCheck</span>
+            <span className="font-display text-lg">BookiPos</span>
           </div>
 
           {phase === "loading" && (

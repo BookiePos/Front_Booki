@@ -49,7 +49,7 @@ export class ApiError extends Error {
 export const ACCOUNT_SUSPENDED_CODE = "ACCOUNT_SUSPENDED"
 
 /** Evento global que se emite al detectar una respuesta de cuenta suspendida. */
-export const ACCOUNT_SUSPENDED_EVENT = "gocheck:account-suspended"
+export const ACCOUNT_SUSPENDED_EVENT = "bookipos:account-suspended"
 
 export type SuspensionReason = "suspended" | "trial_expired"
 

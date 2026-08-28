@@ -1,8 +1,8 @@
 {
-  "name": "gocheck",
+  "name": "bookipos",
   "version": "0.1.0",
   "private": true,
-  "description": "App unificada de GoCheck: web pública, panel de operación y punto de venta en un solo origen.",
+  "description": "App unificada de BookiPos: web pública, panel de operación y punto de venta en un solo origen.",
   "scripts": {
     "dev": "next dev -p 3000",
     "build": "next build",

@@ -1,7 +1,7 @@
 import type { LayoutItem } from "./types"
 
 /** El layout del tablero se guarda por usuario en localStorage. */
-const KEY_PREFIX = "gocheck.dashboard."
+const KEY_PREFIX = "bookipos.dashboard."
 
 export function readLayout(userId: string): LayoutItem[] | null {
   if (typeof window === "undefined") return null

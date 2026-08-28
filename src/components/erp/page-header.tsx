@@ -22,7 +22,7 @@ export function PageHeader({
       <div>
         <Breadcrumb className="mb-2">
           <BreadcrumbList>
-            <BreadcrumbItem>{section ?? "GoCheck"}</BreadcrumbItem>
+            <BreadcrumbItem>{section ?? "BookiPos"}</BreadcrumbItem>
             <BreadcrumbSeparator />
             <BreadcrumbItem>
               <BreadcrumbPage>{title}</BreadcrumbPage>

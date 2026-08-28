@@ -85,7 +85,7 @@ interface OnboardingContextValue {
 
 const OnboardingContext = createContext<OnboardingContextValue | null>(null)
 
-const KEY_PREFIX = "gocheck.onboarding."
+const KEY_PREFIX = "bookipos.onboarding."
 
 function readState(userId: string): OnboardingState {
   if (typeof window === "undefined") return EMPTY

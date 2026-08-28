@@ -9,7 +9,7 @@ import type { GuideDescriptor, TourStep } from "./types"
  */
 
 /**
- * Tour general de bienvenida: un recorrido completo por todo GoCheck, área por
+ * Tour general de bienvenida: un recorrido completo por todo BookiPos, área por
  * área, que además deja al usuario en cada módulo para que lo vea. Se adapta al
  * giro (retail/restaurante) y oculta las áreas para las que el usuario no tiene
  * permiso. Los pasos con `navigateTo` llevan a cada módulo; los anclados
@@ -28,7 +28,7 @@ export function buildProductSteps(
 
   steps.push({
     target: null,
-    title: "Bienvenido a GoCheck",
+    title: "Bienvenido a BookiPos",
     body: "Te hago un recorrido completo por tu ERP: cómo está organizado y por dónde empezar. Puedes omitirlo cuando quieras y reabrirlo desde el botón “Guía”.",
   })
   steps.push({
@@ -138,7 +138,7 @@ export function buildProductSteps(
   steps.push({
     target: null,
     title: "¡Listo para empezar!",
-    body: "Ese es GoCheck de punta a punta. Empieza por personalizar tu sede y cargar tus productos; el resto fluye solo.",
+    body: "Ese es BookiPos de punta a punta. Empieza por personalizar tu sede y cargar tus productos; el resto fluye solo.",
   })
 
   return steps

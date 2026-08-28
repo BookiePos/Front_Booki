@@ -15,7 +15,7 @@
 import { test, expect } from "@playwright/test";
 import { DEMO_EMAIL, DEMO_PASSWORD } from "./helpers/auth";
 
-test.describe("Login — GoCheck", () => {
+test.describe("Login — BookiPos", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/login");
     // La página de login debe cargarse antes de interactuar

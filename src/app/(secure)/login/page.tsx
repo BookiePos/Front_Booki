@@ -11,13 +11,13 @@ import {
   LoaderCircle,
   ShoppingCart,
 } from "lucide-react";
-import { GoCheckLogo, GoCheckMark } from "@/components/marketing/gocheck-logo";
+import { BookiPosLogo, BookiPosMark } from "@/components/marketing/bookipos-logo";
 import { ZoneLink } from "@/components/marketing/zone-link";
 import { ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 
 /**
- * Login único de GoCheck.
+ * Login único de BookiPos.
  *
  * Al vivir las tres zonas en el mismo origen, esta pantalla ya es SSO de
  * verdad: la sesión que abre aquí sirve tal cual en /panel y en /pos, sin
@@ -49,7 +49,7 @@ export default function LoginPage() {
       setError(
         err instanceof ApiError
           ? err.message
-          : "No hay conexión con el servidor de GoCheck. Verifica tu internet e intenta de nuevo.",
+          : "No hay conexión con el servidor de BookiPos. Verifica tu internet e intenta de nuevo.",
       );
     } finally {
       setPending(false);
@@ -79,11 +79,11 @@ export default function LoginPage() {
           className="relative inline-flex items-center gap-2 text-sm font-medium text-brand-200 transition-colors hover:text-white"
         >
           <ArrowLeft className="size-4" aria-hidden="true" />
-          Volver a gocheck.co
+          Volver a bookipos.com
         </Link>
 
         <div className="relative">
-          <GoCheckMark className="h-16 w-16" />
+          <BookiPosMark className="h-16 w-16" tone="light" />
           <p className="mt-8 max-w-md text-balance font-display text-4xl font-semibold leading-tight text-white">
             La cuenta de la mesa 7 ya está en tu contabilidad.
           </p>
@@ -100,8 +100,8 @@ export default function LoginPage() {
 
       <div className="flex items-center justify-center px-5 py-14 sm:px-10">
         <div className="w-full max-w-md">
-          <Link href="/" className="inline-block lg:hidden" aria-label="GoCheck — inicio">
-            <GoCheckLogo />
+          <Link href="/" className="inline-block lg:hidden" aria-label="BookiPos — inicio">
+            <BookiPosLogo />
           </Link>
 
           {!done ? (

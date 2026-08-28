@@ -1,6 +1,6 @@
 "use client"
 
-import { GoCheckMark } from "@/components/marketing/gocheck-logo"
+import { BookiPosMark } from "@/components/marketing/bookipos-logo"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 
@@ -68,11 +68,11 @@ export function AppSidebar() {
           {/* Isotipo real de la marca en vez de la inicial provisional.
               `filled` lo pinta en violeta sólido, que es la versión para
               fondos claros como este sidebar. */}
-          <GoCheckMark className="size-7 shrink-0" filled />
+          <BookiPosMark className="size-7 shrink-0" />
 
           <div className="grid leading-tight group-data-[collapsible=icon]:hidden">
             <span className="font-display text-[15px] leading-tight text-sidebar-foreground">
-              GoCheck
+              BookiPos
             </span>
             <span className="text-[11px] tracking-wide text-muted-foreground uppercase">
               {brandCaption}

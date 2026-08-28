@@ -92,7 +92,7 @@ export function SedeMap({
         <p className="text-sm text-muted-foreground">Mapa no configurado.</p>
         <p className="max-w-sm text-xs text-muted-foreground">
           Define <code className="font-mono">NEXT_PUBLIC_GOOGLE_MAPS_KEY</code> en{" "}
-          <code className="font-mono">frontend/gocheck/.env.local</code> con tu
+          <code className="font-mono">frontend/bookipos/.env.local</code> con tu
           API key de Google Maps (Maps Embed API) y reinicia el servidor.
         </p>
       </div>
