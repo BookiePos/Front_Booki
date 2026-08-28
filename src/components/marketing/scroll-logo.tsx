@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronDown } from "lucide-react";
-import { GoCheckMark } from "@/components/marketing/gocheck-logo";
+import { BookiPosMark } from "@/components/marketing/bookipos-logo";
 import { useScrollProgress } from "@/hooks/use-scroll-progress";
 import { clamp } from "@/lib/utils";
 
@@ -10,14 +10,16 @@ function phase(p: number, start: number, end: number) {
   return clamp((p - start) / (end - start));
 }
 
-const WORD = "GoCheck".split("");
+const WORD = "BookiPos".split("");
 
 /**
  * Cortina de entrada: es lo primero que ve el visitante. El logo se arma
  * mientras bajas y el bloque entero se va hacia atrás para dejar paso al hero.
  *
- * Dura 150vh — medio viewport de recorrido útil. Suficiente para que la marca
- * se lea, corto para no secuestrar a quien vino a mirar precios.
+ * Mide 130vh, de los cuales 100vh son la cortina en sí (el sticky ocupa la
+ * pantalla completa, así que siempre cuesta un viewport sacarla de encima) y
+ * solo 30vh son recorrido con pin — el tramo en el que scrollear no avanza la
+ * página y por tanto el único que se siente lento. Antes ese tramo era de 50vh.
  *
  * Todo lo animado es transform/opacity (nunca ancho/alto) y el progreso viene
  * suavizado del hook, así que no va a tirones. Con reduced-motion queda armado.
@@ -25,20 +27,28 @@ const WORD = "GoCheck".split("");
 export function ScrollLogo() {
   // "pin": la sección abre la página, así que el progreso mide cuánto has
   // bajado dentro de ella. Con "through" arrancaría ya a medio armar.
+  //
+  // Con solo 30vh de recorrido cada muesca de rueda avanza más progreso, así
+  // que el suavizado importa: 0.22 va pegado al dedo (constante de tiempo de
+  // ~67 ms) pero sigue repartiendo el salto de la rueda entre varios frames.
   const { ref, progress: p } = useScrollProgress<HTMLElement>({
-    smoothing: 0.14,
+    smoothing: 0.22,
     mode: "pin",
   });
 
-  const draw = phase(p, 0.04, 0.4);
-  const markScale = 0.78 + phase(p, 0, 0.4) * 0.22;
-  const markRotate = (1 - phase(p, 0, 0.4)) * -12;
-  const taglineIn = phase(p, 0.46, 0.72);
-  const ringScale = 0.88 + phase(p, 0, 0.6) * 0.32;
+  // Ventanas comprimidas: el isotipo se traza y endereza en el primer tercio,
+  // las letras caen encima y el lockup queda legible a media sección.
+  const draw = phase(p, 0.02, 0.28);
+  const markScale = 0.78 + phase(p, 0, 0.3) * 0.22;
+  const markRotate = (1 - phase(p, 0, 0.3)) * -12;
+  const taglineIn = phase(p, 0.38, 0.56);
+  const ringScale = 0.88 + phase(p, 0, 0.5) * 0.32;
 
-  // Salida: el bloque se aleja y se desvanece en el último tramo.
-  const exit = phase(p, 0.78, 1);
-  const cue = 1 - phase(p, 0.06, 0.22);
+  // Salida: el bloque se aleja y se desvanece en el último tercio. Se le deja
+  // la ventana más ancha de todas (0.68→1) porque es el relevo hacia el hero:
+  // comprimirla más sí se vería como un corte.
+  const exit = phase(p, 0.68, 1);
+  const cue = 1 - phase(p, 0.03, 0.16);
 
   return (
     <section
@@ -46,7 +56,7 @@ export function ScrollLogo() {
       id="marca"
       aria-labelledby="marca-heading"
       data-nav-dark
-      className="relative h-[150vh] bg-brand-950"
+      className="relative h-[130vh] bg-brand-950"
     >
       <div className="sticky top-0 flex h-svh items-center justify-center overflow-hidden px-6">
         <div
@@ -72,10 +82,10 @@ export function ScrollLogo() {
               transformOrigin: "center",
             }}
           >
-            <GoCheckMark
+            <BookiPosMark
               className="h-[clamp(4rem,10vw,7rem)] w-[clamp(4rem,10vw,7rem)] drop-shadow-[0_8px_40px_rgba(139,92,246,0.6)]"
               draw={draw}
-              strokeWidth={3.6}
+              tone="light"
             />
           </div>
 
@@ -84,11 +94,13 @@ export function ScrollLogo() {
             className="mt-7 flex font-display font-semibold text-white"
             style={{ fontSize: "clamp(3rem,13vw,10rem)", lineHeight: 0.9 }}
           >
-            <span className="sr-only">GoCheck</span>
+            <span className="sr-only">BookiPos</span>
             {WORD.map((letter, i) => {
-              // Cada letra tiene su propia ventana, escalonada 4% entre sí.
-              const start = 0.12 + i * 0.04;
-              const t = phase(p, start, start + 0.22);
+              // Cada letra tiene su propia ventana, escalonada 3% entre sí.
+              // La cascada completa cabe en 0.10→0.47 del recorrido: se sigue
+              // leyendo como cascada, pero dura la mitad que antes.
+              const start = 0.1 + i * 0.03;
+              const t = phase(p, start, start + 0.16);
               return (
                 <span
                   key={i}
