@@ -1,8 +1,8 @@
 /**
- * Cliente HTTP del backend Sistema POS. La URL base se toma de NEXT_PUBLIC_API_URL
- * (por defecto http://localhost:3001).
+ * Cliente HTTP del backend Sistema POS. La URL base se resuelve en `lib/env.ts`,
+ * que valida NEXT_PUBLIC_API_URL y rompe el build si falta en producción.
  */
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001"
+import { API_URL } from "@/lib/env"
 
 export interface AuthUser {
   id: string
