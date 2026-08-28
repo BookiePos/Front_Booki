@@ -22,21 +22,21 @@
    blanco puro encima: la lectura de Alegra —superficies limpias, aire
    generoso, CTA de color sólido— con nuestra personalidad.
 
-   Contrastes verificados sobre blanco (WCAG AA, texto normal 4.5:1):
-     --primary          #6d28d9  7.0:1  ✓ AAA
+   Contrastes verificados sobre el lienzo claro (WCAG AA, texto normal 4.5:1):
+     --primary          #7621ab  7.6:1  ✓ AAA
      --foreground       #1a1626 16.9:1  ✓ AAA
      --muted-foreground #55506b  7.4:1  ✓ AAA
      --success          #0f7a5a  4.6:1  ✓ AA
      --warning          #a86a12  4.5:1  ✓ AA
      --info             #0369a1  5.7:1  ✓ AA
      --destructive      #c0362c  5.6:1  ✓ AA
-   Blanco sobre --primary: 7.0:1 ✓ (botones sólidos y nav activa).
+   Blanco sobre --primary: 8.2:1 ✓ (botones sólidos y nav activa).
    ============================================================ */
 :root {
   --radius: 1rem; /* esquinas bien redondeadas / suaves */
 
-  /* Superficies — blanco frío con velo violeta; las cards flotan encima */
-  --background: #f7f5fd;
+  /* Superficies — blanco frío con velo orquídea; las cards flotan encima */
+  --background: #f9f5fd;
   --foreground: #1a1626; /* misma tinta que la web pública */
 
   --card: #ffffff;
@@ -45,27 +45,27 @@
   --popover: #ffffff;
   --popover-foreground: #1a1626;
 
-  /* Primario — violeta de marca. Lo hereda todo el producto. */
-  --primary: #6d28d9;
+  /* Primario — orquídea de marca. Lo hereda todo el producto. */
+  --primary: #7621ab;
   --primary-foreground: #ffffff;
 
-  /* Secundario / muted — violetas lavados, nunca grises sucios */
-  --secondary: #f1edfd;
-  --secondary-foreground: #4c1d95;
+  /* Secundario / muted — orquídeas lavadas, nunca grises sucios */
+  --secondary: #f7ecfe;
+  --secondary-foreground: #4a0773;
 
-  --muted: #f1eefb;
+  --muted: #f6eefc;
   --muted-foreground: #55506b;
 
-  /* Accent — hover y estados; violeta claro reconocible */
-  --accent: #ede9fe;
-  --accent-foreground: #4c1d95;
+  /* Accent — hover y estados; orquídea clara reconocible */
+  --accent: #f5e6fe;
+  --accent-foreground: #4a0773;
 
   --destructive: #c0362c;
   --destructive-foreground: #ffffff;
 
-  --border: #e9e5f6;
-  --input: #ded8f0;
-  --ring: #6d28d9;
+  --border: #ebe0f7;
+  --input: #e2d0f3;
+  --ring: #7621ab;
 
   /* Estados semánticos — legibles y bien separados del violeta, para que
      "correcto / pendiente / error" no se confundan con "acción". */
@@ -73,72 +73,82 @@
   --warning: #a86a12;
   --info: #0369a1;
 
-  /* Gráficas — el violeta lidera; el resto se distingue también en
+  /* Gráficas — la orquídea lidera; el resto se distingue también en
      escala de grises (no depende solo del tono). */
-  --chart-1: #6d28d9;
+  --chart-1: #7621ab;
   --chart-2: #0f7a5a;
   --chart-3: #a86a12;
   --chart-4: #0369a1;
-  --chart-5: #a78bfa;
+  --chart-5: #c37bef;
 
   /* Sidebar — blanco limpio separado por hairline, al estilo Alegra.
      El color se reserva para el ítem activo, que así canta solo. */
   --sidebar: #ffffff;
   --sidebar-foreground: #322c45;
-  --sidebar-primary: #6d28d9;
+  --sidebar-primary: #7621ab;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #ede9fe;
-  --sidebar-accent-foreground: #4c1d95;
-  --sidebar-border: #e9e5f6;
-  --sidebar-ring: #6d28d9;
+  --sidebar-accent: #f5e6fe;
+  --sidebar-accent-foreground: #4a0773;
+  --sidebar-border: #ebe0f7;
+  --sidebar-ring: #7621ab;
 }
 
-/* Modo oscuro, alineado al mismo violeta.
-   El violeta 700 del modo claro se hunde sobre fondo oscuro (2.8:1), así que
-   aquí el primario sube a violeta 400 #a78bfa — 7.4:1 sobre el lienzo — y el
-   texto encima pasa a tinta oscura. Es la regla de tono de Material: en
-   oscuro se usa la variante clara del color, no la misma. */
+/* Modo oscuro — el lienzo es el marino del logo (#00081c), no un negro
+   violeta. Es la decisión de fondo del arte: azul frío detrás, orquídea
+   caliente delante. Copiar el morado al fondo mataría ese contraste y la
+   marca se volvería una mancha sola.
+
+   La orquídea 700 del modo claro se hunde sobre marino (2.1:1), así que aquí
+   el primario sube a brand-400 #c37bef — 7.0:1 sobre el lienzo — y el texto
+   encima pasa a tinta oscura. Regla de tono de Material: en oscuro se usa la
+   variante clara del color, no la misma.
+
+   Contrastes verificados sobre --background #00081c:
+     --primary          #c37bef   7.0:1  ✓ AAA
+     --foreground       #e8e6f2  16.2:1  ✓ AAA
+     --muted-foreground #a9a4c2   8.0:1  ✓ AAA
+   Tinta #0b0420 sobre --primary: 7.0:1 ✓ (botones sólidos). */
 .dark {
-  --background: #14111f; /* casi negro con base violeta */
-  --foreground: #ece9f5;
-  --card: #1c1830;
-  --card-foreground: #ece9f5;
-  --popover: #1c1830;
-  --popover-foreground: #ece9f5;
-  --primary: #a78bfa;
-  --primary-foreground: #1a1030;
-  --secondary: #272044;
-  --secondary-foreground: #ece9f5;
-  --muted: #241e3d;
-  --muted-foreground: #a79fc4;
-  --accent: #2c2450;
-  --accent-foreground: #ddd6fe;
+  --background: #00081c; /* marino del logo oscuro (muestra del arte) */
+  --foreground: #e8e6f2;
+  --card: #0a1428;
+  --card-foreground: #e8e6f2;
+  --popover: #0a1428;
+  --popover-foreground: #e8e6f2;
+  --primary: #c37bef;
+  --primary-foreground: #0b0420;
+  --secondary: #141f38;
+  --secondary-foreground: #e8e6f2;
+  --muted: #111b31;
+  --muted-foreground: #a9a4c2;
+  --accent: #1b2545;
+  --accent-foreground: #e9cafc;
   --destructive: #f0736a;
   --destructive-foreground: #2a0e0c;
-  --border: rgba(196, 181, 253, 0.14);
-  --input: rgba(196, 181, 253, 0.2);
-  --ring: #a78bfa;
+  --border: rgba(195, 123, 239, 0.16);
+  --input: rgba(195, 123, 239, 0.22);
+  --ring: #c37bef;
   --success: #4ec89d;
   --warning: #e0a94a;
   --info: #6fb6ea;
-  --chart-1: #a78bfa;
+  --chart-1: #c37bef;
   --chart-2: #4ec89d;
   --chart-3: #e0a94a;
   --chart-4: #6fb6ea;
-  --chart-5: #ddd6fe;
-  --sidebar: #171327;
-  --sidebar-foreground: #c9c2e0;
-  --sidebar-primary: #a78bfa;
-  --sidebar-primary-foreground: #1a1030;
-  --sidebar-accent: #2c2450;
-  --sidebar-accent-foreground: #ddd6fe;
-  --sidebar-border: rgba(196, 181, 253, 0.1);
-  --sidebar-ring: #a78bfa;
+  --chart-5: #e9cafc;
+  --sidebar: #050f22;
+  --sidebar-foreground: #c8c4dc;
+  --sidebar-primary: #c37bef;
+  --sidebar-primary-foreground: #0b0420;
+  --sidebar-accent: #1b2545;
+  --sidebar-accent-foreground: #e9cafc;
+  --sidebar-border: rgba(195, 123, 239, 0.12);
+  --sidebar-ring: #c37bef;
 }
 
 @theme inline {
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
-  --font-serif: var(--font-fraunces), ui-serif, Georgia, serif;
+  --font-serif: var(--font-outfit), ui-sans-serif, system-ui, sans-serif;
   --font-mono: ui-monospace, monospace;
 
   --radius-sm: calc(var(--radius) - 4px);
@@ -211,18 +221,27 @@
    fondo en su layout, así que no compiten por el body.
    ============================================================ */
 @theme {
-  /* Escala de marca */
-  --color-brand-50: #f5f3ff;
-  --color-brand-100: #ede9fe;
-  --color-brand-200: #ddd6fe;
-  --color-brand-300: #c4b5fd;
-  --color-brand-400: #a78bfa;
-  --color-brand-500: #8b5cf6;
-  --color-brand-600: #7c3aed;
-  --color-brand-700: #6d28d9;
-  --color-brand-800: #5b21b6;
-  --color-brand-900: #4c1d95;
-  --color-brand-950: #2e1065;
+  /* Escala de marca — derivada del logo BookiPos (tono 277°).
+     Los dos extremos son muestras directas del arte: el 500 es el morado
+     del isotipo y el 950 es la tinta del wordmark. El resto interpola.
+     Es una orquídea, no el violeta de Tailwind: más magenta y más viva. */
+  --color-brand-50: #fbf5ff;
+  --color-brand-100: #f5e6fe;
+  --color-brand-200: #e9cafc;
+  --color-brand-300: #d6a1f7;
+  --color-brand-400: #c37bef; /* primario en oscuro — 7.0:1 sobre el marino */
+  --color-brand-500: #b160e4; /* morado del isotipo (muestra del logo) */
+  --color-brand-600: #9230cf;
+  --color-brand-700: #7621ab; /* primario en claro — 7.6:1 sobre lienzo */
+  --color-brand-800: #601490;
+  --color-brand-900: #4a0773;
+  --color-brand-950: #380060; /* tinta del wordmark (muestra del logo) */
+
+  /* Marino del logo oscuro — el lienzo de la versión dark. No es un negro
+     violeta: es azul, y ese contraste frío/cálido con la orquídea es lo
+     que hace que la marca se lea igual de bien en los dos modos. */
+  --color-navy-900: #0a1428;
+  --color-navy-950: #00081c;
 
   /* Tinta — grises con matiz violeta para que nada se vea "sucio" */
   --color-ink: #1a1626;
@@ -241,7 +260,7 @@
 
   /* Tipografía */
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
-  --font-display: var(--font-fraunces), ui-serif, Georgia, serif;
+  --font-display: var(--font-outfit), ui-sans-serif, system-ui, sans-serif;
 
   /* Escala tipográfica */
   --text-hero: clamp(2.5rem, 5.4vw, 4.25rem);
@@ -286,14 +305,17 @@
    @layer utilities) y las cabeceras de la web pública, que combinan
    `font-display font-semibold`, se quedarían en peso 500. */
 @layer components {
-  /* Display serif (editorial) — títulos, marca y cifras hero.
-     Optical size alta + tracking ligeramente cerrado para un aire premium. */
+  /* Display geométrica — títulos, marca y cifras hero.
+     El peso base sube de 500 a 600: una geométrica necesita más cuerpo que una
+     serif para pesar lo mismo ópticamente, y de ahí venía la queja de que los
+     subtítulos no imponían. El tracking se cierra a -0.02em porque las formas
+     circulares de Outfit abren mucho el renglón a tamaño grande.
+     Se retiran `font-feature-settings: "ss01"` y `font-optical-sizing`: eran
+     de la Fraunces y Outfit no tiene ni ese set estilístico ni eje óptico. */
   .font-display {
-    font-family: var(--font-serif);
-    font-weight: 500;
-    letter-spacing: -0.01em;
-    font-feature-settings: "ss01";
-    font-optical-sizing: auto;
+    font-family: var(--font-display);
+    font-weight: 600;
+    letter-spacing: -0.02em;
   }
 
   /* Números tabulares para dinero y cantidades */
@@ -302,13 +324,12 @@
     font-feature-settings: "tnum";
   }
 
-  /* Cifra hero en serif con figuras tabulares (para KPIs y montos grandes) */
+  /* Cifra hero con figuras tabulares (para KPIs y montos grandes) */
   .stat-figure {
-    font-family: var(--font-serif);
-    font-weight: 500;
-    letter-spacing: -0.02em;
+    font-family: var(--font-display);
+    font-weight: 600;
+    letter-spacing: -0.03em;
     font-variant-numeric: tabular-nums lining-nums;
-    font-optical-sizing: auto;
   }
 }
 
@@ -323,6 +344,21 @@
    ERP, que también tiene topbar fija. */
 html {
   scroll-padding-top: 5.5rem;
+
+  /* Los saltos de ancla del nav (#precios, #beneficios…) se deslizan en vez de
+     teletransportar. Es scroll nativo del navegador: no cuesta JavaScript, no
+     secuestra la rueda del ratón y el bloque de `prefers-reduced-motion` de
+     más abajo lo devuelve a `auto` para quien lo pida. */
+  scroll-behavior: smooth;
+}
+
+/* Un scroll con inercia deja bandas en blanco al rebotar en los extremos.
+   Pintar el fondo del propio contenedor de scroll las elimina, y al salir del
+   token el rebote acompaña al tema en vez de destellar en blanco. */
+html,
+body {
+  background-color: var(--background);
+  overscroll-behavior-y: none;
 }
 
 /* Foco visible y consistente en todo elemento interactivo (WCAG 2.4.7) */
@@ -411,17 +447,39 @@ html {
 
 /* ---------- Entradas al hacer scroll ---------- */
 
+/* Revelado al entrar en viewport: la sección llega desenfocada y enfoca al
+   asentarse, como una cámara haciendo foco. El desenfoque es lo que convierte
+   un fundido plano en una entrada con profundidad.
+
+   4px es el techo deliberado: por encima el texto se lee "roto" mientras
+   transiciona y molesta más de lo que aporta. Se acompaña de un desplazamiento
+   algo mayor (28px) y una pizca de escala, porque enfocar sin acercar se
+   percibe como un fallo de renderizado en vez de un movimiento.
+
+   `filter` se compone en GPU, pero a diferencia de opacity/transform obliga a
+   repintar la capa en cada frame. Por eso solo va en el revelado —que ocurre
+   una vez por sección y luego se desconecta el observer— y nunca atado al
+   scroll continuo: eso sí tumbaría el framerate en móvil. `will-change` se
+   retira al terminar (ver la regla de abajo) para no dejar capas colgadas. */
 .reveal {
   opacity: 0;
-  transform: translate3d(0, 22px, 0);
+  transform: translate3d(0, 28px, 0) scale(0.985);
+  filter: blur(4px);
+  will-change: opacity, transform, filter;
   transition:
     opacity var(--dur-slow) var(--ease-out-soft),
-    transform var(--dur-slow) var(--ease-out-soft);
+    transform var(--dur-slow) var(--ease-out-soft),
+    filter var(--dur-slow) var(--ease-out-soft);
   transition-delay: var(--reveal-delay, 0ms);
 }
 .reveal[data-visible="true"] {
   opacity: 1;
   transform: none;
+  filter: blur(0);
+  /* La entrada ya pasó: liberar la capa de composición. Mantener will-change
+     en decenas de secciones reserva memoria de GPU para animaciones que no
+     van a repetirse. */
+  will-change: auto;
 }
 
 
@@ -484,8 +542,112 @@ html {
   .reveal {
     opacity: 1;
     transform: none;
+    /* Sin el blur explícito, quien pide movimiento reducido vería el contenido
+       permanentemente desenfocado: la regla base lo aplica y nada lo quitaría,
+       porque `data-visible` sí cambia pero la transición está anulada. */
+    filter: none;
+    will-change: auto;
   }
   .aurora {
     animation: none;
   }
+}
+
+/* ---------- Esquema de color nativo del navegador ----------
+   `color-scheme` es lo que le dice al navegador de qué color pintar lo que no
+   controlamos con CSS: barras de scroll, autocompletado de formularios, el
+   selector de fecha nativo y el fondo por defecto entre navegaciones. Sin
+   esto, el panel en oscuro convive con scrollbars blancas y un `<input
+   type="date">` claro.
+
+   La zona pública (portada, login y registro) se queda siempre en claro:
+   pinta su propio lienzo con tokens fijos de marca y no cambia con el tema,
+   así que heredar `dark` solo le ensuciaría los controles nativos. */
+:root {
+  color-scheme: light;
+}
+.dark {
+  color-scheme: dark;
+}
+.zone-marketing {
+  color-scheme: light;
+}
+
+/* ---------- Cabeceras de marca en degradado ----------
+   Las cabeceras violetas (caja cerrada y cobro del POS, bienvenida) iban de
+   `--primary` a un violeta fijo #5b21b6. En oscuro el primario se aclara a
+   orquídea y su texto pasa a tinta oscura, así que la mitad del degradado se
+   quedaba en violeta profundo con tinta encima: 1.9:1, ilegible. Ahora el otro
+   extremo se calcula desde los propios tokens —se oscurece en claro y se
+   aclara en oscuro— y `text-primary-foreground` se lee en todo el ancho. */
+@layer components {
+  .gradient-brand,
+  .gradient-brand-r {
+    --gradient-brand-end: color-mix(
+      in oklab,
+      var(--primary) 62%,
+      var(--foreground) 38%
+    );
+  }
+  .gradient-brand {
+    background-image: linear-gradient(
+      to bottom right,
+      var(--primary),
+      var(--gradient-brand-end)
+    );
+  }
+  .gradient-brand-r {
+    background-image: linear-gradient(
+      to right,
+      var(--primary),
+      var(--gradient-brand-end)
+    );
+  }
+}
+
+/* ---------- Tinta de los bloques teñidos (aviso / correcto) ----------
+   En los avisos el mismo tono hace de fondo y de letra: `text-warning` sobre
+   `bg-warning/10` se queda en 3.6:1 en el tema claro, por debajo de AA. Estas
+   clases empujan la tinta hacia el color del texto base —oscurece en claro,
+   aclara en oscuro— así que suben a AA en los dos temas sin perder el color
+   que dice "esto es un aviso" o "esto salió bien".
+
+   Van en @layer components (como `.font-display`) para que cualquier utilidad
+   de color puesta después en el mismo elemento siga ganando. */
+@layer components {
+  .text-warning-ink {
+    color: color-mix(in oklab, var(--warning) 72%, var(--foreground));
+  }
+  .text-success-ink {
+    color: color-mix(in oklab, var(--success) 72%, var(--foreground));
+  }
+  .text-destructive-ink {
+    color: color-mix(in oklab, var(--destructive) 78%, var(--foreground));
+  }
+}
+
+/* En oscuro el comprobante se ve marino en pantalla —que es lo correcto—, pero
+   al imprimir con "gráficos de fondo" activados saldría la tinta negra que ya
+   fuerza el bloque de impresión sobre un fondo marino. En papel nunca hay
+   fondo. */
+@media print {
+  .receipt-printable,
+  .receipt-printable *,
+  .invoice-printable,
+  .invoice-printable * {
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+}
+
+/* Velo del recorrido guiado. El "foco" del tour no es un fondo: es un
+   box-shadow gigantesco alrededor del recorte, así que el color va inline en
+   el componente y necesita una variable para poder cambiar con el tema. Sobre
+   el lienzo marino el velo violeta claro apenas separaba; en oscuro se
+   profundiza. */
+.tour-spotlight {
+  --tour-scrim: rgba(23, 12, 51, 0.55);
+}
+.dark .tour-spotlight {
+  --tour-scrim: rgba(0, 4, 14, 0.72);
 }
