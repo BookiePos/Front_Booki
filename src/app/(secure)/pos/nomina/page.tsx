@@ -372,7 +372,7 @@ export default function NominaPage() {
                           {w.name}
                           {isDirty && (
                             <span
-                              className="ml-1.5 inline-block size-1.5 rounded-full bg-amber-500 align-middle"
+                              className="ml-1.5 inline-block size-1.5 rounded-full bg-warning align-middle"
                               title="Cambios sin confirmar"
                             />
                           )}
@@ -436,7 +436,7 @@ export default function NominaPage() {
           </div>
           <div className="flex items-center gap-3">
             {flash && (
-              <span className="flex items-center gap-1 text-sm font-medium text-success">
+              <span className="flex items-center gap-1 text-sm font-medium text-success-ink">
                 <CheckCircle2 className="size-4" />
                 {flash}
               </span>
@@ -607,7 +607,7 @@ export default function NominaPage() {
       {/* Modal: solicitar edición de horas bloqueadas */}
       {reqWorker && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-brand-950/45 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-brand-950/45 dark:bg-navy-950/70 p-4 backdrop-blur-sm"
           role="dialog"
           aria-modal="true"
           aria-label="Solicitar edición de horas"

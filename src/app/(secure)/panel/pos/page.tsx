@@ -498,7 +498,7 @@ export default function PosPage() {
         <SheetContent side="right" className="sm:max-w-md overflow-y-auto">
           {completedSale ? (
             <div className="flex h-full flex-col items-center justify-center gap-4 px-6 text-center">
-              <CheckCircle2 className="size-14 text-green-600" />
+              <CheckCircle2 className="size-14 text-success-ink" />
               <p className="font-display text-2xl">Venta registrada</p>
               <Badge variant="outline" className="px-3 py-1.5 font-mono text-base">
                 {completedSale.saleNumber}

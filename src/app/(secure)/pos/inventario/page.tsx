@@ -72,7 +72,7 @@ function StatCard({
   tone: "warning" | "danger" | "muted"
 }) {
   const tones = {
-    warning: "bg-amber-100 text-amber-600",
+    warning: "bg-warning/15 text-warning-ink",
     danger: "bg-destructive/10 text-destructive",
     muted: "bg-muted text-muted-foreground",
   }
@@ -275,7 +275,7 @@ export default function InventarioPage() {
                         {r.qty <= 0 ? (
                           <Badge variant="destructive">Agotado</Badge>
                         ) : low ? (
-                          <Badge className="bg-amber-100 text-amber-700">
+                          <Badge className="bg-warning/15 text-warning-ink">
                             Stock bajo
                           </Badge>
                         ) : (

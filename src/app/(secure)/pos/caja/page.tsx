@@ -341,7 +341,7 @@ function OpenCaja({
       {/* Encabezado del turno */}
       <Card>
         <CardContent className="flex flex-wrap items-center gap-3 p-4">
-          <div className="flex size-11 items-center justify-center rounded-xl bg-success/10 text-success">
+          <div className="flex size-11 items-center justify-center rounded-xl bg-success/10 text-success-ink">
             <Unlock className="size-5" />
           </div>
           <div className="min-w-0 flex-1">
@@ -432,7 +432,7 @@ function OpenCaja({
                     <Icon
                       className={cn(
                         "size-5 shrink-0",
-                        isIn ? "text-success" : "text-destructive",
+                        isIn ? "text-success-ink" : "text-destructive",
                       )}
                     />
                     <div className="min-w-0 flex-1">
@@ -447,7 +447,7 @@ function OpenCaja({
                     <span
                       className={cn(
                         "stat-figure text-base",
-                        isIn ? "text-success" : "text-destructive",
+                        isIn ? "text-success-ink" : "text-destructive",
                       )}
                     >
                       {isIn ? "+" : "−"}
@@ -682,7 +682,7 @@ function CloseCajaSheet({
               className={cn(
                 "flex items-center justify-between rounded-lg px-3 py-2 text-sm",
                 diff === 0
-                  ? "bg-success/10 text-success"
+                  ? "bg-success/10 text-success-ink"
                   : "bg-destructive/10 text-destructive",
               )}
             >
@@ -776,7 +776,7 @@ function Stat({
 function DifferenceBadge({ value }: { value?: number }) {
   if (value === undefined) return <Badge variant="outline">—</Badge>
   if (value === 0)
-    return <Badge className="border-transparent bg-success/10 text-success">Cuadró</Badge>
+    return <Badge className="border-transparent bg-success/10 text-success-ink">Cuadró</Badge>
   return (
     <Badge variant="destructive">
       {value > 0 ? "+" : ""}

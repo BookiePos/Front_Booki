@@ -32,7 +32,7 @@ const inputClass =
 
 const ALL = "all"
 const METHOD_TONE: Record<string, string> = {
-  POST: "text-success",
+  POST: "text-success-ink",
   PATCH: "text-info",
   PUT: "text-info",
   DELETE: "text-destructive",
@@ -215,7 +215,7 @@ export default function AuditoriaPage() {
                     <TableCell className="font-mono text-xs text-muted-foreground">{r.path}</TableCell>
                     <TableCell className="text-center">
                       {r.success ? (
-                        <CheckCircle2 className="mx-auto size-4 text-success" />
+                        <CheckCircle2 className="mx-auto size-4 text-success-ink" />
                       ) : (
                         <span className="inline-flex items-center gap-1 text-xs text-destructive" title={r.error}>
                           <XCircle className="size-4" />

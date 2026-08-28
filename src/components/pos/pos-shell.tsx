@@ -23,6 +23,7 @@ import { GuideAutoStart } from "@/components/onboarding/guide-autostart"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { ThemeToggle } from "@/components/ui/theme-toggle"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -298,6 +299,7 @@ export function PosShell({ children }: { children: React.ReactNode }) {
           <SedeBadge />
           <div className="ml-auto flex items-center gap-1.5">
             <GuideButton />
+            <ThemeToggle className="size-10" />
             <UserMenu />
           </div>
         </header>

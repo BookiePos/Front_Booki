@@ -817,7 +817,7 @@ function RecurringPanel({
                     <TableCell>
                       <div className="flex items-center gap-1.5">
                         {t.active ? (
-                          <Badge className="border-emerald-200 bg-emerald-50 text-emerald-700">
+                          <Badge className="border-success/30 bg-success/10 text-success-ink">
                             Activa
                           </Badge>
                         ) : (
@@ -1556,13 +1556,13 @@ function ExpenseCategorySelect({
 function ExpenseStatusBadge({ status }: { status: ExpenseStatus }) {
   if (status === "paid") {
     return (
-      <Badge className="gap-1 border-emerald-200 bg-emerald-50 text-emerald-700">
+      <Badge className="gap-1 border-success/30 bg-success/10 text-success-ink">
         Pagado
       </Badge>
     )
   }
   return (
-    <Badge variant="outline" className="text-amber-600">
+    <Badge variant="outline" className="text-warning-ink">
       Por pagar
     </Badge>
   )

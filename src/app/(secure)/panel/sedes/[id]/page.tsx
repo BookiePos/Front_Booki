@@ -134,7 +134,7 @@ function Kpi({
         <span
           className={
             tone === "warning"
-              ? "flex size-9 shrink-0 items-center justify-center rounded-lg bg-amber-500/15 text-amber-600"
+              ? "flex size-9 shrink-0 items-center justify-center rounded-lg bg-warning/15 text-warning-ink"
               : "flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"
           }
         >
@@ -728,7 +728,7 @@ export default function SedeDetailPage() {
             </div>
           ) : alertCount === 0 ? (
             <div className="flex flex-col items-center gap-2 py-8 text-center">
-              <CheckCircle2 className="size-8 text-green-600" />
+              <CheckCircle2 className="size-8 text-success-ink" />
               <p className="text-sm text-muted-foreground">
                 Todo en orden. No hay alertas de stock ni vencimientos.
               </p>
@@ -739,14 +739,14 @@ export default function SedeDetailPage() {
               {(alerts?.lowStock.length ?? 0) > 0 && (
                 <div className="flex flex-col gap-2">
                   <p className="flex items-center gap-2 text-sm font-medium text-foreground">
-                    <PackageX className="size-4 text-amber-600" />
+                    <PackageX className="size-4 text-warning-ink" />
                     Stock bajo el mínimo ({alerts!.lowStock.length})
                   </p>
                   <ul className="flex flex-col gap-1.5">
                     {alerts!.lowStock.map((row) => (
                       <li
                         key={row.id}
-                        className="flex items-center justify-between gap-3 rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-sm"
+                        className="flex items-center justify-between gap-3 rounded-lg border border-warning/30 bg-warning/5 px-3 py-2 text-sm"
                       >
                         <span className="min-w-0 truncate">
                           Tienes poco <span className="font-medium">{row.product.name}</span>
@@ -793,7 +793,7 @@ export default function SedeDetailPage() {
               {(alerts?.expiringSoon.length ?? 0) > 0 && (
                 <div className="flex flex-col gap-2">
                   <p className="flex items-center gap-2 text-sm font-medium text-foreground">
-                    <Clock className="size-4 text-amber-600" />
+                    <Clock className="size-4 text-warning-ink" />
                     Próximos a vencer ({alerts!.expiringSoon.length})
                   </p>
                   <ul className="flex flex-col gap-1.5">
@@ -802,7 +802,7 @@ export default function SedeDetailPage() {
                       return (
                         <li
                           key={lot._id}
-                          className="flex items-center justify-between gap-3 rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-sm"
+                          className="flex items-center justify-between gap-3 rounded-lg border border-warning/30 bg-warning/5 px-3 py-2 text-sm"
                         >
                           <span className="min-w-0 truncate">
                             <span className="font-medium">
@@ -810,7 +810,7 @@ export default function SedeDetailPage() {
                             </span>{" "}
                             está a punto de vencer · lote {lot.lotCode}
                           </span>
-                          <span className="shrink-0 font-mono text-xs text-amber-600">
+                          <span className="shrink-0 font-mono text-xs text-warning-ink">
                             {d !== null && d >= 0
                               ? `en ${d} día${d !== 1 ? "s" : ""}`
                               : formatDate(lot.expiresAt)}

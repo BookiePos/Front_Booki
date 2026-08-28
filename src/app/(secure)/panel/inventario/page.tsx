@@ -887,7 +887,7 @@ function ProductSheet({
           </div>
 
           {duplicate && (
-            <div className="flex flex-col gap-2 rounded-lg border border-amber-500/50 bg-amber-500/10 p-3 text-sm">
+            <div className="flex flex-col gap-2 rounded-lg border border-warning/50 bg-warning/10 p-3 text-sm">
               <p>
                 <span className="font-medium">{duplicate.name}</span> ya está
                 en tu inventario (SKU {duplicate.sku}). ¿Te llegó más
@@ -2287,7 +2287,7 @@ function VariantsSheet({
 
         {doneMsg ? (
           <div className="flex flex-col gap-4 px-4 py-6">
-            <div className="flex items-start gap-2 rounded-lg bg-success/10 p-3 text-sm text-success">
+            <div className="flex items-start gap-2 rounded-lg bg-success/10 p-3 text-sm text-success-ink">
               <Check className="mt-0.5 size-4 shrink-0" />
               <span>{doneMsg}</span>
             </div>
@@ -2579,7 +2579,7 @@ function ImportProductsSheet({
 
           {result && (
             <div className="space-y-2 rounded-lg border border-border p-3 text-sm">
-              <p className="flex items-center gap-2 font-medium text-success">
+              <p className="flex items-center gap-2 font-medium text-success-ink">
                 <CheckCircle2 className="size-4" />
                 Importación completada
               </p>
@@ -2711,7 +2711,7 @@ function StockImportSheet({
 
         <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4">
           <div className="flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/5 p-3 text-sm text-muted-foreground">
-            <TriangleAlert className="mt-0.5 size-4 shrink-0 text-warning" />
+            <TriangleAlert className="mt-0.5 size-4 shrink-0 text-warning-ink" />
             <span>
               Importar <strong className="text-foreground">suma</strong> las
               cantidades como entradas; no reemplaza el stock actual. Úsalo para
@@ -2759,7 +2759,7 @@ function StockImportSheet({
 
           {result && (
             <div className="space-y-2 rounded-lg border border-border p-3 text-sm">
-              <p className="flex items-center gap-2 font-medium text-success">
+              <p className="flex items-center gap-2 font-medium text-success-ink">
                 <CheckCircle2 className="size-4" />
                 Carga completada
               </p>
@@ -3151,7 +3151,7 @@ export default function InventarioPage() {
             <Card className="border-warning/40">
               <CardHeader className="pb-2">
                 <CardTitle className="flex items-center gap-2 text-sm">
-                  <TriangleAlert className="size-4 text-warning" />
+                  <TriangleAlert className="size-4 text-warning-ink" />
                   Stock bajo
                 </CardTitle>
                 <CardDescription>
@@ -3179,7 +3179,7 @@ export default function InventarioPage() {
             <Card className="border-warning/40">
               <CardHeader className="pb-2">
                 <CardTitle className="flex items-center gap-2 text-sm">
-                  <CalendarClock className="size-4 text-warning" />
+                  <CalendarClock className="size-4 text-warning-ink" />
                   Por vencer ({alerts!.days} días)
                 </CardTitle>
                 <CardDescription>
@@ -3743,7 +3743,7 @@ export default function InventarioPage() {
                         <TableCell
                           className={cn(
                             "text-right font-medium",
-                            m.delta < 0 ? "text-destructive" : "text-success",
+                            m.delta < 0 ? "text-destructive" : "text-success-ink",
                           )}
                         >
                           {m.delta > 0 ? "+" : ""}

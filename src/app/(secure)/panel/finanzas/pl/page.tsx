@@ -725,7 +725,7 @@ function VarRowCells({
   const cls = (variance: number) => {
     if (variance === 0) return "text-muted-foreground"
     const good = isIncome ? variance > 0 : variance < 0
-    return good ? "text-emerald-600" : "text-destructive"
+    return good ? "text-success-ink" : "text-destructive"
   }
   return (
     <>

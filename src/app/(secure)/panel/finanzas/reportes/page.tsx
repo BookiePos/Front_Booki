@@ -223,7 +223,7 @@ function IncomeView({ r }: { r: IncomeStatement }) {
       <Card>
         <CardContent className="flex items-center justify-between py-4">
           <span className="font-display text-lg">Utilidad neta</span>
-          <span className={`stat-figure text-2xl ${r.utilidadNeta >= 0 ? "text-success" : "text-destructive"}`}>
+          <span className={`stat-figure text-2xl ${r.utilidadNeta >= 0 ? "text-success-ink" : "text-destructive"}`}>
             {money.format(r.utilidadNeta)}
           </span>
         </CardContent>

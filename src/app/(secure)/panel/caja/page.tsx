@@ -413,7 +413,7 @@ function DifferenceCell({ value }: { value: number }) {
     value === 0
       ? "text-muted-foreground"
       : value > 0
-        ? "text-emerald-600"
+        ? "text-success-ink"
         : "text-destructive"
   const sign = value > 0 ? "+" : ""
   return (
@@ -427,8 +427,8 @@ function DifferenceCell({ value }: { value: number }) {
 function StatusBadge({ status }: { status: CajaOverviewRow["status"] }) {
   if (status === "open") {
     return (
-      <Badge className="gap-1 border-emerald-200 bg-emerald-50 text-emerald-700">
-        <span className="size-1.5 rounded-full bg-emerald-500" />
+      <Badge className="gap-1 border-success/30 bg-success/10 text-success-ink">
+        <span className="size-1.5 rounded-full bg-success" />
         Abierta
       </Badge>
     )

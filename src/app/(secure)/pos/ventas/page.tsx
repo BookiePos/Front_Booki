@@ -439,7 +439,7 @@ function StatCard({
   tone: "success" | "muted"
 }) {
   const tones = {
-    success: "bg-success/10 text-success",
+    success: "bg-success/10 text-success-ink",
     muted: "bg-muted text-muted-foreground",
   }
   return (

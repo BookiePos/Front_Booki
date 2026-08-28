@@ -121,8 +121,8 @@ export function FacturaElectronica({
           className={cn(
             "mt-0.5 rounded-full px-2 py-0.5 text-[11px] font-medium",
             validated
-              ? "bg-success/10 text-success"
-              : "bg-amber-500/10 text-amber-600",
+              ? "bg-success/10 text-success-ink"
+              : "bg-warning/10 text-warning-ink",
           )}
         >
           {validated ? "Validada DIAN" : "Sin validar DIAN"}

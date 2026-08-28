@@ -38,9 +38,9 @@ const PLAN_IDS: BusinessPlan[] = ["punto", "negocio", "control", "cadena"]
 const PLAN_BY_ID = Object.fromEntries(PLANS.map((p) => [p.id, p]))
 
 const STATUS_LABEL: Record<string, { label: string; className: string }> = {
-  active: { label: "Al día", className: "bg-emerald-100 text-emerald-800" },
-  pending: { label: "Pago en proceso", className: "bg-amber-100 text-amber-800" },
-  past_due: { label: "Pago vencido", className: "bg-red-100 text-red-800" },
+  active: { label: "Al día", className: "bg-success/15 text-success-ink" },
+  pending: { label: "Pago en proceso", className: "bg-warning/15 text-warning-ink" },
+  past_due: { label: "Pago vencido", className: "bg-destructive/15 text-destructive" },
   canceled: { label: "Cancelada", className: "bg-muted text-muted-foreground" },
 }
 
@@ -318,7 +318,7 @@ export default function PlanBillingPage() {
           {config && !config.configured && (
             <Card>
               <CardContent className="flex items-start gap-3 py-5 text-sm">
-                <AlertTriangle className="mt-0.5 size-5 shrink-0 text-amber-600" />
+                <AlertTriangle className="mt-0.5 size-5 shrink-0 text-warning-ink" />
                 <p className="text-muted-foreground">
                   La pasarela de pagos (Wompi) aún no está configurada. Define las
                   llaves <code>WOMPI_*</code> en el backend para habilitar los pagos.
@@ -520,10 +520,10 @@ export default function PlanBillingPage() {
                     role="alert"
                     className={`rounded-xl px-4 py-3 text-sm ${
                       message.kind === "ok"
-                        ? "bg-emerald-50 text-emerald-800"
+                        ? "bg-success/10 text-success-ink"
                         : message.kind === "error"
-                          ? "bg-red-50 text-red-800"
-                          : "bg-amber-50 text-amber-800"
+                          ? "bg-destructive/10 text-destructive"
+                          : "bg-warning/10 text-warning-ink"
                     }`}
                   >
                     {message.kind === "ok" && (
@@ -568,7 +568,7 @@ export default function PlanBillingPage() {
                   type="button"
                   onClick={onCancel}
                   disabled={submitting}
-                  className="text-sm font-medium text-red-600 hover:underline disabled:opacity-60"
+                  className="text-sm font-medium text-destructive hover:underline disabled:opacity-60"
                 >
                   Cancelar suscripción
                 </button>
@@ -600,10 +600,10 @@ export default function PlanBillingPage() {
                         <span
                           className={`rounded-full px-2 py-0.5 text-xs ${
                             p.status === "approved"
-                              ? "bg-emerald-100 text-emerald-800"
+                              ? "bg-success/15 text-success-ink"
                               : p.status === "pending"
-                                ? "bg-amber-100 text-amber-800"
-                                : "bg-red-100 text-red-800"
+                                ? "bg-warning/15 text-warning-ink"
+                                : "bg-destructive/15 text-destructive"
                           }`}
                         >
                           {p.status}

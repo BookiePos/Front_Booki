@@ -236,7 +236,7 @@ export default function MetasPage() {
                       </TableCell>
                       <TableCell>
                         {b.status === "active" ? (
-                          <Badge className="border-emerald-200 bg-emerald-50 text-emerald-700">
+                          <Badge className="border-success/30 bg-success/10 text-success-ink">
                             Activo
                           </Badge>
                         ) : (
@@ -750,7 +750,7 @@ function BudgetEditor({
           {error && budget && (
             <p className="mt-3 text-sm text-destructive">{error}</p>
           )}
-          {msg && <p className="mt-3 text-sm text-emerald-600">{msg}</p>}
+          {msg && <p className="mt-3 text-sm text-success-ink">{msg}</p>}
         </>
       ))}
     </>
@@ -884,7 +884,7 @@ function BudgetVsActualView({
                               ? "text-muted-foreground"
                               : bad
                                 ? "text-destructive"
-                                : "text-emerald-600"
+                                : "text-success-ink"
                           }`}
                         >
                           {v >= 0 ? "+" : ""}
@@ -908,7 +908,7 @@ function BudgetVsActualView({
                     </td>
                     <td
                       className={`px-3 py-2 text-right tabular-nums ${
-                        variance === 0 ? "" : variance > 0 ? "text-emerald-600" : "text-destructive"
+                        variance === 0 ? "" : variance > 0 ? "text-success-ink" : "text-destructive"
                       }`}
                     >
                       {variance >= 0 ? "+" : ""}
@@ -936,7 +936,7 @@ function VsKpi({
   tone?: "up" | "down"
 }) {
   const color =
-    tone === "up" ? "text-emerald-600" : tone === "down" ? "text-destructive" : "text-foreground"
+    tone === "up" ? "text-success-ink" : tone === "down" ? "text-destructive" : "text-foreground"
   return (
     <Card>
       <CardContent className="flex flex-col gap-1 py-4">

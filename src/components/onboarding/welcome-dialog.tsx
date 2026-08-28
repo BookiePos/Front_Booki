@@ -67,10 +67,10 @@ export function WelcomeDialog() {
 
   return (
     <div
-      className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-brand-950/50 p-4 backdrop-blur-sm sm:items-center sm:p-6"
+      className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-brand-950/50 dark:bg-navy-950/70 p-4 backdrop-blur-sm sm:items-center sm:p-6"
       role="dialog"
       aria-modal="true"
-      aria-label="Bienvenida a GoCheck"
+      aria-label="Bienvenida a BookiPos"
       onClick={dismissWelcome}
     >
       <div
@@ -78,20 +78,20 @@ export function WelcomeDialog() {
         onClick={(e) => e.stopPropagation()}
       >
         {/* Cabecera con gradiente de marca */}
-        <div className="relative bg-gradient-to-br from-primary to-[#5b21b6] px-6 py-6 text-primary-foreground">
+        <div className="relative gradient-brand px-6 py-6 text-primary-foreground">
           <button
             type="button"
             onClick={dismissWelcome}
             aria-label="Cerrar"
-            className="absolute right-3 top-3 inline-flex size-8 items-center justify-center rounded-lg text-primary-foreground/80 transition-colors hover:bg-white/15 hover:text-primary-foreground"
+            className="absolute right-3 top-3 inline-flex size-8 items-center justify-center rounded-lg text-primary-foreground/80 transition-colors hover:bg-primary-foreground/15 hover:text-primary-foreground"
           >
             <X className="size-4" />
           </button>
-          <span className="inline-flex size-11 items-center justify-center rounded-xl bg-white/15">
+          <span className="inline-flex size-11 items-center justify-center rounded-xl bg-primary-foreground/15">
             <Sparkles className="size-6" />
           </span>
           <h2 className="mt-4 font-display text-2xl leading-tight">
-            {firstName ? `¡Bienvenido, ${firstName}!` : "¡Bienvenido a GoCheck!"}
+            {firstName ? `¡Bienvenido, ${firstName}!` : "¡Bienvenido a BookiPos!"}
           </h2>
           <p className="mt-1.5 text-sm text-primary-foreground/85">
             Vamos a poner {giro} a funcionar. Estos son los pilares que vas a

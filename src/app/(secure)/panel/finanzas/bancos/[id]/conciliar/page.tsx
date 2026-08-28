@@ -347,16 +347,16 @@ export default function ConciliarPage() {
       ) : (
         <div className="flex flex-col gap-4">
           {result && (
-            <Card className="border-emerald-200 bg-emerald-50/60">
+            <Card className="border-success/30 bg-success/10">
               <CardContent className="flex flex-wrap items-center gap-4 py-4">
-                <CheckCircle2 className="size-8 text-emerald-600" />
+                <CheckCircle2 className="size-8 text-success-ink" />
                 <div className="flex-1">
                   <p className="font-display text-lg">Conciliación guardada</p>
                   <p className="text-sm text-muted-foreground">
                     Saldo conciliado {money.format(result.reconciledBalance)} ·
                     extracto {money.format(result.statementBalance)} ·{" "}
                     {Math.abs(result.difference) < 1 ? (
-                      <span className="font-medium text-emerald-700">cuadra ✓</span>
+                      <span className="font-medium text-success-ink">cuadra ✓</span>
                     ) : (
                       <span className="font-medium text-destructive">
                         diferencia {money.format(result.difference)}
@@ -377,7 +377,7 @@ export default function ConciliarPage() {
                 <Scale className="size-4 text-muted-foreground" />
                 <p className="font-medium">Extracto del banco</p>
                 {account.lastReconciledDate && (
-                  <Badge variant="secondary" className="ml-auto text-emerald-700">
+                  <Badge variant="secondary" className="ml-auto text-success-ink">
                     Última: {fmtDate(account.lastReconciledDate)}
                   </Badge>
                 )}
@@ -431,7 +431,7 @@ export default function ConciliarPage() {
           {analyzed && (
             <>
               {/* Panel de cuadre */}
-              <Card className={cuadra ? "border-emerald-200" : "border-amber-200"}>
+              <Card className={cuadra ? "border-success/30" : "border-warning/30"}>
                 <CardContent className="grid grid-cols-2 gap-4 py-4 sm:grid-cols-4">
                   <Metric label="Saldo conciliado" value={money.format(liveReconciled)} />
                   <Metric label="Saldo del extracto" value={money.format(stmtBal)} />
@@ -443,11 +443,11 @@ export default function ConciliarPage() {
                   />
                   <div className="flex items-center">
                     {cuadra ? (
-                      <span className="flex items-center gap-1.5 text-sm font-medium text-emerald-600">
+                      <span className="flex items-center gap-1.5 text-sm font-medium text-success-ink">
                         <CheckCircle2 className="size-5" /> Cuadra
                       </span>
                     ) : (
-                      <span className="flex items-center gap-1.5 text-sm font-medium text-amber-600">
+                      <span className="flex items-center gap-1.5 text-sm font-medium text-warning-ink">
                         <FileWarning className="size-5" /> Hay diferencia
                       </span>
                     )}
@@ -600,7 +600,7 @@ export default function ConciliarPage() {
 
               <div className="flex items-center justify-end gap-3">
                 {!cuadra && (
-                  <span className="text-xs text-amber-600">
+                  <span className="text-xs text-warning-ink">
                     Puedes finalizar igual; la diferencia quedará registrada.
                   </span>
                 )}
@@ -655,7 +655,7 @@ function AmountTag({ value }: { value: number }) {
   return (
     <span
       className={`shrink-0 tabular-nums text-sm font-medium ${
-        isIn ? "text-emerald-600" : "text-destructive"
+        isIn ? "text-success-ink" : "text-destructive"
       }`}
     >
       {isIn ? "+" : "−"}
@@ -675,7 +675,7 @@ function Metric({
   danger?: boolean
   good?: boolean
 }) {
-  const tone = danger ? "text-destructive" : good ? "text-emerald-600" : "text-foreground"
+  const tone = danger ? "text-destructive" : good ? "text-success-ink" : "text-foreground"
   return (
     <div className="flex flex-col gap-0.5">
       <span className="text-xs text-muted-foreground">{label}</span>

@@ -48,7 +48,7 @@ const KIND_OPTIONS: { v: TaxKind; l: string }[] = [
 
 const kindTone: Record<string, string> = {
   iva: "text-info",
-  inc: "text-warning",
+  inc: "text-warning-ink",
   exento: "text-muted-foreground",
   excluido: "text-muted-foreground",
 }

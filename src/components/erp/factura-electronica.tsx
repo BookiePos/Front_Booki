@@ -131,9 +131,9 @@ export function FacturaElectronica({
           </p>
           <p className="mt-1 text-xs">
             {validated ? (
-              <span className="font-medium text-green-600">Validada DIAN</span>
+              <span className="font-medium text-success-ink">Validada DIAN</span>
             ) : (
-              <span className="font-medium text-amber-600">Sin validar DIAN</span>
+              <span className="font-medium text-warning-ink">Sin validar DIAN</span>
             )}
           </p>
         </div>

@@ -11,6 +11,7 @@ import { Separator } from "@/components/ui/separator"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { ThemeToggle } from "@/components/ui/theme-toggle"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -63,7 +64,7 @@ export function AppTopbar() {
           aria-hidden
         />
         <label htmlFor="topbar-search" className="sr-only">
-          Buscar en GoCheck
+          Buscar en BookiPos
         </label>
         <Input
           id="topbar-search"
@@ -86,6 +87,7 @@ export function AppTopbar() {
           <Compass className="size-4" />
           Guía
         </Button>
+        <ThemeToggle className="size-9" />
         <Button
           variant="ghost"
           size="icon"

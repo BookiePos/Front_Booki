@@ -314,7 +314,7 @@ export default function BancosPage() {
                           {a.name}
                         </span>
                         {a.lastReconciledDate ? (
-                          <span className="mt-0.5 flex items-center gap-1 text-[11px] font-normal text-emerald-600">
+                          <span className="mt-0.5 flex items-center gap-1 text-[11px] font-normal text-success-ink">
                             <Scale className="size-3" />
                             Conciliada al {fmtDate(a.lastReconciledDate)}
                           </span>
@@ -701,7 +701,7 @@ function AccountMovementsSheet({
                       <TableCell>
                         <span className="flex items-center gap-1.5">
                           {m.direction === "in" ? (
-                            <ArrowDownLeft className="size-4 text-emerald-600" />
+                            <ArrowDownLeft className="size-4 text-success-ink" />
                           ) : (
                             <ArrowUpRight className="size-4 text-destructive" />
                           )}
@@ -716,7 +716,7 @@ function AccountMovementsSheet({
                       </TableCell>
                       <TableCell
                         className={`text-right font-medium tabular-nums ${
-                          m.direction === "in" ? "text-emerald-600" : "text-destructive"
+                          m.direction === "in" ? "text-success-ink" : "text-destructive"
                         }`}
                       >
                         {m.direction === "in" ? "+" : "−"}

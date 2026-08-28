@@ -66,8 +66,8 @@ const CONTRACT_LABELS: Record<ContractType, string> = {
 }
 
 const STATUS_STYLES: Record<EmployeeStatus, string> = {
-  activo: "bg-green-500/10 text-green-600",
-  inactivo: "bg-amber-500/10 text-amber-600",
+  activo: "bg-success/10 text-success-ink",
+  inactivo: "bg-warning/10 text-warning-ink",
   retirado: "bg-muted text-muted-foreground",
 }
 

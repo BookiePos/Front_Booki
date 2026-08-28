@@ -847,14 +847,14 @@ function ReceivableStatusBadge({
   }
   if (status === "paid") {
     return (
-      <Badge className="gap-1 border-emerald-200 bg-emerald-50 text-emerald-700">
+      <Badge className="gap-1 border-success/30 bg-success/10 text-success-ink">
         Cobrada
       </Badge>
     )
   }
   if (status === "partial") {
     return (
-      <Badge variant="outline" className="text-amber-600">
+      <Badge variant="outline" className="text-warning-ink">
         Abono parcial
       </Badge>
     )

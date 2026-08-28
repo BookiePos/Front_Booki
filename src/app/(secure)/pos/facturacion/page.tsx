@@ -186,7 +186,7 @@ export default function FacturacionPage() {
 
                     {invoice ? (
                       <>
-                        <Badge className="border-transparent bg-success/10 text-success">
+                        <Badge className="border-transparent bg-success/10 text-success-ink">
                           {invoice.fullNumber}
                         </Badge>
                         <Button

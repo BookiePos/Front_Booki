@@ -459,7 +459,7 @@ function OrderSheet({
                           {it.qty}× {it.name}
                         </p>
                         {!it.sentToKitchen && (
-                          <span className="text-[11px] text-warning">Pendiente de cocina</span>
+                          <span className="text-[11px] text-warning-ink">Pendiente de cocina</span>
                         )}
                       </div>
                       <span className="tnum text-sm font-medium">
@@ -472,7 +472,7 @@ function OrderSheet({
 
               {sentToCaja && order.status !== "closed" && (
                 <div className="flex items-start gap-2 rounded-lg border border-border bg-muted/50 p-3 text-sm">
-                  <Banknote className="mt-0.5 size-4 shrink-0 text-success" />
+                  <Banknote className="mt-0.5 size-4 shrink-0 text-success-ink" />
                   <p className="text-muted-foreground">
                     Enviada a caja. El cobro (venta + inventario + caja) se hace
                     desde el <span className="font-medium text-foreground">POS</span>.

@@ -75,7 +75,7 @@ function KpiCard({
     <Card
       className={
         featured
-          ? "h-full border-primary/30 bg-gradient-to-br from-primary to-[#5b21b6] text-primary-foreground shadow-[0_18px_40px_-24px_var(--primary)]"
+          ? "h-full border-primary/30 gradient-brand text-primary-foreground shadow-[0_18px_40px_-24px_var(--primary)]"
           : "h-full transition-colors hover:border-primary/40"
       }
     >
@@ -93,7 +93,7 @@ function KpiCard({
           <span
             className={
               featured
-                ? "flex size-9 items-center justify-center rounded-lg bg-white/15 text-primary-foreground [&_svg]:size-4"
+                ? "flex size-9 items-center justify-center rounded-lg bg-primary-foreground/15 text-primary-foreground [&_svg]:size-4"
                 : `flex size-9 items-center justify-center rounded-lg bg-accent [&_svg]:size-4 ${tone}`
             }
           >
@@ -212,7 +212,7 @@ function GuideWidget() {
             Recorrido guiado
           </p>
           <p className="text-sm text-muted-foreground">
-            ¿Nuevo por aquí? Te muestro GoCheck paso a paso, área por área.
+            ¿Nuevo por aquí? Te muestro BookiPos paso a paso, área por área.
           </p>
         </div>
         <Button variant="outline" size="sm" className="w-fit" onClick={openGuide}>
@@ -229,7 +229,7 @@ function SalesMonthWidget(p: WidgetProps) {
       label="Ventas del mes"
       value={ovMoney(p, (o) => o.salesMonth)}
       icon={TrendingUp}
-      tone="text-success"
+      tone="text-success-ink"
       loading={p.loading}
       featured
     />
@@ -252,7 +252,7 @@ function ExpensesMonthWidget(p: WidgetProps) {
       label="Gastos del mes"
       value={ovMoney(p, (o) => o.expensesMonth)}
       icon={TrendingDown}
-      tone="text-warning"
+      tone="text-warning-ink"
       loading={p.loading}
     />
   )
@@ -264,7 +264,7 @@ function ProfitMonthWidget(p: WidgetProps) {
       label="Utilidad del mes"
       value={ovMoney(p, (o) => o.utilidadMonth)}
       icon={BarChart3}
-      tone={positive ? "text-success" : "text-destructive"}
+      tone={positive ? "text-success-ink" : "text-destructive"}
       loading={p.loading}
     />
   )
@@ -319,7 +319,7 @@ function LowStockWidget(p: WidgetProps) {
       label="Productos bajo stock"
       value={p.data.lowStock === null ? null : String(p.data.lowStock)}
       icon={PackageX}
-      tone="text-warning"
+      tone="text-warning-ink"
       href="/panel/inventario"
       loading={p.loading}
     />
@@ -494,9 +494,9 @@ function PaymentMethodsWidget({ data, loading }: WidgetProps) {
 }
 
 const CAJA_STATUS: Record<string, { label: string; cls: string }> = {
-  open: { label: "Abierta", cls: "bg-success/15 text-success" },
+  open: { label: "Abierta", cls: "bg-success/15 text-success-ink" },
   closed: { label: "Cerrada", cls: "bg-muted text-muted-foreground" },
-  none: { label: "Sin abrir", cls: "bg-warning/15 text-warning" },
+  none: { label: "Sin abrir", cls: "bg-warning/15 text-warning-ink" },
 }
 /** Estado de la caja de hoy por sede. */
 function CajaSedesWidget({ data, loading }: WidgetProps) {
@@ -685,7 +685,7 @@ function OpenCajasWidget(p: WidgetProps) {
       label="Cajas abiertas"
       value={t ? `${t.openCount}/${t.sedes}` : null}
       icon={Store}
-      tone="text-success"
+      tone="text-success-ink"
       href="/panel/caja"
       loading={p.loading}
     />
@@ -701,7 +701,7 @@ function MarginMonthWidget(p: WidgetProps) {
       label="Margen del mes"
       value={o ? (margin === null ? "—" : `${margin}%`) : null}
       icon={Percent}
-      tone={(margin ?? 0) >= 0 ? "text-success" : "text-destructive"}
+      tone={(margin ?? 0) >= 0 ? "text-success-ink" : "text-destructive"}
       loading={p.loading}
     />
   )
@@ -713,7 +713,7 @@ function ExpiringWidget(p: WidgetProps) {
       label="Próximos a vencer"
       value={p.data.expiring === null ? null : String(p.data.expiring)}
       icon={CalendarClock}
-      tone="text-warning"
+      tone="text-warning-ink"
       href="/panel/inventario"
       loading={p.loading}
     />
@@ -733,7 +733,7 @@ function DeltaChip({
   const up = current >= previous
   const good = up === goodWhenUp
   const cls = good
-    ? "bg-success/10 text-success"
+    ? "bg-success/10 text-success-ink"
     : "bg-destructive/10 text-destructive"
   const pct =
     previous !== 0 ? Math.round(((current - previous) / Math.abs(previous)) * 100) : null
@@ -846,7 +846,7 @@ export const WIDGETS: WidgetDef[] = [
   {
     id: "guide",
     title: "Recorrido guiado",
-    description: "Reabre el tour de bienvenida de GoCheck.",
+    description: "Reabre el tour de bienvenida de BookiPos.",
     defaultSize: "compact",
     sizes: ["compact", "wide"],
     Component: GuideWidget,

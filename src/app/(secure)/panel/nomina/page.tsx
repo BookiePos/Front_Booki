@@ -391,13 +391,13 @@ function CorrerNomina({
 
       {/* Aviso: por qué no se puede generar (evita el "no me genera" sin razón). */}
       {sedeChosen && eligible.length === 0 ? (
-        <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2.5 text-sm text-amber-700">
+        <div className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/5 px-3 py-2.5 text-sm text-warning-ink">
           <AlertTriangle className="mt-0.5 size-4 shrink-0" />
           <div>
             <p className="font-medium">
               No hay empleados para nominar en esta cobertura.
             </p>
-            <p className="text-amber-700/90">
+            <p className="text-warning-ink">
               Solo se nomina a empleados <span className="font-medium">activos y
               con salario</span> en su expediente
               {coverage === "sede" && " y asignados a esta sede"}. Revísalo en{" "}
@@ -540,8 +540,8 @@ function RunDetail({
           <Badge
             className={
               isClosed
-                ? "bg-green-500/10 text-green-600"
-                : "bg-amber-500/10 text-amber-600"
+                ? "bg-success/10 text-success-ink"
+                : "bg-warning/10 text-warning-ink"
             }
           >
             {isClosed ? "Cerrada" : "Borrador"}
@@ -690,7 +690,7 @@ function RunDetail({
                 {sendMsg && (
                   <p
                     className={`text-sm ${
-                      sendMsg.ok ? "text-emerald-600" : "text-destructive"
+                      sendMsg.ok ? "text-success-ink" : "text-destructive"
                     }`}
                   >
                     {sendMsg.text}
@@ -1266,8 +1266,8 @@ function Historial({
                     <Badge
                       className={
                         r.status === "cerrada"
-                          ? "bg-green-500/10 text-green-600"
-                          : "bg-amber-500/10 text-amber-600"
+                          ? "bg-success/10 text-success-ink"
+                          : "bg-warning/10 text-warning-ink"
                       }
                     >
                       {r.status === "cerrada" ? "Cerrada" : "Borrador"}
@@ -1569,7 +1569,7 @@ function Parametros({
       </div>
 
       {error && <p className="text-sm text-destructive">{error}</p>}
-      {msg && <p className="text-sm text-green-600">{msg}</p>}
+      {msg && <p className="text-sm text-success-ink">{msg}</p>}
       <div>
         <Button className="gap-2" disabled={busy} onClick={() => void save()}>
           {busy && <Loader2 className="size-4 animate-spin" />}

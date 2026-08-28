@@ -156,7 +156,7 @@ export function OnboardingChecklist() {
         className="mb-4 border-success/40 bg-success/5"
       >
         <CardContent className="flex items-center gap-3 py-4">
-          <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-success/15 text-success">
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-success/15 text-success-ink">
             <PartyPopper className="size-5" />
           </span>
           <div className="min-w-0 flex-1">
@@ -239,7 +239,7 @@ export function OnboardingChecklist() {
                   <span
                     className={
                       done
-                        ? "flex size-9 shrink-0 items-center justify-center rounded-lg bg-success/15 text-success [&_svg]:size-5"
+                        ? "flex size-9 shrink-0 items-center justify-center rounded-lg bg-success/15 text-success-ink [&_svg]:size-5"
                         : "flex size-9 shrink-0 items-center justify-center rounded-lg bg-accent text-primary [&_svg]:size-4"
                     }
                   >
@@ -262,7 +262,7 @@ export function OnboardingChecklist() {
                     )}
                   </div>
                   {done ? (
-                    <span className="shrink-0 text-xs font-medium text-success">
+                    <span className="shrink-0 text-xs font-medium text-success-ink">
                       Hecho
                     </span>
                   ) : step.action ? (

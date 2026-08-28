@@ -289,7 +289,7 @@ function Kpi({ label, value, accent }: { label: string; value: string; accent?: 
     <Card>
       <CardContent className="p-4">
         <p className="text-xs font-medium text-muted-foreground">{label}</p>
-        <p className={`stat-figure mt-1 text-2xl ${accent ? "text-warning" : "text-foreground"}`}>{value}</p>
+        <p className={`stat-figure mt-1 text-2xl ${accent ? "text-warning-ink" : "text-foreground"}`}>{value}</p>
       </CardContent>
     </Card>
   )
@@ -669,7 +669,7 @@ function OrderDetailSheet({
                               )}
                             </div>
                           ) : (
-                            <span className="text-xs text-success">Completo</span>
+                            <span className="text-xs text-success-ink">Completo</span>
                           )}
                         </TableCell>
                       )}

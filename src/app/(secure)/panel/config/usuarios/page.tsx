@@ -857,7 +857,7 @@ function InviteSheet({ open, onOpenChange, roles, onSuccess }: InviteSheetProps)
         ) : (
           <div className="flex flex-col gap-4 px-4 py-2">
             <div className="flex flex-col items-center gap-2 rounded-xl border border-border bg-muted/40 py-6 text-center">
-              <span className="flex size-10 items-center justify-center rounded-full bg-success/15 text-success">
+              <span className="flex size-10 items-center justify-center rounded-full bg-success/15 text-success-ink">
                 <Check className="size-5" />
               </span>
               <p className="font-display text-base text-foreground">
@@ -1179,7 +1179,7 @@ export default function UsuariosPage() {
         <Card data-tour="usuarios-lista">
           <CardHeader>
             <CardTitle className="font-display text-lg">Usuarios</CardTitle>
-            <CardDescription>Cuentas con acceso al GoCheck.</CardDescription>
+            <CardDescription>Cuentas con acceso al BookiPos.</CardDescription>
           </CardHeader>
           <CardContent className="px-0 sm:px-2">
             {usersLoading ? (
@@ -1215,7 +1215,7 @@ export default function UsuariosPage() {
                             {roleNameMap[u.role] ?? u.role}
                           </Badge>
                           {userHasPos(u, roles) && (
-                            <Badge className="bg-emerald-100 text-emerald-700">
+                            <Badge className="bg-success/15 text-success-ink">
                               POS
                             </Badge>
                           )}

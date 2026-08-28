@@ -284,12 +284,12 @@ export default function FacturacionPage() {
                 Estado en este sistema
               </p>
               <p>
-                <span className="text-green-600">Listo:</span> datos fiscales del
+                <span className="text-success-ink">Listo:</span> datos fiscales del
                 emisor y adquiriente, IVA discriminado, numeración por
                 resolución, CUFE (Anexo 1.9) y representación gráfica con QR.
               </p>
               <p className="mt-1">
-                <span className="text-amber-600">Pendiente:</span> la firma
+                <span className="text-warning-ink">Pendiente:</span> la firma
                 digital, el XML UBL 2.1 y la transmisión/validación ante la DIAN
                 se habilitan al integrar un{" "}
                 <span className="font-medium text-foreground">proveedor
@@ -307,9 +307,9 @@ export default function FacturacionPage() {
       </Card>
 
       {sede && !feReady && (
-        <Card className="mb-4 border-amber-500/40">
+        <Card className="mb-4 border-warning/40">
           <CardContent className="flex items-start gap-3 py-3 text-sm">
-            <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600" />
+            <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning-ink" />
             <p className="text-muted-foreground">
               La sede <span className="font-medium text-foreground">{sede.name}</span>{" "}
               aún no tiene completos el NIT y la resolución de numeración DIAN
@@ -357,7 +357,7 @@ export default function FacturacionPage() {
 
                     {invoice ? (
                       <>
-                        <Badge className="border-transparent bg-green-500/10 text-green-600">
+                        <Badge className="border-transparent bg-success/10 text-success-ink">
                           {invoice.fullNumber}
                         </Badge>
                         <Button

@@ -910,8 +910,8 @@ export default function VentaPage() {
         {/* Barra violeta de estado: el cajero llega con prisa y necesita saber
             de un vistazo por qué no puede vender. Un icono ámbar centrado en
             medio de una tarjeta blanca no comunica "bloqueado". */}
-        <div className="flex items-center gap-3 bg-gradient-to-r from-primary to-[#5b21b6] px-5 py-4 text-primary-foreground">
-          <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-white/15">
+        <div className="flex items-center gap-3 gradient-brand-r px-5 py-4 text-primary-foreground">
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary-foreground/15">
             <Lock className="size-5" />
           </span>
           <div className="min-w-0">
@@ -1197,7 +1197,7 @@ export default function VentaPage() {
 
           {/* Aviso de existencias (agotados / pocas unidades) */}
           {!loading && !error && (stockSummary.out > 0 || stockSummary.low > 0) && (
-            <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            <div className="flex items-center gap-2 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning-ink">
               <AlertTriangle className="size-4 shrink-0" />
               <span>
                 {stockSummary.out > 0 &&
@@ -1269,7 +1269,7 @@ export default function VentaPage() {
                       {p.stock <= 0 ? (
                         <Badge variant="destructive">Agotado</Badge>
                       ) : p.stock < LOW_STOCK ? (
-                        <Badge className="border-transparent bg-amber-100 text-amber-700">
+                        <Badge className="border-transparent bg-warning/15 text-warning-ink">
                           Quedan {fmtQty(p.stock)}
                         </Badge>
                       ) : null}
@@ -1382,7 +1382,7 @@ export default function VentaPage() {
                         )}
                       </p>
                       {applied && (
-                        <p className="mt-0.5 inline-flex items-center gap-1 text-[11px] font-medium text-success">
+                        <p className="mt-0.5 inline-flex items-center gap-1 text-[11px] font-medium text-success-ink">
                           <Tag className="size-3" />
                           {applied.name} (−{money(lineDisc)})
                         </p>
@@ -1600,7 +1600,7 @@ export default function VentaPage() {
           muerta. Centrado, la atención va donde debe. */}
       {checkoutOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-brand-950/45 p-4 backdrop-blur-sm sm:items-center sm:p-6"
+          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-brand-950/45 dark:bg-navy-950/70 p-4 backdrop-blur-sm sm:items-center sm:p-6"
           role="dialog"
           aria-modal="true"
           aria-label="Cobrar"
@@ -1615,7 +1615,7 @@ export default function VentaPage() {
           {completedSale ? (
             <div className="flex flex-col gap-4 px-4 py-2">
               <div className="flex flex-col items-center gap-2 pt-4 text-center">
-                <CheckCircle2 className="size-12 text-success" />
+                <CheckCircle2 className="size-12 text-success-ink" />
                 <p className="font-display text-2xl">Venta registrada</p>
                 <p className="text-sm text-muted-foreground">
                   {completedSale.saleNumber}
@@ -1629,7 +1629,7 @@ export default function VentaPage() {
                 <div
                   className={cn(
                     "flex items-start gap-2 rounded-xl px-4 py-3 text-sm",
-                    invoiceState === "done" && "bg-success/10 text-success",
+                    invoiceState === "done" && "bg-success/10 text-success-ink",
                     invoiceState === "emitting" && "bg-accent text-accent-foreground",
                     invoiceState === "error" &&
                       "bg-destructive/10 text-destructive",
@@ -1701,7 +1701,7 @@ export default function VentaPage() {
             <>
               {/* Cabecera violeta con la cifra grande: es el dato que se lee
                   en voz alta y el que el cliente comprueba. */}
-              <div className="bg-gradient-to-br from-primary to-[#5b21b6] px-6 py-5 text-primary-foreground">
+              <div className="gradient-brand px-6 py-5 text-primary-foreground">
                 <div className="flex items-center justify-between gap-3">
                   <p className="font-display text-lg">Cobrar</p>
                   <button
@@ -1709,7 +1709,7 @@ export default function VentaPage() {
                     aria-label="Cerrar"
                     disabled={saving}
                     onClick={() => setCheckoutOpen(false)}
-                    className="inline-flex size-9 items-center justify-center rounded-lg text-primary-foreground/80 transition-colors hover:bg-white/15 hover:text-primary-foreground disabled:opacity-40"
+                    className="inline-flex size-9 items-center justify-center rounded-lg text-primary-foreground/80 transition-colors hover:bg-primary-foreground/15 hover:text-primary-foreground disabled:opacity-40"
                   >
                     <X className="size-5" />
                   </button>
@@ -1768,14 +1768,14 @@ export default function VentaPage() {
 
                 {/* Fiado (crédito): deudor obligatorio (cliente o empleado) */}
                 {method === "credit" && (
-                  <div className="flex flex-col gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3">
-                    <p className="flex items-center gap-1.5 text-xs font-medium text-amber-800">
+                  <div className="flex flex-col gap-2 rounded-lg border border-warning/30 bg-warning/10 p-3">
+                    <p className="flex items-center gap-1.5 text-xs font-medium text-warning-ink">
                       <HandCoins className="size-4" />
                       Venta a crédito (fiado)
                     </p>
 
                     {/* Segmento cliente / empleado */}
-                    <div className="grid grid-cols-2 gap-1 rounded-lg bg-amber-100 p-1">
+                    <div className="grid grid-cols-2 gap-1 rounded-lg bg-warning/15 p-1">
                       <button
                         type="button"
                         onClick={() => setDebtorType("customer")}
@@ -1783,7 +1783,7 @@ export default function VentaPage() {
                           "rounded-md py-1.5 text-xs font-medium transition-colors",
                           debtorType === "customer"
                             ? "bg-background text-foreground shadow-sm"
-                            : "text-amber-800",
+                            : "text-warning-ink",
                         )}
                       >
                         Cliente
@@ -1795,7 +1795,7 @@ export default function VentaPage() {
                           "rounded-md py-1.5 text-xs font-medium transition-colors",
                           debtorType === "employee"
                             ? "bg-background text-foreground shadow-sm"
-                            : "text-amber-800",
+                            : "text-warning-ink",
                         )}
                       >
                         Empleado (nómina)
@@ -1805,10 +1805,10 @@ export default function VentaPage() {
                     {debtorType === "customer" ? (
                       <div className="flex flex-col gap-1.5">
                         <div className="flex items-center justify-between">
-                          <Label className="text-xs text-amber-900">Cliente registrado</Label>
+                          <Label className="text-xs text-warning-ink">Cliente registrado</Label>
                           <button
                             type="button"
-                            className="text-xs font-medium text-amber-900 underline"
+                            className="text-xs font-medium text-warning-ink underline"
                             onClick={() => setNcOpen((v) => !v)}
                           >
                             {ncOpen ? "Cancelar" : "+ Registrar"}
@@ -1828,7 +1828,7 @@ export default function VentaPage() {
                             ))}
                           </select>
                         ) : (
-                          <div className="flex flex-col gap-1.5 rounded-lg border border-amber-200 bg-background p-2">
+                          <div className="flex flex-col gap-1.5 rounded-lg border border-warning/30 bg-background p-2">
                             <Input placeholder="Nombre" value={ncName} onChange={(e) => setNcName(e.target.value)} />
                             <div className="grid grid-cols-2 gap-1.5">
                               <Input placeholder="Cédula / NIT" value={ncDoc} onChange={(e) => setNcDoc(e.target.value)} />
@@ -1839,13 +1839,13 @@ export default function VentaPage() {
                             </Button>
                           </div>
                         )}
-                        <p className="text-[11px] text-amber-800/90">
+                        <p className="text-[11px] text-warning-ink">
                           Queda como cuenta por cobrar (CxC) del cliente.
                         </p>
                       </div>
                     ) : (
                       <div className="flex flex-col gap-1.5">
-                        <Label className="text-xs text-amber-900">Empleado</Label>
+                        <Label className="text-xs text-warning-ink">Empleado</Label>
                         <select
                           className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm"
                           value={empId}
@@ -1858,14 +1858,14 @@ export default function VentaPage() {
                             </option>
                           ))}
                         </select>
-                        <p className="text-[11px] text-amber-800/90">
+                        <p className="text-[11px] text-warning-ink">
                           Se descuenta por nómina (pendiente de aprobación) y aparece en la colilla.
                         </p>
                       </div>
                     )}
 
                     <div className="flex flex-col gap-1">
-                      <Label htmlFor="pos-credit-due" className="gap-1.5 text-xs text-amber-900">
+                      <Label htmlFor="pos-credit-due" className="gap-1.5 text-xs text-warning-ink">
                         <CalendarClock className="size-3.5" />
                         Vence (opcional)
                       </Label>
@@ -1919,7 +1919,7 @@ export default function VentaPage() {
                       className={cn(
                         "flex items-center justify-between rounded-lg px-3 py-2 text-sm",
                         change !== undefined
-                          ? "bg-success/10 text-success"
+                          ? "bg-success/10 text-success-ink"
                           : receivedNum !== undefined && receivedNum < netTotal
                             ? "bg-destructive/10 text-destructive"
                             : "text-muted-foreground",
@@ -2111,7 +2111,7 @@ export default function VentaPage() {
       {/* ── Diálogo "Nueva cuenta" (nombre personalizado) ── */}
       {newOrderOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 dark:bg-black/65 p-4"
           role="dialog"
           aria-modal="true"
           aria-label="Nueva cuenta"
@@ -2181,7 +2181,7 @@ function SaveIndicator({ state }: { state: SaveState }) {
   }
   if (state === "saved") {
     return (
-      <span className="flex items-center gap-1 text-xs text-success">
+      <span className="flex items-center gap-1 text-xs text-success-ink">
         <Check className="size-3.5" />
         Guardado
       </span>

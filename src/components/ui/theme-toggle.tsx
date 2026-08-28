@@ -35,13 +35,9 @@ export function ThemeToggle({
   className?: string
   size?: "icon" | "icon-sm" | "icon-lg"
 }) {
-  const { mode, ready, setMode } = useTheme()
+  const { mode, setMode } = useTheme()
 
-  // El modo guardado no se conoce hasta después de hidratar, así que no se
-  // anuncia todavía: durante un frame diría uno equivocado.
-  const current = ready
-    ? (OPTIONS.find((o) => o.value === mode)?.label ?? "Claro")
-    : null
+  const current = OPTIONS.find((o) => o.value === mode)?.label ?? "Claro"
 
   return (
     <DropdownMenu>
@@ -51,9 +47,7 @@ export function ThemeToggle({
             variant="ghost"
             size={size}
             className={cn(className)}
-            aria-label={
-              current ? `Tema: ${current}. Cambiar tema` : "Cambiar tema"
-            }
+            aria-label={"Tema: " + current + ". Cambiar tema"}
             title="Tema de la interfaz"
           />
         }
@@ -68,8 +62,6 @@ export function ThemeToggle({
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-52">
         <DropdownMenuLabel>Tema de la interfaz</DropdownMenuLabel>
-        {/* Siempre controlado: pasar `undefined` mientras se lee localStorage
-            convertiría el grupo de no-controlado a controlado y React avisa. */}
         <DropdownMenuRadioGroup
           value={mode}
           onValueChange={(value) => setMode(value as ThemeMode)}

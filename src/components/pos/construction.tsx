@@ -12,12 +12,12 @@ export function Construction({
   return (
     <Card className="mx-auto max-w-lg">
       <CardContent className="flex flex-col items-center gap-4 py-16 text-center">
-        <div className="flex size-16 items-center justify-center rounded-2xl bg-amber-100 text-amber-600">
+        <div className="flex size-16 items-center justify-center rounded-2xl bg-warning/15 text-warning-ink">
           <HardHat className="size-8" />
         </div>
         <div className="space-y-1">
           <h2 className="font-display text-2xl">{title}</h2>
-          <p className="text-sm font-medium text-amber-600">En construcción</p>
+          <p className="text-sm font-medium text-warning-ink">En construcción</p>
         </div>
         <p className="max-w-sm text-sm text-muted-foreground">
           {description ??

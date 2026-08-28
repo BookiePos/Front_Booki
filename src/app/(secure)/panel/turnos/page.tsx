@@ -341,14 +341,14 @@ function EditRequestsPanel({ onResolved }: { onResolved: () => void }) {
   if (reqs.length === 0) return null
 
   return (
-    <Card className="border-amber-300/60">
+    <Card className="border-warning/40">
       <CardContent className="flex flex-col gap-3 p-4">
         <div className="flex items-center gap-2">
-          <Inbox className="size-4 text-amber-600" />
+          <Inbox className="size-4 text-warning-ink" />
           <p className="font-display text-base">
             Solicitudes de edición de horas
           </p>
-          <Badge className="bg-amber-500/10 text-amber-600">{reqs.length}</Badge>
+          <Badge className="bg-warning/10 text-warning-ink">{reqs.length}</Badge>
         </div>
 
         <ul className="flex flex-col divide-y divide-border">

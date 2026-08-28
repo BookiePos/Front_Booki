@@ -177,7 +177,7 @@ export function ProductTour() {
         className={[
           "absolute inset-0",
           interactive ? "pointer-events-none" : "pointer-events-auto",
-          spotlight ? "" : "bg-brand-950/55 backdrop-blur-[1px]",
+          spotlight ? "" : "bg-brand-950/55 dark:bg-navy-950/75 backdrop-blur-[1px]",
         ].join(" ")}
       />
 
@@ -186,12 +186,12 @@ export function ProductTour() {
       {spotlight && (
         <div
           className={[
-            "pointer-events-none absolute rounded-xl ring-2 transition-all duration-300",
+            "tour-spotlight pointer-events-none absolute rounded-xl ring-2 transition-all duration-300",
             interactive ? "ring-primary animate-pulse" : "ring-primary/70",
           ].join(" ")}
           style={{
             ...spotlight,
-            boxShadow: "0 0 0 9999px rgba(23, 12, 51, 0.55)",
+            boxShadow: "0 0 0 9999px var(--tour-scrim)",
           }}
         />
       )}

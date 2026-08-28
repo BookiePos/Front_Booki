@@ -316,7 +316,7 @@ export default function FlujoCajaPage() {
           </div>
 
           {(data.overdue.receivables > 0 || data.overdue.payables > 0) && (
-            <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning-ink">
               <AlertTriangle className="size-4 shrink-0" />
               <span>
                 Vencidos (ubicados en la primera semana):{" "}
@@ -389,7 +389,7 @@ export default function FlujoCajaPage() {
                         <span className="mt-1 flex h-1.5 w-full overflow-hidden rounded-full bg-muted">
                           <span
                             className={`h-full rounded-full ${
-                              b.balance < 0 ? "bg-destructive" : "bg-emerald-500"
+                              b.balance < 0 ? "bg-destructive" : "bg-success"
                             }`}
                             style={{
                               width: `${Math.min(
@@ -468,7 +468,7 @@ function Kpi({
   const tone = danger
     ? "text-destructive"
     : good
-      ? "text-emerald-600"
+      ? "text-success-ink"
       : "text-foreground"
   return (
     <Card>
