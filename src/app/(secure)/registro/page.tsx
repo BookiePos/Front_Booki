@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useId, useState } from "react";
 import {
-  ArrowLeft,
   Eye,
   EyeOff,
   LayoutDashboard,
@@ -13,7 +12,8 @@ import {
   ShoppingCart,
   UtensilsCrossed,
 } from "lucide-react";
-import { GoCheckLogo, GoCheckMark } from "@/components/marketing/gocheck-logo";
+import { AuthBrandPanel } from "@/components/auth/brand-panel";
+import { BookiPosLogo } from "@/components/marketing/bookipos-logo";
 import { ZoneLink } from "@/components/marketing/zone-link";
 import {
   ApiError,
@@ -134,7 +134,7 @@ function RegistroForm() {
       setError(
         err instanceof ApiError
           ? err.message
-          : "No hay conexión con el servidor de GoCheck. Verifica tu internet e intenta de nuevo.",
+          : "No hay conexión con el servidor de BookiPos. Verifica tu internet e intenta de nuevo.",
       );
     } finally {
       setPending(false);
@@ -151,47 +151,21 @@ function RegistroForm() {
 
   return (
     <main className="zone-marketing grid min-h-svh bg-surface text-ink lg:grid-cols-[1fr_1.1fr]">
-      <aside className="relative hidden overflow-hidden bg-brand-950 p-12 lg:flex lg:flex-col lg:justify-between">
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute -left-32 top-1/4 h-[34rem] w-[34rem] rounded-full opacity-45 blur-3xl"
-          style={{
-            background:
-              "radial-gradient(circle, var(--color-brand-500) 0%, transparent 68%)",
-          }}
-        />
-        <Link
-          href="/"
-          className="relative inline-flex items-center gap-2 text-sm font-medium text-brand-200 transition-colors hover:text-white"
-        >
-          <ArrowLeft className="size-4" aria-hidden="true" />
-          Volver a gocheck.co
-        </Link>
-
-        <div className="relative">
-          <GoCheckMark className="h-16 w-16" />
-          <p className="mt-8 max-w-md text-balance font-display text-4xl font-semibold leading-tight text-white">
-            Tu negocio, listo para vender en minutos.
-          </p>
-          <p className="mt-5 max-w-sm leading-relaxed text-brand-200">
-            Crea la cuenta y empieza los 14 días de prueba. Sin tarjeta. Tu
-            caja, tu inventario y tu factura DIAN, desde el primer día.
-          </p>
-        </div>
-
-        <p className="relative text-sm text-brand-300">
-          Punto de venta y sistema operacional · Colombia
-        </p>
-      </aside>
+      {/* Panel de marca: solo en ≥lg. Se queda a la vista mientras el
+          formulario baja, con su propia deriva. Ver `auth/brand-panel`. */}
+      <AuthBrandPanel
+        titulo="Tu negocio, listo para vender en minutos."
+        bajada="Crea la cuenta y empieza los 14 días de prueba. Sin tarjeta. Tu caja, tu inventario y tu factura DIAN, desde el primer día."
+      />
 
       <div className="flex items-start justify-center overflow-y-auto px-5 py-14 sm:px-10">
         <div className="w-full max-w-lg">
           <Link
             href="/"
             className="inline-block lg:hidden"
-            aria-label="GoCheck — inicio"
+            aria-label="BookiPos — inicio"
           >
-            <GoCheckLogo />
+            <BookiPosLogo />
           </Link>
 
           {!done ? (
@@ -424,7 +398,7 @@ function RegistroForm() {
 
                 <p className="text-center text-xs leading-relaxed text-ink-muted">
                   14 días de prueba sin tarjeta. Al continuar aceptas los
-                  términos y la política de datos de GoCheck.
+                  términos y la política de datos de BookiPos.
                 </p>
               </form>
             </>
