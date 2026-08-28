@@ -138,3 +138,6 @@ temp/
 *.tmp
 *.bak
 *.orig
+
+# Grafo local de code-review-graph (índice de la herramienta, no del proyecto)
+.code-review-graph/
