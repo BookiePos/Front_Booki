@@ -11,7 +11,8 @@ import {
   type Tokens,
 } from "@/lib/api"
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001"
+import { API_URL } from "@/lib/env"
+
 const STORAGE_KEY = "sistemapos.auth"
 
 // ─── Types ───────────────────────────────────────────────────────────────────

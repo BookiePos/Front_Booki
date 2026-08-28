@@ -39,3 +39,61 @@ function normalizeOrigin(value: string): string {
     return DEFAULT_SITE_URL
   }
 }
+
+/** URL base del backend en desarrollo, cuando no hay variable definida. */
+const DEV_API_URL = "http://localhost:3001"
+
+/**
+ * URL base de la API, sin barra final.
+ *
+ * A diferencia de SITE_URL, aquí NO se degrada en silencio. Un frontend de
+ * producción apuntando a `localhost:3001` no falla al desplegar: falla en el
+ * navegador de quien intenta entrar, con un ERR_CONNECTION_REFUSED que no dice
+ * nada sobre la causa real (la variable no llegó al build). Preferimos romper
+ * el build, que es donde el error se ve y se arregla.
+ *
+ * Recuerda que `NEXT_PUBLIC_*` se incrusta DURANTE el build: definir la
+ * variable en el panel de despliegue no basta, hay que reconstruir después.
+ */
+export const API_URL = resolveApiUrl()
+
+function resolveApiUrl(): string {
+  const raw = process.env.NEXT_PUBLIC_API_URL?.trim()
+  const isProd = process.env.NODE_ENV === "production"
+  // En el build (y en el render de servidor) sí podemos abortar: el error sale
+  // en los logs del despliegue. En el navegador no lanzamos, porque dejaría la
+  // app en blanco; ahí basta con dejar el motivo claro en consola.
+  const isBuild = typeof window === "undefined"
+
+  if (!raw) {
+    if (isProd && isBuild) {
+      throw new Error(
+        'NEXT_PUBLIC_API_URL no está definida. El frontend de producción no puede ' +
+          'apuntar a localhost. Defínela en las variables de entorno del despliegue ' +
+          '(ej. https://api.bookipos.com) y VUELVE A CONSTRUIR: las NEXT_PUBLIC_* se ' +
+          'incrustan en el bundle durante el build, no se leen en runtime.',
+      )
+    }
+    if (isProd) {
+      console.error(
+        '[BookiPos] NEXT_PUBLIC_API_URL no llegó al build: las llamadas irán a ' +
+          `${DEV_API_URL} y fallarán. Defínela en el despliegue y reconstruye.`,
+      )
+    }
+    return DEV_API_URL
+  }
+
+  // Sin esquema, `${API_URL}/auth/login` queda como ruta relativa y las
+  // peticiones acaban contra el propio dominio del frontend (un 404), en vez de
+  // contra la API. Es un error fácil de cometer al copiar el dominio a mano.
+  if (!/^https?:\/\//i.test(raw)) {
+    const msg =
+      `NEXT_PUBLIC_API_URL="${raw}" no incluye el esquema. Debe ser una URL ` +
+      'absoluta, por ejemplo https://api.bookipos.com'
+    if (isBuild) throw new Error(msg)
+    console.error(`[BookiPos] ${msg}`)
+    return DEV_API_URL
+  }
+
+  return raw.replace(/\/+$/, "")
+}
