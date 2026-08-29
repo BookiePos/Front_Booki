@@ -23,6 +23,7 @@ import {
   X,
   UserRound,
   Users,
+  ChevronDown,
   ChevronLeft,
   Lock,
   Coins,
@@ -291,6 +292,9 @@ export default function VentaPage() {
    * para cuando de verdad hacen falta.
    */
   const [screen, setScreen] = React.useState<"list" | "sell">("sell")
+  // Por debajo de 1024px la cuenta es una hoja inferior, no una columna: aquí
+  // se guarda si está desplegada. Ver el bloque "── Cuenta ──" más abajo.
+  const [cuentaAbierta, setCuentaAbierta] = React.useState(false)
 
   // Caja: toda la operación ocurre dentro de un turno abierto.
   const [caja, setCaja] = React.useState<CajaSession | null>(null)
@@ -1810,7 +1814,10 @@ export default function VentaPage() {
       // a partir de `2xl` se queda en un cuarto y el catálogo se lleva el resto,
       // que es donde de verdad hace falta el sitio. Con `lg:grid-cols-3` a secas
       // quedaban filas de tres productos y medio monitor en blanco.
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 2xl:grid-cols-4">
+      // `max-lg:pb-16` reserva el alto de la barra resumen de la cuenta, que va
+      // fija sobre la navegación inferior: sin esto tapa la última fila de
+      // productos justo cuando el catálogo es más largo.
+      <div className="grid grid-cols-1 gap-4 max-lg:pb-16 lg:grid-cols-3 2xl:grid-cols-4">
         {/* ── Catálogo ── */}
         <div className="flex flex-col gap-3 lg:col-span-2 2xl:col-span-3">
           <div className="relative">
@@ -2002,17 +2009,47 @@ export default function VentaPage() {
             En PC ocupa todo el alto libre y es la LISTA la que scrollea: el
             total y el botón de cobrar quedan pegados abajo y siempre a la
             vista. Antes la tarjeta crecía con los ítems y a la décima línea
-            había que bajar la página entera para encontrar el botón. */}
-        <Card
-          data-tour="pos-carrito"
-          className="h-fit lg:sticky lg:top-20 lg:max-h-[calc(100svh-6rem)]"
+            había que bajar la página entera para encontrar el botón. 
+
+            Por debajo de `lg` el grid apila y la cuenta caía DEBAJO de toda la
+            parrilla de productos: para ver el total o pulsar Cobrar había que
+            recorrer decenas de artículos. Ahí pasa a ser una hoja inferior: una
+            barra resumen siempre visible —artículos y total— que se despliega a
+            la cuenta completa al tocarla. Es el mismo marcado y el mismo estado;
+            solo cambia dónde vive. */}
+        <div
+          className={cn(
+            "max-lg:fixed max-lg:inset-x-0 max-lg:bottom-14 max-lg:z-40",
+            "max-lg:max-h-[80dvh] max-lg:overflow-y-auto max-lg:overscroll-contain",
+            "max-lg:transition-transform max-lg:duration-200",
+            // Cerrada, la hoja se aparta entera hacia abajo: la barra resumen
+            // de más abajo ocupa su sitio.
+            !cuentaAbierta && "max-lg:pointer-events-none max-lg:translate-y-[110%]",
+          )}
         >
+          <Card
+            data-tour="pos-carrito"
+            className="h-fit max-lg:rounded-b-none max-lg:shadow-xl lg:sticky lg:top-20 lg:max-h-[calc(100svh-6rem)]"
+          >
           <CardContent className="flex flex-col gap-3 p-4 lg:min-h-0 lg:flex-1 lg:overflow-hidden">
             <div className="flex shrink-0 items-center gap-2">
               <ShoppingCart className="size-5 text-muted-foreground" />
               <p className="font-display text-lg">
                 {isOrder ? "Cuenta" : "Venta"}
               </p>
+              {/* Cierra la hoja para volver al catálogo. Solo existe cuando la
+                  cuenta ES una hoja; en escritorio es una columna fija y no
+                  hay nada que cerrar. */}
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="ml-auto size-11 lg:hidden"
+                aria-label="Ocultar la cuenta y volver al catálogo"
+                onClick={() => setCuentaAbierta(false)}
+              >
+                <ChevronDown className="size-5" />
+              </Button>
               {isOrder && activeOrder && (
                 <Badge variant="outline" className="font-mono text-[11px]">
                   {activeOrder.orderNumber}
@@ -2352,7 +2389,57 @@ export default function VentaPage() {
               )}
             </div>
           </CardContent>
-        </Card>
+          </Card>
+        </div>
+
+        {/* Barra resumen de la cuenta — solo por debajo de lg.
+            Es el ancla que hace usable la hoja: el cajero ve siempre cuántos
+            artículos lleva y cuánto suma, sin salir del catálogo, y cobra en un
+            toque. Se apoya sobre la navegación inferior (`bottom-14`, que es su
+            alto exacto). Se oculta con la hoja desplegada para no duplicar el
+            total ni tapar el botón de Cobrar que ya está dentro. */}
+        <div
+          className={cn(
+            "fixed inset-x-0 bottom-14 z-30 border-t border-border bg-card/95 px-3 py-2 shadow-lg backdrop-blur lg:hidden",
+            cuentaAbierta && "hidden",
+          )}
+        >
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setCuentaAbierta(true)}
+              className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-xl px-2 text-left focus-visible:ring-3 focus-visible:ring-ring/50"
+              aria-label="Ver el detalle de la cuenta"
+            >
+              <span className="relative shrink-0">
+                <ShoppingCart className="size-5 text-muted-foreground" />
+                {cart.length > 0 && (
+                  <span className="absolute -right-2 -top-2 flex size-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
+                    {cart.length}
+                  </span>
+                )}
+              </span>
+              <span className="grid min-w-0 leading-tight">
+                <span className="truncate text-[11px] text-muted-foreground">
+                  {cart.length === 0
+                    ? "Sin artículos"
+                    : `${cart.length} ${cart.length === 1 ? "artículo" : "artículos"}`}
+                </span>
+                <span className="stat-figure truncate text-base text-foreground">
+                  {money(netTotal)}
+                </span>
+              </span>
+            </button>
+            <Button
+              size="lg"
+              className="h-11 shrink-0 px-4 font-semibold"
+              disabled={cart.length === 0 || !sedeId}
+              onClick={openCheckout}
+            >
+              Cobrar
+            </Button>
+          </div>
+        </div>
       </div>
       )}
 

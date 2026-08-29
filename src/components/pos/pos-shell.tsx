@@ -280,8 +280,13 @@ export function PosShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen bg-muted">
-      {/* Barra lateral (desktop / tablet) */}
-      <aside className="sticky top-0 hidden h-screen w-56 shrink-0 flex-col border-r border-border bg-background p-3 md:flex">
+      {/* Barra lateral — solo desde 1024px.
+          Antes aparecía en `md:` (768px) y a la vez se ocultaba la navegación
+          inferior. En una tablet en vertical eso costaba 224px de ancho fijo
+          justo en la franja donde el carrito ya no cabe como tercera columna:
+          el catálogo quedaba estrangulado por los dos lados. Hasta 1024px se
+          navega por la barra inferior, que no cuesta ancho. */}
+      <aside className="sticky top-0 hidden h-screen w-56 shrink-0 flex-col border-r border-border bg-background p-3 lg:flex">
         <div className="mb-4 flex items-center gap-2 px-2 py-2">
           <div className="flex size-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
             <Store className="size-5" />
@@ -306,11 +311,20 @@ export function PosShell({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
-        <main className="flex-1 p-4 pb-24 md:p-6 md:pb-6">{children}</main>
+        {/* `min-w-0`: sin él, este flex item crece hasta el ancho de su
+            contenido más ancho (aquí, tablas y parrillas que no envuelven) y
+            arrastra el documento entero a scroll horizontal.
+            El hueco inferior reserva sitio para la barra de navegación fija
+            —56px— más aire; desaparece en `lg:`, donde la nav es lateral. */}
+        <main className="min-w-0 flex-1 p-4 pb-24 md:p-6 md:pb-24 lg:pb-6">
+          {children}
+        </main>
       </div>
 
-      {/* Navegación inferior (móvil) */}
-      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 backdrop-blur md:hidden">
+      {/* Navegación inferior (móvil y tablet, hasta 1024px). `h-14` es un alto
+          conocido a propósito: el resumen de la cuenta del terminal se apoya
+          justo encima con `bottom-14`. */}
+      <div className="fixed inset-x-0 bottom-0 z-40 h-14 border-t border-border bg-background/95 backdrop-blur lg:hidden">
         <NavLinks />
       </div>
 
