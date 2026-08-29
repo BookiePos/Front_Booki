@@ -91,59 +91,212 @@
   --sidebar-accent-foreground: #4a0773;
   --sidebar-border: #ebe0f7;
   --sidebar-ring: #7621ab;
+
+  /* Extremo del degradado de marca: mezclar con la tinta lo oscurece, que es
+     lo que se quiere sobre papel blanco. En oscuro esta fórmula haría lo
+     contrario, así que allí el token se redefine (ver bloque `.dark`). */
+  --gradient-brand-end: color-mix(
+    in oklab,
+    var(--primary) 62%,
+    var(--foreground) 38%
+  );
+
+  /* Selección de texto — detalle premium discreto. */
+  --selection-bg: color-mix(in oklch, var(--primary) 22%, transparent);
+
+  /* ---- Elevación en claro ----
+     Sombras suaves y difusas de base violeta (antes eran cálidas, del tema
+     beige, y sobre el lienzo violeta se veían sucias). Opacidad muy baja: la
+     profundidad la dan el desenfoque y el desplazamiento, no el negro — que es
+     lo que hace que las superficies se vean limpias sobre papel.
+
+     Viven aquí y no en `@theme inline` porque `@theme` resuelve su valor una
+     sola vez: una sombra declarada allí es la MISMA en los dos temas, y sobre
+     el marino del modo oscuro un violeta al 6% es invisible. Al declararlas
+     como tokens normales, `.dark` puede sustituirlas por su propio modelo. */
+  --elevation-2xs: 0 1px 2px rgba(46, 16, 101, 0.04);
+  --elevation-xs: 0 1px 3px rgba(46, 16, 101, 0.05);
+  --elevation-sm:
+    0 1px 2px rgba(46, 16, 101, 0.05), 0 2px 6px rgba(46, 16, 101, 0.06);
+  --elevation:
+    0 1px 2px rgba(46, 16, 101, 0.05), 0 4px 10px rgba(46, 16, 101, 0.07);
+  --elevation-md:
+    0 2px 6px rgba(46, 16, 101, 0.06), 0 10px 24px rgba(46, 16, 101, 0.08);
+  --elevation-lg:
+    0 4px 12px rgba(46, 16, 101, 0.07), 0 18px 40px rgba(46, 16, 101, 0.1);
+  --elevation-xl:
+    0 8px 24px rgba(46, 16, 101, 0.09), 0 28px 64px rgba(46, 16, 101, 0.13);
 }
 
-/* Modo oscuro — el lienzo es el marino del logo (#00081c), no un negro
-   violeta. Es la decisión de fondo del arte: azul frío detrás, orquídea
-   caliente delante. Copiar el morado al fondo mataría ese contraste y la
-   marca se volvería una mancha sola.
+/* ============================================================
+   Modo oscuro — modelo de elevación por LUZ
+   ============================================================
+   El lienzo sigue siendo el marino del logo (#00081c): azul frío detrás,
+   orquídea caliente delante. Eso no se toca — es la decisión de arte.
 
-   La orquídea 700 del modo claro se hunde sobre marino (2.1:1), así que aquí
-   el primario sube a brand-400 #c37bef — 7.0:1 sobre el lienzo — y el texto
-   encima pasa a tinta oscura. Regla de tono de Material: en oscuro se usa la
-   variante clara del color, no la misma.
+   Lo que cambia es CÓMO se apilan las superficies. En claro la elevación se
+   lee por sombra sobre papel blanco; en oscuro la sombra casi no existe (todo
+   sombrea igual sobre casi-negro) y la elevación se lee por LUZ: cada plano
+   que sube, sube de luminancia. Antes había una diferencia de 1.07:1 entre
+   `--card` y el lienzo — y encima invertida, porque el lienzo real del panel
+   es `--muted` (`app-shell.tsx` pinta `<main class="bg-muted">`) y era MÁS
+   claro que las tarjetas. Resultado: todo plano, sin jerarquía.
 
-   Contrastes verificados sobre --background #00081c:
-     --primary          #c37bef   7.0:1  ✓ AAA
-     --foreground       #e8e6f2  16.2:1  ✓ AAA
-     --muted-foreground #a9a4c2   8.0:1  ✓ AAA
-   Tinta #0b0420 sobre --primary: 7.0:1 ✓ (botones sólidos). */
+   Rampa nueva (luminancia relativa WCAG creciente; entre planos vecinos se
+   busca >=1.10 para que el escalón se vea sin que las superficies "brillen"):
+
+     nivel 0  --muted       #00081c  L 0.0026   lienzo (marino del logo)
+     nivel 1  --background  #0e1a33  L 0.0107   base elevada + rail del POS
+              --sidebar     #0e1a33             mismo plano: el rail es chrome
+     nivel 2  --card        #12203e  L 0.0151   superficie de contenido
+     nivel 3  --popover     #182a4d  L 0.0239   menús: flotan SOBRE las cards
+              --secondary   #1d2c50  L 0.0264   relleno secundario
+     nivel 4  --accent      #26375f  L 0.0397   hover y estados teñidos
+
+   Por qué `--muted` es el nivel 0 y no el 1: en el producto `bg-muted` es el
+   lienzo (panel y POS) y `bg-background` es lo que se levanta encima (rail del
+   POS, píldora activa de los segmentados, pies pegajosos, pulgar del slider).
+   Con la relación anterior el POS salía invertido —la barra lateral parecía
+   hundida— y no se podía arreglar desde `pos-shell.tsx` sin romper el claro.
+   Poniendo `--muted` debajo, los dos temas quedan bien con el mismo marcado.
+
+   Bordes: antes eran `rgba(195,123,239,0.16)`, violeta translúcido. Sobre
+   superficies de distinta luminancia daban contrastes distintos y siempre
+   bajísimos (1.26:1 sobre card). Ahora son sólidos: el mismo hairline se lee
+   igual esté sobre el lienzo, sobre una card o dentro de un popover.
+
+   Contrastes verificados (WCAG 2.1; texto normal 4.5:1, UI 3:1):
+     TEXTO
+       --foreground       #e8e6f2 / card    12.90:1  AAA
+       --foreground       #e8e6f2 / lienzo  16.20:1  AAA
+       --muted-foreground #a9a4c2 / card     6.83:1  AAA
+       --muted-foreground #a9a4c2 / popover  6.02:1  AAA
+       --sidebar-fg       #c8c4dc / sidebar  9.72:1  AAA
+     ACCIÓN
+       --primary          #c37bef / card     5.68:1  AA
+       --primary-fg       #0b0420 / primary  7.03:1  AAA
+       --accent-fg        #e9cafc / accent   8.39:1  AAA
+     SEMÁNTICOS SOBRE CARD (y sobre su propio velo /10, que es como se usan)
+       --success          #45d3a1  8.51:1 · velo 6.99:1
+       --warning          #f3bd63  9.42:1 · velo 7.77:1
+       --info             #6bb6f2  7.37:1 · velo 6.12:1
+       --destructive      #fb8078  6.50:1 · velo 5.61:1
+     UI (mínimo 3:1)
+       --input  #6976ac / card 3.68:1 · popover 3.24:1 · lienzo 4.55:1
+       --ring   #c37bef / card 5.68:1
+     BORDE DECORATIVO (--border, 2.71:1 sobre card)
+       Queda por debajo de 3:1 a propósito. `@layer base * { border-color }` lo
+       aplica a TODO —incluidas las divisiones de tabla—, y a 3:1 una tabla de
+       40 filas se convierte en una rejilla. No es el único indicador del
+       límite de ningún control (para eso está `--input`, que sí cumple 3:1):
+       aquí el borde refuerza un escalón de luminancia y una sombra que ya
+       separan por sí solos, así que 1.4.11 no aplica.
+   ============================================================ */
 .dark {
-  --background: #00081c; /* marino del logo oscuro (muestra del arte) */
+  /* ---- Rampa de superficies (de más honda a más alta) ---- */
+  --muted: #00081c; /* nivel 0 — lienzo, marino del logo */
+  --background: #0e1a33; /* nivel 1 — base elevada / rail del POS */
+  --sidebar: #0e1a33; /* nivel 1 — el rail es el mismo plano que la base */
+  --card: #12203e; /* nivel 2 — superficie de contenido */
+  --popover: #182a4d; /* nivel 3 — flota por encima de las cards */
+  --secondary: #1d2c50; /* nivel 3 */
+  --accent: #26375f; /* nivel 4 — hover y estados teñidos */
+
+  /* ---- Tintas ---- */
   --foreground: #e8e6f2;
-  --card: #0a1428;
   --card-foreground: #e8e6f2;
-  --popover: #0a1428;
   --popover-foreground: #e8e6f2;
+  --secondary-foreground: #e8e6f2;
+  --muted-foreground: #a9a4c2;
+  --accent-foreground: #e9cafc;
+
+  /* Primario — orquídea brand-400. En oscuro se usa la variante clara del
+     color (regla de tono de Material): la 700 del claro se hunde a 2.1:1. */
   --primary: #c37bef;
   --primary-foreground: #0b0420;
-  --secondary: #141f38;
-  --secondary-foreground: #e8e6f2;
-  --muted: #111b31;
-  --muted-foreground: #a9a4c2;
-  --accent: #1b2545;
-  --accent-foreground: #e9cafc;
-  --destructive: #f0736a;
+
+  --destructive: #fb8078;
   --destructive-foreground: #2a0e0c;
-  --border: rgba(195, 123, 239, 0.16);
-  --input: rgba(195, 123, 239, 0.22);
+
+  /* Bordes sólidos, no violeta translúcido: contraste constante sobre
+     cualquiera de los cuatro niveles de la rampa. */
+  --border: #55628f;
+  --input: #6976ac;
   --ring: #c37bef;
-  --success: #4ec89d;
-  --warning: #e0a94a;
-  --info: #6fb6ea;
+
+  /* Estados semánticos — se aclaran respecto al claro para despegarse del
+     lienzo, y siguen legibles sobre su propio velo /10 y /15, que es como los
+     usan los avisos y las píldoras de estado del producto. */
+  --success: #45d3a1;
+  --warning: #f3bd63;
+  --info: #6bb6f2;
+
+  /* Gráficas — aquí sí se fuerza una escalera de luminancia (cada tono ~1.3x
+     el anterior) para que las series se distingan también en escala de grises
+     y con daltonismo, donde el tono no ayuda. Por eso en oscuro NO reusan los
+     semánticos: aquéllos se eligen por significado y quedan apelotonados en la
+     misma banda de gris (info 0.43, success 0.50, warning 0.56). Todos superan
+     3:1 sobre card — son marcas gráficas, no texto.
+       #cf2679  L 0.160   3.23:1
+       #2686ec  L 0.235   4.38:1
+       #c37bef  L 0.320   5.68:1  <- la orquídea de marca lidera
+       #30ca94  L 0.450   7.68:1
+       #f4c881  L 0.621  10.31:1 */
   --chart-1: #c37bef;
-  --chart-2: #4ec89d;
-  --chart-3: #e0a94a;
-  --chart-4: #6fb6ea;
-  --chart-5: #e9cafc;
-  --sidebar: #050f22;
+  --chart-2: #30ca94;
+  --chart-3: #f4c881;
+  --chart-4: #2686ec;
+  --chart-5: #cf2679;
+
+  /* Sidebar — mismo plano que `--background`, separado por un hairline sólido.
+     El color se reserva para el ítem activo (píldora orquídea sólida). */
   --sidebar-foreground: #c8c4dc;
   --sidebar-primary: #c37bef;
   --sidebar-primary-foreground: #0b0420;
-  --sidebar-accent: #1b2545;
+  --sidebar-accent: #26375f;
   --sidebar-accent-foreground: #e9cafc;
-  --sidebar-border: rgba(195, 123, 239, 0.12);
+  --sidebar-border: #55628f;
   --sidebar-ring: #c37bef;
+
+  /* Extremo del degradado de marca. En claro se calcula mezclando el primario
+     con `--foreground` (tinta oscura) y por eso oscurece; en oscuro esa misma
+     fórmula ACLARA hacia el blanco y el degradado se lavaba. Aquí se ancla al
+     morado del isotipo, que es una muestra real del logo: mantiene la tinta
+     `--primary-foreground` a 5.38:1 en el extremo más oscuro. */
+  --gradient-brand-end: var(--color-brand-500);
+
+  /* Selección de texto — el 22% del claro se pierde sobre marino. */
+  --selection-bg: color-mix(in oklch, var(--primary) 34%, transparent);
+
+  /* Barras de scroll: `color-scheme: dark` ya evita la scrollbar blanca, pero
+     el gris del navegador no pega con el marino. Se tiñen con la rampa. */
+  --scrollbar-thumb: #2c3f6b;
+
+  /* ---- Elevación en oscuro ----
+     Dos capas de negro azulado MUCHO más opacas que en claro (sobre casi-negro
+     una sombra al 6% no existe) y, sobre todo, un filo superior de luz: en
+     oscuro un plano se lee elevado porque le da la luz por arriba, no porque
+     proyecte sombra. Ese `inset 0 1px 0` es lo que separa un dark mode
+     mediocre de uno bueno. */
+  --elevation-2xs:
+    0 1px 2px rgba(0, 2, 10, 0.5), inset 0 1px 0 rgba(173, 196, 255, 0.05);
+  --elevation-xs:
+    0 1px 3px rgba(0, 2, 10, 0.55), inset 0 1px 0 rgba(173, 196, 255, 0.06);
+  --elevation-sm:
+    0 1px 2px rgba(0, 2, 10, 0.6), 0 3px 8px rgba(0, 2, 10, 0.5),
+    inset 0 1px 0 rgba(173, 196, 255, 0.07);
+  --elevation:
+    0 2px 4px rgba(0, 2, 10, 0.6), 0 6px 16px rgba(0, 2, 10, 0.55),
+    inset 0 1px 0 rgba(173, 196, 255, 0.08);
+  --elevation-md:
+    0 3px 8px rgba(0, 2, 10, 0.6), 0 12px 28px rgba(0, 2, 10, 0.6),
+    inset 0 1px 0 rgba(173, 196, 255, 0.09);
+  --elevation-lg:
+    0 6px 14px rgba(0, 2, 10, 0.6), 0 22px 48px rgba(0, 2, 10, 0.65),
+    inset 0 1px 0 rgba(173, 196, 255, 0.1);
+  --elevation-xl:
+    0 10px 26px rgba(0, 2, 10, 0.65), 0 36px 80px rgba(0, 2, 10, 0.7),
+    inset 0 1px 0 rgba(173, 196, 255, 0.11);
 }
 
 @theme inline {
@@ -156,21 +309,18 @@
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
 
-  /* Sombras suaves y difusas, ahora de base violeta (antes eran cálidas, del
-     tema beige, y sobre el lienzo violeta se veían sucias). Opacidad muy baja:
-     la profundidad la dan el desenfoque y el desplazamiento, no el negro —
-     que es lo que hace que las superficies de Alegra se vean limpias. */
-  --shadow-2xs: 0 1px 2px rgba(46, 16, 101, 0.04);
-  --shadow-xs: 0 1px 3px rgba(46, 16, 101, 0.05);
-  --shadow-sm: 0 1px 2px rgba(46, 16, 101, 0.05), 0 2px 6px rgba(46, 16, 101, 0.06);
-  --shadow:
-    0 1px 2px rgba(46, 16, 101, 0.05), 0 4px 10px rgba(46, 16, 101, 0.07);
-  --shadow-md:
-    0 2px 6px rgba(46, 16, 101, 0.06), 0 10px 24px rgba(46, 16, 101, 0.08);
-  --shadow-lg:
-    0 4px 12px rgba(46, 16, 101, 0.07), 0 18px 40px rgba(46, 16, 101, 0.1);
-  --shadow-xl:
-    0 8px 24px rgba(46, 16, 101, 0.09), 0 28px 64px rgba(46, 16, 101, 0.13);
+  /* Sombras: aquí solo se apunta al token `--elevation-*`, que cambia con el
+     tema. `@theme inline` es lo que hace que la utilidad emita
+     `box-shadow: var(--elevation-sm)` en vez de incrustar el valor, así que
+     `.shadow-sm` pasa a significar "la elevación de este tema" y no un violeta
+     fijo. Es el mismo truco con el que `--color-*` sigue a los tokens. */
+  --shadow-2xs: var(--elevation-2xs);
+  --shadow-xs: var(--elevation-xs);
+  --shadow-sm: var(--elevation-sm);
+  --shadow: var(--elevation);
+  --shadow-md: var(--elevation-md);
+  --shadow-lg: var(--elevation-lg);
+  --shadow-xl: var(--elevation-xl);
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -292,11 +442,51 @@
     -webkit-font-smoothing: antialiased;
     font-feature-settings: "cv11", "ss01";
   }
-  /* Selección de texto grafito — detalle premium discreto */
+  /* Selección de texto — el velo sale del token, que en oscuro sube al 34%:
+     un 22% de orquídea sobre marino no se distingue del propio lienzo. */
   ::selection {
-    background-color: color-mix(in oklch, var(--primary) 22%, transparent);
+    background-color: var(--selection-bg);
     color: var(--foreground);
   }
+}
+
+/* ---------- Detalles nativos del navegador en oscuro ----------
+   Lo que separa un dark mode mediocre de uno bueno rara vez es el color de las
+   tarjetas: es esto. Son los tres sitios donde el navegador pinta por su
+   cuenta y, si no se le dice nada, mete blanco en mitad del marino. */
+
+/* Barras de scroll. `color-scheme: dark` ya evita la scrollbar blanca, pero
+   deja el gris neutro del sistema, que sobre el marino se ve sucio. Se usa la
+   propiedad estándar (no `::-webkit-scrollbar`): así vale en Chrome y Firefox
+   y no obliga a redibujar a mano flechas y esquinas. Solo en oscuro — en claro
+   la nativa ya encaja y la zona pública la comparte. */
+.dark {
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+
+/* Autocompletado. Chrome pinta el campo relleno con su propio azul/amarillo
+   ignorando `background-color`; lo único que respeta es `-webkit-text-fill-color`
+   y una transición de fondo tan larga que nunca llega a aplicarse. Sin esto,
+   en oscuro el login y los formularios largos salen con campos claros y texto
+   casi invisible. */
+.dark input:-webkit-autofill,
+.dark input:-webkit-autofill:hover,
+.dark input:-webkit-autofill:focus,
+.dark textarea:-webkit-autofill,
+.dark select:-webkit-autofill {
+  -webkit-text-fill-color: var(--foreground);
+  caret-color: var(--foreground);
+  transition: background-color 100000s ease-in-out 0s;
+}
+
+/* Toasts. `sonner` trae su propio tema y `AppToaster` ya le pasa el nuestro,
+   pero su oscuro es un gris neutro. Se le mapean sus variables a las nuestras
+   para que un aviso flote como cualquier otro popover del producto. Los de
+   `richColors` (éxito/error) siguen con su paleta, que es lo que se quiere. */
+.dark [data-sonner-toaster] {
+  --normal-bg: var(--popover);
+  --normal-text: var(--popover-foreground);
+  --normal-border: var(--border);
 }
 
 /* Clases tipográficas dentro de @layer components y NO sueltas: así una
@@ -577,18 +767,16 @@ body {
    Las cabeceras violetas (caja cerrada y cobro del POS, bienvenida) iban de
    `--primary` a un violeta fijo #5b21b6. En oscuro el primario se aclara a
    orquídea y su texto pasa a tinta oscura, así que la mitad del degradado se
-   quedaba en violeta profundo con tinta encima: 1.9:1, ilegible. Ahora el otro
-   extremo se calcula desde los propios tokens —se oscurece en claro y se
-   aclara en oscuro— y `text-primary-foreground` se lee en todo el ancho. */
+   quedaba en violeta profundo con tinta encima: 1.9:1, ilegible.
+
+   Luego el extremo pasó a calcularse mezclando el primario con `--foreground`,
+   lo que en claro oscurece (bien) pero en oscuro ACLARA hacia el blanco: el
+   degradado terminaba lavado, sin dirección, y perdía la marca justo donde más
+   se ve. Ahora `--gradient-brand-end` es un token por tema (ver `:root` y
+   `.dark`): en claro sigue siendo la mezcla con la tinta, y en oscuro es el
+   morado del isotipo, que oscurece de verdad y deja `text-primary-foreground`
+   a 5.38:1 en el extremo más profundo. */
 @layer components {
-  .gradient-brand,
-  .gradient-brand-r {
-    --gradient-brand-end: color-mix(
-      in oklab,
-      var(--primary) 62%,
-      var(--foreground) 38%
-    );
-  }
   .gradient-brand {
     background-image: linear-gradient(
       to bottom right,
@@ -637,6 +825,17 @@ body {
   .invoice-printable * {
     background: transparent !important;
     box-shadow: none !important;
+  }
+  /* El comprobante ya sale limpio, pero `html`/`body` seguían llevando el
+     marino: con "gráficos de fondo" activados, la hoja salía entera azul
+     oscura alrededor de la tirilla. Y `color-scheme: dark` hace que el
+     navegador pinte de oscuro lo que no controlamos (márgenes, controles de la
+     vista previa). En papel el tema no existe. */
+  html,
+  body,
+  .dark {
+    background: #fff !important;
+    color-scheme: light;
   }
 }
 
