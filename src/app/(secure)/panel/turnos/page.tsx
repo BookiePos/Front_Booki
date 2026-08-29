@@ -234,7 +234,7 @@ export default function TurnosPage() {
           </CardContent>
         </Card>
 
-        <div className="grid grid-cols-3 gap-4 lg:col-span-2" data-tour="turnos-kpis">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:col-span-2" data-tour="turnos-kpis">
           <Kpi icon={Clock} label="Horas" value={fmtHours(totalHours)} />
           <Kpi icon={Users} label="Trabajadores" value={String(workerCount)} />
           <Kpi icon={CalendarClock} label="Días-turno" value={String(totalDays)} />
@@ -514,7 +514,7 @@ function DayEditor({
               </p>
             </div>
           </div>
-          <div className="flex items-end gap-2">
+          <div className="flex flex-wrap items-end gap-2">
             <div className="flex flex-col gap-1">
               <Label className="text-xs">Sede</Label>
               <Select

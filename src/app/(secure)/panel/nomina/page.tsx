@@ -821,7 +821,7 @@ function Simulador({ employees }: { employees: Employee[] }) {
 
           {employeeId && (
             <div className="flex flex-col gap-1 rounded-lg border border-dashed border-border p-2">
-              <div className="flex items-end gap-2">
+              <div className="flex flex-wrap items-end gap-2">
                 <div className="flex flex-col gap-1">
                   <Label className="text-xs">Período de turnos</Label>
                   <Input
@@ -853,7 +853,7 @@ function Simulador({ employees }: { employees: Employee[] }) {
           )}
 
           {!employeeId && (
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
               <div className="col-span-1 flex flex-col gap-1">
                 <Label className="text-xs">Salario base</Label>
                 <Input
@@ -890,7 +890,7 @@ function Simulador({ employees }: { employees: Employee[] }) {
             </div>
           )}
 
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             <Field label="Días" value={dias} onChange={setDias} />
             <Field label="H. extra diurna" value={exD} onChange={setExD} />
             <Field label="H. extra nocturna" value={exN} onChange={setExN} />
@@ -1041,7 +1041,7 @@ function Liquidacion({ employees }: { employees: Employee[] }) {
           </div>
 
           {!employeeId && (
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
               <Field label="Salario base" value={salarioBase} onChange={setSalarioBase} />
               <div className="flex flex-col gap-1">
                 <Label className="text-xs">Tipo</Label>
@@ -1069,7 +1069,7 @@ function Liquidacion({ employees }: { employees: Employee[] }) {
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <div className="flex flex-col gap-1">
               <Label className="text-xs">
                 Inicio {employeeId ? "(vacío = ingreso)" : ""}
@@ -1105,7 +1105,7 @@ function Liquidacion({ employees }: { employees: Employee[] }) {
             </select>
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <Field
               label="Salarios pendientes"
               value={salariosPend}
@@ -1435,7 +1435,7 @@ function Parametros({
         <Card>
           <CardContent className="flex flex-col gap-3 py-4">
             <p className="text-sm font-semibold">Recargos y horas extra (%)</p>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {RECARGO_LABELS.map(({ k, l }) => (
                 <Field
                   key={k}
@@ -1446,7 +1446,7 @@ function Parametros({
               ))}
             </div>
             <p className="mt-1 text-sm font-semibold">ARL por nivel (%)</p>
-            <div className="grid grid-cols-5 gap-2">
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
               {ARL_KEYS.map((k) => (
                 <Field
                   key={k}
@@ -1505,6 +1505,12 @@ function Parametros({
             <p className="mb-2 text-sm font-semibold">
               Retención en la fuente (art. 383, UVT)
             </p>
+            {/* Mini-tabla de 4 columnas: encabezado y filas comparten rejilla,
+                así que partirla en móvil las desincroniza. Se conserva la
+                rejilla y se le da scroll horizontal propio con un ancho mínimo
+                en el que los campos siguen siendo pulsables. */}
+            <div className="-mx-1 overflow-x-auto px-1">
+            <div className="min-w-[24rem]">
             <div className="grid grid-cols-4 gap-2 text-xs text-muted-foreground">
               <span>Desde</span>
               <span>Hasta</span>
@@ -1560,6 +1566,8 @@ function Parametros({
                 />
               </div>
             ))}
+            </div>
+            </div>
           </CardContent>
         </Card>
       </div>

@@ -117,7 +117,7 @@ export default function CajaPage() {
   const isToday = date === todayLocal()
 
   const actions = (
-    <div className="flex items-end gap-2">
+    <div className="flex flex-wrap items-end gap-2">
       <div className="flex flex-col gap-1" data-tour="caja-dia">
         <Label htmlFor="fecha" className="text-xs">
           Día

@@ -50,25 +50,28 @@ export function AppTopbar() {
   }
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border bg-card/85 px-4 backdrop-blur-md supports-[backdrop-filter]:bg-card/75">
-      <SidebarTrigger className="size-9" aria-label="Alternar menú lateral" />
+    <header className="sticky top-0 z-30 flex h-16 items-center gap-2 border-b border-border bg-card/85 px-3 backdrop-blur-md supports-[backdrop-filter]:bg-card/75 sm:gap-3 sm:px-4">
+      <SidebarTrigger className="size-9 shrink-0" aria-label="Alternar menú lateral" />
       <Separator orientation="vertical" className="mr-1 hidden h-6 md:block" />
 
       {/* Buscador: productos, clientes, proveedores y secciones del negocio */}
       <GlobalSearch />
 
-      <div className="ml-auto flex items-center gap-1.5">
+      <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-1.5">
+        {/* En móvil el botón se queda solo con el icono en vez de
+            desaparecer: la guía es justo lo que necesita quien abre el panel
+            por primera vez, y ahí suele hacerlo desde el teléfono. */}
         <Button
           variant="ghost"
           size="sm"
-          className="hidden gap-1.5 sm:inline-flex"
+          className="gap-1.5 px-2 sm:px-3"
           data-tour="guia"
           onClick={handleGuide}
           aria-label="Abrir la guía de uso"
           title="Guía de uso"
         >
           <Compass className="size-4" />
-          Guía
+          <span className="hidden sm:inline">Guía</span>
         </Button>
         <ThemeToggle />
         <Button

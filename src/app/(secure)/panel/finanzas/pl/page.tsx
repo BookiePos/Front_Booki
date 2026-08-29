@@ -411,7 +411,7 @@ function MonthlyView({ sedeId }: { sedeId?: string }) {
       ) : data ? (
         <Card>
           <CardContent className="overflow-x-auto p-0">
-            <table className="w-full text-xs">
+            <table className="w-full min-w-[54rem] text-xs">
               <thead>
                 <tr className="border-b border-border">
                   <th className="sticky left-0 z-10 bg-card px-3 py-2 text-left font-medium">
@@ -608,7 +608,7 @@ function VsActualMatrix({ data }: { data: BudgetVsActual }) {
   return (
     <Card>
       <CardContent className="overflow-x-auto p-0">
-        <table className="w-full text-xs">
+        <table className="w-full min-w-[54rem] text-xs">
           <thead>
             <tr className="border-b border-border">
               <th className="sticky left-0 z-10 bg-card px-3 py-2 text-left font-medium">

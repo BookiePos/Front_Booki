@@ -1,5 +1,7 @@
 "use client"
 
+import * as React from "react"
+
 import { BookiPosMark } from "@/components/marketing/bookipos-logo"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
@@ -17,6 +19,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  useSidebar,
 } from "@/components/ui/sidebar"
 
 /**
@@ -65,6 +68,30 @@ function iniciales(nombre: string): string {
 
 export function AppSidebar() {
   const pathname = usePathname()
+  // En móvil la barra es una hoja superpuesta y `openMobile` vive en el
+  // provider, que NO se desmonta al navegar: sin cerrarla a mano, tras pulsar
+  // cualquiera de los 27 destinos la hoja se quedaba abierta encima de la
+  // página recién cargada y había que cerrarla con el backdrop. Se cierra solo
+  // en móvil; en escritorio `setOpenMobile(false)` es inocuo pero innecesario.
+  const { isMobile, setOpen, setOpenMobile } = useSidebar()
+  const closeOnMobileNav = () => {
+    if (isMobile) setOpenMobile(false)
+  }
+
+  // Tablet (768–1023px): por encima de 768 la barra deja de ser hoja y pasa a
+  // ocupar 256px fijos. En un iPad en vertical eso es un tercio de la pantalla
+  // robado a la tabla que el usuario está leyendo. Se arranca colapsada a
+  // iconos (48px) en esa franja. Solo colapsa, nunca abre: si el usuario la
+  // despliega a mano, su decisión manda hasta que vuelva a entrar en la franja.
+  React.useEffect(() => {
+    const mql = window.matchMedia("(min-width: 768px) and (max-width: 1023px)")
+    const apply = () => {
+      if (mql.matches) setOpen(false)
+    }
+    apply()
+    mql.addEventListener("change", apply)
+    return () => mql.removeEventListener("change", apply)
+  }, [setOpen])
   const { user, tipoNegocio, hasPermission, hasFeature } = useAuth()
   const navSections = getNavSections(tipoNegocio, hasPermission, hasFeature)
   const brandCaption = tipoNegocio
@@ -116,6 +143,7 @@ export function AppSidebar() {
                   className={itemClass}
                   isActive={isActivePath(pathname, dashboardItem.href)}
                   tooltip={dashboardItem.title}
+                  onClick={closeOnMobileNav}
                   render={<Link href={dashboardItem.href} />}
                 >
                   <dashboardItem.icon />
@@ -139,6 +167,7 @@ export function AppSidebar() {
                       className={itemClass}
                       isActive={isActivePath(pathname, item.href)}
                       tooltip={item.title}
+                      onClick={closeOnMobileNav}
                       render={<Link href={item.href} />}
                     >
                       <item.icon />
