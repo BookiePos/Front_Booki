@@ -217,6 +217,55 @@ export async function apiLogout(): Promise<void> {
   })
 }
 
+// ─── Recuperación de contraseña (rutas públicas) ─────────────────────────────
+
+/**
+ * Pide el correo con el enlace para cambiar la contraseña. Acepta correo o
+ * nombre de usuario, igual que el login.
+ *
+ * El backend responde 202 exista o no la cuenta (no revela quién está
+ * registrado), así que la pantalla siempre muestra el mismo mensaje.
+ */
+export async function apiForgotPassword(email: string): Promise<void> {
+  const res = await fetch(`${API_URL}/auth/forgot-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  })
+  if (!res.ok) return parseError(res)
+}
+
+/** Valida el enlace del correo y devuelve la cuenta a la que pertenece. */
+export async function apiValidatePasswordReset(
+  token: string,
+): Promise<{ email: string }> {
+  const res = await fetch(
+    `${API_URL}/auth/reset-password/${encodeURIComponent(token)}`,
+  )
+  if (!res.ok) return parseError(res)
+  return res.json() as Promise<{ email: string }>
+}
+
+/**
+ * Guarda la nueva contraseña. No devuelve sesión a propósito: el cambio revoca
+ * todas las sesiones abiertas, así que hay que volver a entrar.
+ */
+export async function apiResetPassword(
+  token: string,
+  password: string,
+): Promise<void> {
+  const res = await fetch(
+    `${API_URL}/auth/reset-password/${encodeURIComponent(token)}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include", // permite al backend limpiar la cookie de refresh
+      body: JSON.stringify({ password }),
+    },
+  )
+  if (!res.ok) return parseError(res)
+}
+
 // ─── Invitaciones (rutas públicas) ────────────────────────────────────────────
 
 export interface InvitationInfo {

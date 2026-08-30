@@ -4,14 +4,14 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useId, useState } from "react";
 import {
-  ArrowLeft,
   Eye,
   EyeOff,
   LayoutDashboard,
   LoaderCircle,
   ShoppingCart,
 } from "lucide-react";
-import { BookiPosLogo, BookiPosMark } from "@/components/marketing/bookipos-logo";
+import { AuthBrandAside } from "@/components/auth/brand-aside";
+import { BookiPosLogo } from "@/components/marketing/bookipos-logo";
 import { ZoneLink } from "@/components/marketing/zone-link";
 import { ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
@@ -65,38 +65,10 @@ export default function LoginPage() {
 
   return (
     <main className="zone-marketing grid min-h-svh bg-surface text-ink lg:grid-cols-[1fr_1.1fr]">
-      <aside className="relative hidden overflow-hidden bg-brand-950 p-12 lg:flex lg:flex-col lg:justify-between">
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute -left-32 top-1/4 h-[34rem] w-[34rem] rounded-full opacity-45 blur-3xl"
-          style={{
-            background:
-              "radial-gradient(circle, var(--color-brand-500) 0%, transparent 68%)",
-          }}
-        />
-        <Link
-          href="/"
-          className="relative inline-flex items-center gap-2 text-sm font-medium text-brand-200 transition-colors hover:text-white"
-        >
-          <ArrowLeft className="size-4" aria-hidden="true" />
-          Volver a bookipos.com
-        </Link>
-
-        <div className="relative">
-          <BookiPosMark className="h-16 w-16" tone="light" />
-          <p className="mt-8 max-w-md text-balance font-display text-4xl font-semibold leading-tight text-white">
-            La cuenta de la mesa 7 ya está en tu contabilidad.
-          </p>
-          <p className="mt-5 max-w-sm leading-relaxed text-brand-200">
-            Entra y sigue donde quedaste. Tu caja, tu inventario y tu cartera
-            siguen cuadrados.
-          </p>
-        </div>
-
-        <p className="relative text-sm text-brand-300">
-          Punto de venta y sistema operacional · Colombia
-        </p>
-      </aside>
+      <AuthBrandAside
+        titulo="La cuenta de la mesa 7 ya está en tu contabilidad."
+        bajada="Entra y sigue donde quedaste. Tu caja, tu inventario y tu cartera siguen cuadrados."
+      />
 
       <div className="flex items-center justify-center px-5 py-14 sm:px-10">
         <div className="w-full max-w-md">
@@ -143,9 +115,12 @@ export default function LoginPage() {
                     <label htmlFor={passId} className="block text-sm font-semibold text-ink">
                       Contraseña
                     </label>
-                    <a href="#" className="text-sm font-medium text-brand-700 hover:text-brand-800">
+                    <Link
+                      href="/recuperar"
+                      className="text-sm font-medium text-brand-700 hover:text-brand-800"
+                    >
                       ¿La olvidaste?
-                    </a>
+                    </Link>
                   </div>
                   <div className="relative mt-2">
                     <input
