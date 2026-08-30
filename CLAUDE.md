@@ -25,7 +25,8 @@ funcione sin configuración extra. Al añadir superficie nueva, mantenla dentro 
 app en vez de crear otro despliegue.
 
 - `src/app/(marketing)` — web pública, sin sesión.
-- `src/app/(secure)/login`, `/registro`, `/invitacion/[token]` — entrada.
+- `src/app/(secure)/login`, `/registro`, `/invitacion/[token]`,
+  `/recuperar[/[token]]` — entrada.
 - `src/app/(secure)/panel/...` — back-office administrativo (~17 áreas).
 - `src/app/(secure)/pos/...` — operación en caja (ventas, caja, facturación,
   inventario, nómina). Es una superficie distinta sobre los mismos dominios,
