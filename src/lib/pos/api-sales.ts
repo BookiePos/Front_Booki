@@ -32,6 +32,8 @@ export interface PosProduct {
   unit: string
   salePrice: number
   stock: number
+  /** Foto del producto (Vercel Blob). null si no tiene. */
+  imageUrl?: string | null
   /** Código de barras del ítem de inventario vinculado (para escanear). */
   barcode?: string | null
   categoryId: string | null

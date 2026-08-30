@@ -100,6 +100,22 @@ function writeTokens(tokens: Tokens): void {
 
 // ─── Core fetch with auto-refresh ────────────────────────────────────────────
 
+/**
+ * Pone el Content-Type por defecto (JSON), salvo con FormData.
+ *
+ * Con FormData lo tiene que poner el navegador: el `multipart/form-data` lleva
+ * un `boundary` generado al serializar el cuerpo, y escribir la cabecera a mano
+ * lo omite. El servidor recibe entonces un cuerpo que no sabe partir y responde
+ * 400 sin fichero. Por eso subir imágenes exige esta excepción.
+ */
+function applyContentType(headers: Headers, body: BodyInit | null | undefined) {
+  if (body === undefined || body === null) return
+  if (typeof FormData !== "undefined" && body instanceof FormData) return
+  if (!headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json")
+  }
+}
+
 export async function authFetch(
   path: string,
   init: RequestInit = {},
@@ -109,12 +125,7 @@ export async function authFetch(
 
   const headers = new Headers(init.headers)
   headers.set("Authorization", `Bearer ${stored.tokens.accessToken}`)
-  if (
-    init.body !== undefined &&
-    !headers.has("Content-Type")
-  ) {
-    headers.set("Content-Type", "application/json")
-  }
+  applyContentType(headers, init.body)
 
   const res = await fetch(`${API_URL}${path}`, { ...init, headers })
 
@@ -134,9 +145,7 @@ export async function authFetch(
   // Retry with new token
   const retryHeaders = new Headers(init.headers)
   retryHeaders.set("Authorization", `Bearer ${newTokens.accessToken}`)
-  if (init.body !== undefined && !retryHeaders.has("Content-Type")) {
-    retryHeaders.set("Content-Type", "application/json")
-  }
+  applyContentType(retryHeaders, init.body)
 
   return fetch(`${API_URL}${path}`, { ...init, headers: retryHeaders })
 }

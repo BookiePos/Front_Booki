@@ -15,6 +15,7 @@ import {
   CheckCircle2,
   MapPin,
   PackageX,
+  ImageOff,
 } from "lucide-react"
 
 import { useAuth } from "@/lib/auth-context"
@@ -206,6 +207,9 @@ export default function PosPage() {
     )
   }, [products, search])
 
+  /** Igual que en /pos: la foto solo ocupa sitio si algún producto tiene. */
+  const showImages = filtered.some((p) => p.imageUrl)
+
   // ── Cobro ──────────────────────────────────────────────────────────────────
 
   function openCheckout() {
@@ -369,6 +373,20 @@ export default function PosPage() {
                         out && "cursor-not-allowed opacity-50 hover:bg-card",
                       )}
                     >
+                      {showImages &&
+                        (p.imageUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={p.imageUrl}
+                            alt=""
+                            loading="lazy"
+                            className="mb-1 aspect-square w-full rounded-lg border border-border object-cover"
+                          />
+                        ) : (
+                          <span className="mb-1 flex aspect-square w-full items-center justify-center rounded-lg border border-dashed border-border text-muted-foreground">
+                            <ImageOff className="size-6" aria-hidden />
+                          </span>
+                        ))}
                       <span className="line-clamp-2 font-medium leading-snug">
                         {p.name}
                       </span>
