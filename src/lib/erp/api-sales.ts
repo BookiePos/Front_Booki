@@ -24,6 +24,8 @@ export interface PosProduct {
   unit: string
   salePrice: number
   stock: number
+  /** Foto del producto (Vercel Blob). null si no tiene. */
+  imageUrl?: string | null
 }
 
 export interface SaleLine {

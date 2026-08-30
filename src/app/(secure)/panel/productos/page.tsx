@@ -8,6 +8,7 @@ import {
   Package,
   Boxes,
   ChefHat,
+  ImageOff,
   ShieldOff,
   X,
 } from "lucide-react"
@@ -25,6 +26,8 @@ import {
   createCatalogProduct,
   updateCatalogProduct,
   deleteCatalogProduct,
+  uploadCatalogProductImage,
+  deleteCatalogProductImage,
   SOURCE_TYPE_LABELS,
   IVA_OPTIONS,
   ivaKey,
@@ -34,6 +37,7 @@ import {
 } from "@/lib/erp/api-catalog"
 
 import { PageHeader } from "@/components/erp/page-header"
+import { ProductImageField } from "@/components/erp/product-image-field"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -179,6 +183,10 @@ function ProductSheet({
     { productId: "", qty: "" },
   ])
   const [active, setActive] = React.useState(true)
+  /** Foto elegida y pendiente de subir (se sube al guardar). */
+  const [imageFile, setImageFile] = React.useState<File | Blob | null>(null)
+  /** El usuario quitó la foto que ya tenía guardada. */
+  const [imageRemoved, setImageRemoved] = React.useState(false)
   const [saving, setSaving] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
@@ -263,6 +271,8 @@ function ProductSheet({
         setRecipe([{ productId: "", qty: "" }])
         setActive(true)
       }
+      setImageFile(null)
+      setImageRemoved(false)
       setInvListOpen(false)
       setError(null)
     }
@@ -327,15 +337,31 @@ function ProductSheet({
             : undefined,
         recipe: sourceType === "recipe" ? cleanRecipe : undefined,
       }
+      // La foto va en una petición aparte (multipart) y DESPUÉS de guardar la
+      // ficha: al crear, el id del producto solo existe a partir de aquí.
+      let saved: CatalogProduct | undefined
       if (mode === "create") {
-        await createCatalogProduct(payload)
+        saved = await createCatalogProduct(payload)
       } else if (product) {
-        await updateCatalogProduct(product._id, {
+        saved = await updateCatalogProduct(product._id, {
           ...payload,
           // En edición la cadena vacía sí viaja: significa quitar la categoría.
           categoryId: catId,
           active,
         })
+      }
+      if (saved) {
+        // Un fallo subiendo la foto no debe deshacer un producto ya guardado:
+        // se avisa y se sigue, y la foto se puede reintentar editando la ficha.
+        try {
+          if (imageFile) {
+            await uploadCatalogProductImage(saved._id, imageFile)
+          } else if (imageRemoved) {
+            await deleteCatalogProductImage(saved._id)
+          }
+        } catch (err) {
+          toast.error(`El producto se guardó, pero la foto no: ${errorMessage(err)}`)
+        }
       }
       toast.success(mode === "create" ? "Producto creado" : "Producto actualizado")
       onSuccess()
@@ -482,6 +508,15 @@ function ProductSheet({
               placeholder="Opcional"
             />
           </div>
+
+          <ProductImageField
+            currentUrl={product?.imageUrl}
+            file={imageFile}
+            onPick={setImageFile}
+            removed={imageRemoved}
+            onRemovedChange={setImageRemoved}
+            disabled={saving}
+          />
 
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="c-cat">Categoría</Label>
@@ -845,18 +880,35 @@ export default function ProductosPage() {
                       className={cn(!p.active && "opacity-55")}
                     >
                       <TableCell>
-                        <div className="flex flex-col">
-                          <span className="font-medium">
-                            {p.name}
-                            {!p.active && (
-                              <Badge variant="outline" className="ml-2">
-                                Inactivo
-                              </Badge>
-                            )}
-                          </span>
-                          <span className="font-mono text-xs text-muted-foreground">
-                            {p.sku}
-                          </span>
+                        <div className="flex items-center gap-3">
+                          {/* Miniatura: se reconoce el producto de un vistazo,
+                              sin gastar una columna entera en ello. */}
+                          {p.imageUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={p.imageUrl}
+                              alt=""
+                              loading="lazy"
+                              className="size-10 shrink-0 rounded-md border border-border object-cover"
+                            />
+                          ) : (
+                            <div className="flex size-10 shrink-0 items-center justify-center rounded-md border border-dashed border-border text-muted-foreground">
+                              <ImageOff className="size-4" aria-hidden />
+                            </div>
+                          )}
+                          <div className="flex min-w-0 flex-col">
+                            <span className="font-medium">
+                              {p.name}
+                              {!p.active && (
+                                <Badge variant="outline" className="ml-2">
+                                  Inactivo
+                                </Badge>
+                              )}
+                            </span>
+                            <span className="font-mono text-xs text-muted-foreground">
+                              {p.sku}
+                            </span>
+                          </div>
                         </div>
                       </TableCell>
                       <TableCell className="text-sm">

@@ -63,6 +63,8 @@ export interface CatalogProduct {
   inventoryProductId?: InvProductRef | null
   qtyPerUnit?: number
   recipe: RecipeLine[]
+  /** Foto del producto (Vercel Blob). Ausente si nunca se subió una. */
+  imageUrl?: string | null
   active: boolean
   createdAt: string
 }
@@ -113,6 +115,39 @@ export async function updateCatalogProduct(
   const res = await authFetch(`/catalog/products/${id}`, {
     method: "PATCH",
     body: JSON.stringify(payload),
+  })
+  return parseResponse<CatalogProduct>(res)
+}
+
+/**
+ * Sube (o reemplaza) la foto del producto.
+ *
+ * Va como multipart porque el backend la recibe con multer y la reenvía a
+ * Vercel Blob: el token del store es de servidor y no puede bajar al navegador,
+ * así que el archivo pasa por el API en vez de subirse directo.
+ *
+ * No se fija `Content-Type`: con FormData lo pone el navegador con su boundary
+ * (ver `applyContentType` en api-admin).
+ */
+export async function uploadCatalogProductImage(
+  id: string,
+  file: File | Blob,
+): Promise<CatalogProduct> {
+  const body = new FormData()
+  body.append("file", file)
+  const res = await authFetch(`/catalog/products/${id}/image`, {
+    method: "POST",
+    body,
+  })
+  return parseResponse<CatalogProduct>(res)
+}
+
+/** Quita la foto del producto (y borra el archivo del store). */
+export async function deleteCatalogProductImage(
+  id: string,
+): Promise<CatalogProduct> {
+  const res = await authFetch(`/catalog/products/${id}/image`, {
+    method: "DELETE",
   })
   return parseResponse<CatalogProduct>(res)
 }
