@@ -30,6 +30,7 @@ import {
   Tag,
   HandCoins,
   CalendarClock,
+  ImageOff,
 } from "lucide-react"
 
 import { useAuth } from "@/lib/auth-context"
@@ -726,6 +727,14 @@ export default function VentaPage() {
     })
   }, [products, search, category])
 
+  /**
+   * La rejilla enseña fotos solo si al menos un producto a la vista tiene una.
+   * Un negocio que no las usa conserva la rejilla compacta —más productos por
+   * pantalla, que en caja es lo que importa— y uno que sí las usa no acaba con
+   * unas tarjetas altas y otras bajas en la misma fila.
+   */
+  const showImages = filtered.some((p) => p.imageUrl)
+
   function openCheckout() {
     setMethod("cash")
     setReceived("")
@@ -1251,10 +1260,24 @@ export default function VentaPage() {
                     )}
                   >
                     {inCart > 0 && (
-                      <span className="absolute right-2 top-2 flex size-5 items-center justify-center rounded-full bg-primary text-[11px] font-bold text-primary-foreground">
+                      <span className="absolute right-2 top-2 z-10 flex size-5 items-center justify-center rounded-full bg-primary text-[11px] font-bold text-primary-foreground">
                         {inCart}
                       </span>
                     )}
+                    {showImages &&
+                      (p.imageUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={p.imageUrl}
+                          alt=""
+                          loading="lazy"
+                          className="mb-1 aspect-square w-full rounded-lg border border-border object-cover"
+                        />
+                      ) : (
+                        <span className="mb-1 flex aspect-square w-full items-center justify-center rounded-lg border border-dashed border-border text-muted-foreground">
+                          <ImageOff className="size-6" aria-hidden />
+                        </span>
+                      ))}
                     <span className="line-clamp-2 pr-6 font-medium leading-snug">
                       {p.name}
                     </span>
