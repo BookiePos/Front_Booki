@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   History,
   Loader2,
+  PackagePlus,
   Save,
   ScanLine,
   ShieldOff,
@@ -24,10 +25,19 @@ import {
   LINE_TARGET_LABELS,
   type ExtractedInvoice,
   type InvoiceScan,
+  type ExtractedLine,
   type LineDecision,
   type LineTarget,
+  type NewProductDraft,
 } from "@/lib/erp/api-invoice-scans"
-import { listSedes, listProducts, type InvProduct, type Sede } from "@/lib/erp/api-inventory"
+import {
+  listSedes,
+  listProducts,
+  listCategories as listInventoryCategories,
+  type InvCategory,
+  type InvProduct,
+  type Sede,
+} from "@/lib/erp/api-inventory"
 import { listSuppliers, type Supplier } from "@/lib/erp/api-suppliers"
 import { listCategories as listFinanceCategories, type FinanceCategory } from "@/lib/erp/api-finance"
 import { errorMessage, fmtDate, money } from "@/lib/erp/finance-format"
@@ -60,6 +70,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useConfirm } from "@/components/ui/confirm-dialog"
 import { toast } from "sonner"
@@ -77,6 +94,216 @@ const MATCH_LABELS: Record<string, string> = {
   name: "Por nombre parecido",
   manual: "Elegido a mano",
   none: "Sin emparejar",
+}
+
+/**
+ * Sugiere un SKU a partir del nombre cuando la factura no trae código.
+ *
+ * Es una propuesta editable, no un código definitivo: legible ("ARROZ-DIANA-500")
+ * en vez del `FAC-K3J2H1` que se generaba antes y que dentro de seis meses no le
+ * dice nada a nadie.
+ */
+function suggestSku(line: ExtractedLine): string {
+  if (line.code?.trim()) return line.code.trim().toUpperCase()
+  return line.description
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .split("-")
+    .slice(0, 4)
+    .join("-")
+    .slice(0, 40)
+}
+
+interface NewProductSheetProps {
+  open: boolean
+  onOpenChange: (v: boolean) => void
+  line: ExtractedLine | null
+  value: NewProductDraft | undefined
+  categories: InvCategory[]
+  onSave: (draft: NewProductDraft) => void
+}
+
+/**
+ * Ficha para crear el producto que la factura trae y el inventario no tiene.
+ *
+ * Prellena todo lo que la factura ya sabe (nombre, unidad, costo, código de
+ * barras) y pide lo que no puede saber: el SKU cuando no venía impreso, la
+ * categoría y el precio de venta. Se guarda en el borrador de la factura, no en
+ * el inventario: el producto se crea al aplicar, junto con todo lo demás.
+ */
+function NewProductSheet({
+  open,
+  onOpenChange,
+  line,
+  value,
+  categories,
+  onSave,
+}: NewProductSheetProps) {
+  const [sku, setSku] = React.useState("")
+  const [name, setName] = React.useState("")
+  const [unit, setUnit] = React.useState("und")
+  const [categoryId, setCategoryId] = React.useState("none")
+  const [cost, setCost] = React.useState<number | null>(null)
+  const [salePrice, setSalePrice] = React.useState<number | null>(null)
+  const [barcode, setBarcode] = React.useState("")
+  const [minStock, setMinStock] = React.useState("")
+
+  // Al abrir se rehidrata con lo ya completado o con lo que dijo la factura.
+  React.useEffect(() => {
+    if (!open || !line) return
+    setSku(value?.sku ?? suggestSku(line))
+    setName(value?.name ?? line.description)
+    setUnit(value?.unit ?? line.unit ?? "und")
+    setCategoryId(value?.categoryId ?? "none")
+    setCost(value?.cost ?? line.unitCost ?? null)
+    setSalePrice(value?.salePrice ?? null)
+    setBarcode(value?.barcode ?? line.barcode ?? "")
+    setMinStock(value?.minStock != null ? String(value.minStock) : "")
+  }, [open, line, value])
+
+  function handleSave() {
+    onSave({
+      sku: sku.trim().toUpperCase(),
+      name: name.trim(),
+      unit: unit.trim() || "und",
+      categoryId: categoryId === "none" ? null : categoryId,
+      cost: cost ?? undefined,
+      salePrice: salePrice ?? undefined,
+      barcode: barcode.trim() || undefined,
+      minStock: minStock ? Number(minStock) : undefined,
+    })
+    onOpenChange(false)
+  }
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="right" className="flex flex-col sm:max-w-md">
+        <SheetHeader>
+          <SheetTitle className="font-display text-lg">Producto nuevo</SheetTitle>
+          <SheetDescription>
+            No existe en tu inventario. Lo que la factura ya dice viene
+            completado; revisa lo demás. Se creará al aplicar la factura.
+          </SheetDescription>
+        </SheetHeader>
+
+        <div className="flex flex-1 flex-col gap-4 overflow-y-auto px-4 py-2">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="np-sku">
+              SKU <span className="text-destructive">*</span>
+            </Label>
+            <Input
+              id="np-sku"
+              value={sku}
+              onChange={(e) => setSku(e.target.value.toUpperCase())}
+              placeholder="p. ej. ARROZ-500"
+            />
+            <p className="text-xs text-muted-foreground">
+              El código con el que identificarás el producto. Si la factura traía
+              el del proveedor, se usa ese para que la próxima empareje sola.
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="np-name">Nombre</Label>
+            <Input
+              id="np-name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="np-unit">Unidad</Label>
+              <Input
+                id="np-unit"
+                value={unit}
+                onChange={(e) => setUnit(e.target.value)}
+                placeholder="und"
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="np-min">Stock mínimo</Label>
+              <Input
+                id="np-min"
+                inputMode="numeric"
+                value={minStock}
+                onChange={(e) => setMinStock(e.target.value)}
+                placeholder="0"
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="np-cat">Categoría</Label>
+            <Select
+              value={categoryId}
+              items={{
+                none: "Sin categoría",
+                ...Object.fromEntries(categories.map((c) => [c._id, c.name])),
+              }}
+              onValueChange={(v) => {
+                if (v !== null) setCategoryId(v)
+              }}
+            >
+              <SelectTrigger id="np-cat" className="w-full">
+                <SelectValue placeholder="Sin categoría" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Sin categoría</SelectItem>
+                {categories.map((c) => (
+                  <SelectItem key={c._id} value={c._id}>
+                    {c.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="np-cost">Costo de compra</Label>
+              <MoneyInput id="np-cost" value={cost} onValueChange={setCost} />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="np-price">Precio de venta</Label>
+              <MoneyInput
+                id="np-price"
+                value={salePrice}
+                onValueChange={setSalePrice}
+              />
+            </div>
+          </div>
+          <p className="-mt-2 text-xs text-muted-foreground">
+            Sin precio de venta el producto entra al inventario pero no aparece
+            en el POS. Puedes ponerlo después.
+          </p>
+
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="np-barcode">Código de barras</Label>
+            <Input
+              id="np-barcode"
+              value={barcode}
+              onChange={(e) => setBarcode(e.target.value)}
+              placeholder="Opcional"
+            />
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2 border-t border-border px-4 py-3">
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancelar
+          </Button>
+          <Button onClick={handleSave} disabled={!sku.trim() || !name.trim()}>
+            Guardar ficha
+          </Button>
+        </div>
+      </SheetContent>
+    </Sheet>
+  )
 }
 
 export default function RevisarFacturaPage() {
@@ -98,6 +325,9 @@ export default function RevisarFacturaPage() {
   const [suppliers, setSuppliers] = React.useState<Supplier[]>([])
   const [products, setProducts] = React.useState<InvProduct[]>([])
   const [categories, setCategories] = React.useState<FinanceCategory[]>([])
+  const [invCategories, setInvCategories] = React.useState<InvCategory[]>([])
+  /** Índice del renglón cuya ficha de producto nuevo está abierta. */
+  const [newProductLine, setNewProductLine] = React.useState<number | null>(null)
 
   const [loading, setLoading] = React.useState(true)
   const [saving, setSaving] = React.useState(false)
@@ -107,14 +337,21 @@ export default function RevisarFacturaPage() {
     if (!id) return
     setLoading(true)
     try {
-      const [data, sedeList, supplierList, productList, categoryList] =
-        await Promise.all([
-          getInvoiceScan(id),
-          listSedes().catch(() => []),
-          listSuppliers().catch(() => []),
-          listProducts().catch(() => []),
-          listFinanceCategories().catch(() => []),
-        ])
+      const [
+        data,
+        sedeList,
+        supplierList,
+        productList,
+        categoryList,
+        invCategoryList,
+      ] = await Promise.all([
+        getInvoiceScan(id),
+        listSedes().catch(() => []),
+        listSuppliers().catch(() => []),
+        listProducts().catch(() => []),
+        listFinanceCategories().catch(() => []),
+        listInventoryCategories().catch(() => []),
+      ])
       setScan(data)
       setDraft(data.draft ?? null)
       setDecisions(data.lineDecisions ?? [])
@@ -125,6 +362,7 @@ export default function RevisarFacturaPage() {
       setProducts(productList)
       // Los ingresos no son destino de un gasto de compra.
       setCategories(categoryList.filter((c) => c.kind !== "income"))
+      setInvCategories(invCategoryList)
     } catch (err) {
       toast.error(errorMessage(err))
     } finally {
@@ -616,6 +854,7 @@ export default function RevisarFacturaPage() {
                           </TableCell>
                           <TableCell>
                             {decision.target === "inventory" ? (
+                              <div className="flex flex-col gap-1.5">
                               <Select
                                 value={decision.productId ?? "new"}
                                 items={{
@@ -650,6 +889,22 @@ export default function RevisarFacturaPage() {
                                   ))}
                                 </SelectContent>
                               </Select>
+                              {!decision.productId && (
+                                <Button
+                                  size="sm"
+                                  variant={
+                                    decision.newProduct?.sku ? "ghost" : "outline"
+                                  }
+                                  disabled={!editable}
+                                  onClick={() => setNewProductLine(index)}
+                                >
+                                  <PackagePlus className="size-4" aria-hidden />
+                                  {decision.newProduct?.sku
+                                    ? `Ficha lista · ${decision.newProduct.sku}`
+                                    : "Completar ficha"}
+                                </Button>
+                              )}
+                              </div>
                             ) : decision.target === "expense" ? (
                               <Select
                                 value={decision.categoryId ?? "none"}
@@ -816,6 +1071,27 @@ export default function RevisarFacturaPage() {
           )}
         </div>
       </div>
+
+      <NewProductSheet
+        open={newProductLine !== null}
+        onOpenChange={(v) => setNewProductLine(v ? newProductLine : null)}
+        line={newProductLine !== null ? (draft.lines[newProductLine] ?? null) : null}
+        value={
+          newProductLine !== null
+            ? decisionFor(newProductLine).newProduct
+            : undefined
+        }
+        categories={invCategories}
+        onSave={(nuevo) => {
+          if (newProductLine === null) return
+          patchDecision(newProductLine, {
+            newProduct: nuevo,
+            createProduct: true,
+            productId: null,
+          })
+          toast.success("Ficha guardada. Se creará al aplicar la factura.")
+        }}
+      />
     </>
   )
 }
