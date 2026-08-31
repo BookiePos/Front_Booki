@@ -137,6 +137,8 @@ export interface PlanQuotas {
   users: number | null
   documentsPerMonth: number
   payrollEmployees: number
+  /** Facturas de compra que se pueden leer por foto al mes. */
+  invoiceScansPerMonth: number
 }
 
 /** Capacidades y cupos que el backend calcula a partir del plan. */
