@@ -27,6 +27,7 @@ import {
   ShieldCheck,
   SlidersHorizontal,
   CreditCard,
+  ScanLine,
 } from "lucide-react"
 
 export type NavItem = {
@@ -79,6 +80,7 @@ export const navSections: NavSection[] = [
     label: "Comercial",
     items: [
       { title: "Compras", href: "/panel/compras", icon: Truck, requiredPermissions: ["finance.view", "purchasing.manage"], requiredFeature: "purchasing" },
+      { title: "Facturas por foto", href: "/panel/compras/facturas", icon: ScanLine, requiredPermissions: ["finance.view", "purchasing.manage"], requiredFeature: "purchasing" },
       { title: "Proveedores", href: "/panel/proveedores", icon: Building2, requiredPermissions: ["inventory.view"], requiredFeature: "purchasing" },
       { title: "Directorio clientes", href: "/panel/clientes/directorio", icon: Contact, requiredPermissions: ["customers.view"] },
       { title: "Clientes (CxC)", href: "/panel/clientes", icon: Users, requiredPermissions: ["finance.view"], requiredFeature: "accounting" },

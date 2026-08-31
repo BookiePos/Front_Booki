@@ -19,6 +19,8 @@ export interface DashboardData {
   sales: SalesReport | null
   caja: CajaOverview | null
   poCount: number | null
+  /** Facturas fotografiadas que esperan revisión. */
+  pendingScans: number | null
   openTables: number | null
   lowStock: number | null
   expiring: number | null

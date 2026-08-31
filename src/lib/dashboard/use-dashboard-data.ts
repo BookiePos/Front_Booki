@@ -7,6 +7,7 @@ import { getOverview, getPLMonthly } from "@/lib/erp/api-finance"
 import { getSalesReport } from "@/lib/erp/api-reports"
 import { getCajaOverview } from "@/lib/erp/api-caja"
 import { listPurchaseOrders } from "@/lib/erp/api-purchasing"
+import { listInvoiceScans } from "@/lib/erp/api-invoice-scans"
 import { listOrders } from "@/lib/erp/api-restaurant"
 import { getAlerts } from "@/lib/erp/api-inventory"
 import { todayLocal } from "@/lib/erp/finance-format"
@@ -23,6 +24,7 @@ const EMPTY: DashboardData = {
   sales: null,
   caja: null,
   poCount: null,
+  pendingScans: null,
   openTables: null,
   lowStock: null,
   expiring: null,
@@ -78,6 +80,11 @@ export function useDashboardData() {
               }),
             )
             .catch(() => patch({ poCount: null }))
+        : Promise.resolve(),
+      canFinance
+        ? listInvoiceScans("extracted")
+            .then((scans) => patch({ pendingScans: scans.length }))
+            .catch(() => patch({ pendingScans: null }))
         : Promise.resolve(),
       isRestaurant && canPos
         ? listOrders()

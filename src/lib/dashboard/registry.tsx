@@ -5,6 +5,7 @@ import Link from "next/link"
 import {
   ShoppingCart,
   Truck,
+  ScanLine,
   BarChart3,
   Banknote,
   TrendingUp,
@@ -309,6 +310,24 @@ function PurchaseOrdersWidget(p: WidgetProps) {
       value={p.data.poCount === null ? null : String(p.data.poCount)}
       icon={Truck}
       href="/panel/compras"
+      loading={p.loading}
+    />
+  )
+}
+/**
+ * Facturas fotografiadas que esperan revisión.
+ *
+ * Es el widget que cierra el circuito: la foto se toma en la bodega y quien
+ * administra ve desde el tablero que hay algo pendiente de aprobar, en vez de
+ * tener que acordarse de entrar al módulo.
+ */
+function PendingScansWidget(p: WidgetProps) {
+  return (
+    <KpiCard
+      label="Facturas por revisar"
+      value={p.data.pendingScans === null ? null : String(p.data.pendingScans)}
+      icon={ScanLine}
+      href="/panel/compras/facturas"
       loading={p.loading}
     />
   )
@@ -960,6 +979,15 @@ export const WIDGETS: WidgetDef[] = [
     Component: PurchaseOrdersWidget,
   },
   {
+    id: "pending-scans",
+    title: "Facturas por revisar",
+    description: "Facturas fotografiadas esperando tu aprobación.",
+    defaultSize: "compact",
+    sizes: ["compact"],
+    permission: "purchasing.manage",
+    Component: PendingScansWidget,
+  },
+  {
     id: "low-stock",
     title: "Bajo stock",
     description: "Productos por debajo de su mínimo.",
@@ -1091,5 +1119,6 @@ export const DEFAULT_LAYOUT: LayoutItem[] = [
   { id: "guide", size: "compact" },
   { id: "sales-month", size: "compact" },
   { id: "sales-chart", size: "wide" },
+  { id: "pending-scans", size: "compact" },
   { id: "quick-actions", size: "wide" },
 ]

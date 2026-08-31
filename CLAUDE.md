@@ -28,6 +28,9 @@ app en vez de crear otro despliegue.
 - `src/app/(secure)/login`, `/registro`, `/invitacion/[token]`,
   `/recuperar[/[token]]` — entrada.
 - `src/app/(secure)/panel/...` — back-office administrativo (~17 áreas).
+  `panel/compras/facturas` carga compras fotografiando la factura del proveedor:
+  la IA propone y la persona aprueba en `facturas/[id]` antes de que nada entre
+  al inventario. El tablero avisa con el widget `pending-scans`.
 - `src/app/(secure)/pos/...` — operación en caja (ventas, caja, facturación,
   inventario, nómina). Es una superficie distinta sobre los mismos dominios,
   pensada para el turno, no para la administración. Fija una **sede de trabajo para
