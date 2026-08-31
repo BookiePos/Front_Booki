@@ -24,6 +24,7 @@ import {
   type InvoiceScanStatus,
 } from "@/lib/erp/api-invoice-scans"
 import { prepareImageForUpload } from "@/lib/images"
+import { MAX_PDF_PAGES, isPdf, pdfToImages } from "@/lib/pdf"
 import { errorMessage, fmtDate, money } from "@/lib/erp/finance-format"
 
 import { PageHeader } from "@/components/erp/page-header"
@@ -50,11 +51,17 @@ import { useConfirm } from "@/components/ui/confirm-dialog"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 
-/** Progreso de una tanda de fotos: qué se está haciendo y por cuál va. */
+/** Progreso de una tanda: qué se está haciendo y por cuál va. */
 interface Progress {
-  phase: "subiendo" | "leyendo"
+  phase: "convirtiendo" | "subiendo" | "leyendo"
   current: number
   total: number
+}
+
+const PHASE_LABELS: Record<Progress["phase"], string> = {
+  convirtiendo: "Convirtiendo el PDF",
+  subiendo: "Subiendo",
+  leyendo: "Leyendo",
 }
 
 function StatusBadge({ status }: { status: InvoiceScanStatus }) {
@@ -105,8 +112,33 @@ export default function FacturasPorFotoPage() {
    *
    * Un fallo no aborta la tanda: esa foto queda marcada y las demás siguen.
    */
-  async function handleFiles(files: File[]) {
+  async function handleFiles(seleccion: File[]) {
     let fallos = 0
+
+    // Un PDF se convierte a imágenes antes de nada: aguas abajo el flujo no
+    // distingue si la página vino de la cámara o de un archivo del correo.
+    const files: File[] = []
+    for (const file of seleccion) {
+      if (!isPdf(file)) {
+        files.push(file)
+        continue
+      }
+      try {
+        setProgress({ phase: "convirtiendo", current: 1, total: 1 })
+        const { pages, totalPages } = await pdfToImages(file)
+        if (pages.length === 0) throw new Error("No se pudo leer el PDF")
+        files.push(...pages)
+        if (totalPages > MAX_PDF_PAGES) {
+          toast.warning(
+            `${file.name} tiene ${totalPages} páginas: se procesaron las primeras ${MAX_PDF_PAGES}.`,
+          )
+        }
+      } catch (err) {
+        fallos += 1
+        toast.error(`${file.name}: ${errorMessage(err)}`)
+      }
+    }
+
     for (const [index, file] of files.entries()) {
       try {
         setProgress({ phase: "subiendo", current: index + 1, total: files.length })
@@ -204,15 +236,16 @@ export default function FacturasPorFotoPage() {
               Cargar facturas
             </CardTitle>
             <CardDescription>
-              Puedes subir varias a la vez. Si una factura tiene dos hojas,
-              fotografía las dos: se agrupan solas por el número y el NIT.
+              Puedes subir varias a la vez, en foto o en <strong>PDF</strong>{" "}
+              (el que llega por correo sirve tal cual). Si una factura tiene dos
+              hojas, sube las dos: se agrupan solas por el número y el NIT.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
             <InvoiceCapture
               onFiles={handleFiles}
               busy={progress !== null}
-              hint="La foto se reescala y comprime sola antes de subirse."
+              hint="Imágenes o PDF. Se reescala y comprime solo antes de subirse."
             />
             {progress && (
               <div
@@ -220,8 +253,8 @@ export default function FacturasPorFotoPage() {
                 className="flex items-center gap-2 rounded-lg bg-muted px-3 py-2 text-sm text-muted-foreground"
               >
                 <Loader2 className="size-4 animate-spin" aria-hidden />
-                {progress.phase === "subiendo" ? "Subiendo" : "Leyendo"}{" "}
-                {progress.current} de {progress.total}…
+                {PHASE_LABELS[progress.phase]} {progress.current} de{" "}
+                {progress.total}…
               </div>
             )}
           </CardContent>

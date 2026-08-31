@@ -19,8 +19,18 @@ export const ACCEPTED_IMAGE_TYPES = [
   "image/avif",
 ]
 
-/** Valor para el `accept` del input de archivo. */
+/** Valor para el `accept` del input de archivo (solo imágenes). */
 export const IMAGE_ACCEPT = ACCEPTED_IMAGE_TYPES.join(",")
+
+/**
+ * `accept` para documentos de compra: imágenes y PDF.
+ *
+ * El PDF no se sube tal cual: se rasteriza antes en el navegador (ver
+ * `lib/pdf.ts`), así que aguas abajo todo sigue siendo una imagen.
+ */
+export const DOCUMENT_ACCEPT = [...ACCEPTED_IMAGE_TYPES, "application/pdf"].join(
+  ",",
+)
 
 /** Tamaño máximo que acepta el backend (4 MB). */
 export const MAX_IMAGE_BYTES = 4 * 1024 * 1024
