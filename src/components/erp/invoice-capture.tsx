@@ -4,7 +4,7 @@ import * as React from "react"
 import { Camera, ImagePlus, Loader2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { IMAGE_ACCEPT } from "@/lib/images"
+import { DOCUMENT_ACCEPT, IMAGE_ACCEPT } from "@/lib/images"
 
 interface InvoiceCaptureProps {
   /** Recibe las fotos elegidas, sin procesar: quien llama decide qué hacer. */
@@ -52,7 +52,7 @@ export function InvoiceCapture({ onFiles, busy = false, hint }: InvoiceCapturePr
           onClick={() => filesRef.current?.click()}
         >
           <ImagePlus className="size-4" aria-hidden />
-          Subir imágenes
+          Subir archivos
         </Button>
       </div>
 
@@ -66,10 +66,13 @@ export function InvoiceCapture({ onFiles, busy = false, hint }: InvoiceCapturePr
         className="hidden"
         onChange={handleChange}
       />
+      {/* El botón de archivos acepta también PDF: la factura electrónica llega
+          por correo en ese formato y hacerle una captura sería degradar a mano
+          la mejor fuente disponible. La cámara, en cambio, solo da imágenes. */}
       <input
         ref={filesRef}
         type="file"
-        accept={IMAGE_ACCEPT}
+        accept={DOCUMENT_ACCEPT}
         multiple
         className="hidden"
         onChange={handleChange}

@@ -75,12 +75,33 @@ export interface ExtractedInvoice {
   }
 }
 
+/**
+ * Ficha del producto que hay que crear porque el inventario no lo tiene.
+ *
+ * Lo que la factura sabe viene prellenado; lo que no —precio de venta,
+ * categoría— se pide en la revisión. El SKU es obligatorio: antes se generaba
+ * uno automático que quedaba para siempre en el catálogo.
+ */
+export interface NewProductDraft {
+  sku?: string
+  name?: string
+  unit?: string
+  categoryId?: string | null
+  cost?: number
+  /** Sin precio de venta el producto entra al inventario pero no al POS. */
+  salePrice?: number
+  barcode?: string
+  minStock?: number
+}
+
 export interface LineDecision {
   lineIndex: number
   target: LineTarget
   productId?: string | null
   createProduct?: boolean
   categoryId?: string | null
+  /** Datos del producto a crear (solo si `createProduct`). */
+  newProduct?: NewProductDraft
   /** Cómo se emparejó: alias | barcode | sku | name | manual | none. */
   matchedBy?: string
 }
