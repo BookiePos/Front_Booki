@@ -299,7 +299,7 @@ export function PosShell({ children }: { children: React.ReactNode }) {
           <SedeBadge />
           <div className="ml-auto flex items-center gap-1.5">
             <GuideButton />
-            <ThemeToggle className="size-10" />
+            <ThemeToggle />
             <UserMenu />
           </div>
         </header>

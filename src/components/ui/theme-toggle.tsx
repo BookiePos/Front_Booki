@@ -5,75 +5,67 @@ import { Monitor, Moon, Sun } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useTheme } from "@/lib/theme/theme-context"
 import type { ThemeMode } from "@/lib/theme/theme-store"
-import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+import { Segmented, type SegmentedOption } from "@/components/ui/segmented"
 
-const OPTIONS: { value: ThemeMode; label: string; icon: typeof Sun }[] = [
+const OPTIONS: SegmentedOption<ThemeMode>[] = [
   { value: "light", label: "Claro", icon: Sun },
   { value: "dark", label: "Oscuro", icon: Moon },
-  { value: "system", label: "Según el sistema", icon: Monitor },
+  { value: "system", label: "Auto", icon: Monitor },
 ]
+
+/** Las mismas tres opciones, pero solo el icono (barra superior estrecha). */
+const COMPACT: SegmentedOption<ThemeMode>[] = OPTIONS.map((o) => ({
+  ...o,
+  label: "",
+  srLabel:
+    o.value === "light"
+      ? "Tema claro"
+      : o.value === "dark"
+        ? "Tema oscuro"
+        : "Seguir al sistema",
+}))
 
 /**
  * Selector de tema (claro / oscuro / sistema).
  *
- * Es un menú y no un interruptor de dos estados porque "seguir al sistema" es
- * un tercer valor de pleno derecho: con un switch no habría forma de volver a
- * él una vez elegido claro u oscuro.
+ * Antes era un botón fantasma que abría un menú: había que adivinar que el
+ * solecito hacía algo, abrirlo, leer tres opciones y elegir — tres pasos para
+ * una preferencia que se cambia a diario cuando cae la tarde en el mostrador.
+ * Y en la barra oscura el icono se confundía con los de al lado.
+ *
+ * Ahora los tres estados están a la vista y se cambia con un toque. Sigue
+ * siendo de tres estados y no un interruptor: "seguir al sistema" es un valor
+ * de pleno derecho y con un switch no habría forma de volver a él.
+ *
+ * Se pinta con `useTheme`, que lee el modo con `useSyncExternalStore`, así que
+ * en el primer render del servidor sale "Auto" y React lo corrige al hidratar
+ * sin discrepancia de marcado.
  */
 export function ThemeToggle({
   className,
-  size = "icon-lg",
+  /** `compact` deja solo los iconos: es lo que va en las barras superiores. */
+  variant = "compact",
+  size = "md",
 }: {
   className?: string
-  size?: "icon" | "icon-sm" | "icon-lg"
+  variant?: "compact" | "full"
+  size?: "sm" | "md" | "lg"
 }) {
   const { mode, setMode } = useTheme()
 
-  const current = OPTIONS.find((o) => o.value === mode)?.label ?? "Claro"
-
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={
-          <Button
-            variant="ghost"
-            size={size}
-            className={cn(className)}
-            aria-label={"Tema: " + current + ". Cambiar tema"}
-            title="Tema de la interfaz"
-          />
-        }
-      >
-        {/* Los dos iconos se pintan y CSS decide cuál se ve. Elegirlo con
-            estado de React haría que el primer render (siempre "claro", como
-            el HTML del servidor) mostrara el sol un instante aunque la página
-            ya estuviera oscura: la clase `dark` la puso el script del <head>
-            antes de que React existiera. */}
-        <Sun className="size-4 dark:hidden" aria-hidden />
-        <Moon className="hidden size-4 dark:block" aria-hidden />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-52">
-        <DropdownMenuLabel>Tema de la interfaz</DropdownMenuLabel>
-        <DropdownMenuRadioGroup
-          value={mode}
-          onValueChange={(value) => setMode(value as ThemeMode)}
-        >
-          {OPTIONS.map((option) => (
-            <DropdownMenuRadioItem key={option.value} value={option.value}>
-              <option.icon className="size-4" aria-hidden />
-              {option.label}
-            </DropdownMenuRadioItem>
-          ))}
-        </DropdownMenuRadioGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <Segmented
+      value={mode}
+      onValueChange={setMode}
+      options={variant === "compact" ? COMPACT : OPTIONS}
+      size={size}
+      ariaLabel="Tema de la interfaz"
+      className={cn(
+        // Icono solo: se recorta el relleno lateral para que los tres botones
+        // no se coman la barra, sin bajar de los 36 px de alto tactiles.
+        variant === "compact" && "[&>button]:px-2.5",
+        className,
+      )}
+    />
   )
 }

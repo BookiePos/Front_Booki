@@ -494,6 +494,42 @@ export async function getLots(
   return parseResponse<InvLot[]>(res)
 }
 
+/** Estado de un lote frente a su vencimiento. */
+export type LotStatus = "all" | "expired" | "expiring" | "ok"
+
+/** Lote con el producto y la sede ya resueltos (listado global). */
+export interface InvLotRow extends Omit<InvLot, "productId"> {
+  productId: InvProduct | null
+}
+
+export interface LotsPage {
+  /** Ventana de "por vencer" que aplicó el servidor, en días. */
+  days: number
+  rows: InvLotRow[]
+}
+
+/**
+ * Todos los lotes abiertos del inventario (pestaña "Lotes").
+ *
+ * `getLots` responde "qué lotes tiene ESTE producto aquí"; esta responde la
+ * pregunta con la que se abre la tienda: "¿qué tengo vencido o por vencer?".
+ */
+export async function listLots(query: {
+  sedeId?: string
+  productId?: string
+  status?: LotStatus
+  days?: number
+} = {}): Promise<LotsPage> {
+  const params = new URLSearchParams()
+  if (query.sedeId) params.set("sedeId", query.sedeId)
+  if (query.productId) params.set("productId", query.productId)
+  if (query.status && query.status !== "all") params.set("status", query.status)
+  if (query.days) params.set("days", String(query.days))
+  const qs = params.toString()
+  const res = await authFetch(`/inventory/lots${qs ? `?${qs}` : ""}`)
+  return parseResponse<LotsPage>(res)
+}
+
 export async function getAlerts(sedeId?: string, days?: number): Promise<InvAlerts> {
   const params = new URLSearchParams()
   if (sedeId) params.set("sedeId", sedeId)
