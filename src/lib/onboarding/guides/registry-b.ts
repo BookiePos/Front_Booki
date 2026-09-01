@@ -13,8 +13,8 @@ import type { GuideDescriptor } from "./types"
  * que resaltan elementos con `data-tour`, y un cierre centrado. Sigue el patrón
  * de `sedeGuide` en ./core.ts.
  *
- * Nota: el menú lista “Resoluciones” (/panel/resoluciones) pero su página aún no
- * existe, así que se omite de este registro.
+ * Nota: “Resoluciones” (/panel/resoluciones) ya tiene página, pero todavía no
+ * tiene recorrido guiado propio.
  */
 export const guidesB: GuideDescriptor[] = [
   // ── Finanzas ────────────────────────────────────────────────────────────────
