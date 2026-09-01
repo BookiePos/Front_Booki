@@ -167,9 +167,15 @@ export async function getInvoiceScan(id: string): Promise<InvoiceScan> {
  */
 export async function uploadInvoiceScan(
   file: File | Blob,
+  /**
+   * Texto del PDF, si la página lo traía. Su presencia hace que el backend lea
+   * la factura SIN OCR: más exacto en los precios, más barato y más rápido.
+   */
+  text?: string,
 ): Promise<InvoiceScan> {
   const body = new FormData()
   body.append("file", file)
+  if (text) body.append("text", text)
   const res = await authFetch("/invoice-scans", { method: "POST", body })
   return parseResponse<InvoiceScan>(res)
 }

@@ -118,3 +118,101 @@ export async function createCreditNote(
   })
   return parseResponse<ElectronicDocument>(res)
 }
+
+// ─── Resoluciones de numeración ──────────────────────────────────────────────
+
+/** Del más grave al más tranquilo: así se ordenan las sedes en la pantalla. */
+export type EstadoResolucion =
+  | "sin_configurar"
+  | "incompleta"
+  | "vencida"
+  | "rango_agotado"
+  | "aun_no_vigente"
+  | "por_vencer"
+  | "rango_bajo"
+  | "ok"
+
+export const ESTADO_RESOLUCION_LABELS: Record<EstadoResolucion, string> = {
+  sin_configurar: "Sin registrar",
+  incompleta: "Incompleta",
+  vencida: "Vencida",
+  rango_agotado: "Rango agotado",
+  aun_no_vigente: "Aún no vigente",
+  por_vencer: "Por vencer",
+  rango_bajo: "Quedan pocos números",
+  ok: "Al día",
+}
+
+export interface ResolutionStatus {
+  estado: EstadoResolucion
+  alertas: string[]
+  /** ¿Se puede emitir ahora mismo con esta resolución? */
+  puedeEmitir: boolean
+  claveTecnicaOk: boolean
+  consecutivo: {
+    siguiente?: number
+    usados: number
+    restantes?: number
+    total?: number
+    /** 0 a 1. */
+    consumido?: number
+  }
+  vigencia: {
+    diasRestantes?: number
+    vencida: boolean
+    aunNoVigente: boolean
+  }
+}
+
+export interface ResolutionRow {
+  sedeId: string
+  sedeCode: string
+  sedeName: string
+  resolucion?: {
+    numero?: string
+    fechaResolucion?: string
+    prefijo?: string
+    rangoDesde?: number
+    rangoHasta?: number
+    vigenciaDesde?: string
+    vigenciaHasta?: string
+  }
+  status: ResolutionStatus
+}
+
+export interface RegisterResolutionPayload {
+  numero?: string
+  fechaResolucion?: string
+  prefijo?: string
+  rangoDesde?: number
+  rangoHasta?: number
+  vigenciaDesde?: string
+  vigenciaHasta?: string
+  claveTecnica?: string
+  /** Número por el que arranca el consecutivo. */
+  empezarEn?: number
+}
+
+/** Estado de la resolución de cada sede a la que el usuario tiene acceso. */
+export async function listResolutions(): Promise<ResolutionRow[]> {
+  const res = await authFetch("/einvoicing/resolutions")
+  return parseResponse<ResolutionRow[]>(res)
+}
+
+/**
+ * Registra o renueva la resolución de una sede.
+ *
+ * Devuelve el estado actualizado de todas las sedes, no solo la tocada: al
+ * anclar el consecutivo cambia lo que queda por emitir, y la pantalla se
+ * refresca de una vez.
+ */
+export async function registerResolution(
+  sedeId: string,
+  payload: RegisterResolutionPayload,
+): Promise<ResolutionRow[]> {
+  const res = await authFetch(`/einvoicing/resolutions/${sedeId}`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
+  return parseResponse<ResolutionRow[]>(res)
+}
