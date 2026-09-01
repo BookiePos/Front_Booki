@@ -31,6 +31,7 @@ import {
   HandCoins,
   CalendarClock,
   ImageOff,
+  Layers,
 } from "lucide-react"
 
 import { useAuth } from "@/lib/auth-context"
@@ -84,6 +85,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+  VariantPicker,
+  axesOf,
+  axisLabel,
+  sortVariants,
+  variantLabel,
+  type VariantGroup,
+} from "@/components/pos/variant-picker"
 import { cn } from "@/lib/utils"
 
 function errorMessage(err: unknown): string {
@@ -111,6 +120,53 @@ const PAYMENT_ICONS: Record<PaymentMethod, React.ElementType> = {
 }
 
 type SaveState = "idle" | "saving" | "saved" | "error"
+
+/**
+ * Una casilla de la rejilla: o un producto suelto, o un grupo de variantes
+ * (las tallas de una misma camisa) que se abre en el selector.
+ */
+type GridEntry =
+  | { kind: "single"; product: PosProduct }
+  | { kind: "group"; group: VariantGroup }
+
+/**
+ * Agrupa el catálogo para la rejilla: las variantes de un mismo producto (las
+ * tallas de una camisa) se juntan en una sola entrada y el resto pasa tal cual.
+ *
+ * Sin esto, una tienda de ropa con diez modelos en cinco tallas veía cincuenta
+ * tarjetas que solo se distinguen por la última letra del nombre.
+ *
+ * Va suelta y sin `useMemo`: el compilador de React memoriza la llamada solo, y
+ * un memo escrito a mano que él no pueda preservar apagaría la optimización de
+ * toda la pantalla.
+ */
+function buildGridEntries(filtered: PosProduct[]): GridEntry[] {
+  const puestos = new Set<string>()
+  return filtered.flatMap<GridEntry>((p) => {
+    const groupId = p.variantGroupId
+    if (!groupId) return [{ kind: "single", product: p }]
+    // El grupo ocupa la posición de su primera variante; las demás ya están
+    // dentro de esa tarjeta.
+    if (puestos.has(groupId)) return []
+    puestos.add(groupId)
+    const variants = filtered.filter((v) => v.variantGroupId === groupId)
+    // Un "grupo" de una sola variante no es un grupo: pedir talla cuando solo
+    // hay una es un toque de más.
+    return [
+      variants.length === 1
+        ? { kind: "single", product: variants[0] }
+        : {
+            kind: "group",
+            group: {
+              groupId,
+              name: p.variantGroupName ?? p.name,
+              variants,
+            },
+          },
+    ]
+  })
+}
+
 
 /** Convierte las líneas de una cuenta en ítems del carrito (usa el stock real
  * cuando el producto sigue vendible; si no, sintetiza uno mínimo). */
@@ -735,6 +791,28 @@ export default function VentaPage() {
    */
   const showImages = filtered.some((p) => p.imageUrl)
 
+  /**
+   * La rejilla, ya agrupada: las variantes de un mismo producto (las tallas de
+   * una camisa) se juntan en una sola entrada y el resto pasa tal cual.
+   *
+   * Sin esto, una tienda de ropa con diez modelos en cinco tallas veía
+   * cincuenta tarjetas que solo se distinguen por la última letra del nombre.
+   * El grupo conserva la posición del primer miembro, así que el catálogo sigue
+   * saliendo en orden alfabético.
+   */
+  /** Unidades ya en la cuenta, por vendible. Lo lee el selector de talla. */
+  const cartQtyById = React.useMemo(
+    () => new Map(cart.map((i) => [i.product._id, i.qty])),
+    [cart],
+  )
+
+  const gridEntries = buildGridEntries(filtered)
+
+  /** Grupo de variantes abierto en el selector de talla (null = cerrado). */
+  const [pickerGroup, setPickerGroup] = React.useState<VariantGroup | null>(
+    null,
+  )
+
   function openCheckout() {
     setMethod("cash")
     setReceived("")
@@ -1243,7 +1321,26 @@ export default function VentaPage() {
             </Card>
           ) : (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-              {filtered.map((p) => {
+              {gridEntries.map((entry) => {
+                // Un grupo de variantes ocupa UNA casilla y abre el selector de
+                // talla; el resto de productos se pintan como siempre.
+                if (entry.kind === "group") {
+                  return (
+                    <VariantGroupCard
+                      key={entry.group.groupId}
+                      group={entry.group}
+                      showImages={showImages}
+                      inCart={entry.group.variants.reduce(
+                        (n, v) =>
+                          n +
+                          (cart.find((i) => i.product._id === v._id)?.qty ?? 0),
+                        0,
+                      )}
+                      onOpen={() => setPickerGroup(entry.group)}
+                    />
+                  )
+                }
+                const p = entry.product
                 const inCart =
                   cart.find((i) => i.product._id === p._id)?.qty ?? 0
                 const out = p.stock <= 0 || inCart >= p.stock
@@ -2131,6 +2228,19 @@ export default function VentaPage() {
         </div>
       )}
 
+      {/* ── Selector de talla / variante ──
+          Se abre al pulsar una tarjeta de grupo y añade la variante elegida
+          directo a la cuenta. */}
+      <VariantPicker
+        group={pickerGroup}
+        open={pickerGroup !== null}
+        onOpenChange={(v) => {
+          if (!v) setPickerGroup(null)
+        }}
+        inCartByProduct={cartQtyById}
+        onPick={(p) => addToCart(p)}
+      />
+
       {/* ── Diálogo "Nueva cuenta" (nombre personalizado) ── */}
       {newOrderOpen && (
         <div
@@ -2242,6 +2352,98 @@ function CategoryChip({
       )}
     >
       {children}
+    </button>
+  )
+}
+
+/**
+ * Tarjeta de un producto con variantes (una camisa y sus tallas).
+ *
+ * Enseña de qué producto se trata, cuántas tallas quedan con existencias y
+ * desde qué precio; el detalle se elige en el selector. Se distingue de una
+ * tarjeta normal por el galón de "tallas" y el borde teñido: pulsarla NO
+ * agrega nada a la cuenta todavía, y eso hay que verlo antes de tocarla.
+ *
+ * Comparte maquetación con las tarjetas sueltas de la rejilla a propósito: en
+ * una caja, dos tarjetas que se comportan distinto pero se ven iguales son un
+ * error esperando a pasar.
+ */
+function VariantGroupCard({
+  group,
+  inCart,
+  showImages,
+  onOpen,
+}: {
+  group: VariantGroup
+  /** Unidades de cualquier talla de este grupo ya en la cuenta. */
+  inCart: number
+  showImages: boolean
+  onOpen: () => void
+}) {
+  const ordenadas = sortVariants(group.variants)
+  const disponibles = ordenadas.filter((v) => v.stock > 0)
+  const agotado = disponibles.length === 0
+  const desde = Math.min(...group.variants.map((v) => v.salePrice))
+  const variosPrecios = new Set(group.variants.map((v) => v.salePrice)).size > 1
+  const foto = group.variants.find((v) => v.imageUrl)?.imageUrl ?? null
+  const ejes = axesOf(group.variants)
+  const eje = ejes.length === 1 ? ejes[0] : "variante"
+
+  return (
+    <button
+      type="button"
+      disabled={agotado}
+      onClick={onOpen}
+      aria-label={`${group.name}: elegir ${eje.toLowerCase()}`}
+      className={cn(
+        "group relative flex flex-col items-start gap-1 rounded-xl border border-primary/30 bg-card p-3 text-left shadow-xs transition-all hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-sm active:translate-y-0",
+        agotado &&
+          "cursor-not-allowed opacity-50 hover:translate-y-0 hover:border-border hover:shadow-xs",
+      )}
+    >
+      {inCart > 0 && (
+        <span className="absolute right-2 top-2 z-10 flex size-5 items-center justify-center rounded-full bg-primary text-[11px] font-bold text-primary-foreground">
+          {inCart}
+        </span>
+      )}
+      {showImages &&
+        (foto ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={foto}
+            alt=""
+            loading="lazy"
+            className="mb-1 aspect-square w-full rounded-lg border border-border object-cover"
+          />
+        ) : (
+          <span className="mb-1 flex aspect-square w-full items-center justify-center rounded-lg border border-dashed border-border text-muted-foreground">
+            <Layers className="size-6" aria-hidden />
+          </span>
+        ))}
+      <span className="flex items-center gap-1 rounded-full bg-primary/12 px-2 py-0.5 text-[11px] font-bold text-primary">
+        <Layers className="size-3" aria-hidden />
+        {group.variants.length} {axisLabel(eje, group.variants.length)}
+      </span>
+      <span className="line-clamp-2 pr-6 font-medium leading-snug">
+        {group.name}
+      </span>
+      <span className="line-clamp-1 text-xs text-muted-foreground">
+        {disponibles.length > 0
+          ? disponibles.slice(0, 6).map(variantLabel).join(" · ")
+          : "Sin existencias"}
+      </span>
+      <span className="mt-1 flex w-full items-center justify-between">
+        <span className="font-display text-lg">
+          {variosPrecios ? `desde ${money(desde)}` : money(desde)}
+        </span>
+        {agotado ? (
+          <Badge variant="destructive">Agotado</Badge>
+        ) : disponibles.length < group.variants.length ? (
+          <Badge className="border-transparent bg-warning/15 text-warning-ink">
+            {disponibles.length}/{group.variants.length}
+          </Badge>
+        ) : null}
+      </span>
     </button>
   )
 }

@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
 import {
   Plus,
   Pencil,
@@ -23,6 +24,11 @@ import {
   Upload,
   FileUp,
   CheckCircle2,
+  Factory,
+  Search,
+  CircleAlert,
+  Boxes as BoxesIcon,
+  Package,
 } from "lucide-react"
 
 import { useAuth } from "@/lib/auth-context"
@@ -40,6 +46,7 @@ import {
   deleteCategory,
   getStock,
   getLots,
+  listLots,
   getAlerts,
   getMovements,
   createEntry,
@@ -60,6 +67,8 @@ import {
   type InvCategory,
   type StockRow,
   type InvLot,
+  type InvLotRow,
+  type LotStatus,
   type InvAlerts,
   type MovementsPage,
   type AdjustReason,
@@ -69,7 +78,7 @@ import { listSuppliers, type Supplier } from "@/lib/erp/api-suppliers"
 import { serializeCsv, parseCsv, downloadCsv } from "@/lib/erp/csv"
 
 import { PageHeader } from "@/components/erp/page-header"
-import { Button } from "@/components/ui/button"
+import { Button, ButtonLabel } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
   Card,
@@ -103,6 +112,13 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
+import {
+  FormDialog,
+  FormDivider,
+  FormSection,
+} from "@/components/ui/form-dialog"
+import { Field, FieldGrid } from "@/components/ui/field"
+import { Segmented } from "@/components/ui/segmented"
 import { useConfirm } from "@/components/ui/confirm-dialog"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Separator } from "@/components/ui/separator"
@@ -111,6 +127,9 @@ import { cn } from "@/lib/utils"
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 const UNITS = ["und", "kg", "g", "lb", "l", "ml"]
+
+/** Enlaza el botón Guardar del pie del diálogo con el <form> del cuerpo. */
+const VARIANTS_FORM_ID = "ficha-producto-variantes"
 
 /** Factores hacia una unidad base por dimensión (masa en g, volumen en ml). */
 const UNIT_FACTORS: Record<string, { base: string; factor: number }> = {
@@ -2162,28 +2181,359 @@ function CategoriesSheet({
   )
 }
 
+// ─── Panel de lotes (trazabilidad y vencimientos) ────────────────────────────
+
+const LOT_STATUS_OPTIONS: { value: LotStatus; label: string }[] = [
+  { value: "all", label: "Todos" },
+  { value: "expired", label: "Vencidos" },
+  { value: "expiring", label: "Por vencer" },
+  { value: "ok", label: "Al día" },
+]
+
+/**
+ * Pestaña "Lotes": todos los lotes abiertos del inventario, en orden FEFO.
+ *
+ * Hasta ahora los lotes solo se veían desplegando una fila de existencias, un
+ * producto cada vez. Eso sirve para responder "¿de qué lote es esta caja?",
+ * pero no para la pregunta con la que se abre la tienda: "¿qué se me vence
+ * esta semana?". Con doscientas referencias, contestarla a mano era imposible,
+ * así que en la práctica nadie lo hacía y la merma se descubría en el estante.
+ *
+ * El orden es FEFO —lo que primero vence, primero se ve— porque es también el
+ * orden en el que el sistema los consume al vender: la lista de arriba es
+ * literalmente lo que va a salir primero.
+ */
+function LotsPanel({
+  sedes,
+  canAdjust,
+  onAdjust,
+  refreshKey,
+}: {
+  sedes: Sede[]
+  canAdjust: boolean
+  /** Abre el ajuste con el producto y la sede del lote ya puestos. */
+  onAdjust: (preset: { productId: string; sedeId: string }) => void
+  /** Cambia tras cada operación de stock para forzar la recarga. */
+  refreshKey: number
+}) {
+  const [sedeId, setSedeId] = React.useState("all")
+  const [status, setStatus] = React.useState<LotStatus>("all")
+  const [search, setSearch] = React.useState("")
+  const [rows, setRows] = React.useState<InvLotRow[]>([])
+  const [days, setDays] = React.useState(30)
+  const [loading, setLoading] = React.useState(true)
+  const [error, setError] = React.useState<string | null>(null)
+
+  React.useEffect(() => {
+    let cancelled = false
+    async function load() {
+      setLoading(true)
+      setError(null)
+      try {
+        const data = await listLots({
+          sedeId: sedeId === "all" ? undefined : sedeId,
+          status,
+        })
+        if (cancelled) return
+        setRows(data.rows)
+        setDays(data.days)
+      } catch (err) {
+        if (!cancelled) setError(errorMessage(err))
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    void load()
+    return () => {
+      cancelled = true
+    }
+  }, [sedeId, status, refreshKey])
+
+  const filtered = rows.filter((lot) => {
+    const q = search.trim().toLowerCase()
+    if (!q) return true
+    const product = typeof lot.productId === "object" ? lot.productId : null
+    return (
+      lot.lotCode.toLowerCase().includes(q) ||
+      (product?.name ?? "").toLowerCase().includes(q) ||
+      (product?.sku ?? "").toLowerCase().includes(q) ||
+      (lot.supplier ?? "").toLowerCase().includes(q)
+    )
+  })
+
+  /** Cuántos lotes hay vencidos, para el aviso de arriba. */
+  const vencidos = rows.filter(
+    (l) => l.expiresAt && new Date(l.expiresAt) < new Date(),
+  ).length
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <CardTitle>Lotes en existencia</CardTitle>
+          <CardDescription>
+            Orden FEFO: lo que primero vence es lo primero que el sistema
+            descuenta al vender. Ventana de aviso: {days} días.
+          </CardDescription>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative">
+            <Search
+              className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+              aria-hidden
+            />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Lote, producto, proveedor…"
+              className="w-60 pl-9"
+              aria-label="Buscar lotes"
+            />
+          </div>
+          <Segmented
+            value={status}
+            onValueChange={setStatus}
+            options={LOT_STATUS_OPTIONS}
+            size="sm"
+            ariaLabel="Filtrar lotes por vencimiento"
+          />
+          {sedes.length > 1 && (
+            <Select
+              value={sedeId}
+              items={{ all: "Todas las sedes", ...sedeItems(sedes) }}
+              onValueChange={(v) => {
+                if (v !== null) setSedeId(v)
+              }}
+            >
+              <SelectTrigger className="w-48">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas las sedes</SelectItem>
+                {sedes.map((s) => (
+                  <SelectItem key={s._id} value={s._id}>
+                    {s.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </div>
+      </CardHeader>
+
+      {vencidos > 0 && status !== "expired" && (
+        <CardContent className="pb-0">
+          <button
+            type="button"
+            onClick={() => setStatus("expired")}
+            className="flex w-full items-center gap-2.5 rounded-2xl border border-destructive/35 bg-destructive/8 px-4 py-3 text-left text-sm text-destructive-ink transition-colors hover:bg-destructive/12 focus-visible:ring-3 focus-visible:ring-ring/45 focus-visible:outline-none"
+          >
+            <CircleAlert className="size-4 shrink-0" />
+            <span>
+              <span className="font-semibold">{vencidos} lote(s) vencidos</span>{" "}
+              siguen con existencias. Sácalos con un ajuste por vencimiento.
+            </span>
+            <ChevronRight className="ml-auto size-4 shrink-0" />
+          </button>
+        </CardContent>
+      )}
+
+      <CardContent className="p-0">
+        {loading ? (
+          <TableSkeleton cols={7} />
+        ) : error ? (
+          <p className="p-6 text-sm text-destructive">{error}</p>
+        ) : filtered.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 py-14 text-center">
+            <CalendarClock className="size-9 text-muted-foreground" />
+            <p className="font-display text-lg">Sin lotes que mostrar</p>
+            <p className="max-w-sm text-sm text-muted-foreground">
+              {rows.length === 0
+                ? "Solo llevan lote los productos marcados como perecederos o con control por lote. Actívalo en la ficha del producto y regístralo en la próxima entrada."
+                : "Ningún lote coincide con la búsqueda."}
+            </p>
+          </div>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Lote</TableHead>
+                <TableHead>Producto</TableHead>
+                <TableHead>Sede</TableHead>
+                <TableHead className="text-right">Disponible</TableHead>
+                <TableHead>Vence</TableHead>
+                <TableHead>Ingreso</TableHead>
+                <TableHead className="text-right">Costo</TableHead>
+                <TableHead />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filtered.map((lot) => {
+                const product =
+                  typeof lot.productId === "object" ? lot.productId : null
+                const consumido = lot.initialQty - lot.qty
+                return (
+                  <TableRow key={lot._id}>
+                    <TableCell className="font-mono text-xs">
+                      {lot.lotCode}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-col">
+                        <span className="font-medium">
+                          {product?.name ?? "—"}
+                        </span>
+                        <span className="font-mono text-xs text-muted-foreground">
+                          {product?.sku ?? ""}
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {lot.sedeId?.name ?? "—"}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <span className="tnum font-medium">
+                        {nf.format(lot.qty)}
+                      </span>{" "}
+                      <span className="text-xs text-muted-foreground">
+                        {product?.unit ?? ""}
+                      </span>
+                      {consumido > 0 && (
+                        <span className="block text-xs text-muted-foreground">
+                          de {nf.format(lot.initialQty)}
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {lot.expiresAt ? (
+                        <span className="flex items-center gap-2">
+                          {dfUTC.format(new Date(lot.expiresAt))}
+                          <ExpiryBadge date={lot.expiresAt} />
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">
+                          No caduca
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      <span>{df.format(new Date(lot.receivedAt))}</span>
+                      {lot.supplier && (
+                        <span className="block text-xs text-muted-foreground">
+                          {lot.supplier}
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell className="tnum text-right text-sm">
+                      {formatUnitCost(lot.unitCost, product?.unit ?? "und")}
+                    </TableCell>
+                    <TableCell>
+                      {canAdjust && product && lot.sedeId?._id && (
+                        <div className="flex justify-end">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            title="Dar de baja este lote con un ajuste"
+                            onClick={() =>
+                              onAdjust({
+                                productId: product._id,
+                                sedeId: lot.sedeId._id,
+                              })
+                            }
+                          >
+                            <PackageMinus />
+                            <ButtonLabel from="lg">Ajustar</ButtonLabel>
+                          </Button>
+                        </div>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                )
+              })}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
 // ─── Main page ───────────────────────────────────────────────────────────────
 
-type Tab = "productos" | "existencias" | "movimientos"
+type Tab = "productos" | "existencias" | "lotes" | "movimientos"
 
-// ─── Variants sheet (producto con variantes, retail) ─────────────────────────
+// ─── Tallas y variantes (comercio sin recetas) ───────────────────────────────
 
 interface AxisRow {
   name: string
-  /** Valores separados por coma, tal como los escribe el usuario. */
-  valuesText: string
+  /** Valores ya elegidos para el eje ("S", "M", "L"…). */
+  values: string[]
 }
 
+/**
+ * Plantillas de ejes de uso corriente.
+ *
+ * Escribir "XS, S, M, L, XL, XXL" a mano en cada alta es justo el trabajo que
+ * hace que nadie use la función. Con un toque queda el eje montado y luego se
+ * quitan los valores que no se manejen.
+ */
+const AXIS_PRESETS: { label: string; name: string; values: string[] }[] = [
+  {
+    label: "Tallas de ropa",
+    name: "Talla",
+    values: ["XS", "S", "M", "L", "XL", "XXL"],
+  },
+  {
+    label: "Tallas numéricas",
+    name: "Talla",
+    values: ["28", "30", "32", "34", "36", "38", "40"],
+  },
+  {
+    label: "Calzado (CO)",
+    name: "Talla",
+    values: ["35", "36", "37", "38", "39", "40", "41", "42", "43", "44"],
+  },
+  {
+    label: "Colores básicos",
+    name: "Color",
+    values: ["Negro", "Blanco", "Azul", "Rojo", "Verde", "Gris"],
+  },
+  {
+    label: "Presentación",
+    name: "Presentación",
+    values: ["Pequeño", "Mediano", "Grande"],
+  },
+]
+
+/** Cuántas combinaciones se enseñan en la vista previa antes de resumir. */
+const PREVIEW_LIMIT = 12
+
+/**
+ * Alta de un producto con variantes: una fila de inventario por cada
+ * combinación de los ejes (talla × color), con SKU y existencias propias.
+ *
+ * Está pensada para el comercio que NO trabaja con recetas —ropa, calzado,
+ * accesorios—, donde "una camisa" no es un producto sino quince: cada talla se
+ * compra, se cuenta y se vende por separado. Darlas de alta una a una era
+ * media hora de trabajo y quince oportunidades de equivocarse con el SKU.
+ *
+ * Los valores se eligen como fichas (no como texto separado por comas) porque
+ * así se ve exactamente qué se va a crear y se puede quitar uno sin volver a
+ * escribir la lista entera. La vista previa de abajo enseña el SKU real que va
+ * a salir, que es lo que después se busca en el POS y se pega en la etiqueta.
+ */
 function VariantsSheet({
   open,
   onOpenChange,
   categories,
   onSuccess,
+  onRegisterEntry,
 }: {
   open: boolean
   onOpenChange: (v: boolean) => void
   categories: InvCategory[]
   onSuccess: () => void
+  /** Abre la entrada de mercancía al terminar (el paso natural siguiente). */
+  onRegisterEntry?: () => void
 }) {
   const [skuPrefix, setSkuPrefix] = React.useState("")
   const [name, setName] = React.useState("")
@@ -2192,8 +2542,9 @@ function VariantsSheet({
   const [cost, setCost] = React.useState("")
   const [minStock, setMinStock] = React.useState("")
   const [axes, setAxes] = React.useState<AxisRow[]>([
-    { name: "Talla", valuesText: "" },
+    { name: "Talla", values: [] },
   ])
+  const [drafts, setDrafts] = React.useState<string[]>([""])
   const [saving, setSaving] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [doneMsg, setDoneMsg] = React.useState<string | null>(null)
@@ -2206,33 +2557,109 @@ function VariantsSheet({
     setSalePrice("")
     setCost("")
     setMinStock("")
-    setAxes([{ name: "Talla", valuesText: "" }])
+    setAxes([{ name: "Talla", values: [] }])
+    setDrafts([""])
     setError(null)
     setDoneMsg(null)
   }, [open])
 
-  /** Ejes con nombre y al menos un valor, ya parseados. */
+  /** Ejes con nombre y al menos un valor: los únicos que generan variantes. */
   const parsedAxes = axes
-    .map((a) => ({
-      name: a.name.trim(),
-      values: a.valuesText
-        .split(",")
-        .map((v) => v.trim())
-        .filter(Boolean),
-    }))
+    .map((a) => ({ name: a.name.trim(), values: a.values }))
     .filter((a) => a.name && a.values.length > 0)
 
-  const comboCount = parsedAxes.reduce((n, a) => n * a.values.length, 1)
-  const willCreate = parsedAxes.length > 0 ? comboCount : 0
+  const willCreate =
+    parsedAxes.length > 0
+      ? parsedAxes.reduce((n, a) => n * a.values.length, 1)
+      : 0
+
+  /**
+   * Firma de los ejes. `parsedAxes` se recalcula en cada render, así que como
+   * dependencia no vale de nada; lo que de verdad cambia la vista previa es su
+   * contenido, y eso es lo que se compara.
+   */
+  const axesKey = JSON.stringify(parsedAxes)
+
+  /** Todas las combinaciones (producto cartesiano), como las hace el backend. */
+  const combos = React.useMemo(() => {
+    if (parsedAxes.length === 0) return [] as string[][]
+    return parsedAxes.reduce<string[][]>(
+      (acc, axis) => acc.flatMap((row) => axis.values.map((v) => [...row, v])),
+      [[]],
+    )
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [axesKey])
 
   function updateAxis(i: number, patch: Partial<AxisRow>) {
     setAxes((rows) => rows.map((r, idx) => (idx === i ? { ...r, ...patch } : r)))
   }
-  function addAxis() {
-    setAxes((rows) => [...rows, { name: "", valuesText: "" }])
+
+  /** Añade uno o varios valores (acepta "S, M, L" pegado de un tirón). */
+  function addValues(i: number, raw: string) {
+    const nuevos = raw
+      .split(/[,;\n\t]/)
+      .map((v) => v.trim())
+      .filter(Boolean)
+    if (nuevos.length === 0) return
+    setAxes((rows) =>
+      rows.map((r, idx) => {
+        if (idx !== i) return r
+        const merged = [...r.values]
+        for (const v of nuevos) {
+          if (!merged.some((x) => x.toLowerCase() === v.toLowerCase())) {
+            merged.push(v)
+          }
+        }
+        return { ...r, values: merged }
+      }),
+    )
+    setDrafts((d) => d.map((v, idx) => (idx === i ? "" : v)))
   }
+
+  function removeValue(i: number, value: string) {
+    setAxes((rows) =>
+      rows.map((r, idx) =>
+        idx === i ? { ...r, values: r.values.filter((v) => v !== value) } : r,
+      ),
+    )
+  }
+
+  function applyPreset(preset: (typeof AXIS_PRESETS)[number]) {
+    setAxes((rows) => {
+      const at = rows.findIndex(
+        (r) => r.name.trim().toLowerCase() === preset.name.toLowerCase(),
+      )
+      // Si ya hay un eje con ese nombre se rellena; si no, se añade otro.
+      if (at >= 0) {
+        const merged = [...rows[at].values]
+        for (const v of preset.values) {
+          if (!merged.some((x) => x.toLowerCase() === v.toLowerCase())) {
+            merged.push(v)
+          }
+        }
+        return rows.map((r, idx) =>
+          idx === at ? { ...r, name: preset.name, values: merged } : r,
+        )
+      }
+      const vacio = rows.findIndex((r) => !r.name.trim() && r.values.length === 0)
+      if (vacio >= 0) {
+        return rows.map((r, idx) =>
+          idx === vacio ? { name: preset.name, values: preset.values } : r,
+        )
+      }
+      setDrafts((d) => [...d, ""])
+      return [...rows, { name: preset.name, values: preset.values }]
+    })
+  }
+
+  function addAxis() {
+    setAxes((rows) => [...rows, { name: "", values: [] }])
+    setDrafts((d) => [...d, ""])
+  }
+
   function removeAxis(i: number) {
     setAxes((rows) => (rows.length > 1 ? rows.filter((_, idx) => idx !== i) : rows))
+    setDrafts((d) => (d.length > 1 ? d.filter((_, idx) => idx !== i) : d))
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -2263,7 +2690,7 @@ function VariantsSheet({
       })
       onSuccess()
       setDoneMsg(
-        `Se crearon ${res.variants.length} variante(s). Registra sus entradas de stock y publícalas en Productos para venderlas.`,
+        `Se crearon ${res.variants.length} variante(s). Ya están en el catálogo: registra su entrada de mercancía para poder venderlas.`,
       )
     } catch (err) {
       setError(errorMessage(err))
@@ -2273,69 +2700,108 @@ function VariantsSheet({
   }
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="sm:max-w-md overflow-y-auto">
-        <SheetHeader>
-          <SheetTitle className="font-display text-lg">
-            Producto con variantes
-          </SheetTitle>
-          <SheetDescription>
-            Define los ejes (talla, color…) y se crea una fila por cada
-            combinación, con su SKU y stock propios.
-          </SheetDescription>
-        </SheetHeader>
-
-        {doneMsg ? (
-          <div className="flex flex-col gap-4 px-4 py-6">
-            <div className="flex items-start gap-2 rounded-lg bg-success/10 p-3 text-sm text-success-ink">
-              <Check className="mt-0.5 size-4 shrink-0" />
-              <span>{doneMsg}</span>
-            </div>
+    <FormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Tallas y variantes"
+      description="Una fila de inventario por cada combinación, con su SKU y sus existencias propias. Pensado para ropa, calzado y todo lo que se vende por talla o color."
+      icon={Layers}
+      size="3xl"
+      footer={
+        doneMsg ? (
+          <>
+            {onRegisterEntry && (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  onOpenChange(false)
+                  onRegisterEntry()
+                }}
+              >
+                <PackagePlus />
+                Registrar entrada
+              </Button>
+            )}
             <Button onClick={() => onOpenChange(false)}>Listo</Button>
-          </div>
+          </>
         ) : (
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4 px-4 py-2">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="v-sku">SKU base</Label>
+          <>
+            <FormError error={error} />
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              Cancelar
+            </Button>
+            <Button
+              type="submit"
+              form={VARIANTS_FORM_ID}
+              disabled={saving || willCreate === 0}
+            >
+              {saving
+                ? "Creando…"
+                : willCreate > 0
+                  ? `Crear ${willCreate} variante(s)`
+                  : "Crear variantes"}
+            </Button>
+          </>
+        )
+      }
+    >
+      {doneMsg ? (
+        <div className="flex items-start gap-3 rounded-2xl border border-success/30 bg-success/8 p-4 text-sm text-success-ink">
+          <CheckCircle2 className="mt-0.5 size-5 shrink-0" />
+          <span>{doneMsg}</span>
+        </div>
+      ) : (
+        <form
+          id={VARIANTS_FORM_ID}
+          onSubmit={handleSubmit}
+          className="flex flex-col gap-5"
+        >
+          <FormSection
+            title="Producto base"
+            description="Lo común a todas las variantes. Cada una hereda esto y le añade su talla o su color."
+            icon={Package}
+          >
+            <FieldGrid cols={2}>
+              <Field
+                id="v-name"
+                label="Nombre"
+                required
+                hint="Se le añade la variante al final: “Camisa manga larga · M”."
+              >
+                <Input
+                  id="v-name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="p. ej. Camisa manga larga"
+                  required
+                />
+              </Field>
+              <Field
+                id="v-sku"
+                label="SKU base"
+                required
+                help={{ term: "sku" }}
+                hint="De aquí salen los SKU de cada variante (CAMISA-M, CAMISA-L…)."
+              >
                 <Input
                   id="v-sku"
                   value={skuPrefix}
                   onChange={(e) => setSkuPrefix(e.target.value.toUpperCase())}
                   placeholder="p. ej. CAMISA"
+                  className="font-mono"
                   required
                 />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="v-price">Precio de venta</Label>
-                <Input
-                  id="v-price"
-                  type="number"
-                  min="0"
-                  step="any"
-                  value={salePrice}
-                  onChange={(e) => setSalePrice(e.target.value)}
-                  placeholder="Opcional"
-                />
-              </div>
-            </div>
+              </Field>
+            </FieldGrid>
 
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="v-name">Nombre</Label>
-              <Input
-                id="v-name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="p. ej. Camisa manga larga"
-                required
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="v-cat">Categoría</Label>
+            <FieldGrid cols={4}>
+              <Field id="v-cat" label="Categoría">
                 <Select
                   value={categoryId}
+                  items={{
+                    none: "Sin categoría",
+                    ...Object.fromEntries(categories.map((c) => [c._id, c.name])),
+                  }}
                   onValueChange={(val) => {
                     if (val !== null) setCategoryId(val)
                   }}
@@ -2352,9 +2818,38 @@ function VariantsSheet({
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="v-min">Stock mínimo</Label>
+              </Field>
+              <Field
+                id="v-price"
+                label="Precio de venta"
+                hint="Con precio, entran solas al POS."
+              >
+                <Input
+                  id="v-price"
+                  type="number"
+                  min="0"
+                  step="any"
+                  value={salePrice}
+                  onChange={(e) => setSalePrice(e.target.value)}
+                  placeholder="Opcional"
+                />
+              </Field>
+              <Field id="v-cost" label="Costo">
+                <Input
+                  id="v-cost"
+                  type="number"
+                  min="0"
+                  step="any"
+                  value={cost}
+                  onChange={(e) => setCost(e.target.value)}
+                  placeholder="Opcional"
+                />
+              </Field>
+              <Field
+                id="v-min"
+                label="Stock mínimo"
+                hint="Por variante, no del total."
+              >
                 <Input
                   id="v-min"
                   type="number"
@@ -2364,33 +2859,57 @@ function VariantsSheet({
                   onChange={(e) => setMinStock(e.target.value)}
                   placeholder="Opcional"
                 />
-              </div>
-            </div>
+              </Field>
+            </FieldGrid>
+          </FormSection>
 
-            <Separator />
+          <FormDivider />
 
-            <div className="flex items-center justify-between">
-              <Label>Ejes de variación</Label>
+          <FormSection
+            title="Ejes de variación"
+            description="Talla, color, presentación… Se crea una variante por cada combinación."
+            icon={Layers}
+            action={
               <Button type="button" variant="outline" size="sm" onClick={addAxis}>
                 <Plus />
-                Agregar eje
+                Otro eje
               </Button>
+            }
+          >
+            {/* Plantillas: montan un eje entero de un toque. */}
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-xs font-medium text-muted-foreground">
+                Empezar con:
+              </span>
+              {AXIS_PRESETS.map((preset) => (
+                <button
+                  key={preset.label}
+                  type="button"
+                  onClick={() => applyPreset(preset)}
+                  className="rounded-full border border-border bg-card px-3 py-1 text-xs font-semibold text-muted-foreground transition-colors hover:border-primary/45 hover:bg-primary/8 hover:text-primary focus-visible:ring-3 focus-visible:ring-ring/45 focus-visible:outline-none"
+                >
+                  {preset.label}
+                </button>
+              ))}
             </div>
 
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-3">
               {axes.map((axis, i) => (
                 <div
                   key={i}
-                  className="flex flex-col gap-2 rounded-lg border border-border p-2"
+                  className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-3.5 shadow-xs"
                 >
                   <div className="flex items-center gap-2">
                     <Input
                       value={axis.name}
                       onChange={(e) => updateAxis(i, { name: e.target.value })}
-                      placeholder="Eje (p. ej. Talla)"
-                      className="flex-1"
+                      placeholder="Nombre del eje (Talla, Color…)"
+                      className="max-w-56 font-semibold"
                       aria-label="Nombre del eje"
                     />
+                    <Badge variant="outline" className="ml-auto">
+                      {axis.values.length} valor(es)
+                    </Badge>
                     <Button
                       type="button"
                       variant="ghost"
@@ -2402,51 +2921,109 @@ function VariantsSheet({
                       <X />
                     </Button>
                   </div>
-                  <Input
-                    value={axis.valuesText}
-                    onChange={(e) => updateAxis(i, { valuesText: e.target.value })}
-                    placeholder="Valores separados por coma: S, M, L"
-                    aria-label="Valores del eje"
-                  />
+
+                  {axis.values.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {axis.values.map((value) => (
+                        <span
+                          key={value}
+                          className="inline-flex items-center gap-1 rounded-full border border-primary/25 bg-primary/10 py-1 pr-1 pl-2.5 text-xs font-semibold text-primary"
+                        >
+                          {value}
+                          <button
+                            type="button"
+                            aria-label={`Quitar ${value}`}
+                            onClick={() => removeValue(i, value)}
+                            className="grid size-4 place-items-center rounded-full text-primary/70 transition-colors hover:bg-primary/20 hover:text-primary focus-visible:ring-2 focus-visible:ring-ring/45 focus-visible:outline-none"
+                          >
+                            <X className="size-3" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={drafts[i] ?? ""}
+                      onChange={(e) =>
+                        setDrafts((d) =>
+                          d.map((v, idx) => (idx === i ? e.target.value : v)),
+                        )
+                      }
+                      onKeyDown={(e) => {
+                        // Enter añade el valor sin enviar el formulario: aquí
+                        // se escriben diez seguidos y enviar en el primero
+                        // sería exactamente lo contrario de lo que se quiere.
+                        if (e.key === "Enter" || e.key === ",") {
+                          e.preventDefault()
+                          addValues(i, drafts[i] ?? "")
+                        }
+                      }}
+                      onBlur={() => addValues(i, drafts[i] ?? "")}
+                      placeholder="Escribe un valor y pulsa Enter (o pega “S, M, L”)"
+                      aria-label="Nuevo valor del eje"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      aria-label="Agregar valor"
+                      onClick={() => addValues(i, drafts[i] ?? "")}
+                    >
+                      <Plus />
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>
+          </FormSection>
 
-            <div className="rounded-lg bg-accent px-3 py-2 text-sm text-accent-foreground">
-              Se crearán{" "}
-              <span className="font-semibold">{willCreate}</span> variante(s)
-              {willCreate > 0 && skuPrefix.trim() && parsedAxes.length > 0 && (
-                <>
-                  {" "}· ej.{" "}
-                  <span className="font-mono">
-                    {skuPrefix.trim().toUpperCase()}-
-                    {parsedAxes
-                      .map((a) => slugPreview(a.values[0]))
-                      .join("-")}
-                  </span>
-                </>
-              )}
-              .
-            </div>
+          <FormDivider />
 
-            <FormError error={error} />
-
-            <div className="flex justify-end gap-2 pt-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => onOpenChange(false)}
-              >
-                Cancelar
-              </Button>
-              <Button type="submit" disabled={saving || willCreate === 0}>
-                {saving ? "Creando…" : `Crear ${willCreate || ""} variante(s)`}
-              </Button>
-            </div>
-          </form>
-        )}
-      </SheetContent>
-    </Sheet>
+          <FormSection
+            title="Se van a crear"
+            description="Repásalo antes de guardar: los SKU son los que después se buscan en el POS y se imprimen en la etiqueta."
+            icon={CheckCircle2}
+            boxed
+          >
+            {willCreate === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Elige al menos un valor —por ejemplo la talla M— y aquí verás la
+                lista exacta de variantes.
+              </p>
+            ) : (
+              <>
+                <div className="flex flex-wrap gap-1.5">
+                  {combos.slice(0, PREVIEW_LIMIT).map((combo, idx) => (
+                    <span
+                      key={idx}
+                      className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-2.5 py-1.5 text-xs shadow-xs"
+                    >
+                      <span className="font-semibold">{combo.join(" / ")}</span>
+                      <span className="font-mono text-[0.6875rem] text-muted-foreground">
+                        {(skuPrefix.trim().toUpperCase() || "SKU") +
+                          "-" +
+                          combo.map(slugPreview).join("-")}
+                      </span>
+                    </span>
+                  ))}
+                </div>
+                {combos.length > PREVIEW_LIMIT && (
+                  <p className="text-xs text-muted-foreground">
+                    …y {combos.length - PREVIEW_LIMIT} más. En total{" "}
+                    <span className="font-semibold text-foreground">
+                      {willCreate} variante(s)
+                    </span>
+                    .
+                  </p>
+                )}
+              </>
+            )}
+          </FormSection>
+        </form>
+      )}
+    </FormDialog>
   )
 }
 
@@ -2814,7 +3391,14 @@ function StockImportSheet({
 }
 
 export default function InventarioPage() {
-  const { hasPermission, isRetail } = useAuth()
+  // Las tallas son cosa del comercio que NO trabaja con recetas (ropa,
+  // calzado, accesorios). Se decide por descarte —"no es un restaurante"— y no
+  // con `isRetail`: ese exige que el giro esté fijado en el token, así que a
+  // cualquier cuenta antigua o recién migrada le desaparecía el botón sin
+  // explicación posible. Un restaurante sí queda fuera: allí una camisa talla
+  // M no significa nada y el botón solo sería ruido.
+  const { hasPermission, isRestaurant } = useAuth()
+  const usaTallas = !isRestaurant
   const canView = hasPermission("inventory.view")
   const canAdjust = hasPermission("inventory.adjust")
   const canTransfer = hasPermission("inventory.transfer")
@@ -2873,6 +3457,8 @@ export default function InventarioPage() {
   const [exporting, setExporting] = React.useState(false)
   // Importar / exportar CSV (existencias)
   const [stockImportOpen, setStockImportOpen] = React.useState(false)
+  /** Se incrementa tras cada operación de stock: recarga la pestaña de lotes. */
+  const [lotsRefresh, setLotsRefresh] = React.useState(0)
 
   const handleExport = React.useCallback(async () => {
     setExporting(true)
@@ -2987,6 +3573,7 @@ export default function InventarioPage() {
 
   /** Tras cualquier operación de stock se refresca todo lo afectado. */
   function refreshAfterOperation() {
+    setLotsRefresh((n) => n + 1)
     void fetchStock()
     fetchAllStock()
     void fetchMovements()
@@ -3064,28 +3651,19 @@ export default function InventarioPage() {
       <PageHeader
         section="Operación"
         title="Inventario"
-        description="Catálogo de productos, existencias por sede y kardex."
+        icon={BoxesIcon}
+        description="Todo lo que entra, sale y queda: catálogo, existencias por sede, lotes con su vencimiento y el kardex de cada movimiento."
         actions={
           <>
-            <Button
-              variant="outline"
-              onClick={() => void handleExport()}
-              disabled={exporting}
-            >
-              <Download />
-              Exportar
-            </Button>
-            {canAdjust && (
-              <Button variant="outline" onClick={() => setImportOpen(true)}>
-                <Upload />
-                Importar
-              </Button>
-            )}
+            {/* Las acciones de uso diario van primero y con rótulo; las de
+                mantenimiento (exportar, importar, categorías) se quedan en
+                icono en cuanto la pantalla se estrecha. */}
             {canAdjust && (
               <>
                 <Button
                   variant="outline"
                   data-tour="inv-entrada"
+                  aria-label="Registrar entrada de mercancía"
                   onClick={() => openOperation(setEntryOpen)}
                 >
                   <PackagePlus />
@@ -3093,6 +3671,7 @@ export default function InventarioPage() {
                 </Button>
                 <Button
                   variant="outline"
+                  aria-label="Registrar un ajuste de existencias"
                   onClick={() => openOperation(setAdjustOpen)}
                 >
                   <PackageMinus />
@@ -3103,42 +3682,83 @@ export default function InventarioPage() {
             {canTransfer && sedes.length > 1 && (
               <Button
                 variant="outline"
+                aria-label="Trasladar existencias entre sedes"
                 onClick={() => openOperation(setTransferOpen)}
               >
                 <ArrowLeftRight />
-                Traslado
+                <ButtonLabel from="md">Traslado</ButtonLabel>
               </Button>
             )}
+            {/* Producción: el módulo hermano del inventario. Se llega desde
+                aquí porque el momento en que hace falta —"esto no se compra,
+                se fabrica"— es justo mientras se mira el stock, y no navegando
+                el menú lateral. */}
+            <Button
+              variant="outline"
+              aria-label="Ir a Producción"
+              title="Recetas de lote y partes de producción"
+              render={<Link href="/panel/produccion" />}
+            >
+              <Factory />
+              <ButtonLabel from="md">Producción</ButtonLabel>
+            </Button>
             {canAdjust && (
               <>
                 <Button
                   variant="outline"
+                  aria-label="Administrar categorías"
                   onClick={() => setCategoriesOpen(true)}
                 >
                   <Tags />
-                  Categorías
+                  <ButtonLabel from="xl">Categorías</ButtonLabel>
                 </Button>
-                {isRetail && (
+                {usaTallas && (
                   <Button
-                    variant="outline"
+                    variant="soft"
+                    aria-label="Crear producto con tallas o variantes"
+                    title="Crear un producto con tallas, colores u otras variantes"
                     onClick={() => setVariantsOpen(true)}
                   >
                     <Layers />
-                    Con variantes
+                    <ButtonLabel from="md">Tallas y variantes</ButtonLabel>
                   </Button>
                 )}
-                <Button
-                  data-tour="inv-nuevo"
-                  onClick={() => {
-                    setProductSheetMode("create")
-                    setEditingProduct(undefined)
-                    setProductSheetOpen(true)
-                  }}
-                >
-                  <Plus />
-                  Nuevo producto
-                </Button>
               </>
+            )}
+            <Button
+              variant="outline"
+              size="icon"
+              aria-label="Exportar el catálogo a CSV"
+              title="Exportar a CSV"
+              onClick={() => void handleExport()}
+              disabled={exporting}
+            >
+              <Download />
+            </Button>
+            {canAdjust && (
+              <Button
+                variant="outline"
+                size="icon"
+                aria-label="Importar productos desde CSV"
+                title="Importar desde CSV"
+                onClick={() => setImportOpen(true)}
+              >
+                <Upload />
+              </Button>
+            )}
+            {canAdjust && (
+              <Button
+                size="lg"
+                data-tour="inv-nuevo"
+                onClick={() => {
+                  setProductSheetMode("create")
+                  setEditingProduct(undefined)
+                  setProductSheetOpen(true)
+                }}
+              >
+                <Plus />
+                Nuevo producto
+              </Button>
             )}
           </>
         }
@@ -3232,29 +3852,27 @@ export default function InventarioPage() {
         </div>
       )}
 
-      {/* Segmented control */}
-      <div className="mb-5 flex w-fit gap-1 rounded-lg border border-border bg-muted p-1" data-tour="inv-tabs">
-        {(
-          [
-            ["productos", "Productos"],
-            ["existencias", "Existencias"],
-            ["movimientos", "Movimientos"],
-          ] as [Tab, string][]
-        ).map(([key, label]) => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => setTab(key)}
-            className={cn(
-              "rounded-md px-4 py-1.5 text-sm font-medium transition-colors",
-              tab === key
-                ? "bg-background text-foreground shadow-xs"
-                : "text-muted-foreground hover:text-foreground",
-            )}
-          >
-            {label}
-          </button>
-        ))}
+      {/* Pestañas del módulo. El contador de lotes en riesgo va en la propia
+          pestaña: es la única forma de que se vea sin entrar a buscarlo. */}
+      <div className="mb-5 overflow-x-auto pb-1" data-tour="inv-tabs">
+        <Segmented
+          value={tab}
+          onValueChange={setTab}
+          ariaLabel="Vista del inventario"
+          options={[
+            { value: "productos", label: "Productos", icon: Package },
+            { value: "existencias", label: "Existencias", icon: BoxesIcon },
+            {
+              value: "lotes",
+              label: "Lotes",
+              icon: CalendarClock,
+              badge:
+                (alerts?.expired.length ?? 0) +
+                  (alerts?.expiringSoon.length ?? 0) || undefined,
+            },
+            { value: "movimientos", label: "Movimientos", icon: ArrowLeftRight },
+          ]}
+        />
       </div>
 
       {/* ── Tab: Productos ── */}
@@ -3628,6 +4246,16 @@ export default function InventarioPage() {
         </Card>
       )}
 
+      {/* ── Tab: Lotes ── */}
+      {tab === "lotes" && (
+        <LotsPanel
+          sedes={sedes}
+          canAdjust={canAdjust}
+          refreshKey={lotsRefresh}
+          onAdjust={(preset) => openOperation(setAdjustOpen, preset)}
+        />
+      )}
+
       {/* ── Tab: Movimientos (kardex) ── */}
       {tab === "movimientos" && (
         <Card>
@@ -3847,6 +4475,7 @@ export default function InventarioPage() {
           void fetchProducts()
           fetchAllStock()
         }}
+        onRegisterEntry={() => openOperation(setEntryOpen)}
       />
       <ImportProductsSheet
         open={importOpen}

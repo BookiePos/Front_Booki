@@ -38,6 +38,24 @@ export interface PosProduct {
   barcode?: string | null
   categoryId: string | null
   categoryName: string | null
+  // ── Variantes (talla / color) ──────────────────────────────────────────────
+  // Cada talla es su propio vendible con su stock; estos campos son lo que
+  // permite al POS juntarlas en una sola tarjeta con selector en vez de pintar
+  // quince tarjetas casi idénticas de la misma camisa.
+
+  /** Id del producto padre que agrupa las variantes. `null` si no es una. */
+  variantGroupId?: string | null
+  /** Nombre del padre ("Camisa manga larga"), sin el sufijo de la variante. */
+  variantGroupName?: string | null
+  /** Valores de los ejes: `{ Talla: "M", Color: "Rojo" }`. */
+  variantAttrs?: Record<string, string> | null
+  /**
+   * Ejes del producto padre con sus valores EN ORDEN (XS, S, M, L…). Es el
+   * orden en que se dieron de alta, y el único que tiene sentido para una
+   * talla: alfabéticamente saldría "L, M, S, XL".
+   */
+  variantAxes?: { name: string; values: string[] }[] | null
+
 }
 
 export interface SaleLine {

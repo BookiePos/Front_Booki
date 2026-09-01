@@ -87,7 +87,7 @@ export function AppTopbar() {
           <Compass className="size-4" />
           Guía
         </Button>
-        <ThemeToggle className="size-9" />
+        <ThemeToggle />
         <Button
           variant="ghost"
           size="icon"

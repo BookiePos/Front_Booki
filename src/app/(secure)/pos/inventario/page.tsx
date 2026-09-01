@@ -8,6 +8,8 @@ import {
   AlertTriangle,
   Clock,
   SlidersHorizontal,
+  CalendarClock,
+  PackageX,
 } from "lucide-react"
 
 import { useAuth } from "@/lib/auth-context"
@@ -24,6 +26,7 @@ import {
   type AdjustReason,
 } from "@/lib/pos/api-inventory"
 
+import { cn } from "@/lib/utils"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -60,33 +63,71 @@ function errorMessage(err: unknown): string {
   return "Error inesperado"
 }
 
+/**
+ * Tarjeta de resumen. Cuando recibe `onClick` deja de ser un cartel y se
+ * convierte en el filtro de la tabla de abajo: ver "3 productos con stock bajo"
+ * y no poder tocarlo para saber cuáles eran exactamente el problema que tenía
+ * esta pantalla.
+ */
 function StatCard({
   icon: Icon,
   label,
   value,
   tone,
+  active = false,
+  onClick,
 }: {
   icon: React.ElementType
   label: string
   value: number
   tone: "warning" | "danger" | "muted"
+  active?: boolean
+  onClick?: () => void
 }) {
   const tones = {
     warning: "bg-warning/15 text-warning-ink",
     danger: "bg-destructive/10 text-destructive",
     muted: "bg-muted text-muted-foreground",
   }
+  const body = (
+    <CardContent className="flex items-center gap-3 p-4">
+      <div
+        className={cn(
+          "flex size-11 items-center justify-center rounded-xl",
+          tones[tone],
+        )}
+      >
+        <Icon className="size-5" />
+      </div>
+      <div className="min-w-0 text-left leading-tight">
+        <p className="stat-figure text-2xl">{value}</p>
+        <p className="text-xs text-muted-foreground">{label}</p>
+      </div>
+    </CardContent>
+  )
+
+  if (!onClick) return <Card>{body}</Card>
+
   return (
-    <Card>
-      <CardContent className="flex items-center gap-3 p-4">
-        <div className={`flex size-10 items-center justify-center rounded-lg ${tones[tone]}`}>
-          <Icon className="size-5" />
-        </div>
-        <div className="leading-tight">
-          <p className="font-display text-2xl">{value}</p>
-          <p className="text-xs text-muted-foreground">{label}</p>
-        </div>
-      </CardContent>
+    <Card
+      className={cn(
+        "cursor-pointer transition-all outline-none",
+        "hover:-translate-y-0.5 hover:border-primary/45 hover:shadow-md",
+        "focus-visible:ring-3 focus-visible:ring-ring/45",
+        active && "border-primary bg-primary/6 shadow-md",
+      )}
+      role="button"
+      tabIndex={0}
+      aria-pressed={active}
+      onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault()
+          onClick()
+        }
+      }}
+    >
+      {body}
     </Card>
   )
 }
@@ -103,6 +144,8 @@ export default function InventarioPage() {
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
   const [search, setSearch] = React.useState("")
+  /** Filtro rápido de la tabla, gobernado por las tarjetas de resumen. */
+  const [filtro, setFiltro] = React.useState<"todo" | "bajo" | "vence">("todo")
 
   // Ajuste de existencias
   const [adjustOpen, setAdjustOpen] = React.useState(false)
@@ -144,15 +187,32 @@ export default function InventarioPage() {
     }
   }, [canAdjust])
 
+  /** Ítems con al menos un lote vencido o a punto de vencer en esta sede. */
+  const idsEnRiesgo = React.useMemo(() => {
+    const ids = new Set<string>()
+    for (const lot of [
+      ...(alerts?.expired ?? []),
+      ...(alerts?.expiringSoon ?? []),
+    ]) {
+      if (lot.productId?._id) ids.add(lot.productId._id)
+    }
+    return ids
+  }, [alerts])
+
   const filtered = React.useMemo(() => {
     const q = search.trim().toLowerCase()
-    if (!q) return rows
-    return rows.filter(
-      (r) =>
+    return rows.filter((r) => {
+      if (filtro === "bajo" && !(r.minStock > 0 && r.qty <= r.minStock)) {
+        return false
+      }
+      if (filtro === "vence" && !idsEnRiesgo.has(r.product._id)) return false
+      if (!q) return true
+      return (
         r.product.name.toLowerCase().includes(q) ||
-        r.product.sku.toLowerCase().includes(q),
-    )
-  }, [rows, search])
+        r.product.sku.toLowerCase().includes(q)
+      )
+    })
+  }, [rows, search, filtro, idsEnRiesgo])
 
   function openAdjust(productId?: string) {
     setPresetProductId(productId ?? null)
@@ -183,26 +243,34 @@ export default function InventarioPage() {
           </p>
         </div>
         {canAdjust && (
-          <Button data-tour="pos-inv-ajustar" className="gap-2" onClick={() => openAdjust()}>
+          <Button
+            data-tour="pos-inv-ajustar"
+            size="lg"
+            onClick={() => openAdjust()}
+          >
             <SlidersHorizontal className="size-4" />
-            Ajustar
+            Ajustar existencias
           </Button>
         )}
       </div>
 
-      {/* Resumen de alertas */}
+      {/* Resumen de alertas. Cada tarjeta filtra la tabla de abajo. */}
       <div data-tour="pos-inv-kpis" className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         <StatCard
           icon={Boxes}
           label="Ítems con stock"
           value={rows.length}
           tone="muted"
+          active={filtro === "todo"}
+          onClick={() => setFiltro("todo")}
         />
         <StatCard
           icon={AlertTriangle}
           label="Stock bajo"
           value={alerts?.lowStock.length ?? 0}
           tone="warning"
+          active={filtro === "bajo"}
+          onClick={() => setFiltro("bajo")}
         />
         <StatCard
           icon={Clock}
@@ -211,8 +279,80 @@ export default function InventarioPage() {
             (alerts?.expiringSoon.length ?? 0) + (alerts?.expired.length ?? 0)
           }
           tone="danger"
+          active={filtro === "vence"}
+          onClick={() => setFiltro("vence")}
         />
       </div>
+
+      {/* Lotes en riesgo, con nombre y apellido.
+          La tarjeta de arriba dice "hay 4"; esto dice cuáles, de qué lote y
+          para cuándo, que es lo único con lo que se puede hacer algo: sacarlo
+          del estante, rebajarlo o darlo de baja con un ajuste. */}
+      {(alerts?.expired.length ?? 0) + (alerts?.expiringSoon.length ?? 0) > 0 && (
+        <Card tone="warning">
+          <CardContent className="flex flex-col gap-2.5 py-4">
+            <div className="flex items-center gap-2">
+              <CalendarClock className="size-4 text-warning-ink" />
+              <p className="text-sm font-bold">
+                Lotes vencidos o por vencer
+                <span className="ml-1.5 font-normal text-muted-foreground">
+                  · próximos {alerts?.days ?? 7} días
+                </span>
+              </p>
+            </div>
+            <ul className="flex flex-col gap-1.5">
+              {[...(alerts?.expired ?? []), ...(alerts?.expiringSoon ?? [])]
+                .slice(0, 6)
+                .map((lot) => {
+                  const vencido =
+                    !!lot.expiresAt && new Date(lot.expiresAt) < new Date()
+                  return (
+                    <li
+                      key={lot._id}
+                      className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl bg-card/70 px-3 py-2 text-sm"
+                    >
+                      <span className="font-medium">{lot.productId?.name}</span>
+                      <span className="font-mono text-xs text-muted-foreground">
+                        {lot.lotCode}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {nf.format(lot.qty)} {lot.productId?.unit ?? ""}
+                      </span>
+                      <Badge
+                        className={cn(
+                          "ml-auto border-transparent",
+                          vencido
+                            ? "bg-destructive/12 text-destructive"
+                            : "bg-warning/20 text-warning-ink",
+                        )}
+                      >
+                        {vencido ? "Vencido" : "Por vencer"}
+                        {lot.expiresAt
+                          ? " · " +
+                            new Date(lot.expiresAt).toLocaleDateString("es-CO", {
+                              day: "2-digit",
+                              month: "short",
+                              timeZone: "UTC",
+                            })
+                          : ""}
+                      </Badge>
+                      {canAdjust && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => openAdjust(lot.productId?._id)}
+                        >
+                          <SlidersHorizontal className="size-3.5" />
+                          Dar de baja
+                        </Button>
+                      )}
+                    </li>
+                  )
+                })}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
 
       <div data-tour="pos-inv-buscar" className="relative">
         <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -235,11 +375,27 @@ export default function InventarioPage() {
           ) : error ? (
             <p className="py-10 text-center text-sm text-destructive">{error}</p>
           ) : filtered.length === 0 ? (
-            <p className="py-10 text-center text-sm text-muted-foreground">
-              {rows.length === 0
-                ? "No hay existencias registradas en esta sede."
-                : "Sin resultados para la búsqueda."}
-            </p>
+            <div className="flex flex-col items-center gap-2 py-12 text-center">
+              <PackageX className="size-8 text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">
+                {rows.length === 0
+                  ? "No hay existencias registradas en esta sede."
+                  : filtro === "bajo"
+                    ? "Nada por debajo del mínimo. Todo en orden."
+                    : filtro === "vence"
+                      ? "Ningún lote vencido ni próximo a vencer."
+                      : "Sin resultados para la búsqueda."}
+              </p>
+              {filtro !== "todo" && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setFiltro("todo")}
+                >
+                  Ver todo el inventario
+                </Button>
+              )}
+            </div>
           ) : (
             <Table>
               <TableHeader>
