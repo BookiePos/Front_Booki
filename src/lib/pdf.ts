@@ -26,11 +26,33 @@ export const MAX_PDF_PAGES = 10
 /** Ancho al que se rasteriza cada página, en píxeles. */
 const RENDER_WIDTH = 2000
 
+/** Una página del PDF: su imagen y, si el PDF la traía, su texto exacto. */
+export interface PdfPage {
+  image: File
+  /**
+   * Capa de texto de la página, si el PDF la tenía y es suficiente.
+   *
+   * Cuando existe, el backend lee la factura de aquí y **no usa OCR**: los
+   * caracteres ya son exactos y reconocerlos otra vez solo puede estropear un
+   * precio. Las facturas electrónicas que llegan por correo siempre la traen;
+   * un PDF escaneado, no.
+   */
+  text?: string
+}
+
 export interface PdfPagesResult {
-  pages: File[]
+  pages: PdfPage[]
   /** Páginas que tenía el PDF, aunque solo se hayan convertido las primeras. */
   totalPages: number
 }
+
+/**
+ * Caracteres mínimos para fiarse de la capa de texto.
+ *
+ * Un PDF escaneado suele traer una capa vacía o con cuatro caracteres sueltos
+ * del membrete. Por debajo de este umbral no compensa arriesgarse: mejor OCR.
+ */
+const MIN_TEXT_CHARS = 120
 
 export function isPdf(file: File): boolean {
   return (
@@ -56,7 +78,7 @@ export async function pdfToImages(file: File): Promise<PdfPagesResult> {
   const data = new Uint8Array(await file.arrayBuffer())
   const doc = await pdfjs.getDocument({ data }).promise
   const totalPages = doc.numPages
-  const pages: File[] = []
+  const pages: PdfPage[] = []
   const base = file.name.replace(/\.[^.]+$/, "") || "factura"
 
   try {
@@ -82,9 +104,14 @@ export async function pdfToImages(file: File): Promise<PdfPagesResult> {
         canvas.toBlob(resolve, "image/jpeg", 0.92),
       )
       if (blob) {
-        pages.push(
-          new File([blob], `${base}-p${n}.jpg`, { type: "image/jpeg" }),
-        )
+        // La imagen se sube siempre: es el soporte contable de la compra y lo
+        // que se ve en la pantalla de revisión. El texto solo decide CÓMO se
+        // lee, no si se guarda o no.
+        const text = await readPageText(page)
+        pages.push({
+          image: new File([blob], `${base}-p${n}.jpg`, { type: "image/jpeg" }),
+          text,
+        })
       }
       page.cleanup()
     }
@@ -95,4 +122,22 @@ export async function pdfToImages(file: File): Promise<PdfPagesResult> {
   }
 
   return { pages, totalPages }
+}
+
+/** Texto de la página, o `undefined` si la capa no da para fiarse. */
+async function readPageText(page: {
+  getTextContent: () => Promise<{ items: unknown[] }>
+}): Promise<string | undefined> {
+  try {
+    const content = await page.getTextContent()
+    const text = content.items
+      .map((item) => (item as { str?: string }).str ?? "")
+      .join(" ")
+      .replace(/\s+/g, " ")
+      .trim()
+    return text.length >= MIN_TEXT_CHARS ? text : undefined
+  } catch {
+    // Sin capa de texto legible se sigue por OCR, que es el camino normal.
+    return undefined
+  }
 }

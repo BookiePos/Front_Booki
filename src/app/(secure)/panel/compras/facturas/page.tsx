@@ -115,12 +115,13 @@ export default function FacturasPorFotoPage() {
   async function handleFiles(seleccion: File[]) {
     let fallos = 0
 
-    // Un PDF se convierte a imágenes antes de nada: aguas abajo el flujo no
-    // distingue si la página vino de la cámara o de un archivo del correo.
-    const files: File[] = []
+    // Un PDF se convierte a imágenes antes de nada. De paso se rescata su capa
+    // de texto: si la trae, el backend lee la factura de ahí en vez de hacerle
+    // OCR a la imagen, que es más exacto y más barato.
+    const files: { image: File; text?: string }[] = []
     for (const file of seleccion) {
       if (!isPdf(file)) {
-        files.push(file)
+        files.push({ image: file })
         continue
       }
       try {
@@ -139,17 +140,17 @@ export default function FacturasPorFotoPage() {
       }
     }
 
-    for (const [index, file] of files.entries()) {
+    for (const [index, item] of files.entries()) {
       try {
         setProgress({ phase: "subiendo", current: index + 1, total: files.length })
-        const ready = await prepareImageForUpload(file, "documento")
-        const scan = await uploadInvoiceScan(ready)
+        const ready = await prepareImageForUpload(item.image, "documento")
+        const scan = await uploadInvoiceScan(ready, item.text)
 
         setProgress({ phase: "leyendo", current: index + 1, total: files.length })
         await extractInvoiceScan(scan._id)
       } catch (err) {
         fallos += 1
-        toast.error(`${file.name}: ${errorMessage(err)}`)
+        toast.error(`${item.image.name}: ${errorMessage(err)}`)
       }
     }
     setProgress(null)
@@ -236,9 +237,11 @@ export default function FacturasPorFotoPage() {
               Cargar facturas
             </CardTitle>
             <CardDescription>
-              Puedes subir varias a la vez, en foto o en <strong>PDF</strong>{" "}
-              (el que llega por correo sirve tal cual). Si una factura tiene dos
-              hojas, sube las dos: se agrupan solas por el número y el NIT.
+              Puedes subir varias a la vez, en foto o en <strong>PDF</strong>.
+              El PDF que llega por correo se lee de su propio texto —más exacto
+              y sin gastar cuota de lectura—; a las fotos se les aplica IA. Si
+              una factura tiene dos hojas, sube las dos: se agrupan solas por el
+              número y el NIT.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
