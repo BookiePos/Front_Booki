@@ -1,7 +1,6 @@
 "use client"
 
 import * as React from "react"
-import Link from "next/link"
 import {
   Plus,
   Pencil,
@@ -24,7 +23,6 @@ import {
   Upload,
   FileUp,
   CheckCircle2,
-  Factory,
   Search,
   CircleAlert,
   Boxes as BoxesIcon,
@@ -3689,19 +3687,6 @@ export default function InventarioPage() {
                 <ButtonLabel from="md">Traslado</ButtonLabel>
               </Button>
             )}
-            {/* Producción: el módulo hermano del inventario. Se llega desde
-                aquí porque el momento en que hace falta —"esto no se compra,
-                se fabrica"— es justo mientras se mira el stock, y no navegando
-                el menú lateral. */}
-            <Button
-              variant="outline"
-              aria-label="Ir a Producción"
-              title="Recetas de lote y partes de producción"
-              render={<Link href="/panel/produccion" />}
-            >
-              <Factory />
-              <ButtonLabel from="md">Producción</ButtonLabel>
-            </Button>
             {canAdjust && (
               <>
                 <Button

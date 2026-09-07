@@ -27,7 +27,13 @@ app en vez de crear otro despliegue.
 - `src/app/(marketing)` — web pública, sin sesión.
 - `src/app/(secure)/login`, `/registro`, `/invitacion/[token]`,
   `/recuperar[/[token]]` — entrada.
-- `src/app/(secure)/panel/...` — back-office administrativo (~17 áreas).
+- `src/app/(secure)/panel/...` — back-office administrativo (~18 áreas).
+  `panel/produccion` es el eslabón intermedio entre `panel/inventario` (insumos)
+  y `panel/productos` (lo vendible en caja): recetas de lote, órdenes de
+  fabricación y el tablero de terminados con costo real contra precio de venta.
+  Solo pasa por ahí lo que se fabrica; lo que se compra ya hecho va directo de
+  inventario a productos. La receta de lote NO es la receta del catálogo: una
+  describe la fabricación previa, la otra descuenta ingredientes al vender.
   `panel/compras/facturas` carga compras fotografiando la factura del proveedor
   —o subiendo el PDF que llega por correo, que `lib/pdf.ts` rasteriza en el
   navegador—: la IA propone y la persona aprueba en `facturas/[id]` antes de que
