@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
 import {
   Plus,
   Pencil,
@@ -8,6 +9,7 @@ import {
   Package,
   Boxes,
   ChefHat,
+  Factory,
   ImageOff,
   ShieldOff,
   X,
@@ -35,6 +37,7 @@ import {
   type CatalogSourceType,
   type CatalogProductPayload,
 } from "@/lib/erp/api-catalog"
+import { listBoms, refId } from "@/lib/erp/api-production"
 
 import { PageHeader } from "@/components/erp/page-header"
 import { ProductImageField } from "@/components/erp/product-image-field"
@@ -725,6 +728,14 @@ export default function ProductosPage() {
 
   const [products, setProducts] = React.useState<CatalogProduct[]>([])
   const [invProducts, setInvProducts] = React.useState<InvProduct[]>([])
+  /**
+   * Ítems de inventario que salen de una receta de Producción. Sirve para
+   * marcar en el catálogo qué se fabrica y qué se compra ya hecho: son los dos
+   * caminos por los que un producto llega a venderse, y desde esta pantalla no
+   * se distinguen de otra forma. Si Producción falla, la tabla se pinta igual
+   * sin las marcas.
+   */
+  const [producedIds, setProducedIds] = React.useState<Set<string>>(new Set())
   const [categories, setCategories] = React.useState<InvCategory[]>([])
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
@@ -751,6 +762,11 @@ export default function ProductosPage() {
     void fetchProducts()
     void listProducts().then(setInvProducts).catch(() => {})
     void listCategories().then(setCategories).catch(() => {})
+    void listBoms()
+      .then((boms) =>
+        setProducedIds(new Set(boms.map((b) => refId(b.productId)))),
+      )
+      .catch(() => {})
   }, [canView, fetchProducts])
 
   function openCreate() {
@@ -924,11 +940,21 @@ export default function ProductosPage() {
                       <TableCell className="max-w-64 text-sm text-muted-foreground">
                         {p.sourceType === "inventory" ? (
                           linked ? (
-                            <span>
+                            <span className="inline-flex flex-wrap items-center gap-1.5">
                               {linked.name}
                               {p.qtyPerUnit && p.qtyPerUnit !== 1
                                 ? ` · ${nf.format(p.qtyPerUnit)} ${linked.unit}`
                                 : ""}
+                              {producedIds.has(linked._id) && (
+                                <Link
+                                  href="/panel/produccion"
+                                  title="Este ítem se fabrica; ver su receta en Producción"
+                                  className="inline-flex items-center gap-1 rounded-md border border-primary/30 bg-primary/10 px-1.5 py-0.5 text-xs font-medium text-primary"
+                                >
+                                  <Factory className="size-3" aria-hidden />
+                                  Producido
+                                </Link>
+                              )}
                             </span>
                           ) : (
                             <span className="text-destructive">

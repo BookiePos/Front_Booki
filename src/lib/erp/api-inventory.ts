@@ -13,8 +13,10 @@ export interface InvCategory {
 
 export type ItemType = "ingredient" | "product" | "assembly"
 
-// El tipo "ingredient" es el "Producto" estándar de la UI; "product" queda
-// solo como valor legado en registros antiguos.
+// El tipo "ingredient" es el "Producto" estándar de la ficha de inventario;
+// "product" NO es solo legado: es el que crean las variantes de retail
+// (talla/color). Ninguno de los dos decide si algo se vende en el POS —eso lo
+// decide el precio de venta—, así que no los uses para inferir eso.
 export const ITEM_TYPE_LABELS: Record<ItemType, string> = {
   product: "Producto",
   assembly: "Montaje",
@@ -128,6 +130,8 @@ export type MovementType =
   | "transfer_in"
   | "sale"
   | "sale_void"
+  | "production_out"
+  | "production_in"
 
 export interface InvMovement {
   _id: string
@@ -177,6 +181,8 @@ export const MOVEMENT_TYPE_LABELS: Record<MovementType, string> = {
   transfer_in: "Traslado (entrada)",
   sale: "Venta",
   sale_void: "Anulación de venta",
+  production_out: "Consumo de producción",
+  production_in: "Producción",
 }
 
 // ─── Sedes ───────────────────────────────────────────────────────────────────

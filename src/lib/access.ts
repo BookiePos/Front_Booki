@@ -25,6 +25,7 @@ export const OPERATION_PERMISSIONS = [
   "tax.manage",
   "inventory.adjust",
   "inventory.transfer",
+  "production.manage",
   "payroll.view",
   "payroll.manage",
   "employees.view",
