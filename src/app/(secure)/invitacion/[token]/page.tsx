@@ -6,6 +6,7 @@ import Link from "next/link"
 
 import {
   ApiError,
+  INVITATION_ERROR_CODES,
   apiAcceptInvitation,
   apiGetInvitation,
   type InvitationInfo,
@@ -26,13 +27,81 @@ const STORAGE_KEY = "sistemapos.auth"
 
 type Phase = "loading" | "invalid" | "form" | "submitting"
 
+/** Qué se le dice a quien abre un enlace que no sirve, y qué salida se le da. */
+interface InvalidState {
+  title: string
+  description: string
+  /** `true` cuando iniciar sesión es de verdad lo que resuelve su caso. */
+  offerLogin: boolean
+}
+
+/**
+ * Un motivo, un mensaje.
+ *
+ * Antes todo caía en "Invitación no válida": una invitación vencida, una ya
+ * usada, una cancelada y hasta un 500 del servidor. Eso mandaba a pedir ayuda a
+ * quien podía resolverlo solo, y escondió durante días un fallo que no tenía
+ * nada que ver con el enlace. El título ahora dice qué pasó y el texto dice qué
+ * hacer; el botón de iniciar sesión aparece solo cuando eso es la salida.
+ */
+const INVALID_STATES: Record<string, InvalidState> = {
+  [INVITATION_ERROR_CODES.EXPIRED]: {
+    title: "Esta invitación venció",
+    description:
+      "Los enlaces caducan por seguridad. Pídele a quien te invitó que te la reenvíe: tarda un segundo.",
+    offerLogin: false,
+  },
+  [INVITATION_ERROR_CODES.ACCEPTED]: {
+    title: "Tu cuenta ya está activa",
+    description:
+      "Esta invitación ya se usó. Entra con tu correo y la contraseña que definiste.",
+    offerLogin: true,
+  },
+  [INVITATION_ERROR_CODES.REVOKED]: {
+    title: "La invitación fue cancelada",
+    description:
+      "Quien administra el negocio canceló este acceso. Si crees que es un error, contáctalo.",
+    offerLogin: false,
+  },
+  [INVITATION_ERROR_CODES.LEGACY_LINK]: {
+    title: "El enlace está desactualizado",
+    description:
+      "Se envió antes de una actualización del sistema. Pide que te reenvíen la invitación y el enlace nuevo funcionará.",
+    offerLogin: false,
+  },
+  [INVITATION_ERROR_CODES.NOT_FOUND]: {
+    title: "Este enlace no existe",
+    description:
+      "Puede que esté incompleto: al copiarlo del correo a veces se corta. Ábrelo desde el correo o pide que te lo reenvíen.",
+    offerLogin: false,
+  },
+}
+
+/** Cuando el fallo no es del enlace, se dice así en vez de culparlo. */
+const UNEXPECTED_STATE: InvalidState = {
+  title: "No pudimos validar la invitación",
+  description:
+    "Hubo un problema de nuestro lado, no con tu enlace. Vuelve a intentarlo en un momento; si sigue igual, avísale a quien te invitó.",
+  offerLogin: false,
+}
+
+function invalidStateFor(err: unknown): InvalidState {
+  if (!(err instanceof ApiError)) return UNEXPECTED_STATE
+  const known = err.code ? INVALID_STATES[err.code] : undefined
+  if (known) return known
+  // Un 5xx sin código NO es culpa del enlace: decirlo evita que la gente
+  // persiga un problema que no tiene.
+  if (err.status >= 500) return UNEXPECTED_STATE
+  return { title: "Enlace no válido", description: err.message, offerLogin: false }
+}
+
 export default function AcceptInvitationPage() {
   const params = useParams<{ token: string }>()
   const token = Array.isArray(params.token) ? params.token[0] : params.token
 
   const [phase, setPhase] = useState<Phase>("loading")
   const [info, setInfo] = useState<InvitationInfo | null>(null)
-  const [invalidMsg, setInvalidMsg] = useState<string>("")
+  const [invalid, setInvalid] = useState<InvalidState>(UNEXPECTED_STATE)
 
   const [name, setName] = useState("")
   const [password, setPassword] = useState("")
@@ -43,7 +112,7 @@ export default function AcceptInvitationPage() {
     let active = true
     async function load() {
       if (!token) {
-        setInvalidMsg("Enlace de invitación no válido.")
+        setInvalid(INVALID_STATES[INVITATION_ERROR_CODES.NOT_FOUND]!)
         setPhase("invalid")
         return
       }
@@ -54,11 +123,7 @@ export default function AcceptInvitationPage() {
         setPhase("form")
       } catch (err) {
         if (!active) return
-        setInvalidMsg(
-          err instanceof ApiError
-            ? err.message
-            : "No se pudo validar la invitación.",
-        )
+        setInvalid(invalidStateFor(err))
         setPhase("invalid")
       }
     }
@@ -121,9 +186,9 @@ export default function AcceptInvitationPage() {
           {phase === "invalid" && (
             <>
               <CardTitle className="font-display text-xl">
-                Invitación no válida
+                {invalid.title}
               </CardTitle>
-              <CardDescription>{invalidMsg}</CardDescription>
+              <CardDescription>{invalid.description}</CardDescription>
             </>
           )}
 
@@ -150,11 +215,22 @@ export default function AcceptInvitationPage() {
             </div>
           )}
 
-          {phase === "invalid" && (
-            <Button render={<Link href="/login" />} className="w-full">
-              Ir a iniciar sesión
-            </Button>
-          )}
+          {phase === "invalid" &&
+            (invalid.offerLogin ? (
+              <Button render={<Link href="/login" />} className="w-full">
+                Ir a iniciar sesión
+              </Button>
+            ) : (
+              // Sin salida propia: se ofrece la web, no un login que no va a
+              // funcionar porque esta persona todavía no tiene cuenta.
+              <Button
+                variant="outline"
+                render={<Link href="/" />}
+                className="w-full"
+              >
+                Volver al inicio
+              </Button>
+            ))}
 
           {(phase === "form" || phase === "submitting") && info && (
             <form onSubmit={onSubmit} className="space-y-4" noValidate>
