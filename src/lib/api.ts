@@ -276,6 +276,23 @@ export interface InvitationInfo {
   roleName: string
 }
 
+/**
+ * Por qué un enlace de invitación no sirve. El backend lo manda como `code` en
+ * el cuerpo del error (igual que `ACCOUNT_SUSPENDED`), porque cada caso se
+ * resuelve distinto: una vencida se pide otra vez, una ya aceptada se resuelve
+ * iniciando sesión, y una cancelada no se resuelve sola. Agruparlas todas bajo
+ * "Invitación no válida" mandaba a la gente a pedir ayuda por lo que podía
+ * resolver sola —y tapó un 500 durante días—.
+ */
+export const INVITATION_ERROR_CODES = {
+  LEGACY_LINK: "INVITATION_LEGACY_LINK",
+  NOT_FOUND: "INVITATION_NOT_FOUND",
+  REVOKED: "INVITATION_REVOKED",
+  ACCEPTED: "INVITATION_ACCEPTED",
+  EXPIRED: "INVITATION_EXPIRED",
+  EMAIL_TAKEN: "INVITATION_EMAIL_TAKEN",
+} as const
+
 /** Valida un token de invitación y devuelve a quién y con qué rol invita. */
 export async function apiGetInvitation(
   token: string,
