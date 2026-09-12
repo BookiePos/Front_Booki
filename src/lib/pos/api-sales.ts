@@ -140,6 +140,21 @@ export interface CreateSalePayload {
   customer?: Customer
   /** Propina voluntaria (restaurante), en pesos. */
   tip?: number
+  /**
+   * Cliente REGISTRADO al que se le vende, pague como pague.
+   *
+   * `payment.customerId` solo existe para el fiado, donde identifica al deudor.
+   * La tienda que compra por cajas paga de contado casi siempre, y su lista de
+   * precios tiene que aplicarse igual: para eso está este campo.
+   */
+  customerId?: string
+  /**
+   * Lista de precios elegida A MANO en el terminal, para el cliente de paso que
+   * se lleva una caja y no está registrado. Requiere `pos.discount.authorize`:
+   * elegirla es decidir cobrar menos. La lista que el cliente registrado ya
+   * tiene asignada se aplica sola y no pide permiso.
+   */
+  priceListId?: string
 }
 
 // ─── Cuentas abiertas (comandas / mesas) ─────────────────────────────────────

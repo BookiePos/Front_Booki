@@ -65,6 +65,8 @@ import {
   type Customer as RegCustomer,
   type EmployeeLookup,
 } from "@/lib/pos/api-customers"
+import { listPriceLists, type PriceList } from "@/lib/erp/api-catalog"
+import { resolveUnitPrice } from "@/lib/erp/price-list"
 import { createInvoiceFromSale } from "@/lib/pos/api-einvoicing"
 import { money, qty as fmtQty } from "@/lib/pos/format"
 import { Receipt } from "@/components/pos/receipt"
@@ -210,6 +212,9 @@ function cashSuggestions(total: number): number[] {
 export default function VentaPage() {
   const { hasPermission, isRetail, isRestaurant } = useAuth()
   const canSell = hasPermission("pos.sell")
+  // Elegir lista de precios a mano es decidir cobrar menos: mismo permiso que
+  // aplicar un descuento. El backend lo vuelve a comprobar.
+  const canDiscount = hasPermission("pos.discount.authorize")
 
   const { sedeId, sede, sedes, loading: sedesLoading } = useSede()
   const confirm = useConfirm()
@@ -303,11 +308,23 @@ export default function VentaPage() {
   const [ncPhone, setNcPhone] = React.useState("")
   const [ncBusy, setNcBusy] = React.useState(false)
 
-  // Carga clientes/empleados cuando el fiado está activo.
+  // Listas de precios: mayorista, distribuidor… El terminal las carga para
+  // MOSTRAR el precio correcto mientras se arma el carrito; el que se cobra lo
+  // resuelve el backend, que es la regla que protege la caja.
+  const [priceLists, setPriceLists] = React.useState<PriceList[]>([])
+  /** Lista elegida a mano, para el cliente de paso que se lleva una caja. */
+  const [manualListId, setManualListId] = React.useState("")
+
+  // Carga clientes/empleados/listas al abrir el cobro. Los clientes ya no se
+  // piden solo en el fiado: la tienda que compra por cajas paga de contado, y
+  // sin elegirla su lista no se aplicaría.
   React.useEffect(() => {
-    if (!checkoutOpen || method !== "credit") return
+    if (!checkoutOpen) return
     void listCustomers().then(setRegCustomers).catch(() => setRegCustomers([]))
-    void lookupEmployees().then(setEmpList).catch(() => setEmpList([]))
+    void listPriceLists().then(setPriceLists).catch(() => setPriceLists([]))
+    if (method === "credit") {
+      void lookupEmployees().then(setEmpList).catch(() => setEmpList([]))
+    }
   }, [checkoutOpen, method])
 
   async function quickAddCustomer() {
@@ -737,6 +754,42 @@ export default function VentaPage() {
     searchRef.current?.focus()
   }
 
+  /**
+   * Lista con la que se está cobrando este carrito.
+   *
+   * Manda la del cliente registrado que se eligió: ya estaba pactada y no la
+   * decide el cajero. La elegida a mano es para el cliente de paso que se
+   * lleva una caja, y por eso pide permiso de descuentos.
+   *
+   * Una lista desactivada no aparece en `priceLists`, así que deja de
+   * aplicarse sola — igual que en el backend.
+   */
+  const listaActiva = React.useMemo(() => {
+    const cliente = custId
+      ? regCustomers.find((c) => c._id === custId)
+      : undefined
+    const id = cliente?.priceListId || manualListId
+    if (!id) return null
+    return priceLists.find((l) => l._id === id) ?? null
+  }, [custId, regCustomers, manualListId, priceLists])
+
+  /**
+   * Precio unitario de una línea, ya con la lista aplicada.
+   *
+   * Depende de la CANTIDAD porque el precio por cantidad es un escalón:
+   * llevando 12 gaseosas el precio baja, llevando 5 no.
+   */
+  const unitPrice = React.useCallback(
+    (item: CartItem): number =>
+      resolveUnitPrice({
+        basePrice: item.product.salePrice,
+        qty: item.qty,
+        catalogProductId: item.product._id,
+        list: listaActiva,
+      }),
+    [listaActiva],
+  )
+
   const discountById = React.useMemo(
     () => new Map(discounts.map((d) => [d._id, d])),
     [discounts],
@@ -747,18 +800,20 @@ export default function VentaPage() {
     (item: CartItem): number => {
       const d = item.discountId ? discountById.get(item.discountId) : undefined
       if (!d) return 0
-      const gross = item.qty * item.product.salePrice
+      // Sobre el precio ya con lista: el descuento se aplica encima de lo
+      // pactado, no encima del de mostrador.
+      const gross = item.qty * unitPrice(item)
       const raw =
         d.type === "percent" ? (gross * Math.min(d.value, 100)) / 100 : d.value
       return Math.round(Math.min(Math.max(raw, 0), gross) * 100) / 100
     },
-    [discountById],
+    [discountById, unitPrice],
   )
 
   // Total = suma de líneas ya netas de su descuento (el descuento de venta se
   // aplica encima, en el cobro).
   const total = cart.reduce(
-    (sum, i) => sum + i.qty * i.product.salePrice - lineDiscount(i),
+    (sum, i) => sum + i.qty * unitPrice(i) - lineDiscount(i),
     0,
   )
   const lineDiscountTotal = cart.reduce((s, i) => s + lineDiscount(i), 0)
@@ -912,6 +967,12 @@ export default function VentaPage() {
           payment,
           customer: customerData,
           tip: tipAmount || undefined,
+          // El cliente registrado viaja aparte del deudor del fiado: su lista
+          // de precios tiene que aplicarse pague como pague.
+          customerId: custId || undefined,
+          // Solo cuando no hay cliente: si lo hay, manda su lista y mandar las
+          // dos haría que el backend pidiera permiso sin necesidad.
+          priceListId: !custId ? manualListId || undefined : undefined,
         })
       }
       setCompletedSale(sale)
@@ -1471,7 +1532,11 @@ export default function VentaPage() {
             ) : (
               <ul className="flex flex-col gap-2">
                 {cart.map((i) => {
-                  const gross = i.qty * i.product.salePrice
+                  const unit = unitPrice(i)
+                  const gross = i.qty * unit
+                  // Se tacha el de mostrador cuando la lista lo bajó: si no se
+                  // ve la diferencia, nadie nota que se está cobrando pactado.
+                  const conLista = unit !== Math.round(i.product.salePrice)
                   const lineDisc = lineDiscount(i)
                   const applied = i.discountId
                     ? discountById.get(i.discountId)
@@ -1486,7 +1551,12 @@ export default function VentaPage() {
                         {i.product.name}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {money(i.product.salePrice)} ·{" "}
+                        {conLista && (
+                          <span className="mr-1 line-through">
+                            {money(i.product.salePrice)}
+                          </span>
+                        )}
+                        {money(unit)} ·{" "}
                         {lineDisc > 0 ? (
                           <>
                             <span className="text-muted-foreground line-through">
@@ -1886,6 +1956,59 @@ export default function VentaPage() {
                     })}
                   </div>
                 </div>
+
+                {/* A quién se le vende. Para el fiado esto ya se elige abajo,
+                    con su propio bloque, así que aquí solo aparece en las
+                    demás formas de pago — que es como paga casi siempre la
+                    tienda que compra por cajas. */}
+                {method !== "credit" && (
+                  <div className="flex flex-col gap-1.5">
+                    <Label>Cliente registrado (opcional)</Label>
+                    <select
+                      className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm"
+                      value={custId}
+                      onChange={(e) => {
+                        setCustId(e.target.value)
+                        // Al elegir cliente manda su lista: la de a mano
+                        // dejaría de tener sentido y confundiría.
+                        if (e.target.value) setManualListId("")
+                      }}
+                    >
+                      <option value="">Mostrador (sin cliente)</option>
+                      {regCustomers.map((c) => (
+                        <option key={c._id} value={c._id}>
+                          {c.name} · {c.docType} {c.docNumber}
+                        </option>
+                      ))}
+                    </select>
+
+                    {/* Sin cliente registrado, el cajero puede elegir la lista
+                        a mano. Es decidir cobrar menos, así que va con el
+                        mismo permiso que un descuento. */}
+                    {!custId && canDiscount && priceLists.length > 0 && (
+                      <select
+                        className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm"
+                        value={manualListId}
+                        onChange={(e) => setManualListId(e.target.value)}
+                        aria-label="Lista de precios"
+                      >
+                        <option value="">Precio de mostrador</option>
+                        {priceLists.map((l) => (
+                          <option key={l._id} value={l._id}>
+                            Lista: {l.name}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+
+                    {listaActiva && (
+                      <p className="inline-flex items-center gap-1 text-[11px] font-medium text-success-ink">
+                        <Tag className="size-3" />
+                        Se cobra con la lista {listaActiva.name}.
+                      </p>
+                    )}
+                  </div>
+                )}
 
                 {/* Fiado (crédito): deudor obligatorio (cliente o empleado) */}
                 {method === "credit" && (
