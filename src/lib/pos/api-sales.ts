@@ -193,6 +193,12 @@ export interface OrderLine {
   qty: number
   unitPrice: number
   lineTotal: number
+  /**
+   * Cuánto de esta línea ya se cobró. Es lo que permite dividir la cuenta:
+   * cada cobro paga una parte y la comanda sigue abierta hasta que no quede
+   * nada. En una cuenta que se paga entera vale 0 hasta el cobro.
+   */
+  paidQty?: number
 }
 
 export interface Order {
@@ -204,7 +210,10 @@ export interface Order {
   note?: string
   lines: OrderLine[]
   openedByEmail: string
+  /** Última venta cobrada de esta cuenta. */
   saleId?: string
+  /** Todas las ventas, en orden: una cuenta dividida tiene varias. */
+  saleIds?: string[]
   createdAt: string
   updatedAt: string
 }
@@ -228,6 +237,33 @@ export interface CheckoutOrderPayload {
   customer?: Customer
   /** Propina voluntaria (restaurante), en pesos. */
   tip?: number
+  /**
+   * Lo que se cobra AHORA, para dividir la cuenta entre varios.
+   *
+   * Sin este campo se cobra todo lo que falte: es el cobro de siempre y
+   * también el último de una cuenta dividida. Mandar el último sin líneas es
+   * lo que hace que lo que no se repartió exacto lo absorba quien paga de
+   * último, en vez de quedar un pedazo que nadie paga.
+   */
+  lines?: { productId: string; qty: number }[]
+}
+
+/** Lo que falta por cobrar de cada producto de una comanda. */
+export function pendingOf(order: Order): Map<string, number> {
+  const out = new Map<string, number>()
+  for (const l of order.lines) {
+    const falta = l.qty - (l.paidQty ?? 0)
+    out.set(l.productId, (out.get(l.productId) ?? 0) + falta)
+  }
+  return out
+}
+
+/** Cuánto falta por cobrar de la comanda, en plata. */
+export function pendingTotal(order: Order): number {
+  return order.lines.reduce(
+    (s, l) => s + (l.qty - (l.paidQty ?? 0)) * l.unitPrice,
+    0,
+  )
 }
 
 // ─── API ─────────────────────────────────────────────────────────────────────
