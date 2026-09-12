@@ -485,6 +485,49 @@ export async function deleteCategory(id: string): Promise<{ ok: boolean }> {
 
 // ─── Existencias, lotes y alertas ────────────────────────────────────────────
 
+/** Una línea de la planilla de conteo físico. */
+export interface StockCountRow {
+  productId: string
+  /** Lo que se contó en el estante. Cero es válido: se agotó. */
+  counted: number
+  /**
+   * Lo que el sistema decía al generar la planilla. No manda sobre el ajuste
+   * —la verdad es el estante— pero si al aplicar la existencia ya es otra,
+   * algo se movió mientras se contaba y esa fila se devuelve en `moved`.
+   */
+  expected?: number
+}
+
+export interface StockCountResult {
+  total: number
+  adjusted: number
+  unchanged: number
+  addedQty: number
+  removedQty: number
+  addedValue: number
+  removedValue: number
+  moved: { productId: string; name: string; expected: number; actual: number }[]
+  errors: { productId: string; name: string; message: string }[]
+}
+
+/**
+ * Aplica un conteo físico: DEJA las existencias en lo contado.
+ *
+ * Ojo con confundirlo con `importStock`, que suma cada fila como entrada de
+ * mercancía: usar aquel para contar duplica el inventario.
+ */
+export async function applyStockCount(payload: {
+  sedeId: string
+  rows: StockCountRow[]
+  note?: string
+}): Promise<StockCountResult> {
+  const res = await authFetch("/inventory/stock/count", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
+  return parseResponse<StockCountResult>(res)
+}
+
 export async function getStock(sedeId?: string): Promise<StockRow[]> {
   const qs = sedeId ? `?sedeId=${encodeURIComponent(sedeId)}` : ""
   const res = await authFetch(`/inventory/stock${qs}`)
