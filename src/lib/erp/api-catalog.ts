@@ -158,3 +158,108 @@ export async function deleteCatalogProduct(
   const res = await authFetch(`/catalog/products/${id}`, { method: "DELETE" })
   return parseResponse<{ ok: boolean }>(res)
 }
+
+// ─── Listas de precios ────────────────────────────────────────────────────────
+
+/**
+ * Un precio pactado dentro de una lista. Con `minQty` se arma el precio por
+ * cantidad: la gaseosa a $2.500 desde 12 y a $2.200 desde 50 son dos filas del
+ * mismo producto.
+ */
+export interface PriceListItem {
+  catalogProductId: string
+  /** Precio unitario, con IVA incluido igual que el de mostrador. */
+  price: number
+  /** Desde cuántas unidades aplica. Sin valor, aplica siempre. */
+  minQty?: number
+}
+
+/**
+ * Lista de precios: vender lo mismo a distinto precio según a quién.
+ *
+ * El precio del catálogo sigue siendo el de mostrador; la lista son las reglas
+ * que se le aplican encima. El porcentaje general existe para arrancar con una
+ * sola cifra, y los precios por producto mandan sobre él.
+ */
+export interface PriceList {
+  _id: string
+  name: string
+  description?: string
+  /** Descuento general sobre el precio de mostrador (0–100). */
+  discountPercent: number
+  items: PriceListItem[]
+  active: boolean
+  createdAt: string
+}
+
+export interface PriceListPayload {
+  name?: string
+  description?: string
+  discountPercent?: number
+  items?: PriceListItem[]
+  active?: boolean
+}
+
+/** Cómo quedaría un producto del catálogo con una lista aplicada. */
+export interface PriceListPreviewRow {
+  catalogProductId: string
+  name: string
+  /** Precio de mostrador. */
+  base: number
+  /** Lo que se cobraría con esta lista y esta cantidad. */
+  price: number
+}
+
+export async function listPriceLists(
+  includeInactive = false,
+): Promise<PriceList[]> {
+  const qs = includeInactive ? "?includeInactive=true" : ""
+  const res = await authFetch(`/catalog/price-lists${qs}`)
+  return parseResponse<PriceList[]>(res)
+}
+
+export async function createPriceList(
+  payload: PriceListPayload,
+): Promise<PriceList> {
+  const res = await authFetch("/catalog/price-lists", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
+  return parseResponse<PriceList>(res)
+}
+
+export async function updatePriceList(
+  id: string,
+  payload: PriceListPayload,
+): Promise<PriceList> {
+  const res = await authFetch(`/catalog/price-lists/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  })
+  return parseResponse<PriceList>(res)
+}
+
+/**
+ * Se desactiva, no se borra: las ventas viejas guardan el precio que cobraron,
+ * pero los clientes siguen apuntando a la lista y borrarla dejaría esa
+ * referencia colgando.
+ */
+export async function deactivatePriceList(
+  id: string,
+): Promise<{ ok: boolean }> {
+  const res = await authFetch(`/catalog/price-lists/${id}`, {
+    method: "DELETE",
+  })
+  return parseResponse<{ ok: boolean }>(res)
+}
+
+/** Vista previa del catálogo con la lista aplicada, para una cantidad dada. */
+export async function previewPriceList(
+  id: string,
+  qty = 1,
+): Promise<PriceListPreviewRow[]> {
+  const res = await authFetch(
+    `/catalog/price-lists/${id}/preview?qty=${encodeURIComponent(qty)}`,
+  )
+  return parseResponse<PriceListPreviewRow[]>(res)
+}

@@ -9,6 +9,12 @@ export interface Customer {
   docType: CustomerDocType
   docNumber: string
   phone?: string
+  /**
+   * Lista de precios pactada con él. Vacío = precio de mostrador.
+   * El terminal la usa para mostrar el precio correcto mientras se arma el
+   * carrito; el que se COBRA lo resuelve el backend.
+   */
+  priceListId?: string
   active: boolean
 }
 

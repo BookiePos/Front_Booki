@@ -3,6 +3,7 @@
  * Reutiliza authFetch (refresh automático) de api-admin.
  */
 import { authFetch, parseResponse } from "@/lib/api-admin"
+import type { OrderType } from "@/lib/pos/api-delivery"
 import type { SedeRef } from "@/lib/pos/api-inventory"
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -70,6 +71,30 @@ export interface SaleLine {
   discountAmount?: number
   /** Nombre del descuento aplicado (para el recibo). */
   discountName?: string
+  /**
+   * Base gravable de la línea, ya neta del descuento de línea y de la parte
+   * que le tocó del descuento de toda la venta.
+   */
+  taxBase?: number
+  /** IVA de la línea, incluido en lo que pagó el cliente. */
+  taxAmount?: number
+}
+
+/**
+ * Lo que el cliente PAGÓ por una línea: la base más su IVA.
+ *
+ * Es de aquí —y no de `unitPrice × qty`— de donde sale lo que se le devuelve.
+ * El precio de lista no tiene descontado nada, así que devolverlo regalaría el
+ * descuento por segunda vez.
+ *
+ * Las ventas viejas pueden no traer los dos campos; en ese caso se cae al neto
+ * de la línea, que es lo más cercano que hay.
+ */
+export function paidForLine(line: SaleLine): number {
+  if (line.taxBase !== undefined && line.taxAmount !== undefined) {
+    return line.taxBase + line.taxAmount
+  }
+  return line.lineTotal - (line.discountAmount ?? 0)
 }
 
 /** Descuento predefinido de la sede (se aplica por línea en el POS). */
@@ -105,6 +130,18 @@ export interface Sale {
   total: number
   /** Propina (restaurante): se cobró encima del total. */
   tip?: number
+  /** Cómo salió el pedido. */
+  orderType?: OrderType
+  /** Lo que se cobró por llevarlo. Va encima del total y sin IVA. */
+  deliveryFee?: number
+  delivery?: {
+    zoneId?: string
+    zoneName?: string
+    address: string
+    phone?: string
+    notes?: string
+    courier?: string
+  }
   payment: { method: PaymentMethod; received?: number; change?: number }
   customer?: Customer
   orderId?: string
@@ -132,6 +169,19 @@ export interface SalePaymentInput {
   employeeId?: string
 }
 
+/** A dónde se lleva el pedido. */
+export interface DeliveryInput {
+  address?: string
+  phone?: string
+  notes?: string
+  /** Quién lo lleva. Texto libre: casi siempre es un nombre de pila. */
+  courier?: string
+  /** Zona con tarifa fija. El servidor pone el precio, no esta pantalla. */
+  zoneId?: string
+  /** Valor a mano, para el pedido que no cae en ninguna zona. */
+  fee?: number
+}
+
 export interface CreateSalePayload {
   sedeId: string
   lines: { productId: string; qty: number; discountId?: string }[]
@@ -140,6 +190,31 @@ export interface CreateSalePayload {
   customer?: Customer
   /** Propina voluntaria (restaurante), en pesos. */
   tip?: number
+  /**
+   * Cliente REGISTRADO al que se le vende, pague como pague.
+   *
+   * `payment.customerId` solo existe para el fiado, donde identifica al deudor.
+   * La tienda que compra por cajas paga de contado casi siempre, y su lista de
+   * precios tiene que aplicarse igual: para eso está este campo.
+   */
+  customerId?: string
+  /**
+   * Lista de precios elegida A MANO en el terminal, para el cliente de paso que
+   * se lleva una caja y no está registrado. Requiere `pos.discount.authorize`:
+   * elegirla es decidir cobrar menos. La lista que el cliente registrado ya
+   * tiene asignada se aplica sola y no pide permiso.
+   */
+  priceListId?: string
+  /** Cómo sale el pedido. Por omisión, mostrador. */
+  orderType?: OrderType
+  /**
+   * A dónde se lleva. Solo cuenta con `orderType: "domicilio"`.
+   *
+   * El cobro del domicilio NO lleva IVA y se cobra encima del total, igual que
+   * la propina. Con zona elegida, la tarifa la pone el servidor: aquí solo
+   * viaja el id.
+   */
+  delivery?: DeliveryInput
 }
 
 // ─── Cuentas abiertas (comandas / mesas) ─────────────────────────────────────
@@ -154,6 +229,12 @@ export interface OrderLine {
   qty: number
   unitPrice: number
   lineTotal: number
+  /**
+   * Cuánto de esta línea ya se cobró. Es lo que permite dividir la cuenta:
+   * cada cobro paga una parte y la comanda sigue abierta hasta que no quede
+   * nada. En una cuenta que se paga entera vale 0 hasta el cobro.
+   */
+  paidQty?: number
 }
 
 export interface Order {
@@ -165,7 +246,10 @@ export interface Order {
   note?: string
   lines: OrderLine[]
   openedByEmail: string
+  /** Última venta cobrada de esta cuenta. */
   saleId?: string
+  /** Todas las ventas, en orden: una cuenta dividida tiene varias. */
+  saleIds?: string[]
   createdAt: string
   updatedAt: string
 }
@@ -189,6 +273,33 @@ export interface CheckoutOrderPayload {
   customer?: Customer
   /** Propina voluntaria (restaurante), en pesos. */
   tip?: number
+  /**
+   * Lo que se cobra AHORA, para dividir la cuenta entre varios.
+   *
+   * Sin este campo se cobra todo lo que falte: es el cobro de siempre y
+   * también el último de una cuenta dividida. Mandar el último sin líneas es
+   * lo que hace que lo que no se repartió exacto lo absorba quien paga de
+   * último, en vez de quedar un pedazo que nadie paga.
+   */
+  lines?: { productId: string; qty: number }[]
+}
+
+/** Lo que falta por cobrar de cada producto de una comanda. */
+export function pendingOf(order: Order): Map<string, number> {
+  const out = new Map<string, number>()
+  for (const l of order.lines) {
+    const falta = l.qty - (l.paidQty ?? 0)
+    out.set(l.productId, (out.get(l.productId) ?? 0) + falta)
+  }
+  return out
+}
+
+/** Cuánto falta por cobrar de la comanda, en plata. */
+export function pendingTotal(order: Order): number {
+  return order.lines.reduce(
+    (s, l) => s + (l.qty - (l.paidQty ?? 0)) * l.unitPrice,
+    0,
+  )
 }
 
 // ─── API ─────────────────────────────────────────────────────────────────────
@@ -227,6 +338,85 @@ export async function listSales(
 }
 
 /** Anula una venta y devuelve su consumo al inventario. */
+// ─── Devoluciones parciales ───────────────────────────────────────────────────
+
+export type ReturnReason =
+  | "defectuoso"
+  | "equivocado"
+  | "sobrante"
+  | "garantia"
+  | "otro"
+
+export const RETURN_REASON_LABELS: Record<ReturnReason, string> = {
+  defectuoso: "Vino malo o dañado",
+  equivocado: "No era lo que pidió",
+  sobrante: "Compró de más",
+  garantia: "Garantía",
+  otro: "Otro",
+}
+
+/** Qué se hace con lo devuelto. */
+export type RestockMode = "inventory" | "waste"
+
+/** Cómo se le devuelve la plata. */
+export type RefundMethod = "cash" | "transfer" | "credit_note" | "none"
+
+export const REFUND_METHOD_LABELS: Record<RefundMethod, string> = {
+  cash: "Efectivo de la caja",
+  transfer: "Transferencia",
+  credit_note: "Le queda a favor",
+  none: "Cambio por otro producto",
+}
+
+export interface SaleReturn {
+  _id: string
+  saleId: string
+  saleNumber: string
+  lines: {
+    productId: string
+    sku: string
+    name: string
+    qty: number
+    refund: number
+    refundTax: number
+  }[]
+  reason: ReturnReason
+  restock: RestockMode
+  /** Si la merma alcanzó a registrarse (solo importa cuando restock = waste). */
+  wasteRecorded: boolean
+  refundMethod: RefundMethod
+  refundTotal: number
+  refundTax: number
+  note?: string
+  userEmail: string
+  createdAt: string
+}
+
+export interface CreateSaleReturnPayload {
+  lines: { productId: string; qty: number }[]
+  reason: ReturnReason
+  restock: RestockMode
+  refundMethod: RefundMethod
+  note?: string
+}
+
+/** Devoluciones ya registradas de una venta (para no devolver dos veces). */
+export async function listSaleReturns(saleId: string): Promise<SaleReturn[]> {
+  const res = await authFetch(`/sales/${saleId}/returns`)
+  return parseResponse<SaleReturn[]>(res)
+}
+
+export async function createSaleReturn(
+  saleId: string,
+  payload: CreateSaleReturnPayload,
+): Promise<SaleReturn> {
+  const res = await authFetch(`/sales/${saleId}/returns`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
+  return parseResponse<SaleReturn>(res)
+}
+
 export async function voidSale(id: string): Promise<Sale> {
   const res = await authFetch(`/sales/${id}/void`, { method: "POST" })
   return parseResponse<Sale>(res)
