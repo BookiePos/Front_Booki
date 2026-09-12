@@ -9,6 +9,7 @@ import {
   Package,
   Boxes,
   ChefHat,
+  Loader2,
   Factory,
   ImageOff,
   ShieldOff,
@@ -59,25 +60,21 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "@/components/ui/sheet"
+  FormDialog,
+  FormSection,
+} from "@/components/ui/form-dialog"
+import {
+  Field,
+  FieldGrid,
+  FieldSpan,
+  NativeSelect,
+} from "@/components/ui/field"
+import { Segmented } from "@/components/ui/segmented"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useConfirm } from "@/components/ui/confirm-dialog"
 import { toast } from "sonner"
-import { Separator } from "@/components/ui/separator"
 import { cn } from "@/lib/utils"
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -89,6 +86,9 @@ const money = new Intl.NumberFormat("es-CO", {
   maximumFractionDigits: 0,
 })
 const nf = new Intl.NumberFormat("es-CO", { maximumFractionDigits: 3 })
+
+/** Enlaza el botón Guardar del pie del diálogo con el <form> del cuerpo. */
+const CATALOG_FORM_ID = "ficha-producto-catalogo"
 
 /** Normaliza para buscar: minúsculas y sin tildes. */
 function norm(s: string): string {
@@ -147,7 +147,7 @@ interface RecipeRow {
   qty: string
 }
 
-interface ProductSheetProps {
+interface ProductDialogProps {
   open: boolean
   onOpenChange: (v: boolean) => void
   mode: "create" | "edit"
@@ -159,7 +159,7 @@ interface ProductSheetProps {
   isRetail?: boolean
 }
 
-function ProductSheet({
+function ProductDialog({
   open,
   onOpenChange,
   mode,
@@ -168,7 +168,7 @@ function ProductSheet({
   categories,
   onSuccess,
   isRetail = false,
-}: ProductSheetProps) {
+}: ProductDialogProps) {
   const [sku, setSku] = React.useState("")
   const [name, setName] = React.useState("")
   const [description, setDescription] = React.useState("")
@@ -193,13 +193,6 @@ function ProductSheet({
   const [saving, setSaving] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
-  const invItems = React.useMemo(
-    () =>
-      Object.fromEntries(
-        invProducts.map((p) => [p._id, `${p.name} · ${p.sku}`]),
-      ),
-    [invProducts],
-  )
   const linkedProduct = invProducts.find((p) => p._id === inventoryProductId)
 
   const invMatches = React.useMemo(() => {
@@ -379,81 +372,139 @@ function ProductSheet({
   }
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="sm:max-w-md overflow-y-auto">
-        <SheetHeader>
-          <SheetTitle className="font-display text-lg">
-            {mode === "create" ? "Nuevo producto" : "Editar producto"}
-          </SheetTitle>
-          <SheetDescription>
-            Define un producto vendible. Al venderlo en el POS, el stock se
-            descuenta del inventario según su origen.
-          </SheetDescription>
-        </SheetHeader>
+    <FormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      size="3xl"
+      icon={sourceType === "recipe" ? ChefHat : Package}
+      title={mode === "create" ? "Nuevo producto" : "Editar producto"}
+      description="Lo que se vende en la caja. Al venderlo, el stock se descuenta del inventario según su origen."
+      footer={
+        <>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            className="sm:min-w-28"
+          >
+            Cancelar
+          </Button>
+          <Button
+            type="submit"
+            form={CATALOG_FORM_ID}
+            disabled={saving}
+            className="sm:min-w-32"
+          >
+            {saving ? <Loader2 className="animate-spin" /> : <Package />}
+            {saving ? "Guardando…" : "Guardar"}
+          </Button>
+        </>
+      }
+    >
+      <form
+        id={CATALOG_FORM_ID}
+        onSubmit={handleSubmit}
+        className="flex flex-col gap-5"
+      >
+        <FormError error={error} />
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4 px-4 py-2">
-          {/* Origen del producto — retail solo vende ítems del inventario, así
-              que se oculta el selector (no maneja recetas). */}
-          {!isRetail && (
-            <div className="flex flex-col gap-1.5">
-              <Label>Origen</Label>
-              <div className="grid grid-cols-2 gap-1 rounded-lg border border-border bg-muted p-1">
-                {(
-                  [
-                    ["inventory", "Del inventario"],
-                    ["recipe", "Con receta"],
-                  ] as [CatalogSourceType, string][]
-                ).map(([key, label]) => (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => {
-                      setSourceType(key)
-                      // En modo inventario el SKU lo fija el ítem; si aún no hay
-                      // ítem elegido, se limpia para no arrastrar el de una receta.
-                      if (key === "inventory" && !inventoryProductId) setSku("")
-                    }}
-                    className={cn(
-                      "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-                      sourceType === key
-                        ? "bg-background text-foreground shadow-xs"
-                        : "text-muted-foreground hover:text-foreground",
-                    )}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {sourceType === "inventory"
-                  ? "Se vende un ítem del inventario tal cual; cada venta lo descuenta."
-                  : "Se arma con varios ingredientes; cada venta descuenta cada uno."}
-              </p>
-            </div>
-          )}
+        {/* Retail solo vende ítems del inventario tal cual (no maneja recetas),
+            así que ahí el selector sobra y se oculta. */}
+        {!isRetail && (
+          <FormSection
+            title="De dónde sale"
+            description="Qué descuenta cada venta: un solo ítem, o varios ingredientes."
+          >
+            <Segmented
+              fill
+              size="lg"
+              ariaLabel="Origen del producto"
+              value={sourceType}
+              onValueChange={(v) => {
+                setSourceType(v)
+                // En modo inventario el SKU lo fija el ítem; si aún no hay
+                // ítem elegido, se limpia para no arrastrar el de una receta.
+                if (v === "inventory" && !inventoryProductId) setSku("")
+              }}
+              options={[
+                { value: "inventory", label: "Del inventario", icon: Boxes },
+                { value: "recipe", label: "Con receta", icon: ChefHat },
+              ]}
+            />
+            <p className="text-xs text-muted-foreground">
+              {sourceType === "inventory"
+                ? "Se vende un ítem del inventario tal cual; cada venta lo descuenta."
+                : "Se arma con varios ingredientes; cada venta descuenta cada uno."}
+            </p>
+          </FormSection>
+        )}
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="c-sku">SKU</Label>
+        <FormSection
+          title="Identificación"
+          description="Cómo lo llama el cliente y cómo lo reconoce la caja."
+        >
+          <FieldGrid cols={3}>
+            <Field
+              id="c-sku"
+              label="SKU"
+              required={sourceType === "recipe"}
+              help={{ term: "sku" }}
+              hint={
+                sourceType === "inventory"
+                  ? "Se comparte con el inventario."
+                  : undefined
+              }
+            >
               <Input
                 id="c-sku"
                 value={sku}
                 onChange={(e) => setSku(e.target.value.toUpperCase())}
                 placeholder={
-                  sourceType === "recipe" ? "p. ej. COMBO-01" : "Se toma del ítem"
+                  sourceType === "recipe"
+                    ? "p. ej. COMBO-01"
+                    : "Se toma del ítem"
                 }
                 readOnly={sourceType === "inventory"}
                 required={sourceType === "recipe"}
                 className={sourceType === "inventory" ? "bg-muted" : undefined}
               />
-              {sourceType === "inventory" && (
-                <p className="text-xs text-muted-foreground">
-                  Se comparte con el inventario.
-                </p>
-              )}
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="c-price">Precio de venta</Label>
+            </Field>
+            <FieldSpan span={2}>
+              <Field id="c-name" label="Nombre" required>
+                <Input
+                  id="c-name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="p. ej. Hamburguesa clásica"
+                  required
+                />
+              </Field>
+            </FieldSpan>
+            <FieldSpan span={3}>
+              <Field id="c-desc" label="Descripción">
+                <Input
+                  id="c-desc"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Opcional"
+                />
+              </Field>
+            </FieldSpan>
+          </FieldGrid>
+        </FormSection>
+
+        <FormSection
+          title="Precio y clasificación"
+          description="El precio que ve el cliente ya lleva el IVA dentro."
+        >
+          <FieldGrid cols={3}>
+            <Field
+              id="c-price"
+              label="Precio de venta"
+              required
+              help={{ term: "precioVenta" }}
+              hint="IVA incluido."
+            >
               <Input
                 id="c-price"
                 type="number"
@@ -464,54 +515,36 @@ function ProductSheet({
                 placeholder="0"
                 required
               />
-              <p className="text-xs text-muted-foreground">IVA incluido.</p>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="c-iva">IVA</Label>
-              <Select
+            </Field>
+            <Field id="c-iva" label="IVA" help={{ term: "iva" }}>
+              <NativeSelect
+                id="c-iva"
                 value={ivaSel}
-                items={Object.fromEntries(
-                  IVA_OPTIONS.map((o) => [o.key, o.label]),
-                )}
-                onValueChange={(v) => {
-                  if (v !== null) setIvaSel(v as string)
-                }}
-              >
-                <SelectTrigger id="c-iva" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {IVA_OPTIONS.map((o) => (
-                    <SelectItem key={o.key} value={o.key}>
-                      {o.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+                onChange={setIvaSel}
+                options={IVA_OPTIONS.map((o) => ({
+                  value: o.key,
+                  label: o.label,
+                }))}
+              />
+            </Field>
+            <Field id="c-cat" label="Categoría" help={{ term: "categoria" }}>
+              <NativeSelect
+                id="c-cat"
+                value={categoryId}
+                onChange={setCategoryId}
+                options={[
+                  { value: "none", label: "Sin categoría" },
+                  ...categories.map((c) => ({ value: c._id, label: c.name })),
+                ]}
+              />
+            </Field>
+          </FieldGrid>
+        </FormSection>
 
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="c-name">Nombre</Label>
-            <Input
-              id="c-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="p. ej. Hamburguesa clásica"
-              required
-            />
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="c-desc">Descripción</Label>
-            <Input
-              id="c-desc"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Opcional"
-            />
-          </div>
-
+        <FormSection
+          title="Foto"
+          description="Es lo que se ve en la cuadrícula del POS: con foto, quien atiende encuentra el producto sin leer."
+        >
           <ProductImageField
             currentUrl={product?.imageUrl}
             file={imageFile}
@@ -520,201 +553,146 @@ function ProductSheet({
             onRemovedChange={setImageRemoved}
             disabled={saving}
           />
+        </FormSection>
 
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="c-cat">Categoría</Label>
-            <Select
-              value={categoryId}
-              items={{
-                none: "Sin categoría",
-                ...Object.fromEntries(categories.map((c) => [c._id, c.name])),
-              }}
-              onValueChange={(v) => {
-                if (v !== null) setCategoryId(v)
-              }}
-            >
-              <SelectTrigger id="c-cat" className="w-full">
-                <SelectValue placeholder="Sin categoría" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Sin categoría</SelectItem>
-                {categories.map((c) => (
-                  <SelectItem key={c._id} value={c._id}>
-                    {c.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <Separator />
-
-          {/* ── Fuente: inventario ── */}
-          {sourceType === "inventory" && (
-            <div className="flex flex-col gap-3">
-              <div className="relative flex flex-col gap-1.5">
-                <Label htmlFor="c-inv">
-                  Buscar ítem de inventario (SKU o nombre)
-                </Label>
-                <Input
-                  id="c-inv"
-                  value={invQuery}
-                  onChange={(e) => {
-                    setInvQuery(e.target.value)
-                    setInvListOpen(true)
-                    setInventoryProductId("")
-                  }}
-                  onFocus={() => setInvListOpen(true)}
-                  onBlur={() => setInvListOpen(false)}
-                  placeholder="Escribe el SKU o el nombre…"
-                  autoComplete="off"
-                />
-                {invListOpen && invMatches.length > 0 && (
-                  <div
-                    className="absolute top-full z-20 mt-1 max-h-56 w-full overflow-auto rounded-md border border-border bg-popover p-1 shadow-md"
-                    onMouseDown={(e) => e.preventDefault()}
-                  >
-                    {invMatches.map((p) => (
-                      <button
-                        key={p._id}
-                        type="button"
-                        className="flex w-full items-center justify-between gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent"
-                        onClick={() => pickInvProduct(p)}
-                      >
-                        <span className="truncate">{p.name}</span>
-                        <span className="font-mono text-xs text-muted-foreground">
-                          {p.sku}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-                {invQuery && invListOpen && invMatches.length === 0 && (
-                  <div className="absolute top-full z-20 mt-1 w-full rounded-md border border-border bg-popover p-2 text-sm text-muted-foreground shadow-md">
-                    Sin coincidencias. Crea el ítem en Inventario primero.
-                  </div>
-                )}
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="c-qpu">
-                  Consumo por unidad vendida
-                  {linkedProduct ? ` (${linkedProduct.unit})` : ""}
-                </Label>
-                <Input
-                  id="c-qpu"
-                  type="number"
-                  min="0"
-                  step="any"
-                  value={qtyPerUnit}
-                  onChange={(e) => setQtyPerUnit(e.target.value)}
-                  placeholder="1"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Cuánto del ítem descuenta cada unidad vendida. Normalmente 1.
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* ── Fuente: receta ── */}
-          {sourceType === "recipe" && (
-            <div className="flex flex-col gap-3">
-              <div className="flex items-center justify-between">
-                <Label>Ingredientes</Label>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={addRecipeRow}
+        {sourceType === "inventory" && (
+          <FormSection
+            title="Qué descuenta del inventario"
+            description="El ítem que sale de la bodega cada vez que esto se vende."
+            boxed
+          >
+            <div className="relative flex flex-col gap-1.5">
+              <Label htmlFor="c-inv">
+                Buscar ítem de inventario (SKU o nombre)
+              </Label>
+              <Input
+                id="c-inv"
+                value={invQuery}
+                onChange={(e) => {
+                  setInvQuery(e.target.value)
+                  setInvListOpen(true)
+                  setInventoryProductId("")
+                }}
+                onFocus={() => setInvListOpen(true)}
+                onBlur={() => setInvListOpen(false)}
+                placeholder="Escribe el SKU o el nombre…"
+                autoComplete="off"
+              />
+              {invListOpen && invMatches.length > 0 && (
+                <div
+                  className="absolute top-full z-20 mt-1 max-h-56 w-full overflow-auto rounded-xl border border-border bg-popover p-1 shadow-md"
+                  onMouseDown={(e) => e.preventDefault()}
                 >
-                  <Plus />
-                  Agregar
-                </Button>
-              </div>
-
-              <div className="flex flex-col gap-2">
-                {recipe.map((row, i) => {
-                  const ing = invProducts.find((p) => p._id === row.productId)
-                  return (
-                    <div key={i} className="flex items-start gap-2">
-                      <div className="flex-1">
-                        <Select
-                          value={row.productId}
-                          items={invItems}
-                          onValueChange={(v) => {
-                            if (v !== null)
-                              updateRecipeRow(i, { productId: v })
-                          }}
-                        >
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Ingrediente" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {invProducts.map((p) => (
-                              <SelectItem key={p._id} value={p._id}>
-                                {p.name} · {p.sku}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="relative w-28 shrink-0">
-                        <Input
-                          type="number"
-                          min="0"
-                          step="any"
-                          value={row.qty}
-                          onChange={(e) =>
-                            updateRecipeRow(i, { qty: e.target.value })
-                          }
-                          placeholder="Cant."
-                          aria-label="Cantidad"
-                        />
-                        {ing && (
-                          <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-                            {ing.unit}
-                          </span>
-                        )}
-                      </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-sm"
-                        aria-label="Quitar ingrediente"
-                        className="mt-0.5"
-                        disabled={recipe.length <= 1}
-                        onClick={() => removeRecipeRow(i)}
-                      >
-                        <X />
-                      </Button>
-                    </div>
-                  )
-                })}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Cada cantidad es por unidad vendida, en la unidad del
-                ingrediente.
-              </p>
+                  {invMatches.map((p) => (
+                    <button
+                      key={p._id}
+                      type="button"
+                      className="flex w-full items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-left text-sm hover:bg-accent"
+                      onClick={() => pickInvProduct(p)}
+                    >
+                      <span className="truncate">{p.name}</span>
+                      <span className="font-mono text-xs text-muted-foreground">
+                        {p.sku}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {invQuery && invListOpen && invMatches.length === 0 && (
+                <div className="absolute top-full z-20 mt-1 w-full rounded-xl border border-border bg-popover p-2 text-sm text-muted-foreground shadow-md">
+                  Sin coincidencias. Crea el ítem en Inventario primero.
+                </div>
+              )}
             </div>
-          )}
 
-          <FormError error={error} />
-
-          <div className="flex justify-end gap-2 pt-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
+            <Field
+              id="c-qpu"
+              label={`Consumo por unidad vendida${linkedProduct ? ` (${linkedProduct.unit})` : ""}`}
+              hint="Cuánto del ítem descuenta cada unidad vendida. Normalmente 1."
             >
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={saving}>
-              {saving ? "Guardando…" : "Guardar"}
-            </Button>
-          </div>
-        </form>
-      </SheetContent>
-    </Sheet>
+              <Input
+                id="c-qpu"
+                type="number"
+                min="0"
+                step="any"
+                value={qtyPerUnit}
+                onChange={(e) => setQtyPerUnit(e.target.value)}
+                placeholder="1"
+              />
+            </Field>
+          </FormSection>
+        )}
+
+        {sourceType === "recipe" && (
+          <FormSection
+            title="Ingredientes"
+            description="Cada cantidad es por unidad vendida, en la unidad del ingrediente."
+            help={{ term: "receta" }}
+            boxed
+            action={
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={addRecipeRow}
+              >
+                <Plus />
+                Agregar
+              </Button>
+            }
+          >
+            {recipe.map((row, i) => {
+              const ing = invProducts.find((p) => p._id === row.productId)
+              return (
+                <div key={i} className="flex items-center gap-2">
+                  <NativeSelect
+                    className="flex-1"
+                    aria-label={`Ingrediente ${i + 1}`}
+                    placeholder="Ingrediente…"
+                    value={row.productId}
+                    onChange={(v) => updateRecipeRow(i, { productId: v })}
+                    options={invProducts.map((p) => ({
+                      value: p._id,
+                      label: `${p.name} · ${p.sku}`,
+                    }))}
+                  />
+                  <div className="relative w-28 shrink-0">
+                    <Input
+                      type="number"
+                      min="0"
+                      step="any"
+                      value={row.qty}
+                      onChange={(e) =>
+                        updateRecipeRow(i, { qty: e.target.value })
+                      }
+                      placeholder="Cant."
+                      aria-label={`Cantidad del ingrediente ${i + 1}`}
+                      className={ing ? "pr-10" : undefined}
+                    />
+                    {ing && (
+                      <span className="pointer-events-none absolute top-1/2 right-2.5 -translate-y-1/2 text-xs text-muted-foreground">
+                        {ing.unit}
+                      </span>
+                    )}
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label={`Quitar el ingrediente ${i + 1}`}
+                    className="shrink-0"
+                    disabled={recipe.length <= 1}
+                    onClick={() => removeRecipeRow(i)}
+                  >
+                    <X />
+                  </Button>
+                </div>
+              )
+            })}
+          </FormSection>
+        )}
+      </form>
+    </FormDialog>
   )
 }
 
@@ -1010,7 +988,7 @@ export default function ProductosPage() {
         </CardContent>
       </Card>
 
-      <ProductSheet
+      <ProductDialog
         open={sheetOpen}
         onOpenChange={setSheetOpen}
         mode={sheetMode}

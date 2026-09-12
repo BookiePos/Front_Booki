@@ -5,6 +5,7 @@ import Link from "next/link"
 import {
   CircleCheck,
   ClipboardList,
+  Loader2,
   Pencil,
   ScrollText,
   ShieldOff,
@@ -33,14 +34,12 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet"
+  FormDialog,
+  FormSection,
+  FormAlert,
+} from "@/components/ui/form-dialog"
+import { Field, FieldGrid } from "@/components/ui/field"
 import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
@@ -190,149 +189,172 @@ function ResolutionSheet({ open, onOpenChange, row, onSaved }: ResolutionSheetPr
   }
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="flex flex-col sm:max-w-md">
-        <SheetHeader>
-          <SheetTitle className="font-display text-lg">
-            Resolución de {row?.sedeName}
-          </SheetTitle>
-          <SheetDescription>
-            Copia los datos tal como los entregó la DIAN. Al guardar se ajusta
-            también por qué número seguirá la numeración.
-          </SheetDescription>
-        </SheetHeader>
-
-        <div className="flex flex-1 flex-col gap-4 overflow-y-auto px-4 py-2">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="r-num">N.º de resolución</Label>
-              <Input
-                id="r-num"
-                value={f.numero ?? ""}
-                onChange={(e) => set("numero", e.target.value)}
-                placeholder="18764096721256"
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="r-fecha">Fecha</Label>
-              <Input
-                id="r-fecha"
-                type="date"
-                value={f.fechaResolucion ?? ""}
-                onChange={(e) => set("fechaResolucion", e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-3 gap-3">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="r-prefijo">Prefijo</Label>
-              <Input
-                id="r-prefijo"
-                maxLength={4}
-                value={f.prefijo ?? ""}
-                onChange={(e) => set("prefijo", e.target.value.toUpperCase())}
-                placeholder="FE"
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="r-desde">Desde</Label>
-              <Input
-                id="r-desde"
-                inputMode="numeric"
-                value={f.rangoDesde ?? ""}
-                onChange={(e) =>
-                  set("rangoDesde", e.target.value ? Number(e.target.value) : undefined)
-                }
-                placeholder="1"
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="r-hasta">Hasta</Label>
-              <Input
-                id="r-hasta"
-                inputMode="numeric"
-                value={f.rangoHasta ?? ""}
-                onChange={(e) =>
-                  set("rangoHasta", e.target.value ? Number(e.target.value) : undefined)
-                }
-                placeholder="5000"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="r-vd">Vigencia desde</Label>
-              <Input
-                id="r-vd"
-                type="date"
-                value={f.vigenciaDesde ?? ""}
-                onChange={(e) => set("vigenciaDesde", e.target.value)}
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="r-vh">Vigencia hasta</Label>
-              <Input
-                id="r-vh"
-                type="date"
-                value={f.vigenciaHasta ?? ""}
-                onChange={(e) => set("vigenciaHasta", e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="r-empezar">La próxima factura llevará el número</Label>
-            <Input
-              id="r-empezar"
-              inputMode="numeric"
-              value={empezarEn}
-              onChange={(e) => setEmpezarEn(e.target.value)}
-              placeholder={String(f.rangoDesde ?? 1)}
-            />
-            <p className="text-xs text-muted-foreground">
-              Al estrenar una resolución es el primer número del rango. Se
-              pregunta porque es lo que hay que ajustar al renovar: si no, la
-              numeración salta y se pierden folios autorizados.
-            </p>
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="r-clave">Clave técnica</Label>
-            <Input
-              id="r-clave"
-              value={claveTecnica}
-              onChange={(e) => setClaveTecnica(e.target.value)}
-              placeholder={
-                row?.status.claveTecnicaOk
-                  ? "Ya registrada · escribe solo para reemplazarla"
-                  : "Clave técnica entregada por la DIAN"
-              }
-            />
-            <p className="text-xs text-muted-foreground">
-              Entra en el cálculo del CUFE. Sin ella no se puede emitir ninguna
-              factura electrónica.
-            </p>
-          </div>
-
-          {error && (
-            <p role="alert" className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
-              {error}
-            </p>
-          )}
-        </div>
-
-        <div className="flex justify-end gap-2 border-t border-border px-4 py-3">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+    <FormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      size="2xl"
+      icon={ScrollText}
+      title={`Resolución de ${row?.sedeName ?? "la sede"}`}
+      description="Copia los datos tal como los entregó la DIAN. Al guardar se ajusta también por qué número seguirá la numeración."
+      footer={
+        <>
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            className="sm:min-w-28"
+          >
             Cancelar
           </Button>
-          <Button onClick={handleSave} disabled={saving}>
+          <Button
+            onClick={handleSave}
+            disabled={saving}
+            className="sm:min-w-44"
+          >
+            {saving ? <Loader2 className="animate-spin" /> : <ScrollText />}
             {saving ? "Guardando…" : "Guardar resolución"}
           </Button>
-        </div>
-      </SheetContent>
-    </Sheet>
+        </>
+      }
+    >
+      {error && <FormAlert>{error}</FormAlert>}
+
+      <FormSection
+        title="La resolución"
+        description="El acto administrativo con el que la DIAN te autoriza a facturar."
+        help={{ term: "resolucion" }}
+      >
+        <FieldGrid cols={2}>
+          <Field id="r-num" label="N.º de resolución">
+            <Input
+              id="r-num"
+              value={f.numero ?? ""}
+              onChange={(e) => set("numero", e.target.value)}
+              placeholder="18764096721256"
+            />
+          </Field>
+          <Field id="r-fecha" label="Fecha">
+            <Input
+              id="r-fecha"
+              type="date"
+              value={f.fechaResolucion ?? ""}
+              onChange={(e) => set("fechaResolucion", e.target.value)}
+            />
+          </Field>
+        </FieldGrid>
+      </FormSection>
+
+      <FormSection
+        title="Prefijo y rango autorizado"
+        description="Los folios que puedes emitir con esta resolución."
+        help={{ term: "rangoNumeracion" }}
+      >
+        <FieldGrid cols={3}>
+          <Field id="r-prefijo" label="Prefijo" help={{ term: "prefijo" }}>
+            <Input
+              id="r-prefijo"
+              maxLength={4}
+              value={f.prefijo ?? ""}
+              onChange={(e) => set("prefijo", e.target.value.toUpperCase())}
+              placeholder="FE"
+            />
+          </Field>
+          <Field id="r-desde" label="Desde">
+            <Input
+              id="r-desde"
+              inputMode="numeric"
+              value={f.rangoDesde ?? ""}
+              onChange={(e) =>
+                set(
+                  "rangoDesde",
+                  e.target.value ? Number(e.target.value) : undefined,
+                )
+              }
+              placeholder="1"
+            />
+          </Field>
+          <Field id="r-hasta" label="Hasta">
+            <Input
+              id="r-hasta"
+              inputMode="numeric"
+              value={f.rangoHasta ?? ""}
+              onChange={(e) =>
+                set(
+                  "rangoHasta",
+                  e.target.value ? Number(e.target.value) : undefined,
+                )
+              }
+              placeholder="5000"
+            />
+          </Field>
+        </FieldGrid>
+      </FormSection>
+
+      <FormSection
+        title="Vigencia"
+        description="Fuera de estas fechas la DIAN rechaza las facturas."
+      >
+        <FieldGrid cols={2}>
+          <Field id="r-vd" label="Vigencia desde">
+            <Input
+              id="r-vd"
+              type="date"
+              value={f.vigenciaDesde ?? ""}
+              onChange={(e) => set("vigenciaDesde", e.target.value)}
+            />
+          </Field>
+          <Field id="r-vh" label="Vigencia hasta">
+            <Input
+              id="r-vh"
+              type="date"
+              value={f.vigenciaHasta ?? ""}
+              onChange={(e) => set("vigenciaHasta", e.target.value)}
+            />
+          </Field>
+        </FieldGrid>
+      </FormSection>
+
+      <FormSection
+        title="Por dónde sigue la numeración"
+        description="Lo único que no viene en el papel: en qué folio estás hoy."
+      >
+        <Field
+          id="r-empezar"
+          label="La próxima factura llevará el número"
+          hint="Al estrenar una resolución es el primer número del rango. Se pregunta porque es lo que hay que ajustar al renovar: si no, la numeración salta y se pierden folios autorizados."
+        >
+          <Input
+            id="r-empezar"
+            inputMode="numeric"
+            value={empezarEn}
+            onChange={(e) => setEmpezarEn(e.target.value)}
+            placeholder={String(f.rangoDesde ?? 1)}
+          />
+        </Field>
+      </FormSection>
+
+      <FormSection
+        title="Clave técnica"
+        description="La entrega la DIAN junto con la resolución."
+        help={{ term: "cufe" }}
+      >
+        <Field
+          id="r-clave"
+          label="Clave técnica"
+          hint="Entra en el cálculo del CUFE. Sin ella no se puede emitir ninguna factura electrónica."
+        >
+          <Input
+            id="r-clave"
+            value={claveTecnica}
+            onChange={(e) => setClaveTecnica(e.target.value)}
+            placeholder={
+              row?.status.claveTecnicaOk
+                ? "Ya registrada · escribe solo para reemplazarla"
+                : "Clave técnica entregada por la DIAN"
+            }
+          />
+        </Field>
+      </FormSection>
+    </FormDialog>
   )
 }
 
