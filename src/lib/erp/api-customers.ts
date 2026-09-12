@@ -13,6 +13,12 @@ export interface Customer {
   address?: string
   city?: string
   creditLimit: number
+  /**
+   * Lista de precios con la que se le cobra. Vacío = precio de mostrador.
+   * Existe para que el descuento del mayorista no dependa de que el cajero se
+   * acuerde de aplicarlo en cada venta.
+   */
+  priceListId?: string
   notes?: string
   active: boolean
   createdAt: string
@@ -27,6 +33,8 @@ export interface CustomerPayload {
   address?: string
   city?: string
   creditLimit?: number
+  /** Cadena vacía = quitarle la lista y volver a cobrarle de mostrador. */
+  priceListId?: string
   notes?: string
 }
 

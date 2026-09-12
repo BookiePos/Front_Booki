@@ -35,6 +35,13 @@ export interface InvProduct {
   categoryId?: InvCategory | null
   unit: string
   weight?: number
+  /**
+   * Presentación en la que se COMPRA, cuando no es la misma en la que se
+   * consume: "bulto" con factor 25000 = un bulto trae 25.000 g. Van juntas o
+   * no van; sin ellas el insumo se compra por su propia `unit`.
+   */
+  purchaseUnit?: string
+  purchaseFactor?: number
   barcode?: string
   perishable: boolean
   trackLots: boolean
@@ -314,6 +321,9 @@ export interface ProductPayload {
   categoryId?: string
   unit?: string
   weight?: number
+  /** Cadena vacía = quitar la presentación de compra. */
+  purchaseUnit?: string
+  purchaseFactor?: number
   barcode?: string
   perishable?: boolean
   trackLots?: boolean
@@ -376,6 +386,8 @@ export interface ImportProductRow {
   unit?: string
   barcode?: string
   weight?: number
+  purchaseUnit?: string
+  purchaseFactor?: number
   perishable?: boolean
   trackLots?: boolean
   shelfLifeDays?: number
@@ -485,6 +497,49 @@ export async function deleteCategory(id: string): Promise<{ ok: boolean }> {
 
 // ─── Existencias, lotes y alertas ────────────────────────────────────────────
 
+/** Una línea de la planilla de conteo físico. */
+export interface StockCountRow {
+  productId: string
+  /** Lo que se contó en el estante. Cero es válido: se agotó. */
+  counted: number
+  /**
+   * Lo que el sistema decía al generar la planilla. No manda sobre el ajuste
+   * —la verdad es el estante— pero si al aplicar la existencia ya es otra,
+   * algo se movió mientras se contaba y esa fila se devuelve en `moved`.
+   */
+  expected?: number
+}
+
+export interface StockCountResult {
+  total: number
+  adjusted: number
+  unchanged: number
+  addedQty: number
+  removedQty: number
+  addedValue: number
+  removedValue: number
+  moved: { productId: string; name: string; expected: number; actual: number }[]
+  errors: { productId: string; name: string; message: string }[]
+}
+
+/**
+ * Aplica un conteo físico: DEJA las existencias en lo contado.
+ *
+ * Ojo con confundirlo con `importStock`, que suma cada fila como entrada de
+ * mercancía: usar aquel para contar duplica el inventario.
+ */
+export async function applyStockCount(payload: {
+  sedeId: string
+  rows: StockCountRow[]
+  note?: string
+}): Promise<StockCountResult> {
+  const res = await authFetch("/inventory/stock/count", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
+  return parseResponse<StockCountResult>(res)
+}
+
 export async function getStock(sedeId?: string): Promise<StockRow[]> {
   const qs = sedeId ? `?sedeId=${encodeURIComponent(sedeId)}` : ""
   const res = await authFetch(`/inventory/stock${qs}`)
@@ -572,6 +627,12 @@ export interface EntryPayload {
   sedeId: string
   qty: number
   unitCost?: number
+  /**
+   * `qty` y `unitCost` van en PRESENTACIONES de compra (3 bultos a $95.000 el
+   * bulto) y el backend los convierte con el factor del producto. Solo se
+   * manda cuando el insumo tiene presentación definida.
+   */
+  inPurchaseUnits?: boolean
   lotCode?: string
   supplier?: string
   supplierId?: string

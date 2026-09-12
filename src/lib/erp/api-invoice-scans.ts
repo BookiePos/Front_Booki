@@ -102,6 +102,15 @@ export interface LineDecision {
   categoryId?: string | null
   /** Datos del producto a crear (solo si `createProduct`). */
   newProduct?: NewProductDraft
+  /**
+   * La cantidad de la factura viene en la PRESENTACIÓN de compra del producto
+   * ("3 BULTOS"), no en la unidad en que se consume.
+   *
+   * Se propone en true cuando el producto emparejado tiene presentación
+   * definida, porque el proveedor factura en lo que vende. La persona lo
+   * confirma o lo quita antes de aplicar.
+   */
+  inPurchaseUnits?: boolean
   /** Cómo se emparejó: alias | barcode | sku | name | manual | none. */
   matchedBy?: string
 }

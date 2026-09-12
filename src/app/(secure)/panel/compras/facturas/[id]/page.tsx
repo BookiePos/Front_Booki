@@ -38,10 +38,15 @@ import {
   type InvProduct,
   type Sede,
 } from "@/lib/erp/api-inventory"
+import {
+  describirContenido,
+  presentacionDeCompra,
+} from "@/lib/erp/purchase-unit"
 import { listSuppliers, type Supplier } from "@/lib/erp/api-suppliers"
 import { listCategories as listFinanceCategories, type FinanceCategory } from "@/lib/erp/api-finance"
 import { errorMessage, fmtDate, money } from "@/lib/erp/finance-format"
 
+import { Checkbox } from "@/components/ui/checkbox"
 import { PageHeader } from "@/components/erp/page-header"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -916,6 +921,23 @@ export default function RevisarFacturaPage() {
                                     : "Completar ficha"}
                                 </Button>
                               )}
+                              {/* La factura casi siempre viene en lo que el
+                                  proveedor vende —bultos, cajas— y no en la
+                                  unidad en que se consume. Solo se ofrece
+                                  cuando el producto tiene presentación: un
+                                  producto que se crea en esta misma factura
+                                  todavía no la tiene. */}
+                              <PresentacionDeCompra
+                                producto={products.find(
+                                  (p) => p._id === decision.productId,
+                                )}
+                                cantidad={line.qty}
+                                marcado={decision.inPurchaseUnits ?? false}
+                                editable={editable}
+                                onChange={(v) =>
+                                  patchDecision(index, { inPurchaseUnits: v })
+                                }
+                              />
                               </div>
                             ) : decision.target === "expense" ? (
                               <Select
@@ -1105,5 +1127,65 @@ export default function RevisarFacturaPage() {
         }}
       />
     </>
+  )
+}
+
+/**
+ * "Esta cantidad viene en bultos".
+ *
+ * La factura del proveedor casi siempre está en lo que él vende —3 BULTOS
+ * HARINA— y no en la unidad en que el negocio consume. Sin esta casilla tocaba
+ * traducirla a mano antes de registrarla, y ahí es donde se equivoca la gente:
+ * 3 en vez de 75.000 deja el inventario en nada, y $95.000 como costo del gramo
+ * infla cada receta veinticinco mil veces.
+ *
+ * Solo aparece cuando el producto tiene presentación definida. Uno que se vaya
+ * a crear en esta misma factura todavía no la tiene, así que no hay nada que
+ * convertir.
+ */
+function PresentacionDeCompra({
+  producto,
+  cantidad,
+  marcado,
+  editable,
+  onChange,
+}: {
+  producto?: InvProduct
+  cantidad?: number
+  marcado: boolean
+  editable: boolean
+  onChange: (v: boolean) => void
+}) {
+  if (!producto) return null
+  const pres = presentacionDeCompra(producto)
+  if (!pres.definida) return null
+
+  const n = Number(cantidad)
+  const entra =
+    Number.isFinite(n) && n > 0
+      ? describirContenido(n * pres.factor, producto.unit)
+      : null
+
+  return (
+    <label className="flex cursor-pointer items-start gap-2 text-xs">
+      <Checkbox
+        checked={marcado}
+        onCheckedChange={(v) => onChange(v === true)}
+        disabled={!editable}
+        aria-label={`La cantidad viene en ${pres.unidad}`}
+      />
+      <span className="leading-tight">
+        Viene en {pres.unidad}
+        <span className="text-muted-foreground">
+          {" "}
+          (de {pres.contenido})
+        </span>
+        {marcado && entra && (
+          <span className="block text-[11px] text-success-ink">
+            Entran {entra} al inventario.
+          </span>
+        )}
+      </span>
+    </label>
   )
 }

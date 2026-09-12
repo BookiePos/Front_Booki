@@ -40,6 +40,8 @@ import {
   posProducts,
   createSale,
   listOrders,
+  pendingOf,
+  pendingTotal,
   createOrder,
   updateOrder,
   checkoutOrder,
@@ -65,6 +67,8 @@ import {
   type Customer as RegCustomer,
   type EmployeeLookup,
 } from "@/lib/pos/api-customers"
+import { listPriceLists, type PriceList } from "@/lib/erp/api-catalog"
+import { resolveUnitPrice } from "@/lib/erp/price-list"
 import {
   listDeliveryZones,
   ORDER_TYPE_LABELS,
@@ -118,6 +122,9 @@ const ALL = "__all__"
 const UNCAT = "__uncat__"
 /** Umbral para avisar "pocas unidades": solo se muestra el stock si es menor. */
 const LOW_STOCK = 10
+
+/** Cantidades de una cuenta dividida: pueden salir fraccionarias al repartir. */
+const nfCantidad = new Intl.NumberFormat("es-CO", { maximumFractionDigits: 3 })
 
 const PAYMENT_ICONS: Record<PaymentMethod, React.ElementType> = {
   cash: Banknote,
@@ -216,6 +223,9 @@ function cashSuggestions(total: number): number[] {
 export default function VentaPage() {
   const { hasPermission, isRetail, isRestaurant } = useAuth()
   const canSell = hasPermission("pos.sell")
+  // Elegir lista de precios a mano es decidir cobrar menos: mismo permiso que
+  // aplicar un descuento. El backend lo vuelve a comprobar.
+  const canDiscount = hasPermission("pos.discount.authorize")
 
   const { sedeId, sede, sedes, loading: sedesLoading } = useSede()
   const confirm = useConfirm()
@@ -260,6 +270,16 @@ export default function VentaPage() {
   // Cuentas abiertas
   const [orders, setOrders] = React.useState<Order[]>([])
   const [activeOrderId, setActiveOrderId] = React.useState<string | null>(null)
+  /**
+   * Cómo se cobra una cuenta de mesa: entera, escogiendo ítems, o dividida en
+   * partes iguales. Solo aplica cuando hay una cuenta abierta; una venta
+   * directa se cobra siempre completa.
+   */
+  const [splitMode, setSplitMode] = React.useState<"todo" | "items" | "partes">(
+    "todo",
+  )
+  const [splitParts, setSplitParts] = React.useState("2")
+  const [splitQty, setSplitQty] = React.useState<Record<string, string>>({})
   // ── Domicilio ──────────────────────────────────────────────────────────────
   // Cómo sale el pedido y, si es domicilio, a dónde. El cobro del domicilio va
   // ENCIMA del total y sin IVA, igual que la propina.
@@ -321,11 +341,23 @@ export default function VentaPage() {
   const [ncPhone, setNcPhone] = React.useState("")
   const [ncBusy, setNcBusy] = React.useState(false)
 
-  // Carga clientes/empleados cuando el fiado está activo.
+  // Listas de precios: mayorista, distribuidor… El terminal las carga para
+  // MOSTRAR el precio correcto mientras se arma el carrito; el que se cobra lo
+  // resuelve el backend, que es la regla que protege la caja.
+  const [priceLists, setPriceLists] = React.useState<PriceList[]>([])
+  /** Lista elegida a mano, para el cliente de paso que se lleva una caja. */
+  const [manualListId, setManualListId] = React.useState("")
+
+  // Carga clientes/empleados/listas al abrir el cobro. Los clientes ya no se
+  // piden solo en el fiado: la tienda que compra por cajas paga de contado, y
+  // sin elegirla su lista no se aplicaría.
   React.useEffect(() => {
-    if (!checkoutOpen || method !== "credit") return
+    if (!checkoutOpen) return
     void listCustomers().then(setRegCustomers).catch(() => setRegCustomers([]))
-    void lookupEmployees().then(setEmpList).catch(() => setEmpList([]))
+    void listPriceLists().then(setPriceLists).catch(() => setPriceLists([]))
+    if (method === "credit") {
+      void lookupEmployees().then(setEmpList).catch(() => setEmpList([]))
+    }
   }, [checkoutOpen, method])
 
   async function quickAddCustomer() {
@@ -634,6 +666,8 @@ export default function VentaPage() {
   /** Entra a la venta directa (cobro inmediato, sin cuenta). */
   async function selectDirect() {
     await flushSave()
+    setSplitMode("todo")
+    setSplitQty({})
     setActiveOrderId(null)
     setLabel("")
     setSaveState("idle")
@@ -645,6 +679,9 @@ export default function VentaPage() {
   async function selectOrder(o: Order) {
     await flushSave()
     skipSave.current = true
+    // La forma de dividir es de la mesa que se estaba cobrando, no de esta.
+    setSplitMode("todo")
+    setSplitQty({})
     setActiveOrderId(o._id)
     setLabel(o.label ?? "")
     setCart(orderToCart(o, products))
@@ -776,6 +813,42 @@ export default function VentaPage() {
     searchRef.current?.focus()
   }
 
+  /**
+   * Lista con la que se está cobrando este carrito.
+   *
+   * Manda la del cliente registrado que se eligió: ya estaba pactada y no la
+   * decide el cajero. La elegida a mano es para el cliente de paso que se
+   * lleva una caja, y por eso pide permiso de descuentos.
+   *
+   * Una lista desactivada no aparece en `priceLists`, así que deja de
+   * aplicarse sola — igual que en el backend.
+   */
+  const listaActiva = React.useMemo(() => {
+    const cliente = custId
+      ? regCustomers.find((c) => c._id === custId)
+      : undefined
+    const id = cliente?.priceListId || manualListId
+    if (!id) return null
+    return priceLists.find((l) => l._id === id) ?? null
+  }, [custId, regCustomers, manualListId, priceLists])
+
+  /**
+   * Precio unitario de una línea, ya con la lista aplicada.
+   *
+   * Depende de la CANTIDAD porque el precio por cantidad es un escalón:
+   * llevando 12 gaseosas el precio baja, llevando 5 no.
+   */
+  const unitPrice = React.useCallback(
+    (item: CartItem): number =>
+      resolveUnitPrice({
+        basePrice: item.product.salePrice,
+        qty: item.qty,
+        catalogProductId: item.product._id,
+        list: listaActiva,
+      }),
+    [listaActiva],
+  )
+
   const discountById = React.useMemo(
     () => new Map(discounts.map((d) => [d._id, d])),
     [discounts],
@@ -786,18 +859,20 @@ export default function VentaPage() {
     (item: CartItem): number => {
       const d = item.discountId ? discountById.get(item.discountId) : undefined
       if (!d) return 0
-      const gross = item.qty * item.product.salePrice
+      // Sobre el precio ya con lista: el descuento se aplica encima de lo
+      // pactado, no encima del de mostrador.
+      const gross = item.qty * unitPrice(item)
       const raw =
         d.type === "percent" ? (gross * Math.min(d.value, 100)) / 100 : d.value
       return Math.round(Math.min(Math.max(raw, 0), gross) * 100) / 100
     },
-    [discountById],
+    [discountById, unitPrice],
   )
 
   // Total = suma de líneas ya netas de su descuento (el descuento de venta se
   // aplica encima, en el cobro).
   const total = cart.reduce(
-    (sum, i) => sum + i.qty * i.product.salePrice - lineDiscount(i),
+    (sum, i) => sum + i.qty * unitPrice(i) - lineDiscount(i),
     0,
   )
   const lineDiscountTotal = cart.reduce((s, i) => s + lineDiscount(i), 0)
@@ -876,6 +951,83 @@ export default function VentaPage() {
     if (method === "credit") setShowCustomer(true)
   }, [method])
 
+  // Ojo: `activeOrder` se declara aquí porque de él salen los totales; más
+  // abajo ya no se vuelve a declarar.
+  const activeOrder = React.useMemo(
+    () => orders.find((o) => o._id === activeOrderId) ?? null,
+    [orders, activeOrderId],
+  )
+
+  /** Lo que ya pagaron de esta cuenta, para no volverlo a cobrar. */
+  const pagadoAntes = React.useMemo(
+    () =>
+      (activeOrder?.lines ?? []).reduce(
+        (s, l) => s + (l.paidQty ?? 0) * l.unitPrice,
+        0,
+      ),
+    [activeOrder],
+  )
+
+  /** Lo que falta por cobrar de la cuenta, por producto. */
+  const pendiente = React.useMemo(
+    () => (activeOrder ? pendingOf(activeOrder) : new Map<string, number>()),
+    [activeOrder],
+  )
+
+  /** Precio con el que quedó cada ítem en la comanda cuando se pidió. */
+  const precioComanda = React.useMemo(() => {
+    const m = new Map<string, number>()
+    for (const l of activeOrder?.lines ?? []) m.set(l.productId, l.unitPrice)
+    return m
+  }, [activeOrder])
+
+  /**
+   * Lo que se cobra en ESTE pago. `undefined` significa "todo lo que falte",
+   * que es el cobro de siempre y también el último de una cuenta dividida —
+   * así lo que no se repartió exacto lo absorbe quien paga de último en vez de
+   * quedar un pedazo colgando.
+   */
+  const splitLines = React.useMemo(() => {
+    if (!activeOrder || splitMode === "todo") return undefined
+
+    if (splitMode === "partes") {
+      const n = Number(splitParts)
+      // Entre uno no se divide nada: se cobra todo lo que falta.
+      if (!Number.isFinite(n) || n <= 1) return undefined
+      const out: { productId: string; qty: number }[] = []
+      for (const [productId, qty] of pendiente) {
+        const parte = Math.floor((qty / n) * 1000) / 1000
+        if (parte > 0.0005) out.push({ productId, qty: parte })
+      }
+      return out.length > 0 ? out : undefined
+    }
+
+    const out: { productId: string; qty: number }[] = []
+    for (const [productId, qty] of pendiente) {
+      const texto = splitQty[productId] ?? ""
+      const n = Number(texto)
+      if (texto.trim() === "" || !Number.isFinite(n) || n <= 0) continue
+      out.push({ productId, qty: Math.min(n, qty) })
+    }
+    return out.length > 0 ? out : undefined
+  }, [activeOrder, splitMode, splitParts, splitQty, pendiente])
+
+  /**
+   * Cuánto se cobra ahora, antes de la propina.
+   *
+   * En una cuenta de mesa siempre es lo que FALTA —no el total de la comanda—
+   * porque puede que ya hayan pagado una parte. El precio sale de la comanda,
+   * que es el que se pactó al pedir.
+   */
+  const chargeTotal = activeOrder
+    ? splitLines
+      ? splitLines.reduce(
+          (s, l) => s + l.qty * (precioComanda.get(l.productId) ?? 0),
+          0,
+        )
+      : pendingTotal(activeOrder)
+    : total
+
   /**
    * Lo que se cobra por llevar el pedido.
    *
@@ -893,8 +1045,8 @@ export default function VentaPage() {
 
   // Total a cobrar. Los descuentos son solo los predefinidos por línea (ya
   // netos en `total`); en el POS no se permiten descuentos libres. La propina
-  // (restaurante) y el domicilio se cobran ENCIMA del total de bienes y sin IVA.
-  const netTotal = total + tipAmount + deliveryFee
+  // (restaurante) y el domicilio se cobran ENCIMA del total y sin IVA.
+  const netTotal = chargeTotal + tipAmount + deliveryFee
 
   const receivedNum = received ? Number(received) : undefined
   const change =
@@ -937,6 +1089,8 @@ export default function VentaPage() {
         method === "credit" && debtorType === "employee" ? empId : undefined,
     }
     const customerData = cleanCustomer()
+    /** Si tras este cobro la cuenta sigue con algo pendiente. */
+    let quedaAbierta = false
     try {
       let sale: Sale
       if (activeOrderId) {
@@ -950,11 +1104,31 @@ export default function VentaPage() {
           payment,
           customer: customerData,
           tip: tipAmount || undefined,
+          // Sin líneas se cobra todo lo que falte, que es el cobro de siempre.
+          lines: splitLines,
         })
-        setOrders((prev) => prev.filter((o) => o._id !== activeOrderId))
-        setActiveOrderId(null)
-        setLabel("")
-        setSaveState("idle")
+        // Con un cobro parcial la cuenta puede seguir abierta con el resto, así
+        // que hay que volver a preguntarle al servidor en vez de darla por
+        // cerrada: quien cobra tiene que ver enseguida qué le falta a la mesa.
+        const abiertas = splitLines
+          ? await listOrders(sedeId, "open").catch(() => null)
+          : null
+        const sigueAbierta = abiertas?.find((o) => o._id === activeOrderId)
+        if (abiertas) setOrders(abiertas)
+        if (sigueAbierta) {
+          // El carrito conserva la comanda COMPLETA: es el registro de lo que
+          // se consumió. Lo que falta por cobrar sale de `paidQty`.
+          quedaAbierta = true
+          setCart(orderToCart(sigueAbierta, products))
+          setSaveState("saved")
+        } else {
+          if (!abiertas) {
+            setOrders((prev) => prev.filter((o) => o._id !== activeOrderId))
+          }
+          setActiveOrderId(null)
+          setLabel("")
+          setSaveState("idle")
+        }
       } else {
         sale = await createSale({
           sedeId,
@@ -966,6 +1140,12 @@ export default function VentaPage() {
           payment,
           customer: customerData,
           tip: tipAmount || undefined,
+          // El cliente registrado viaja aparte del deudor del fiado: su lista
+          // de precios tiene que aplicarse pague como pague.
+          customerId: custId || undefined,
+          // Solo cuando no hay cliente: si lo hay, manda su lista y mandar las
+          // dos haría que el backend pidiera permiso sin necesidad.
+          priceListId: !custId ? manualListId || undefined : undefined,
           orderType,
           // La tarifa NO viaja cuando hay zona: se manda el id y el servidor
           // pone el precio. El valor a mano solo para el pedido suelto.
@@ -983,8 +1163,15 @@ export default function VentaPage() {
         })
       }
       setCompletedSale(sale)
-      setCart([])
+      // El carrito solo se vacía si la cuenta quedó saldada. Con un cobro
+      // parcial se conserva la comanda completa para poder seguir cobrando lo
+      // que falta sin volver a armarla.
+      if (!quedaAbierta) setCart([])
       setTip(null)
+      // Cobrado lo suyo, la parte dividida se reinicia: el siguiente que pague
+      // empieza desde cero y no hereda lo que escribió el anterior.
+      setSplitMode("todo")
+      setSplitQty({})
       // El domicilio es de ESTE pedido: el siguiente arranca en mostrador y sin
       // dirección, para que nadie cobre un envío heredado del anterior.
       setOrderType("mostrador")
@@ -1167,7 +1354,6 @@ export default function VentaPage() {
   }
 
   const isOrder = activeOrderId !== null
-  const activeOrder = orders.find((o) => o._id === activeOrderId)
 
   return (
     <>
@@ -1548,7 +1734,11 @@ export default function VentaPage() {
             ) : (
               <ul className="flex flex-col gap-2">
                 {cart.map((i) => {
-                  const gross = i.qty * i.product.salePrice
+                  const unit = unitPrice(i)
+                  const gross = i.qty * unit
+                  // Se tacha el de mostrador cuando la lista lo bajó: si no se
+                  // ve la diferencia, nadie nota que se está cobrando pactado.
+                  const conLista = unit !== Math.round(i.product.salePrice)
                   const lineDisc = lineDiscount(i)
                   const applied = i.discountId
                     ? discountById.get(i.discountId)
@@ -1563,7 +1753,12 @@ export default function VentaPage() {
                         {i.product.name}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {money(i.product.salePrice)} ·{" "}
+                        {conLista && (
+                          <span className="mr-1 line-through">
+                            {money(i.product.salePrice)}
+                          </span>
+                        )}
+                        {money(unit)} ·{" "}
                         {lineDisc > 0 ? (
                           <>
                             <span className="text-muted-foreground line-through">
@@ -1963,6 +2158,175 @@ export default function VentaPage() {
                     })}
                   </div>
                 </div>
+
+                {/* A quién se le vende. Para el fiado esto ya se elige abajo,
+                    con su propio bloque, así que aquí solo aparece en las
+                    demás formas de pago — que es como paga casi siempre la
+                    tienda que compra por cajas. */}
+                {method !== "credit" && (
+                  <div className="flex flex-col gap-1.5">
+                    <Label>Cliente registrado (opcional)</Label>
+                    <select
+                      className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm"
+                      value={custId}
+                      onChange={(e) => {
+                        setCustId(e.target.value)
+                        // Al elegir cliente manda su lista: la de a mano
+                        // dejaría de tener sentido y confundiría.
+                        if (e.target.value) setManualListId("")
+                      }}
+                    >
+                      <option value="">Mostrador (sin cliente)</option>
+                      {regCustomers.map((c) => (
+                        <option key={c._id} value={c._id}>
+                          {c.name} · {c.docType} {c.docNumber}
+                        </option>
+                      ))}
+                    </select>
+
+                    {/* Sin cliente registrado, el cajero puede elegir la lista
+                        a mano. Es decidir cobrar menos, así que va con el
+                        mismo permiso que un descuento. */}
+                    {!custId && canDiscount && priceLists.length > 0 && (
+                      <select
+                        className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm"
+                        value={manualListId}
+                        onChange={(e) => setManualListId(e.target.value)}
+                        aria-label="Lista de precios"
+                      >
+                        <option value="">Precio de mostrador</option>
+                        {priceLists.map((l) => (
+                          <option key={l._id} value={l._id}>
+                            Lista: {l.name}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+
+                    {listaActiva && (
+                      <p className="inline-flex items-center gap-1 text-[11px] font-medium text-success-ink">
+                        <Tag className="size-3" />
+                        Se cobra con la lista {listaActiva.name}.
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* Dividir la cuenta de una mesa. Solo aparece con una cuenta
+                    abierta: una venta directa se cobra completa siempre. */}
+                {activeOrder && (
+                  <div className="flex flex-col gap-2 rounded-lg border border-border bg-muted/40 p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <Label className="text-xs">Cómo se paga la cuenta</Label>
+                      {pagadoAntes > 0 && (
+                        <span className="text-[11px] text-muted-foreground">
+                          ya pagaron {money(pagadoAntes)}
+                        </span>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-3 gap-1 rounded-lg border border-border bg-muted p-1">
+                      {(
+                        [
+                          ["todo", "Completa"],
+                          ["items", "Por ítem"],
+                          ["partes", "Partes iguales"],
+                        ] as const
+                      ).map(([key, lbl]) => (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => setSplitMode(key)}
+                          className={cn(
+                            "rounded-md px-2 py-1.5 text-xs font-medium transition-colors",
+                            splitMode === key
+                              ? "bg-background text-foreground shadow-xs"
+                              : "text-muted-foreground hover:text-foreground",
+                          )}
+                        >
+                          {lbl}
+                        </button>
+                      ))}
+                    </div>
+
+                    {splitMode === "partes" && (
+                      <div className="flex flex-col gap-1.5">
+                        <Label className="text-xs">
+                          ¿Entre cuántos se divide lo que falta?
+                        </Label>
+                        <Input
+                          type="number"
+                          min="1"
+                          step="1"
+                          inputMode="numeric"
+                          className="h-9 w-24 text-right tnum"
+                          value={splitParts}
+                          onChange={(e) => setSplitParts(e.target.value)}
+                        />
+                        <p className="text-[11px] text-muted-foreground">
+                          {Number(splitParts) > 1
+                            ? "Se cobra una parte y la cuenta queda abierta con el resto. Al último ponle 1: se lleva lo que sobre."
+                            : "Con 1 se cobra todo lo que falta."}
+                        </p>
+                      </div>
+                    )}
+
+                    {splitMode === "items" && (
+                      <div className="flex flex-col gap-1.5">
+                        <Label className="text-xs">Qué paga esta persona</Label>
+                        {[...pendiente.entries()]
+                          .filter(([, falta]) => falta > 0.0005)
+                          .map(([productId, falta]) => {
+                            const l = activeOrder.lines.find(
+                              (x) => x.productId === productId,
+                            )
+                            return (
+                              <div
+                                key={productId}
+                                className="flex items-center gap-2"
+                              >
+                                <span className="min-w-0 flex-1 truncate text-xs">
+                                  {l?.name ?? productId}
+                                  <span className="text-muted-foreground">
+                                    {" "}
+                                    · faltan {nfCantidad.format(falta)}
+                                  </span>
+                                </span>
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  max={falta}
+                                  step="any"
+                                  inputMode="decimal"
+                                  className="h-8 w-20 text-right tnum"
+                                  aria-label={`Cuánto paga de ${l?.name ?? ""}`}
+                                  placeholder="—"
+                                  value={splitQty[productId] ?? ""}
+                                  onChange={(e) =>
+                                    setSplitQty((prev) => ({
+                                      ...prev,
+                                      [productId]: e.target.value,
+                                    }))
+                                  }
+                                />
+                              </div>
+                            )
+                          })}
+                        <p className="text-[11px] text-muted-foreground">
+                          Lo que dejes en blanco se queda pendiente para el
+                          siguiente.
+                        </p>
+                      </div>
+                    )}
+
+                    {splitLines && (
+                      <p className="text-[11px] font-medium text-success-ink">
+                        Este pago cubre {money(chargeTotal)} de{" "}
+                        {money(pendingTotal(activeOrder))} que faltan. La cuenta
+                        queda abierta.
+                      </p>
+                    )}
+                  </div>
+                )}
 
                 {/* Cómo sale el pedido. Con domicilio aparece a dónde va y
                     cuánto se cobra por llevarlo, que se suma ENCIMA del total y

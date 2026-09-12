@@ -115,3 +115,81 @@ export async function getSalesReport(query: {
   const res = await authFetch(`/reports/sales${qs(query)}`)
   return parseResponse<SalesReport>(res)
 }
+
+// ─── Trazabilidad hacia adelante ──────────────────────────────────────────────
+
+/** Lo que la venta guardó del cliente. Puede venir vacío en una de mostrador. */
+export interface TraceCustomer {
+  name?: string
+  idNumber?: string
+  phone?: string
+  email?: string
+}
+
+export interface TraceSale {
+  saleId: string
+  saleNumber: string
+  date: string
+  status: string
+  /** Unidades de ESTE lote que salieron en esa venta. */
+  qty: number
+  customer: TraceCustomer | null
+}
+
+export interface TraceLotNode {
+  lotId: string
+  lotCode: string
+  productId: string
+  productName: string
+  expiresAt: string | null
+  receivedAt: string
+  initialQty: number
+  remainingQty: number
+  supplier: string | null
+  sales: TraceSale[]
+  producedInto: TraceProductionNode[]
+}
+
+export interface TraceProductionNode {
+  orderId: string
+  number: string
+  date: string
+  productName: string
+  producedQty: number
+  /** Lotes del terminado que salió, ya rastreados a su vez. */
+  outputs: TraceLotNode[]
+}
+
+export interface TraceResult extends TraceLotNode {
+  /** Unidades vendidas sumando toda la cadena, no solo el primer salto. */
+  soldQty: number
+  customers: TraceCustomer[]
+  /** La cadena se cortó por el tope de saltos: la respuesta va incompleta. */
+  truncated: boolean
+}
+
+/** Un lote encontrado por código, para elegir cuál rastrear. */
+export interface TraceLotMatch {
+  lotId: string
+  lotCode: string
+  productId: string
+  productName: string
+  expiresAt: string | null
+  receivedAt: string
+  remainingQty: number
+  supplier: string | null
+}
+
+/** Busca lotes por código. El código no es único: puede devolver varios. */
+export async function findTraceLots(code: string): Promise<TraceLotMatch[]> {
+  const res = await authFetch(
+    `/reports/trazabilidad/lotes?code=${encodeURIComponent(code)}`,
+  )
+  return parseResponse<TraceLotMatch[]>(res)
+}
+
+/** A qué ventas y a qué clientes se fue un lote, pasando por producción. */
+export async function traceLot(lotId: string): Promise<TraceResult> {
+  const res = await authFetch(`/reports/trazabilidad/lotes/${lotId}`)
+  return parseResponse<TraceResult>(res)
+}

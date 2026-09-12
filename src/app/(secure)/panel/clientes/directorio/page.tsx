@@ -12,6 +12,7 @@ import {
   type CustomerDocType,
 } from "@/lib/erp/api-customers"
 import { money, errorMessage } from "@/lib/erp/finance-format"
+import { listPriceLists, type PriceList } from "@/lib/erp/api-catalog"
 
 import { PageHeader } from "@/components/erp/page-header"
 import { Card, CardContent } from "@/components/ui/card"
@@ -241,6 +242,9 @@ function CustomerDialog({
   const [email, setEmail] = React.useState("")
   const [city, setCity] = React.useState("")
   const [creditLimit, setCreditLimit] = React.useState("0")
+  // Lista con la que se le cobra. Vacío = precio de mostrador.
+  const [priceListId, setPriceListId] = React.useState("")
+  const [priceLists, setPriceLists] = React.useState<PriceList[]>([])
   const [active, setActive] = React.useState(true)
   const [busy, setBusy] = React.useState(false)
   const [err, setErr] = React.useState<string | null>(null)
@@ -256,6 +260,7 @@ function CustomerDialog({
       setEmail(editing.email ?? "")
       setCity(editing.city ?? "")
       setCreditLimit(String(editing.creditLimit ?? 0))
+      setPriceListId(editing.priceListId ?? "")
       setActive(editing.active)
     } else {
       setName("")
@@ -265,9 +270,31 @@ function CustomerDialog({
       setEmail("")
       setCity("")
       setCreditLimit("0")
+      setPriceListId("")
       setActive(true)
     }
   }, [customer, editing])
+
+  // Las listas se cargan al abrir la ficha. Si falla, el selector se queda
+  // vacío y deshabilitado: no poder elegir lista no debe impedir guardar el
+  // cliente, que es lo que la persona vino a hacer.
+  React.useEffect(() => {
+    let vivo = true
+    async function cargar() {
+      await Promise.resolve()
+      if (!vivo || !customer) return
+      try {
+        const ls = await listPriceLists()
+        if (vivo) setPriceLists(ls)
+      } catch {
+        if (vivo) setPriceLists([])
+      }
+    }
+    void cargar()
+    return () => {
+      vivo = false
+    }
+  }, [customer])
 
   if (!customer) return null
 
@@ -281,6 +308,8 @@ function CustomerDialog({
         email: email.trim() || undefined,
         city: city.trim() || undefined,
         creditLimit: Math.round(Number(creditLimit) || 0),
+        // Cadena vacía = quitarle la lista y volver a cobrarle de mostrador.
+        priceListId,
       }
       if (isNew) {
         await createCustomer({ ...base, docType, docNumber: docNumber.trim() })
@@ -402,21 +431,44 @@ function CustomerDialog({
             />
           </Field>
 
-          <FieldSpan span={2}>
-            <Field
+          <Field
+            id="c-credit"
+            label="Cupo de crédito"
+            help={{ term: "cupo" }}
+            hint="Lo máximo que le dejas deber. Déjalo en 0 si no le fías."
+          >
+            <MoneyInput
               id="c-credit"
-              label="Cupo de crédito"
-              help={{ term: "cupo" }}
-              hint="Lo máximo que le dejas deber. Déjalo en 0 si no le fías."
-            >
-              <MoneyInput
-                id="c-credit"
-                value={Number(creditLimit) || 0}
-                onValueChange={(v) => setCreditLimit(String(v ?? 0))}
-                placeholder="0"
-              />
-            </Field>
-          </FieldSpan>
+              value={Number(creditLimit) || 0}
+              onValueChange={(v) => setCreditLimit(String(v ?? 0))}
+              placeholder="0"
+            />
+          </Field>
+
+          {/* La lista se aplica SOLA en cada venta que se le haga, pague como
+              pague. Es lo que evita que el precio del mayorista dependa de que
+              el cajero se acuerde de descontar a mano. */}
+          <Field
+            id="c-pricelist"
+            label="Lista de precios"
+            help={{ term: "listaPrecios" }}
+            hint={
+              priceLists.length === 0
+                ? "Todavía no hay listas. Se crean en Productos → Listas de precios."
+                : "Se le cobra con esta lista en todas sus compras. Vacío = precio de mostrador."
+            }
+          >
+            <NativeSelect
+              id="c-pricelist"
+              value={priceListId}
+              onChange={setPriceListId}
+              options={[
+                { value: "", label: "Precio de mostrador" },
+                ...priceLists.map((l) => ({ value: l._id, label: l.name })),
+              ]}
+              disabled={priceLists.length === 0}
+            />
+          </Field>
         </FieldGrid>
 
         {!isNew && (
