@@ -38,9 +38,34 @@ const BUSINESS_LABEL: Record<string, string> = {
   retail: "Panel · Tienda",
 }
 
+/**
+ * Nombre de los roles de fábrica.
+ *
+ * El pie del menú no pide la lista de roles al backend por un rótulo: son
+ * cuatro claves fijas y un rol a medida cae en el `??` de abajo mostrando su
+ * propia clave, que es preferible a dejar el hueco en blanco.
+ */
+const ROLE_LABEL: Record<string, string> = {
+  owner: "Dueño",
+  admin: "Administrador",
+  manager: "Gerente",
+  cashier: "Cajero",
+}
+
+/** Iniciales para el avatar: "Paulo Morales" → "PM". */
+function iniciales(nombre: string): string {
+  return nombre
+    .split(" ")
+    .map((parte) => parte[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("")
+    .toUpperCase()
+}
+
 export function AppSidebar() {
   const pathname = usePathname()
-  const { tipoNegocio, hasPermission, hasFeature } = useAuth()
+  const { user, tipoNegocio, hasPermission, hasFeature } = useAuth()
   const navSections = getNavSections(tipoNegocio, hasPermission, hasFeature)
   const brandCaption = tipoNegocio
     ? BUSINESS_LABEL[tipoNegocio]
@@ -127,17 +152,20 @@ export function AppSidebar() {
         ))}
       </SidebarContent>
 
+      {/* Quien de verdad tiene la sesión abierta. Estaba escrito a mano con el
+          nombre del desarrollador, así que toda cuenta veía a otra persona
+          como administrador de su propio negocio. */}
       <SidebarFooter className="border-t border-sidebar-border">
         <div className="flex items-center gap-2.5 px-1.5 py-1.5">
           <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-secondary text-[11px] font-semibold text-secondary-foreground">
-            SM
+            {user ? iniciales(user.name) : "—"}
           </div>
-          <div className="grid leading-tight group-data-[collapsible=icon]:hidden">
-            <span className="text-[13px] font-medium text-sidebar-foreground">
-              Samuel Múnera
+          <div className="grid min-w-0 leading-tight group-data-[collapsible=icon]:hidden">
+            <span className="truncate text-[13px] font-medium text-sidebar-foreground">
+              {user?.name ?? "Sin sesión"}
             </span>
-            <span className="text-[11px] text-muted-foreground">
-              Administrador
+            <span className="truncate text-[11px] text-muted-foreground">
+              {user ? (ROLE_LABEL[user.role] ?? user.role) : ""}
             </span>
           </div>
         </div>
