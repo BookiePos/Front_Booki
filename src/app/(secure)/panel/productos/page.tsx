@@ -13,6 +13,7 @@ import {
   Factory,
   ImageOff,
   ShieldOff,
+  Tags,
   X,
 } from "lucide-react"
 
@@ -39,6 +40,7 @@ import {
   type CatalogProductPayload,
 } from "@/lib/erp/api-catalog"
 import { listBoms, refId } from "@/lib/erp/api-production"
+import { PriceListsDialog } from "@/components/erp/price-lists-dialog"
 
 import { PageHeader } from "@/components/erp/page-header"
 import { ProductImageField } from "@/components/erp/product-image-field"
@@ -718,6 +720,9 @@ export default function ProductosPage() {
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
   const [search, setSearch] = React.useState("")
+  // Listas de precios: mayorista, distribuidor… Se administran desde aquí
+  // porque lo que ponen precio son estos mismos productos vendibles.
+  const [priceListsOpen, setPriceListsOpen] = React.useState(false)
 
   const [sheetOpen, setSheetOpen] = React.useState(false)
   const [sheetMode, setSheetMode] = React.useState<"create" | "edit">("create")
@@ -809,13 +814,28 @@ export default function ProductosPage() {
         title="Productos"
         description="Catálogo de productos vendibles para el punto de venta."
         actions={
-          canManage ? (
-            <Button onClick={openCreate} data-tour="productos-nuevo">
-              <Plus />
-              Nuevo producto
+          <div className="flex flex-wrap gap-2">
+            {/* Las listas viven aquí porque lo que ponen precio es justo esto:
+                los productos vendibles del catálogo. */}
+            <Button variant="outline" onClick={() => setPriceListsOpen(true)}>
+              <Tags />
+              Listas de precios
             </Button>
-          ) : undefined
+            {canManage && (
+              <Button onClick={openCreate} data-tour="productos-nuevo">
+                <Plus />
+                Nuevo producto
+              </Button>
+            )}
+          </div>
         }
+      />
+
+      <PriceListsDialog
+        open={priceListsOpen}
+        onOpenChange={setPriceListsOpen}
+        products={products}
+        canManage={canManage}
       />
 
       <Card data-tour="productos-tabla">
