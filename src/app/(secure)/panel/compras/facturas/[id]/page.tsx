@@ -70,13 +70,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { FormDialog, FormSection } from "@/components/ui/form-dialog"
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet"
+  Field,
+  FieldGrid,
+  FieldSpan,
+  NativeSelect,
+} from "@/components/ui/field"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useConfirm } from "@/components/ui/confirm-dialog"
 import { toast } from "sonner"
@@ -117,7 +117,7 @@ function suggestSku(line: ExtractedLine): string {
     .slice(0, 40)
 }
 
-interface NewProductSheetProps {
+interface NewProductDialogProps {
   open: boolean
   onOpenChange: (v: boolean) => void
   line: ExtractedLine | null
@@ -134,14 +134,14 @@ interface NewProductSheetProps {
  * categoría y el precio de venta. Se guarda en el borrador de la factura, no en
  * el inventario: el producto se crea al aplicar, junto con todo lo demás.
  */
-function NewProductSheet({
+function NewProductDialog({
   open,
   onOpenChange,
   line,
   value,
   categories,
   onSave,
-}: NewProductSheetProps) {
+}: NewProductDialogProps) {
   const [sku, setSku] = React.useState("")
   const [name, setName] = React.useState("")
   const [unit, setUnit] = React.useState("und")
@@ -179,130 +179,142 @@ function NewProductSheet({
   }
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="flex flex-col sm:max-w-md">
-        <SheetHeader>
-          <SheetTitle className="font-display text-lg">Producto nuevo</SheetTitle>
-          <SheetDescription>
-            No existe en tu inventario. Lo que la factura ya dice viene
-            completado; revisa lo demás. Se creará al aplicar la factura.
-          </SheetDescription>
-        </SheetHeader>
-
-        <div className="flex flex-1 flex-col gap-4 overflow-y-auto px-4 py-2">
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="np-sku">
-              SKU <span className="text-destructive">*</span>
-            </Label>
+    <FormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      size="2xl"
+      icon={PackagePlus}
+      title="Producto nuevo"
+      description="No existe en tu inventario. Lo que la factura ya dice viene completado; revisa lo demás. Se creará al aplicar la factura."
+      footer={
+        <>
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            className="sm:min-w-28"
+          >
+            Cancelar
+          </Button>
+          <Button
+            onClick={handleSave}
+            disabled={!sku.trim() || !name.trim()}
+            className="sm:min-w-36"
+          >
+            <PackagePlus />
+            Guardar ficha
+          </Button>
+        </>
+      }
+    >
+      <FormSection
+        title="Identificación"
+        description="Con qué lo reconoces tú y con qué lo reconoce la caja."
+      >
+        <FieldGrid cols={3}>
+          <Field
+            id="np-sku"
+            label="SKU"
+            required
+            help={{ term: "sku" }}
+            hint="Si la factura traía el del proveedor se usa ese, para que la próxima empareje sola."
+          >
             <Input
               id="np-sku"
               value={sku}
               onChange={(e) => setSku(e.target.value.toUpperCase())}
               placeholder="p. ej. ARROZ-500"
             />
-            <p className="text-xs text-muted-foreground">
-              El código con el que identificarás el producto. Si la factura traía
-              el del proveedor, se usa ese para que la próxima empareje sola.
-            </p>
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="np-name">Nombre</Label>
-            <Input
-              id="np-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="np-unit">Unidad</Label>
+          </Field>
+          <FieldSpan span={2}>
+            <Field id="np-name" label="Nombre" required>
               <Input
-                id="np-unit"
-                value={unit}
-                onChange={(e) => setUnit(e.target.value)}
-                placeholder="und"
+                id="np-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
               />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="np-min">Stock mínimo</Label>
-              <Input
-                id="np-min"
-                inputMode="numeric"
-                value={minStock}
-                onChange={(e) => setMinStock(e.target.value)}
-                placeholder="0"
-              />
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="np-cat">Categoría</Label>
-            <Select
-              value={categoryId}
-              items={{
-                none: "Sin categoría",
-                ...Object.fromEntries(categories.map((c) => [c._id, c.name])),
-              }}
-              onValueChange={(v) => {
-                if (v !== null) setCategoryId(v)
-              }}
-            >
-              <SelectTrigger id="np-cat" className="w-full">
-                <SelectValue placeholder="Sin categoría" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Sin categoría</SelectItem>
-                {categories.map((c) => (
-                  <SelectItem key={c._id} value={c._id}>
-                    {c.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="np-cost">Costo de compra</Label>
-              <MoneyInput id="np-cost" value={cost} onValueChange={setCost} />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="np-price">Precio de venta</Label>
-              <MoneyInput
-                id="np-price"
-                value={salePrice}
-                onValueChange={setSalePrice}
-              />
-            </div>
-          </div>
-          <p className="-mt-2 text-xs text-muted-foreground">
-            Sin precio de venta el producto entra al inventario pero no aparece
-            en el POS. Puedes ponerlo después.
-          </p>
-
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="np-barcode">Código de barras</Label>
-            <Input
+            </Field>
+          </FieldSpan>
+          <FieldSpan span={3}>
+            <Field
               id="np-barcode"
-              value={barcode}
-              onChange={(e) => setBarcode(e.target.value)}
-              placeholder="Opcional"
-            />
-          </div>
-        </div>
+              label="Código de barras"
+              help={{ term: "codigoBarras" }}
+            >
+              <Input
+                id="np-barcode"
+                value={barcode}
+                onChange={(e) => setBarcode(e.target.value)}
+                placeholder="Opcional"
+              />
+            </Field>
+          </FieldSpan>
+        </FieldGrid>
+      </FormSection>
 
-        <div className="flex justify-end gap-2 border-t border-border px-4 py-3">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancelar
-          </Button>
-          <Button onClick={handleSave} disabled={!sku.trim() || !name.trim()}>
-            Guardar ficha
-          </Button>
-        </div>
-      </SheetContent>
-    </Sheet>
+      <FormSection
+        title="Clasificación y existencias"
+        description="Cómo se mide y cuándo te avisamos de que se está acabando."
+      >
+        <FieldGrid cols={3}>
+          <Field id="np-unit" label="Unidad" help={{ term: "unidad" }}>
+            <Input
+              id="np-unit"
+              value={unit}
+              onChange={(e) => setUnit(e.target.value)}
+              placeholder="und"
+            />
+          </Field>
+          <Field
+            id="np-min"
+            label="Stock mínimo"
+            help={{ term: "stockMinimo" }}
+            hint="Te avisamos al llegar aquí."
+          >
+            <Input
+              id="np-min"
+              inputMode="numeric"
+              value={minStock}
+              onChange={(e) => setMinStock(e.target.value)}
+              placeholder="0"
+            />
+          </Field>
+          <Field id="np-cat" label="Categoría" help={{ term: "categoria" }}>
+            <NativeSelect
+              id="np-cat"
+              value={categoryId}
+              onChange={setCategoryId}
+              options={[
+                { value: "none", label: "Sin categoría" },
+                ...categories.map((c) => ({ value: c._id, label: c.name })),
+              ]}
+            />
+          </Field>
+        </FieldGrid>
+      </FormSection>
+
+      <FormSection
+        title="Precios"
+        description="El costo viene de la factura; el de venta lo pones tú."
+      >
+        <FieldGrid cols={2}>
+          <Field id="np-cost" label="Costo de compra" help={{ term: "costo" }}>
+            <MoneyInput id="np-cost" value={cost} onValueChange={setCost} />
+          </Field>
+          <Field
+            id="np-price"
+            label="Precio de venta"
+            help={{ term: "precioVenta" }}
+            hint="Sin él, el producto entra al inventario pero no aparece en el POS. Puedes ponerlo después."
+          >
+            <MoneyInput
+              id="np-price"
+              value={salePrice}
+              onValueChange={setSalePrice}
+            />
+          </Field>
+        </FieldGrid>
+      </FormSection>
+    </FormDialog>
   )
 }
 
@@ -1072,7 +1084,7 @@ export default function RevisarFacturaPage() {
         </div>
       </div>
 
-      <NewProductSheet
+      <NewProductDialog
         open={newProductLine !== null}
         onOpenChange={(v) => setNewProductLine(v ? newProductLine : null)}
         line={newProductLine !== null ? (draft.lines[newProductLine] ?? null) : null}

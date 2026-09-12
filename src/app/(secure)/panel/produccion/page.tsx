@@ -68,14 +68,19 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "@/components/ui/sheet"
+  FormDialog,
+  FormSection,
+  FormAlert,
+} from "@/components/ui/form-dialog"
+import { Field, FieldGrid, NativeSelect } from "@/components/ui/field"
+import { cn } from "@/lib/utils"
 
 const ALL = "all"
+
+/** Enlaza el botón Guardar del pie del diálogo con el <form> del cuerpo. */
+const BOM_FORM_ID = "ficha-receta-lote"
+const ORDER_FORM_ID = "ficha-orden-produccion"
+const PUBLISH_FORM_ID = "ficha-publicar-terminado"
 const inputClass =
   "h-9 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
 
@@ -375,13 +380,13 @@ export default function ProduccionPage() {
 
       {canManage && (
         <>
-          <NewBomSheet
+          <NewBomDialog
             open={bomOpen}
             onClose={() => setBomOpen(false)}
             onSaved={load}
             products={products}
           />
-          <NewOrderSheet
+          <NewOrderDialog
             open={orderOpen}
             onClose={() => setOrderOpen(false)}
             onSaved={load}
@@ -389,14 +394,14 @@ export default function ProduccionPage() {
             products={products}
             boms={boms}
           />
-          <PublishSheet
+          <PublishDialog
             output={publishing}
             onClose={() => setPublishing(null)}
             onSaved={load}
           />
         </>
       )}
-      <OrderDetailSheet
+      <OrderDetailDialog
         order={detail}
         onClose={() => setDetail(null)}
         onSaved={load}
@@ -807,7 +812,7 @@ interface DraftLine {
   qty: string
 }
 
-function NewBomSheet({
+function NewBomDialog({
   open,
   onClose,
   onSaved,
@@ -887,58 +892,97 @@ function NewBomSheet({
     lines.some((l) => l.productId && Number(l.qty) > 0)
 
   return (
-    <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
-      <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
-        <SheetHeader>
-          <SheetTitle>Nueva receta de lote</SheetTitle>
-          <SheetDescription>
-            Define qué insumos consume un lote y cuántas unidades rinde. Las
-            cantidades son por lote completo, no por unidad.
-          </SheetDescription>
-        </SheetHeader>
+    <FormDialog
+      open={open}
+      onOpenChange={(v) => !v && onClose()}
+      size="2xl"
+      icon={Boxes}
+      title="Nueva receta de lote"
+      description="Qué insumos consume un lote y cuántas unidades rinde. Ojo: las cantidades son por lote completo, no por unidad."
+      footer={
+        <>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onClose}
+            className="sm:min-w-28"
+          >
+            Cancelar
+          </Button>
+          <Button
+            type="submit"
+            form={BOM_FORM_ID}
+            disabled={saving || !valid}
+            className="sm:min-w-36"
+          >
+            {saving ? <Loader2 className="animate-spin" /> : <Boxes />}
+            {saving ? "Guardando…" : "Crear receta"}
+          </Button>
+        </>
+      }
+    >
+      <form
+        id={BOM_FORM_ID}
+        onSubmit={handleSubmit}
+        className="flex flex-col gap-5"
+      >
+        {error && <FormAlert>{error}</FormAlert>}
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4 px-4 py-2">
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="bom-product">Terminado</Label>
-            <select
+        <FormSection
+          title="Qué se fabrica"
+          description="El ítem de inventario que sale del proceso."
+          help={{ term: "receta" }}
+        >
+          <FieldGrid cols={2}>
+            <Field
               id="bom-product"
-              className={inputClass}
-              value={productId}
-              onChange={(e) => {
-                setProductId(e.target.value)
-                const p = products.find((x) => x._id === e.target.value)
-                if (p && !name) setName(p.name)
-              }}
+              label="Terminado"
               required
+              help={{ term: "montaje" }}
+              hint="Si no existe, créalo primero en Inventario."
             >
-              <option value="">Seleccionar…</option>
-              {products.map((p) => (
-                <option key={p._id} value={p._id}>
-                  {p.name} · {p.sku}
-                </option>
-              ))}
-            </select>
-            <p className="text-xs text-muted-foreground">
-              El ítem de inventario que sale del proceso. Si no existe, créalo
-              primero en Inventario como “Montaje”.
-            </p>
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="bom-name">Nombre de la receta</Label>
-            <Input
+              <NativeSelect
+                id="bom-product"
+                required
+                placeholder="Seleccionar…"
+                value={productId}
+                onChange={(v) => {
+                  setProductId(v)
+                  const p = products.find((x) => x._id === v)
+                  if (p && !name) setName(p.name)
+                }}
+                options={products.map((p) => ({
+                  value: p._id,
+                  label: `${p.name} · ${p.sku}`,
+                }))}
+              />
+            </Field>
+            <Field
               id="bom-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="p. ej. Pan francés — horneada de 120"
-            />
-          </div>
+              label="Nombre de la receta"
+              hint="Si lo dejas vacío se usa el nombre del terminado."
+            >
+              <Input
+                id="bom-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="p. ej. Pan francés — horneada de 120"
+              />
+            </Field>
+          </FieldGrid>
+        </FormSection>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="bom-output">
-                Rinde ({output?.unit ?? "und"})
-              </Label>
+        <FormSection
+          title="Rendimiento y mano de obra"
+          description="Cuánto sale de un lote y cuánto cuesta el trabajo de hacerlo."
+        >
+          <FieldGrid cols={2}>
+            <Field
+              id="bom-output"
+              label={`Rinde (${output?.unit ?? "und"})`}
+              required
+              help={{ term: "rinde" }}
+            >
               <Input
                 id="bom-output"
                 type="number"
@@ -948,14 +992,23 @@ function NewBomSheet({
                 onChange={(e) => setOutputQty(e.target.value)}
                 required
               />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="bom-extra">
-                Mano de obra e indirectos
-                <span className="ml-1 font-normal text-muted-foreground">
-                  (por lote)
-                </span>
-              </Label>
+            </Field>
+            <Field
+              id="bom-extra"
+              label={
+                <>
+                  Mano de obra e indirectos
+                  <span className="ml-1 font-normal text-muted-foreground">
+                    (por lote)
+                  </span>
+                </>
+              }
+              hint={
+                rendimiento > 0
+                  ? `${money.format(extraUnit)} por ${output?.unit ?? "unidad"}`
+                  : "Pon cuánto rinde el lote para verlo por unidad."
+              }
+            >
               <Input
                 id="bom-extra"
                 type="number"
@@ -963,68 +1016,16 @@ function NewBomSheet({
                 value={extraCost}
                 onChange={(e) => setExtraCost(e.target.value)}
               />
-              <p className="text-xs text-muted-foreground">
-                {rendimiento > 0
-                  ? `${money.format(extraUnit)} por ${output?.unit ?? "unidad"}`
-                  : "Pon cuánto rinde el lote para verlo por unidad."}
-              </p>
-            </div>
-          </div>
+            </Field>
+          </FieldGrid>
+        </FormSection>
 
-          <div className="flex flex-col gap-2">
-            <Label>Insumos por lote</Label>
-            {lines.map((line, i) => (
-              <div key={i} className="flex items-center gap-2">
-                <select
-                  className={inputClass}
-                  aria-label={`Insumo ${i + 1}`}
-                  value={line.productId}
-                  onChange={(e) =>
-                    setLines((prev) =>
-                      prev.map((l, j) =>
-                        j === i ? { ...l, productId: e.target.value } : l,
-                      ),
-                    )
-                  }
-                >
-                  <option value="">Insumo…</option>
-                  {products
-                    .filter((p) => p._id !== productId)
-                    .map((p) => (
-                      <option key={p._id} value={p._id}>
-                        {p.name} · {p.sku}
-                      </option>
-                    ))}
-                </select>
-                <Input
-                  className="w-28"
-                  type="number"
-                  min="0"
-                  step="any"
-                  aria-label={`Cantidad del insumo ${i + 1}`}
-                  placeholder="Cant."
-                  value={line.qty}
-                  onChange={(e) =>
-                    setLines((prev) =>
-                      prev.map((l, j) =>
-                        j === i ? { ...l, qty: e.target.value } : l,
-                      ),
-                    )
-                  }
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  aria-label={`Quitar el insumo ${i + 1}`}
-                  onClick={() =>
-                    setLines((prev) => prev.filter((_, j) => j !== i))
-                  }
-                >
-                  <Trash2 className="size-4" />
-                </Button>
-              </div>
-            ))}
+        <FormSection
+          title="Insumos por lote"
+          description="Lo que consume una tanda completa."
+          help={{ term: "insumo" }}
+          boxed
+          action={
             <Button
               type="button"
               variant="outline"
@@ -1033,55 +1034,97 @@ function NewBomSheet({
                 setLines((prev) => [...prev, { productId: "", qty: "" }])
               }
             >
-              <Plus className="size-4" />
+              <Plus />
               Agregar insumo
             </Button>
+          }
+        >
+          {lines.map((line, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <NativeSelect
+                className="flex-1"
+                aria-label={`Insumo ${i + 1}`}
+                placeholder="Insumo…"
+                value={line.productId}
+                onChange={(v) =>
+                  setLines((prev) =>
+                    prev.map((l, j) => (j === i ? { ...l, productId: v } : l)),
+                  )
+                }
+                options={products
+                  .filter((p) => p._id !== productId)
+                  .map((p) => ({
+                    value: p._id,
+                    label: `${p.name} · ${p.sku}`,
+                  }))}
+              />
+              <Input
+                className="w-24 shrink-0"
+                type="number"
+                min="0"
+                step="any"
+                aria-label={`Cantidad del insumo ${i + 1}`}
+                placeholder="Cant."
+                value={line.qty}
+                onChange={(e) =>
+                  setLines((prev) =>
+                    prev.map((l, j) =>
+                      j === i ? { ...l, qty: e.target.value } : l,
+                    ),
+                  )
+                }
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="shrink-0"
+                aria-label={`Quitar el insumo ${i + 1}`}
+                onClick={() =>
+                  setLines((prev) => prev.filter((_, j) => j !== i))
+                }
+              >
+                <Trash2 />
+              </Button>
+            </div>
+          ))}
+          {lines.length === 0 && (
+            <p className="text-xs text-muted-foreground">
+              Una receta sin insumos no descuenta nada del inventario. Agrega al
+              menos uno.
+            </p>
+          )}
+        </FormSection>
+
+        {/* Desglose y no solo el total: cuando sube la harina hay que poder
+            ver de un vistazo cuánto del costo es materia prima —que se
+            negocia con el proveedor— y cuánto es trabajo. */}
+        <FormSection
+          title="Costo estimado por unidad"
+          description="Con los precios que tiene hoy el inventario."
+          help={{ term: "costo" }}
+          boxed
+        >
+          <div className="flex flex-col gap-1.5 text-sm">
+            <Row label="Materiales">{money.format(materialsUnit)}</Row>
+            <Row label="Mano de obra e indirectos">
+              {money.format(extraUnit)}
+            </Row>
+            <div className="mt-1 border-t border-border/70 pt-2">
+              <Row label={`Total por ${output?.unit ?? "unidad"}`}>
+                <span className="font-semibold">{money.format(unitCost)}</span>
+              </Row>
+            </div>
           </div>
-
-          {/* Desglose y no solo el total: cuando sube la harina hay que poder
-              ver de un vistazo cuánto del costo es materia prima —que se
-              negocia con el proveedor— y cuánto es trabajo. */}
-          <Card className="bg-muted/40">
-            <CardContent className="flex flex-col gap-1.5 py-3 text-sm">
-              <div className="flex items-center justify-between text-muted-foreground">
-                <span>Materiales</span>
-                <span className="tnum">{money.format(materialsUnit)}</span>
-              </div>
-              <div className="flex items-center justify-between text-muted-foreground">
-                <span>Mano de obra e indirectos</span>
-                <span className="tnum">{money.format(extraUnit)}</span>
-              </div>
-              <div className="mt-1 flex items-center justify-between border-t border-border/70 pt-2">
-                <span className="font-medium">
-                  Costo estimado por {output?.unit ?? "unidad"}
-                </span>
-                <span className="tnum font-semibold">
-                  {money.format(unitCost)}
-                </span>
-              </div>
-            </CardContent>
-          </Card>
-
-          {error && <p className="text-sm text-destructive">{error}</p>}
-
-          <div className="flex justify-end gap-2 pb-4">
-            <Button type="button" variant="outline" onClick={onClose}>
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={saving || !valid}>
-              {saving && <Loader2 className="size-4 animate-spin" />}
-              Crear receta
-            </Button>
-          </div>
-        </form>
-      </SheetContent>
-    </Sheet>
+        </FormSection>
+      </form>
+    </FormDialog>
   )
 }
 
 // ─── Nueva orden ─────────────────────────────────────────────────────────────
 
-function NewOrderSheet({
+function NewOrderDialog({
   open,
   onClose,
   onSaved,
@@ -1154,64 +1197,105 @@ function NewOrderSheet({
   }
 
   return (
-    <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
-      <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
-        <SheetHeader>
-          <SheetTitle>Nueva orden de producción</SheetTitle>
-          <SheetDescription>
-            Los insumos se descuentan al terminar la orden, no al crearla.
-          </SheetDescription>
-        </SheetHeader>
+    <FormDialog
+      open={open}
+      onOpenChange={(v) => !v && onClose()}
+      size="2xl"
+      icon={Factory}
+      title="Nueva orden de producción"
+      description="Los insumos se descuentan al TERMINAR la orden, no al crearla: hasta entonces el inventario no se mueve."
+      footer={
+        <>
+          <Button type="button" variant="outline" onClick={onClose}>
+            Cancelar
+          </Button>
+          {/* Borrador para lo que se programa hoy y se hornea mañana; iniciar
+              para lo que ya está en la mesa de trabajo. En ninguno de los dos
+              se toca el inventario todavía. */}
+          <Button
+            type="button"
+            variant="outline"
+            disabled={saving || !sedeId || !productId || !plannedQty}
+            onClick={() => void save(false)}
+          >
+            Guardar borrador
+          </Button>
+          <Button
+            type="submit"
+            form={ORDER_FORM_ID}
+            disabled={saving || !sedeId || !productId || !plannedQty}
+            className="sm:min-w-36"
+          >
+            {saving ? <Loader2 className="animate-spin" /> : <Play />}
+            {saving ? "Guardando…" : "Crear e iniciar"}
+          </Button>
+        </>
+      }
+    >
+      <form
+        id={ORDER_FORM_ID}
+        onSubmit={handleSubmit}
+        className="flex flex-col gap-5"
+      >
+        {error && <FormAlert>{error}</FormAlert>}
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4 px-4 py-2">
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="op-sede">Sede</Label>
-            <select
-              id="op-sede"
-              className={inputClass}
-              value={sedeId}
-              onChange={(e) => setSedeId(e.target.value)}
-              required
-            >
-              <option value="">Seleccionar…</option>
-              {sedes.map((s) => (
-                <option key={s._id} value={s._id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="op-product">Qué se fabrica</Label>
-            <select
+        <FormSection
+          title="Qué se fabrica y dónde"
+          description="Solo aparece lo que tiene receta: sin ella no se sabe qué consumir."
+          help={{ term: "ordenProduccion" }}
+        >
+          <FieldGrid cols={2}>
+            <Field id="op-sede" label="Sede" required help={{ term: "sede" }}>
+              <NativeSelect
+                id="op-sede"
+                required
+                placeholder="Seleccionar…"
+                value={sedeId}
+                onChange={setSedeId}
+                options={sedes.map((s) => ({ value: s._id, label: s.name }))}
+              />
+            </Field>
+            <Field
               id="op-product"
-              className={inputClass}
-              value={productId}
-              onChange={(e) => setProductId(e.target.value)}
+              label="Qué se fabrica"
+              required
+              hint={
+                producibles.length === 0
+                  ? "No hay recetas registradas. Crea una primero."
+                  : undefined
+              }
+            >
+              <NativeSelect
+                id="op-product"
+                required
+                placeholder="Seleccionar…"
+                value={productId}
+                onChange={setProductId}
+                options={producibles.flatMap(({ product }) =>
+                  product
+                    ? [
+                        {
+                          value: product._id,
+                          label: `${product.name} · ${product.sku}`,
+                        },
+                      ]
+                    : [],
+                )}
+              />
+            </Field>
+          </FieldGrid>
+        </FormSection>
+
+        <FormSection
+          title="Cuánto y cuándo"
+          description="La cantidad es del producto terminado, no de lotes."
+        >
+          <FieldGrid cols={2}>
+            <Field
+              id="op-qty"
+              label={`Cantidad (${selected?.product?.unit ?? "und"})`}
               required
             >
-              <option value="">Seleccionar…</option>
-              {producibles.map(({ bom, product }) =>
-                product ? (
-                  <option key={bom._id} value={product._id}>
-                    {product.name} · {product.sku}
-                  </option>
-                ) : null,
-              )}
-            </select>
-            {producibles.length === 0 && (
-              <p className="text-xs text-muted-foreground">
-                No hay recetas registradas. Crea una primero.
-              </p>
-            )}
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="op-qty">
-                Cantidad ({selected?.product?.unit ?? "und"})
-              </Label>
               <Input
                 id="op-qty"
                 type="number"
@@ -1221,9 +1305,8 @@ function NewOrderSheet({
                 onChange={(e) => setPlannedQty(e.target.value)}
                 required
               />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="op-date">Fecha</Label>
+            </Field>
+            <Field id="op-date" label="Fecha" required>
               <Input
                 id="op-date"
                 type="date"
@@ -1231,65 +1314,40 @@ function NewOrderSheet({
                 onChange={(e) => setDate(e.target.value)}
                 required
               />
-            </div>
-          </div>
+            </Field>
+          </FieldGrid>
 
           {selected && lotes > 0 && (
-            <Card className="bg-muted/40">
-              <CardContent className="py-3 text-sm text-muted-foreground">
-                Equivale a{" "}
-                <span className="font-medium text-foreground">
-                  {qty(Math.round(lotes * 100) / 100)}
-                </span>{" "}
-                lote(s) de “{selected.bom.name}”. Los insumos se calculan a
-                prorrata al guardar.
-              </CardContent>
-            </Card>
+            <FormAlert tone="info" icon={Boxes}>
+              Equivale a{" "}
+              <strong>{qty(Math.round(lotes * 100) / 100)}</strong> lote(s) de
+              “{selected.bom.name}”. Los insumos se calculan a prorrata al
+              guardar.
+            </FormAlert>
           )}
+        </FormSection>
 
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="op-note">Nota (opcional)</Label>
+        <FormSection
+          title="Nota"
+          description="Para lo que no cabe en los campos: un encargo, un cambio de turno."
+        >
+          <Field id="op-note" label="Nota (opcional)">
             <Input
               id="op-note"
               value={note}
               onChange={(e) => setNote(e.target.value)}
+              placeholder="Opcional"
             />
-          </div>
-
-          {error && <p className="text-sm text-destructive">{error}</p>}
-
-          <div className="flex flex-wrap justify-end gap-2 pb-4">
-            <Button type="button" variant="outline" onClick={onClose}>
-              Cancelar
-            </Button>
-            {/* Borrador para lo que se programa hoy y se hornea mañana; iniciar
-                para lo que ya está en la mesa de trabajo. En ninguno de los dos
-                se toca el inventario todavía. */}
-            <Button
-              type="button"
-              variant="outline"
-              disabled={saving || !sedeId || !productId || !plannedQty}
-              onClick={() => void save(false)}
-            >
-              Guardar borrador
-            </Button>
-            <Button
-              type="submit"
-              disabled={saving || !sedeId || !productId || !plannedQty}
-            >
-              {saving && <Loader2 className="size-4 animate-spin" />}
-              Crear e iniciar
-            </Button>
-          </div>
-        </form>
-      </SheetContent>
-    </Sheet>
+          </Field>
+        </FormSection>
+      </form>
+    </FormDialog>
   )
 }
 
 // ─── Detalle de la orden ─────────────────────────────────────────────────────
 
-function OrderDetailSheet({
+function OrderDetailDialog({
   order,
   onClose,
   onSaved,
@@ -1317,7 +1375,11 @@ function OrderDetailSheet({
   if (!order) return null
 
   const output = products.find((p) => p._id === order.productId)
-  const open = order.status === "draft" || order.status === "in_progress"
+  // Se renombró: `open` ahora es la apertura del diálogo. Esto es otra cosa:
+  // si la orden todavía admite que la inicien, la anulen o la terminen.
+  const puedeOperar =
+    canManage &&
+    (order.status === "draft" || order.status === "in_progress")
 
   async function run(fn: () => Promise<unknown>) {
     setBusy(true)
@@ -1334,154 +1396,180 @@ function OrderDetailSheet({
   }
 
   return (
-    <Sheet open={Boolean(order)} onOpenChange={(v) => !v && onClose()}>
-      <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
-        <SheetHeader>
-          <SheetTitle className="flex items-center gap-2">
-            <span className="font-mono">{order.number}</span>
-            <Badge variant={statusVariant[order.status]}>
-              {PRODUCTION_STATUS_LABELS[order.status]}
-            </Badge>
-          </SheetTitle>
-          <SheetDescription>
+    <FormDialog
+      open={Boolean(order)}
+      onOpenChange={(v) => !v && onClose()}
+      size="2xl"
+      icon={Factory}
+      title={`Orden ${order.number}`}
+      description={
+        <span className="flex flex-wrap items-center gap-2">
+          <Badge variant={statusVariant[order.status]}>
+            {PRODUCTION_STATUS_LABELS[order.status]}
+          </Badge>
+          <span>
             {order.productName} · {qty(order.plannedQty)} {order.unit} planeadas
-          </SheetDescription>
-        </SheetHeader>
-
-        <div className="flex flex-col gap-4 px-4 py-2">
-          <div>
-            <p className="mb-2 text-sm font-medium">Insumos</p>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Insumo</TableHead>
-                  <TableHead className="text-right">Cantidad</TableHead>
-                  {order.status === "done" && (
-                    <TableHead className="text-right">Costo</TableHead>
-                  )}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {order.lines.map((l, i) => (
-                  <TableRow key={i}>
-                    <TableCell className="text-sm">{l.description}</TableCell>
-                    <TableCell className="tnum text-right text-sm">
-                      {qty(l.qty)} {l.unit}
-                    </TableCell>
-                    {order.status === "done" && (
-                      <TableCell className="tnum text-right text-sm">
-                        {money.format(l.subtotal)}
-                      </TableCell>
-                    )}
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-
-          {order.status === "done" && (
-            <Card className="bg-muted/40">
-              <CardContent className="flex flex-col gap-1.5 py-3 text-sm">
-                <Row label="Producido">
-                  {qty(order.producedQty)} {order.unit}
-                </Row>
-                <Row label="Lote">{order.lotCode ?? "—"}</Row>
-                <Row label="Materiales">{money.format(order.materialsCost)}</Row>
-                <Row label="Mano de obra e indirectos">
-                  {money.format(order.extraCost)}
-                </Row>
-                <Row label="Costo del lote">{money.format(order.totalCost)}</Row>
-                <Row label={`Costo por ${order.unit}`}>
-                  <span className="font-semibold">
-                    {money.format(order.unitCost)}
-                  </span>
-                </Row>
-              </CardContent>
-            </Card>
-          )}
-
-          {open && canManage && (
-            <>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="op-produced">
-                    Salida real ({order.unit})
-                  </Label>
-                  <Input
-                    id="op-produced"
-                    type="number"
-                    min="0"
-                    step="any"
-                    value={producedQty}
-                    onChange={(e) => setProducedQty(e.target.value)}
-                  />
-                </div>
-                {output?.perishable && (
-                  <div className="flex flex-col gap-1.5">
-                    <Label htmlFor="op-expires">Vence</Label>
-                    <Input
-                      id="op-expires"
-                      type="date"
-                      value={expiresAt}
-                      onChange={(e) => setExpiresAt(e.target.value)}
-                      required
-                    />
-                  </div>
-                )}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Al terminar, los insumos salen del inventario y el terminado
-                entra con su lote y su costo. No se puede deshacer: una orden
-                terminada se corrige con un ajuste.
-              </p>
-            </>
-          )}
-
-          {error && <p className="text-sm text-destructive">{error}</p>}
-
-          {open && canManage && (
-            <div className="flex flex-wrap justify-end gap-2 pb-4">
+          </span>
+        </span>
+      }
+      footer={
+        puedeOperar ? (
+          <>
+            <Button
+              variant="outline"
+              disabled={busy}
+              onClick={() => void run(() => cancelProductionOrder(order._id))}
+            >
+              <Ban />
+              Anular
+            </Button>
+            {order.status === "draft" && (
               <Button
                 variant="outline"
                 disabled={busy}
-                onClick={() => void run(() => cancelProductionOrder(order._id))}
+                onClick={() => void run(() => startProductionOrder(order._id))}
               >
-                <Ban className="size-4" />
-                Anular
+                <Play />
+                Iniciar
               </Button>
-              {order.status === "draft" && (
-                <Button
-                  variant="outline"
-                  disabled={busy}
-                  onClick={() => void run(() => startProductionOrder(order._id))}
-                >
-                  <Play className="size-4" />
-                  Iniciar
-                </Button>
+            )}
+            <Button
+              disabled={busy || !producedQty}
+              className="sm:min-w-32"
+              onClick={() =>
+                void run(() =>
+                  completeProductionOrder(order._id, {
+                    producedQty: Number(producedQty),
+                    expiresAt: expiresAt || undefined,
+                  }),
+                )
+              }
+            >
+              {busy ? (
+                <Loader2 className="animate-spin" />
+              ) : (
+                <CheckCircle2 />
               )}
-              <Button
-                disabled={busy || !producedQty}
-                onClick={() =>
-                  void run(() =>
-                    completeProductionOrder(order._id, {
-                      producedQty: Number(producedQty),
-                      expiresAt: expiresAt || undefined,
-                    }),
-                  )
-                }
-              >
-                {busy ? (
-                  <Loader2 className="size-4 animate-spin" />
-                ) : (
-                  <CheckCircle2 className="size-4" />
+              Terminar
+            </Button>
+          </>
+        ) : (
+          <Button variant="outline" onClick={onClose} className="sm:min-w-28">
+            Cerrar
+          </Button>
+        )
+      }
+    >
+      {error && <FormAlert>{error}</FormAlert>}
+
+      <FormSection
+        title="Insumos"
+        description="Lo que esta orden va a consumir del inventario."
+        help={{ term: "insumo" }}
+        boxed
+      >
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Insumo</TableHead>
+              <TableHead className="text-right">Cantidad</TableHead>
+              {order.status === "done" && (
+                <TableHead className="text-right">Costo</TableHead>
+              )}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {order.lines.map((l, i) => (
+              <TableRow key={i}>
+                <TableCell className="text-sm">{l.description}</TableCell>
+                <TableCell className="tnum text-right text-sm">
+                  {qty(l.qty)} {l.unit}
+                </TableCell>
+                {order.status === "done" && (
+                  <TableCell className="tnum text-right text-sm">
+                    {money.format(l.subtotal)}
+                  </TableCell>
                 )}
-                Terminar
-              </Button>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </FormSection>
+
+      {order.status === "done" && (
+        <FormSection
+          title="Cómo salió"
+          description="El costo real del lote, ya con lo que de verdad se consumió."
+          help={{ term: "parteProduccion" }}
+          boxed
+        >
+          <div className="flex flex-col gap-1.5 text-sm">
+            <Row label="Producido">
+              {qty(order.producedQty)} {order.unit}
+            </Row>
+            <Row label="Lote">{order.lotCode ?? "—"}</Row>
+            <Row label="Materiales">{money.format(order.materialsCost)}</Row>
+            <Row label="Mano de obra e indirectos">
+              {money.format(order.extraCost)}
+            </Row>
+            <Row label="Costo del lote">{money.format(order.totalCost)}</Row>
+            <div className="mt-1 border-t border-border/70 pt-2">
+              <Row label={`Costo por ${order.unit}`}>
+                <span className="font-semibold">
+                  {money.format(order.unitCost)}
+                </span>
+              </Row>
             </div>
-          )}
-        </div>
-      </SheetContent>
-    </Sheet>
+          </div>
+        </FormSection>
+      )}
+
+      {puedeOperar && (
+        <FormSection
+          title="Terminar la orden"
+          description="Cuánto salió de verdad. Casi nunca es exactamente lo planeado."
+        >
+          <FieldGrid cols={2}>
+            <Field
+              id="op-produced"
+              label={`Salida real (${order.unit})`}
+              required
+            >
+              <Input
+                id="op-produced"
+                type="number"
+                min="0"
+                step="any"
+                value={producedQty}
+                onChange={(e) => setProducedQty(e.target.value)}
+              />
+            </Field>
+            {output?.perishable && (
+              <Field
+                id="op-expires"
+                label="Vence"
+                required
+                help={{ term: "lote" }}
+              >
+                <Input
+                  id="op-expires"
+                  type="date"
+                  value={expiresAt}
+                  onChange={(e) => setExpiresAt(e.target.value)}
+                  required
+                />
+              </Field>
+            )}
+          </FieldGrid>
+
+          <FormAlert tone="warning" icon={CheckCircle2}>
+            Al terminar, los insumos salen del inventario y el terminado entra
+            con su lote y su costo. <strong>No se puede deshacer:</strong> una
+            orden terminada se corrige con un ajuste.
+          </FormAlert>
+        </FormSection>
+      )}
+    </FormDialog>
   )
 }
 
@@ -1508,7 +1596,7 @@ function Row({
  * consumieron al fabricar, y volver a descontarlos al vender contaría la harina
  * dos veces.
  */
-function PublishSheet({
+function PublishDialog({
   output,
   onClose,
   onSaved,
@@ -1519,6 +1607,7 @@ function PublishSheet({
 }) {
   const [salePrice, setSalePrice] = React.useState("")
   const [ivaRate, setIvaRate] = React.useState<"0" | "5" | "19">("19")
+  const [margenMinimo] = useMargenMinimo()
   const [saving, setSaving] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
@@ -1557,31 +1646,64 @@ function PublishSheet({
   }
 
   return (
-    <Sheet open={Boolean(output)} onOpenChange={(v) => !v && onClose()}>
-      <SheetContent className="w-full overflow-y-auto sm:max-w-md">
-        <SheetHeader>
-          <SheetTitle>Publicar en Productos</SheetTitle>
-          <SheetDescription>
-            {output.product.name} pasa a venderse en el POS. Cada venta descuenta
-            una unidad del terminado en bodega.
-          </SheetDescription>
-        </SheetHeader>
+    <FormDialog
+      open={Boolean(output)}
+      onOpenChange={(v) => !v && onClose()}
+      size="xl"
+      icon={ShoppingBag}
+      title="Publicar en Productos"
+      description={`${output.product.name} pasa a venderse en el POS. Cada venta descuenta una unidad del terminado en bodega.`}
+      footer={
+        <>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onClose}
+            className="sm:min-w-28"
+          >
+            Cancelar
+          </Button>
+          <Button
+            type="submit"
+            form={PUBLISH_FORM_ID}
+            disabled={saving || !salePrice}
+            className="sm:min-w-32"
+          >
+            {saving ? <Loader2 className="animate-spin" /> : <ShoppingBag />}
+            {saving ? "Publicando…" : "Publicar"}
+          </Button>
+        </>
+      }
+    >
+      <form
+        id={PUBLISH_FORM_ID}
+        onSubmit={handleSubmit}
+        className="flex flex-col gap-5"
+      >
+        {error && <FormAlert>{error}</FormAlert>}
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4 px-4 py-2">
-          <Card className="bg-muted/40">
-            <CardContent className="flex flex-col gap-1.5 py-3 text-sm">
-              <Row label={`Costo por ${output.product.unit}`}>
-                {money.format(output.unitCost)}
-              </Row>
-              <Row label="En bodega">
-                {qty(output.stock)} {output.product.unit}
-              </Row>
-            </CardContent>
-          </Card>
+        <FormSection title="De dónde sale" boxed>
+          <div className="flex flex-col gap-1.5 text-sm">
+            <Row label={`Costo por ${output.product.unit}`}>
+              {money.format(output.unitCost)}
+            </Row>
+            <Row label="En bodega">
+              {qty(output.stock)} {output.product.unit}
+            </Row>
+          </div>
+        </FormSection>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="pub-price">Precio (IVA incluido)</Label>
+        <FormSection
+          title="A cuánto se vende"
+          description="El precio que ve el cliente, con el IVA ya dentro."
+        >
+          <FieldGrid cols={2}>
+            <Field
+              id="pub-price"
+              label="Precio (IVA incluido)"
+              required
+              help={{ term: "precioVenta" }}
+            >
               <Input
                 id="pub-price"
                 type="number"
@@ -1590,45 +1712,62 @@ function PublishSheet({
                 onChange={(e) => setSalePrice(e.target.value)}
                 required
               />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="pub-iva">IVA</Label>
-              <select
+            </Field>
+            <Field id="pub-iva" label="IVA" help={{ term: "iva" }}>
+              <NativeSelect
                 id="pub-iva"
-                className={inputClass}
                 value={ivaRate}
-                onChange={(e) =>
-                  setIvaRate(e.target.value as "0" | "5" | "19")
-                }
+                onChange={(v) => setIvaRate(v as "0" | "5" | "19")}
+                options={[
+                  { value: "19", label: "19 % — gravado" },
+                  { value: "5", label: "5 % — gravado" },
+                  { value: "0", label: "0 % — excluido" },
+                ]}
+              />
+            </Field>
+          </FieldGrid>
+        </FormSection>
+
+        {/* El semáforo aquí y no solo en la tabla: el momento de fijar el
+            precio es justo cuando sirve saber si cumple el objetivo, no dos
+            pantallas después. */}
+        <FormSection title="Qué te queda" help={{ term: "margen" }} boxed>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-baseline gap-2">
+              <span
+                className={cn(
+                  "tnum text-lg font-semibold",
+                  margin < 0 && "text-destructive",
+                )}
               >
-                <option value="19">19% — gravado</option>
-                <option value="5">5% — gravado</option>
-                <option value="0">0% — excluido</option>
-              </select>
+                {money.format(margin)}
+              </span>
+              <span className="text-sm text-muted-foreground">
+                por {output.product.unit}
+              </span>
             </div>
+            <MargenBadge pct={marginPct} minimo={margenMinimo} />
           </div>
-
-          <p
-            className={`text-sm ${margin >= 0 ? "text-muted-foreground" : "text-destructive"}`}
-          >
-            Margen: <span className="tnum font-medium">{money.format(margin)}</span>{" "}
-            ({marginPct}%)
-            {margin < 0 && " — estarías vendiendo por debajo del costo."}
-          </p>
-
-          {error && <p className="text-sm text-destructive">{error}</p>}
-
-          <div className="flex justify-end gap-2 pb-4">
-            <Button type="button" variant="outline" onClick={onClose}>
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={saving || !salePrice}>
-              {saving && <Loader2 className="size-4 animate-spin" />}
-              Publicar
-            </Button>
-          </div>
-        </form>
-      </SheetContent>
-    </Sheet>
+          {margin < 0 && (
+            <FormAlert tone="error">
+              Estarías vendiendo por debajo del costo: cada venta te cuesta
+              plata.
+            </FormAlert>
+          )}
+          {margin >= 0 && marginPct < margenMinimo && (
+            <FormAlert tone="warning">
+              Ganas, pero por debajo de tu objetivo del {margenMinimo} %. Para
+              cumplirlo tendrías que vender a{" "}
+              <strong>
+                {money.format(
+                  Math.ceil(output.unitCost / (1 - margenMinimo / 100)),
+                )}
+              </strong>
+              .
+            </FormAlert>
+          )}
+        </FormSection>
+      </form>
+    </FormDialog>
   )
 }
