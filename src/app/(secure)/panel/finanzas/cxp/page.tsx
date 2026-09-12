@@ -4,6 +4,7 @@ import { ShieldOff } from "lucide-react"
 
 import { useAuth } from "@/lib/auth-context"
 import { PageHeader } from "@/components/erp/page-header"
+import { Termino } from "@/components/ui/help-tip"
 import { Card, CardContent } from "@/components/ui/card"
 import { PayablesPanel } from "@/components/erp/finance/payables-panel"
 
@@ -33,7 +34,14 @@ export default function CxpPage() {
       <PageHeader
         section="Finanzas"
         title="Cuentas por pagar"
-        description="Facturas de proveedores pendientes de pago, con abonos y vencimientos."
+        titleHelp={{ term: "cxp" }}
+        description={
+          <>
+            Lo que le debes a tus proveedores, con sus{" "}
+            <Termino>abonos</Termino> y su{" "}
+            <Termino term="plazoPago">plazo de pago</Termino>.
+          </>
+        }
       />
       <PayablesPanel />
     </>

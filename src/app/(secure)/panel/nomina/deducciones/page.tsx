@@ -29,7 +29,6 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
@@ -40,16 +39,21 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "@/components/ui/sheet"
+  FormDialog,
+  FormSection,
+  FormAlert,
+  FormActions,
+} from "@/components/ui/form-dialog"
+import {
+  Field,
+  FieldGrid,
+  FieldSpan,
+  NativeSelect,
+} from "@/components/ui/field"
+import { MoneyInput } from "@/components/ui/money-input"
+import { Termino } from "@/components/ui/help-tip"
 
 const ALL = "all"
-const inputClass =
-  "h-9 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
 
 const statusVariant: Record<DeductionStatus, "default" | "secondary" | "outline" | "destructive"> = {
   pending: "secondary",
@@ -134,7 +138,13 @@ export default function DeduccionesPage() {
       <PageHeader
         section="Personal"
         title="Consumos / deducciones"
-        description="Consumos de empleado (fiado) que se descuentan por nómina. Requieren aprobación para entrar a la colilla."
+        description={
+          <>
+            Lo que el trabajador se lleva del negocio y se le descuenta por{" "}
+            <Termino>nómina</Termino>. Hay que aprobarlo para que entre como{" "}
+            <Termino>deducción</Termino> en la colilla.
+          </>
+        }
         actions={
           <div className="flex items-center gap-2">
             <Button variant="outline" size="icon" onClick={() => void load()} title="Actualizar">
@@ -157,15 +167,20 @@ export default function DeduccionesPage() {
 
       <Card className="mb-4" data-tour="deducciones-filtro">
         <CardContent className="flex items-center gap-3 py-3">
-          <Label className="text-xs">Estado</Label>
-          <select className={`${inputClass} w-48`} value={status} onChange={(e) => setStatus(e.target.value)}>
-            <option value={ALL}>Todos</option>
-            {Object.entries(DEDUCTION_STATUS_LABELS).map(([v, l]) => (
-              <option key={v} value={v}>
-                {l}
-              </option>
-            ))}
-          </select>
+          <Field id="ded-estado" label="Estado" className="w-48">
+            <NativeSelect
+              id="ded-estado"
+              value={status}
+              onChange={setStatus}
+              options={[
+                { value: ALL, label: "Todos" },
+                ...Object.entries(DEDUCTION_STATUS_LABELS).map(([v, l]) => ({
+                  value: v,
+                  label: l,
+                })),
+              ]}
+            />
+          </Field>
         </CardContent>
       </Card>
 
@@ -257,7 +272,7 @@ export default function DeduccionesPage() {
         </CardContent>
       </Card>
 
-      <NewDeductionSheet open={newOpen} onClose={() => setNewOpen(false)} onSaved={load} />
+      <NewDeductionDialog open={newOpen} onClose={() => setNewOpen(false)} onSaved={load} />
     </>
   )
 }
@@ -273,7 +288,7 @@ function Kpi({ label, value, accent }: { label: string; value: string; accent?: 
   )
 }
 
-function NewDeductionSheet({
+function NewDeductionDialog({
   open,
   onClose,
   onSaved,
@@ -322,52 +337,81 @@ function NewDeductionSheet({
   }
 
   return (
-    <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
-      <SheetContent className="w-full gap-0 sm:max-w-md">
-        <SheetHeader>
-          <SheetTitle>Nuevo consumo de empleado</SheetTitle>
-          <SheetDescription>
-            Queda pendiente de aprobación; al aprobarse se descuenta en la próxima corrida.
-          </SheetDescription>
-        </SheetHeader>
-        <div className="flex flex-col gap-3 px-4 py-2">
-          <div className="flex flex-col gap-1">
-            <Label className="text-xs">Empleado</Label>
-            <select className={inputClass} value={employeeId} onChange={(e) => setEmployeeId(e.target.value)}>
-              <option value="">Selecciona…</option>
-              {employees.map((e) => (
-                <option key={e._id} value={e._id}>
-                  {e.firstName} {e.lastName}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="flex flex-col gap-1">
-            <Label className="text-xs">Concepto</Label>
-            <Input value={concept} onChange={(e) => setConcept(e.target.value)} placeholder="Ej. Almuerzo, adelanto…" />
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div className="flex flex-col gap-1">
-              <Label className="text-xs">Monto</Label>
-              <Input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} />
-            </div>
-            <div className="flex flex-col gap-1">
-              <Label className="text-xs">Fecha</Label>
-              <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-            </div>
-          </div>
-          {err && <p className="text-sm text-destructive">{err}</p>}
-          <div className="mt-2 flex justify-end gap-2">
-            <Button variant="outline" onClick={onClose} disabled={busy}>
-              Cancelar
-            </Button>
-            <Button onClick={() => void save()} disabled={busy || !employeeId || !concept.trim() || numOr(amount) <= 0}>
-              {busy && <Loader2 className="size-4 animate-spin" />}
-              Registrar
-            </Button>
-          </div>
-        </div>
-      </SheetContent>
-    </Sheet>
+    <FormDialog
+      open={open}
+      onOpenChange={(o) => !o && onClose()}
+      size="2xl"
+      icon={ReceiptText}
+      title="Nuevo consumo de empleado"
+      description="Lo que el trabajador se llevó del negocio. Queda pendiente de aprobación; al aprobarlo se le descuenta en la próxima nómina."
+      footer={
+        <FormActions
+          onCancel={onClose}
+          onSubmit={() => void save()}
+          busy={busy}
+          disabled={!employeeId || !concept.trim() || numOr(amount) <= 0}
+          submitLabel="Registrar"
+        />
+      }
+    >
+      {err && <FormAlert>{err}</FormAlert>}
+
+      <FormSection title="El consumo" >
+        <FieldGrid cols={2}>
+          <FieldSpan span={2}>
+            <Field id="cn-emp" label="Empleado" required>
+              <NativeSelect
+                id="cn-emp"
+                value={employeeId}
+                onChange={setEmployeeId}
+                options={employees.map((e) => ({
+                  value: e._id,
+                  label: `${e.firstName} ${e.lastName}`,
+                }))}
+                placeholder="Selecciona…"
+              />
+            </Field>
+          </FieldSpan>
+
+          <FieldSpan span={2}>
+            <Field
+              id="cn-concept"
+              label="Concepto"
+              required
+              help={{ term: "consumoEmpleado" }}
+            >
+              <Input
+                id="cn-concept"
+                value={concept}
+                onChange={(e) => setConcept(e.target.value)}
+                placeholder="Almuerzo, adelanto, producto fiado…"
+              />
+            </Field>
+          </FieldSpan>
+
+          <Field
+            id="cn-amount"
+            label="Monto"
+            required
+            help={{ term: "deduccion" }}
+          >
+            <MoneyInput
+              id="cn-amount"
+              value={numOr(amount) || null}
+              onValueChange={(v) => setAmount(v == null ? "" : String(v))}
+              placeholder="0"
+            />
+          </Field>
+          <Field id="cn-date" label="Fecha">
+            <Input
+              id="cn-date"
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+            />
+          </Field>
+        </FieldGrid>
+      </FormSection>
+    </FormDialog>
   )
 }

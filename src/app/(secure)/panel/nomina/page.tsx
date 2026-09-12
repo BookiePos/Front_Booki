@@ -4,6 +4,7 @@ import * as React from "react"
 import {
   ShieldOff,
   Loader2,
+  Wallet,
   Play,
   Calculator,
   History,
@@ -61,13 +62,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "@/components/ui/sheet"
+import { FormDialog, FormAlert } from "@/components/ui/form-dialog"
+import { Termino } from "@/components/ui/help-tip"
 
 const money = new Intl.NumberFormat("es-CO", {
   style: "currency",
@@ -179,7 +175,15 @@ export default function NominaPage() {
       <PageHeader
         section="Personal"
         title="Nómina"
-        description="Cálculo de nómina conforme a la normativa laboral colombiana 2026."
+        titleHelp={{ term: "nomina" }}
+        description={
+          <>
+            El pago del período con todo lo que lo acompaña:{" "}
+            <Termino>devengado</Termino>, <Termino>deducciones</Termino>,{" "}
+            <Termino term="netoPagar">neto a pagar</Termino> y los aportes a la{" "}
+            <Termino>PILA</Termino>, según la normativa laboral colombiana.
+          </>
+        }
       />
 
       <div className="mb-4 flex flex-wrap gap-1" data-tour="nomina-tabs">
@@ -644,7 +648,7 @@ function RunDetail({
         </CardContent>
       </Card>
 
-      <Sheet
+      <FormDialog
         open={slip !== null}
         onOpenChange={(v) => {
           if (!v) {
@@ -652,63 +656,55 @@ function RunDetail({
             setSendMsg(null)
           }
         }}
+        size="2xl"
+        icon={Wallet}
+        title={slip?.employeeName ?? "Desprendible"}
+        description={`Desprendible de nómina — período ${run.period}.`}
+        footer={
+          <>
+            <Button
+              variant="outline"
+              className="no-print"
+              onClick={() => window.print()}
+            >
+              <Printer />
+              Imprimir / PDF
+            </Button>
+            <Button
+              className="no-print"
+              onClick={handleSend}
+              disabled={sending}
+            >
+              {sending ? <Loader2 className="animate-spin" /> : <Mail />}
+              Enviar al correo
+            </Button>
+          </>
+        }
       >
-        <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-lg">
-          {slip && (
-            <div className="flex flex-col gap-4 px-4 py-2">
-              <SheetHeader className="px-0">
-                <SheetTitle className="font-display text-lg">
-                  {slip.employeeName}
-                </SheetTitle>
-                <SheetDescription>
-                  Desprendible de nómina — período {run.period}.
-                </SheetDescription>
-              </SheetHeader>
-              <PayrollSlipView
-                breakdown={slip.breakdown}
-                otrasDetalle={slip.otrasDeduccionesDetalle}
-                header={
-                  <div className="invoice-printable mb-2 border-b border-border pb-2 text-sm">
-                    <p className="font-semibold">{slip.employeeName}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {slip.docNumber ? `Doc. ${slip.docNumber} · ` : ""}
-                      {slip.positionName ?? "Sin cargo"} · Salario base{" "}
-                      {money.format(slip.salarioBase)}
-                    </p>
-                  </div>
-                }
-              />
-              <div className="no-print flex flex-col gap-2">
-                <Button className="gap-2" onClick={handleSend} disabled={sending}>
-                  {sending ? (
-                    <Loader2 className="size-4 animate-spin" />
-                  ) : (
-                    <Mail className="size-4" />
-                  )}
-                  Enviar comprobante al correo
-                </Button>
-                {sendMsg && (
-                  <p
-                    className={`text-sm ${
-                      sendMsg.ok ? "text-success-ink" : "text-destructive"
-                    }`}
-                  >
-                    {sendMsg.text}
+        {slip && (
+          <>
+            {sendMsg && (
+              <FormAlert tone={sendMsg.ok ? "success" : "error"}>
+                {sendMsg.text}
+              </FormAlert>
+            )}
+            <PayrollSlipView
+              breakdown={slip.breakdown}
+              otrasDetalle={slip.otrasDeduccionesDetalle}
+              header={
+                <div className="invoice-printable mb-2 border-b border-border pb-2 text-sm">
+                  <p className="font-semibold">{slip.employeeName}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {slip.docNumber ? `Doc. ${slip.docNumber} · ` : ""}
+                    {slip.positionName ?? "Sin cargo"} · Salario base{" "}
+                    {money.format(slip.salarioBase)}
                   </p>
-                )}
-                <Button
-                  variant="outline"
-                  className="gap-2"
-                  onClick={() => window.print()}
-                >
-                  <Printer className="size-4" />
-                  Imprimir / PDF
-                </Button>
-              </div>
-            </div>
-          )}
-        </SheetContent>
-      </Sheet>
+                </div>
+              }
+            />
+          </>
+        )}
+      </FormDialog>
     </div>
   )
 }

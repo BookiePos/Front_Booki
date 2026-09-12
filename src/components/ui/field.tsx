@@ -1,10 +1,11 @@
 "use client"
 
 import * as React from "react"
-import { CircleAlert } from "lucide-react"
+import { ChevronDown, CircleAlert } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Label } from "@/components/ui/label"
+import { Checkbox } from "@/components/ui/checkbox"
 import { HelpTip, type HelpTipProps } from "@/components/ui/help-tip"
 
 /**
@@ -112,5 +113,149 @@ export function FieldGrid({
     <div className={cn("grid grid-cols-1 gap-x-4 gap-y-3.5", grid, className)}>
       {children}
     </div>
+  )
+}
+
+/**
+ * Fila de campos de ancho desigual dentro de una `FieldGrid`.
+ *
+ * Un "Tipo doc." y un "Número de documento" no merecen la misma mitad de la
+ * rejilla: el primero cabe en cuatro caracteres y el segundo necesita diez.
+ * `span` deja que un campo ocupe dos o tres columnas sin sacar `col-span-*` a
+ * mano en cada página (y sin que Tailwind tenga que ver la clase construida).
+ */
+export function FieldSpan({
+  span = 2,
+  className,
+  children,
+}: {
+  span?: 2 | 3 | 4
+  className?: string
+  children: React.ReactNode
+}) {
+  const cls = {
+    2: "sm:col-span-2",
+    3: "sm:col-span-2 lg:col-span-3",
+    4: "sm:col-span-2 lg:col-span-4",
+  }[span]
+  return <div className={cn("min-w-0", cls, className)}>{children}</div>
+}
+
+/**
+ * Desplegable nativo con el lenguaje visual de `Input`.
+ *
+ * Nativo a propósito y no el `Select` de Base UI: en celular y tablet —que es
+ * donde se usa el POS— el `<select>` abre la rueda del sistema operativo, que
+ * se maneja con el pulgar y no se sale de la pantalla. Un desplegable dibujado
+ * a mano dentro de una tarjeta flotante tiene que pelear con el scroll del
+ * cuerpo del formulario y casi siempre pierde.
+ *
+ * La flecha se dibuja aparte porque `appearance-none` borra la del navegador;
+ * sin ella el campo parece un cuadro de texto que no responde al clic.
+ */
+export function NativeSelect({
+  value,
+  onChange,
+  options,
+  placeholder,
+  className,
+  ...props
+}: Omit<React.ComponentProps<"select">, "onChange" | "value"> & {
+  value: string
+  onChange: (value: string) => void
+  options: readonly { value: string; label: string; disabled?: boolean }[]
+  /** Opción vacía inicial ("Sin cargo", "Todas las sedes"). */
+  placeholder?: string
+}) {
+  return (
+    <div className={cn("relative min-w-0", className)}>
+      <select
+        data-slot="select"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className={cn(
+          "h-9 w-full min-w-0 appearance-none rounded-xl border border-input bg-card py-1 pr-9 pl-3 text-base shadow-xs transition-[color,background-color,border-color,box-shadow] outline-none",
+          "hover:border-ring/45",
+          "focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/45",
+          "disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-muted disabled:opacity-60",
+          "aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20",
+          "md:text-sm dark:bg-input/25 dark:hover:bg-input/35",
+          // Sin valor elegido el texto va en gris, como el placeholder de Input.
+          value === "" && placeholder && "text-muted-foreground",
+        )}
+        {...props}
+      >
+        {placeholder !== undefined && <option value="">{placeholder}</option>}
+        {options.map((o) => (
+          <option key={o.value} value={o.value} disabled={o.disabled}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+      <ChevronDown
+        aria-hidden
+        className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-muted-foreground"
+      />
+    </div>
+  )
+}
+
+/**
+ * Casilla con su explicación, sobre una superficie propia.
+ *
+ * Una casilla suelta con tres palabras al lado se pierde entre campos de texto
+ * y nadie la lee; encerrada y con una frase debajo se convierte en una decisión
+ * consciente ("¿este producto se vence?"). Toda la caja es el área pulsable,
+ * que es lo que pide un dedo.
+ */
+export function CheckboxField({
+  id,
+  label,
+  hint,
+  checked,
+  onCheckedChange,
+  help,
+  disabled = false,
+  className,
+}: {
+  id: string
+  label: React.ReactNode
+  hint?: React.ReactNode
+  checked: boolean
+  onCheckedChange: (checked: boolean) => void
+  help?: HelpTipProps
+  disabled?: boolean
+  className?: string
+}) {
+  return (
+    <label
+      htmlFor={id}
+      className={cn(
+        "flex cursor-pointer items-start gap-3 rounded-2xl border border-border bg-card p-3.5 transition-colors",
+        "hover:border-primary/35 hover:bg-primary/[0.03]",
+        "has-data-checked:border-primary/45 has-data-checked:bg-primary/[0.05]",
+        disabled && "pointer-events-none opacity-55",
+        className,
+      )}
+    >
+      <Checkbox
+        id={id}
+        checked={checked}
+        onCheckedChange={onCheckedChange}
+        disabled={disabled}
+        className="mt-0.5"
+      />
+      <span className="flex min-w-0 flex-col gap-0.5">
+        <span className="flex items-center gap-1.5 text-[0.8125rem] leading-none font-semibold text-foreground">
+          {label}
+          {help && <HelpTip {...help} />}
+        </span>
+        {hint && (
+          <span className="text-xs leading-relaxed text-muted-foreground">
+            {hint}
+          </span>
+        )}
+      </span>
+    </label>
   )
 }

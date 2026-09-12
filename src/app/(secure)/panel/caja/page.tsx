@@ -23,6 +23,7 @@ import {
 import { ApiError } from "@/lib/api"
 
 import { PageHeader } from "@/components/erp/page-header"
+import { Termino } from "@/components/ui/help-tip"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -141,7 +142,14 @@ export default function CajaPage() {
       <PageHeader
         section="Operación"
         title="Caja"
-        description="Resumen del día de las cajas por sede: apertura, cierre y ventas."
+        description={
+          <>
+            Cómo va la caja de cada <Termino>sede</Termino> hoy: la{" "}
+            <Termino term="baseCaja">base</Termino> con la que abrió, el{" "}
+            <Termino term="arqueo">arqueo</Termino> del cierre y lo que se
+            vendió en el <Termino>turno</Termino>.
+          </>
+        }
         actions={actions}
       />
 

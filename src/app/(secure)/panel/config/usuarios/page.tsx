@@ -6,10 +6,16 @@ import {
   Pencil,
   Trash2,
   ShieldOff,
+  ShieldCheck,
   Mail,
   Copy,
   Check,
   Send,
+  Store,
+  KeyRound,
+  Loader2,
+  UserPlus,
+  UserCog,
 } from "lucide-react"
 
 import { useAuth } from "@/lib/auth-context"
@@ -52,23 +58,19 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-  SheetFooter,
-  SheetClose,
-} from "@/components/ui/sheet"
+  FormDialog,
+  FormSection,
+  FormAlert,
+} from "@/components/ui/form-dialog"
+import {
+  Field,
+  FieldGrid,
+  NativeSelect,
+  CheckboxField,
+} from "@/components/ui/field"
+import { HelpTip, Termino } from "@/components/ui/help-tip"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Checkbox } from "@/components/ui/checkbox"
 import { useConfirm } from "@/components/ui/confirm-dialog"
@@ -123,9 +125,20 @@ function TableSkeleton({ cols = 5, rows = 5 }: { cols?: number; rows?: number })
   )
 }
 
-// ─── User Sheet ───────────────────────────────────────────────────────────────
+// ─── Ficha de usuario ────────────────────────────────────────────────────────
 
-interface UserSheetProps {
+/**
+ * Ids de los `<form>` de cada ficha.
+ *
+ * El botón de guardar vive en el pie fijo de la tarjeta, que está fuera del
+ * `<form>`; `form={ID}` los vuelve a unir. Sin eso habría que renunciar al
+ * envío con Enter, que es como se rellenan estos formularios de verdad.
+ */
+const USER_FORM_ID = "usuario-form"
+const ROLE_FORM_ID = "rol-form"
+const INVITE_FORM_ID = "invitacion-form"
+
+interface UserDialogProps {
   open: boolean
   onOpenChange: (v: boolean) => void
   mode: "create" | "edit"
@@ -136,7 +149,7 @@ interface UserSheetProps {
   onSuccess: () => void
 }
 
-function UserSheet({ open, onOpenChange, mode, user, roles, sedes, permissionGroups, onSuccess }: UserSheetProps) {
+function UserDialog({ open, onOpenChange, mode, user, roles, sedes, permissionGroups, onSuccess }: UserDialogProps) {
   const [name, setName] = React.useState("")
   const [email, setEmail] = React.useState("")
   const [password, setPassword] = React.useState("")
@@ -272,137 +285,196 @@ function UserSheet({ open, onOpenChange, mode, user, roles, sedes, permissionGro
   }
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="sm:max-w-md overflow-y-auto">
-        <SheetHeader>
-          <SheetTitle className="font-display text-lg">
-            {mode === "create" ? "Nuevo usuario" : "Editar usuario"}
-          </SheetTitle>
-          <SheetDescription>
-            {mode === "create"
-              ? "Crea una cuenta nueva para un miembro del equipo."
-              : "Modifica el rol o estado del usuario."}
-          </SheetDescription>
-        </SheetHeader>
+    <FormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      size="4xl"
+      icon={mode === "create" ? UserPlus : UserCog}
+      title={mode === "create" ? "Nuevo usuario" : "Editar usuario"}
+      description={
+        mode === "create"
+          ? "Una cuenta para alguien del equipo. El rol decide qué puede hacer; las sedes, dónde."
+          : `Rol, sedes y permisos de ${user?.name ?? "la cuenta"}.`
+      }
+      footer={
+        <>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={saving}
+            onClick={() => onOpenChange(false)}
+            className="sm:min-w-28"
+          >
+            Cancelar
+          </Button>
+          <Button
+            type="submit"
+            form={USER_FORM_ID}
+            disabled={saving}
+            className="sm:min-w-36"
+          >
+            {saving ? (
+              <Loader2 className="animate-spin" />
+            ) : mode === "create" ? (
+              <UserPlus />
+            ) : (
+              <UserCog />
+            )}
+            {saving
+              ? "Guardando…"
+              : mode === "create"
+                ? "Crear usuario"
+                : "Guardar cambios"}
+          </Button>
+        </>
+      }
+    >
+      <form id={USER_FORM_ID} onSubmit={handleSubmit} className="flex flex-col gap-5">
+        {error && <FormAlert>{error}</FormAlert>}
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4 px-4 py-2">
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="u-name">Nombre</Label>
-            <Input
-              id="u-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Juan García"
-              required
-            />
-          </div>
+        {/* ── Quién es ─────────────────────────────────────────── */}
+        <FormSection
+          icon={UserCog}
+          title="La cuenta"
+          description="Con esto inicia sesión en el sistema."
+        >
+          <FieldGrid cols={3}>
+            <Field id="u-name" label="Nombre" required>
+              <Input
+                id="u-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Juan García"
+                required
+              />
+            </Field>
 
-          {mode === "create" && (
-            <>
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="u-email">Correo electrónico</Label>
-                <Input
-                  id="u-email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="juan@empresa.com"
-                  required
-                />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="u-password">Contraseña</Label>
-                <Input
+            {mode === "create" ? (
+              <>
+                <Field id="u-email" label="Correo electrónico" required>
+                  <Input
+                    id="u-email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="juan@empresa.com"
+                    required
+                  />
+                </Field>
+                <Field
                   id="u-password"
+                  label="Contraseña"
+                  required
+                  hint="Mínimo 8 caracteres."
+                >
+                  <Input
+                    id="u-password"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Mínimo 8 caracteres"
+                    required
+                  />
+                </Field>
+              </>
+            ) : (
+              <Field
+                id="u-password-edit"
+                label="Nueva contraseña"
+                hint="Déjala vacía para no cambiarla."
+              >
+                <Input
+                  id="u-password-edit"
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Mínimo 8 caracteres"
-                  required
+                  placeholder="Sin cambios"
                 />
-              </div>
-            </>
-          )}
+              </Field>
+            )}
+
+            <Field
+              id="u-role"
+              label="Rol"
+              required
+              help={{ term: "rol" }}
+              hint="El paquete de permisos base de esta persona."
+            >
+              <NativeSelect
+                id="u-role"
+                value={role}
+                onChange={setRole}
+                options={roles.map((r) => ({ value: r.key, label: r.name }))}
+                placeholder={roles.length === 0 ? "Sin roles" : undefined}
+              />
+            </Field>
+          </FieldGrid>
 
           {mode === "edit" && (
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="u-password-edit">Nueva contraseña (opcional)</Label>
-              <Input
-                id="u-password-edit"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Dejar vacío para no cambiar"
-              />
-            </div>
+            <CheckboxField
+              id="u-active"
+              label="Usuario activo"
+              hint="Un usuario inactivo no puede iniciar sesión, pero conserva su historial."
+              checked={active}
+              onCheckedChange={setActive}
+            />
           )}
+        </FormSection>
+
+        {/* ── Dónde opera ──────────────────────────────────────── */}
+        <FormSection
+          icon={Store}
+          title="Punto de venta y sedes"
+          description="Dónde puede trabajar esta persona."
+        >
+          <CheckboxField
+            id="u-pos"
+            label="Acceso al punto de venta"
+            help={{ term: "pos" }}
+            hint={
+              rolePos
+                ? "El rol seleccionado ya incluye acceso al POS, así que no se puede quitar aquí."
+                : "Permite entrar al POS y vender en las sedes marcadas abajo."
+            }
+            checked={posEnabled}
+            disabled={rolePos}
+            onCheckedChange={setPosAccess}
+          />
 
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="u-role">Rol</Label>
-            <Select value={role} onValueChange={(v) => { if (v !== null) setRole(v) }}>
-              <SelectTrigger id="u-role" className="w-full">
-                <SelectValue placeholder="Seleccionar rol" />
-              </SelectTrigger>
-              <SelectContent>
-                {roles.map((r) => (
-                  <SelectItem key={r.key} value={r.key}>
-                    {r.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Acceso al punto de venta (POS) */}
-          <div className="flex flex-col gap-2 rounded-lg border border-border p-3">
-            <label className="flex cursor-pointer items-start gap-3">
-              <Checkbox
-                className="mt-0.5"
-                checked={posEnabled}
-                disabled={rolePos}
-                onCheckedChange={(v) => setPosAccess(Boolean(v))}
-              />
-              <span className="flex flex-col gap-0.5">
-                <span className="text-sm font-medium text-foreground">
-                  Acceso al punto de venta (POS)
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  Permite entrar al POS y vender en las sedes asignadas abajo.
-                </span>
-              </span>
-            </label>
-            {rolePos && (
-              <p className="text-xs text-muted-foreground">
-                El rol seleccionado ya incluye acceso al POS.
-              </p>
-            )}
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <Label>Sedes{posEnabled ? " del POS" : ""}</Label>
+            <Label>
+              Sedes{posEnabled ? " del POS" : ""}
+              <HelpTip term="sede" />
+            </Label>
             <p className="text-xs text-muted-foreground">
               {posEnabled
-                ? "Sedes donde puede vender. Si asignas varias, elegirá una al iniciar el POS."
+                ? "Sedes donde puede vender. Si marcas varias, elegirá una al iniciar el POS."
                 : "Sedes donde esta persona puede operar."}
             </p>
             {visibleSedes.length === 0 ? (
-              <p className="rounded-lg border border-dashed border-border px-3 py-3 text-sm text-muted-foreground">
+              <p className="rounded-2xl border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
                 No hay sedes registradas. Crea una en Operación → Sedes.
               </p>
             ) : (
-              <div className="flex flex-col divide-y divide-border rounded-lg border border-border">
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                 {visibleSedes.map((s) => (
                   <label
                     key={s._id}
-                    className="flex cursor-pointer items-center gap-2.5 px-3 py-2 transition-colors hover:bg-muted last:rounded-b-lg first:rounded-t-lg"
+                    className={cn(
+                      "flex cursor-pointer items-center gap-2.5 rounded-xl border border-border bg-card px-3 py-2.5 transition-colors",
+                      "hover:border-primary/35 hover:bg-primary/[0.03]",
+                      "has-data-checked:border-primary/45 has-data-checked:bg-primary/[0.05]",
+                    )}
                   >
                     <Checkbox
                       checked={selectedSedes.has(s._id)}
                       onCheckedChange={() => toggleSede(s._id)}
                     />
-                    <span className="text-sm text-foreground">{s.name}</span>
+                    <span className="min-w-0 truncate text-sm font-medium text-foreground">
+                      {s.name}
+                    </span>
                     {!s.active && (
-                      <Badge variant="outline" className="ml-auto text-xs">
+                      <Badge variant="outline" className="ml-auto shrink-0 text-xs">
                         Inactiva
                       </Badge>
                     )}
@@ -411,113 +483,81 @@ function UserSheet({ open, onOpenChange, mode, user, roles, sedes, permissionGro
               </div>
             )}
           </div>
+        </FormSection>
 
-          {mode === "edit" && (
-            <div className="flex items-center gap-3">
-              <Checkbox
-                id="u-active"
-                checked={active}
-                onCheckedChange={(v) => setActive(Boolean(v))}
-              />
-              <Label htmlFor="u-active">Usuario activo</Label>
+        {/* ── Permisos extra ───────────────────────────────────── */}
+        <FormSection
+          icon={KeyRound}
+          title="Permisos adicionales"
+          description="Cosas que esta persona puede hacer además de lo que ya trae su rol. Lo que da el rol sale marcado como «por rol» y no se quita aquí."
+        >
+          {permissionGroups.length === 0 ? (
+            <p className="rounded-2xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
+              Cargando catálogo de permisos…
+            </p>
+          ) : (
+            <div className="grid gap-3 lg:grid-cols-2">
+              {permissionGroups.map((group) => {
+                const items = group.items.filter(
+                  (i) => !POS_BUNDLE.includes(i.key),
+                )
+                if (items.length === 0) return null
+                return (
+                  <div
+                    key={group.group}
+                    className="h-fit overflow-hidden rounded-2xl border border-border bg-card"
+                  >
+                    <div className="bg-muted/60 px-3.5 py-2.5 text-sm font-bold">
+                      {group.label}
+                    </div>
+                    <div className="flex flex-col divide-y divide-border">
+                      {items.map((item) => {
+                        const byRole = rolePermSet.has(item.key)
+                        const checked = byRole || extraPerms.has(item.key)
+                        return (
+                          <label
+                            key={item.key}
+                            className={cn(
+                              "flex items-center gap-2.5 px-3.5 py-2 transition-colors",
+                              byRole
+                                ? "cursor-not-allowed opacity-70"
+                                : "cursor-pointer hover:bg-primary/[0.04]",
+                            )}
+                          >
+                            <Checkbox
+                              checked={checked}
+                              disabled={byRole}
+                              onCheckedChange={() => toggleExtraPerm(item.key)}
+                            />
+                            <span className="min-w-0 text-sm text-foreground">
+                              {item.label}
+                            </span>
+                            {byRole && (
+                              <Badge
+                                variant="outline"
+                                className="ml-auto shrink-0 text-[0.6875rem]"
+                              >
+                                por rol
+                              </Badge>
+                            )}
+                          </label>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           )}
-
-          {/* Permisos de este usuario (además de los de su rol) */}
-          <div className="flex flex-col gap-2">
-            <Label>Permisos del usuario</Label>
-            <p className="text-xs text-muted-foreground">
-              Concede permisos a esta persona <span className="font-medium">además</span>{" "}
-              de los de su rol. Los que ya da el rol salen marcados como
-              «por rol» y no se quitan aquí. El acceso al POS se controla arriba.
-            </p>
-            {permissionGroups.length === 0 ? (
-              <p className="text-sm italic text-muted-foreground">
-                Cargando catálogo de permisos…
-              </p>
-            ) : (
-              <div className="flex flex-col gap-3">
-                {permissionGroups.map((group) => {
-                  const items = group.items.filter(
-                    (i) => !POS_BUNDLE.includes(i.key),
-                  )
-                  if (items.length === 0) return null
-                  return (
-                    <div
-                      key={group.group}
-                      className="rounded-lg border border-border"
-                    >
-                      <div className="rounded-t-lg bg-muted px-3 py-2 text-sm font-medium">
-                        {group.label}
-                      </div>
-                      <div className="flex flex-col divide-y divide-border">
-                        {items.map((item) => {
-                          const byRole = rolePermSet.has(item.key)
-                          const checked = byRole || extraPerms.has(item.key)
-                          return (
-                            <label
-                              key={item.key}
-                              className={cn(
-                                "flex items-center gap-2.5 px-3 py-2 transition-colors last:rounded-b-lg",
-                                byRole
-                                  ? "cursor-not-allowed opacity-70"
-                                  : "cursor-pointer hover:bg-muted",
-                              )}
-                            >
-                              <Checkbox
-                                checked={checked}
-                                disabled={byRole}
-                                onCheckedChange={() => toggleExtraPerm(item.key)}
-                              />
-                              <span className="text-sm text-foreground">
-                                {item.label}
-                              </span>
-                              {byRole && (
-                                <Badge
-                                  variant="outline"
-                                  className="ml-auto text-[11px]"
-                                >
-                                  por rol
-                                </Badge>
-                              )}
-                            </label>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-
-          {error && (
-            <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
-              {error}
-            </p>
-          )}
-
-          <SheetFooter className="px-0 pt-2">
-            <SheetClose
-              render={
-                <Button variant="outline" type="button" />
-              }
-            >
-              Cancelar
-            </SheetClose>
-            <Button type="submit" disabled={saving}>
-              {saving ? "Guardando…" : mode === "create" ? "Crear usuario" : "Guardar cambios"}
-            </Button>
-          </SheetFooter>
-        </form>
-      </SheetContent>
-    </Sheet>
+        </FormSection>
+      </form>
+    </FormDialog>
   )
 }
 
-// ─── Role Sheet ───────────────────────────────────────────────────────────────
+// ─── Ficha de rol ───────────────────────────────────────────────────────────────
 
-interface RoleSheetProps {
+interface RoleDialogProps {
   open: boolean
   onOpenChange: (v: boolean) => void
   mode: "create" | "edit"
@@ -526,7 +566,7 @@ interface RoleSheetProps {
   onSuccess: () => void
 }
 
-function RoleSheet({ open, onOpenChange, mode, role, permissionGroups, onSuccess }: RoleSheetProps) {
+function RoleDialog({ open, onOpenChange, mode, role, permissionGroups, onSuccess }: RoleDialogProps) {
   const [name, setName] = React.useState("")
   const [description, setDescription] = React.useState("")
   const [selectedPerms, setSelectedPerms] = React.useState<Set<string>>(new Set())
@@ -603,42 +643,88 @@ function RoleSheet({ open, onOpenChange, mode, role, permissionGroups, onSuccess
   }
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="sm:max-w-lg overflow-y-auto">
-        <SheetHeader>
-          <SheetTitle className="font-display text-lg">
-            {mode === "create" ? "Nuevo rol" : "Editar rol"}
-          </SheetTitle>
-          <SheetDescription>
-            Define el nombre y los permisos que tendrá este rol.
-          </SheetDescription>
-        </SheetHeader>
+    <FormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      size="3xl"
+      icon={ShieldCheck}
+      title={mode === "create" ? "Nuevo rol" : "Editar rol"}
+      description="Un rol es un paquete de permisos con nombre. En vez de darle permisos uno por uno a cada persona, le asignas el rol."
+      footer={
+        <>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={saving}
+            onClick={() => onOpenChange(false)}
+            className="sm:min-w-28"
+          >
+            Cancelar
+          </Button>
+          <Button
+            type="submit"
+            form={ROLE_FORM_ID}
+            disabled={saving}
+            className="sm:min-w-36"
+          >
+            {saving ? <Loader2 className="animate-spin" /> : <ShieldCheck />}
+            {saving
+              ? "Guardando…"
+              : mode === "create"
+                ? "Crear rol"
+                : "Guardar cambios"}
+          </Button>
+        </>
+      }
+    >
+      <form id={ROLE_FORM_ID} onSubmit={handleSubmit} className="flex flex-col gap-5">
+        {error && <FormAlert>{error}</FormAlert>}
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4 px-4 py-2">
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="r-name">Nombre del rol</Label>
-            <Input
+        <FormSection title="Identificación del rol">
+          <FieldGrid cols={2}>
+            <Field
               id="r-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Ej. Cajero, Bodeguero…"
+              label="Nombre del rol"
               required
-            />
-          </div>
+              hint="Como lo llamas tú: Cajero, Bodeguero, Administrador."
+            >
+              <Input
+                id="r-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Cajero"
+                required
+              />
+            </Field>
+            <Field id="r-desc" label="Descripción">
+              <Input
+                id="r-desc"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Vende y cierra caja, no toca precios"
+              />
+            </Field>
+          </FieldGrid>
+        </FormSection>
 
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="r-desc">Descripción (opcional)</Label>
-            <Input
-              id="r-desc"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Breve descripción de este rol"
-            />
-          </div>
-
-          {permissionGroups.length > 0 && (
-            <div className="flex flex-col gap-3">
-              <p className="text-sm font-medium text-foreground">Permisos</p>
+        <FormSection
+          icon={KeyRound}
+          title="Permisos"
+          description="Lo que puede hacer quien tenga este rol. Pulsa el título de un grupo para marcarlo o desmarcarlo entero."
+          action={
+            <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-bold text-primary tabular-nums">
+              {selectedPerms.size} activos
+            </span>
+          }
+        >
+          {permissionGroups.length === 0 ? (
+            <p className="rounded-2xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
+              Cargando catálogo de permisos…
+            </p>
+          ) : (
+            // Dos columnas en escritorio: la lista de permisos es larga y en una
+            // sola columna obliga a un scroll interminable dentro de la ficha.
+            <div className="grid gap-3 lg:grid-cols-2">
               {permissionGroups.map((group) => {
                 const allSelected = group.items.every((item) =>
                   selectedPerms.has(item.key),
@@ -647,21 +733,23 @@ function RoleSheet({ open, onOpenChange, mode, role, permissionGroups, onSuccess
                   selectedPerms.has(item.key),
                 )
                 return (
-                  <div key={group.group} className="rounded-lg border border-border">
-                    {/* Group header */}
+                  <div
+                    key={group.group}
+                    className="h-fit overflow-hidden rounded-2xl border border-border bg-card"
+                  >
                     <button
                       type="button"
                       onClick={() => toggleGroup(group.items)}
-                      className="flex w-full items-center gap-2.5 rounded-t-lg px-3 py-2.5 text-left hover:bg-muted transition-colors"
+                      className="flex w-full items-center gap-2.5 bg-muted/60 px-3.5 py-2.5 text-left transition-colors hover:bg-muted"
                     >
                       <span
                         className={cn(
-                          "flex size-4 shrink-0 items-center justify-center rounded border transition-colors",
+                          "flex size-[1.125rem] shrink-0 items-center justify-center rounded-md border-[1.5px] transition-colors",
                           allSelected
                             ? "border-primary bg-primary text-primary-foreground"
                             : someSelected
-                              ? "border-primary bg-primary/20"
-                              : "border-input bg-transparent",
+                              ? "border-primary bg-primary/25 text-primary"
+                              : "border-input bg-card",
                         )}
                         aria-hidden="true"
                       >
@@ -678,26 +766,36 @@ function RoleSheet({ open, onOpenChange, mode, role, permissionGroups, onSuccess
                         )}
                         {!allSelected && someSelected && (
                           <svg viewBox="0 0 10 10" fill="none" className="size-3">
-                            <path d="M2 5h6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                            <path
+                              d="M2 5h6"
+                              stroke="currentColor"
+                              strokeWidth="1.5"
+                              strokeLinecap="round"
+                            />
                           </svg>
                         )}
                       </span>
-                      <span className="text-sm font-medium">{group.label}</span>
+                      <span className="text-sm font-bold">{group.label}</span>
+                      <span className="ml-auto text-xs text-muted-foreground tabular-nums">
+                        {group.items.filter((i) => selectedPerms.has(i.key)).length}
+                        /{group.items.length}
+                      </span>
                     </button>
 
-                    {/* Permission items */}
                     <div className="flex flex-col divide-y divide-border">
                       {group.items.map((item) => (
                         <label
                           key={item.key}
-                          className="flex cursor-pointer items-center gap-2.5 px-3 py-2 hover:bg-muted transition-colors last:rounded-b-lg"
+                          className="flex cursor-pointer items-center gap-2.5 px-3.5 py-2 transition-colors hover:bg-primary/[0.04]"
                         >
                           <Checkbox
                             checked={selectedPerms.has(item.key)}
                             onCheckedChange={() => togglePerm(item.key)}
                           />
-                          <span className="text-sm text-foreground">{item.label}</span>
-                          <span className="ml-auto text-xs text-muted-foreground font-mono">
+                          <span className="min-w-0 text-sm text-foreground">
+                            {item.label}
+                          </span>
+                          <span className="ml-auto shrink-0 font-mono text-[0.6875rem] text-muted-foreground">
                             {item.key}
                           </span>
                         </label>
@@ -708,47 +806,22 @@ function RoleSheet({ open, onOpenChange, mode, role, permissionGroups, onSuccess
               })}
             </div>
           )}
-
-          {permissionGroups.length === 0 && (
-            <p className="text-sm text-muted-foreground italic">
-              Cargando catálogo de permisos…
-            </p>
-          )}
-
-          {error && (
-            <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
-              {error}
-            </p>
-          )}
-
-          <SheetFooter className="px-0 pt-2">
-            <SheetClose
-              render={
-                <Button variant="outline" type="button" />
-              }
-            >
-              Cancelar
-            </SheetClose>
-            <Button type="submit" disabled={saving}>
-              {saving ? "Guardando…" : mode === "create" ? "Crear rol" : "Guardar cambios"}
-            </Button>
-          </SheetFooter>
-        </form>
-      </SheetContent>
-    </Sheet>
+        </FormSection>
+      </form>
+    </FormDialog>
   )
 }
 
-// ─── Invite Sheet ─────────────────────────────────────────────────────────────
+// ─── Ficha de invitación ─────────────────────────────────────────────────────────────
 
-interface InviteSheetProps {
+interface InviteDialogProps {
   open: boolean
   onOpenChange: (v: boolean) => void
   roles: AdminRole[]
   onSuccess: () => void
 }
 
-function InviteSheet({ open, onOpenChange, roles, onSuccess }: InviteSheetProps) {
+function InviteDialog({ open, onOpenChange, roles, onSuccess }: InviteDialogProps) {
   const [email, setEmail] = React.useState("")
   const [role, setRole] = React.useState("")
   const [saving, setSaving] = React.useState(false)
@@ -796,122 +869,146 @@ function InviteSheet({ open, onOpenChange, roles, onSuccess }: InviteSheetProps)
   }
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="sm:max-w-md overflow-y-auto">
-        <SheetHeader>
-          <SheetTitle className="font-display text-lg">
-            Invitar por correo
-          </SheetTitle>
-          <SheetDescription>
-            Enviaremos un enlace para que la persona defina su contraseña y se
-            una con el rol que elijas.
-          </SheetDescription>
-        </SheetHeader>
-
-        {!result ? (
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4 px-4 py-2">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="i-email">Correo electrónico</Label>
-              <Input
-                id="i-email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="persona@empresa.com"
-                required
-              />
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="i-role">Rol</Label>
-              <Select value={role} onValueChange={(v) => { if (v !== null) setRole(v) }}>
-                <SelectTrigger id="i-role" className="w-full">
-                  <SelectValue placeholder="Seleccionar rol" />
-                </SelectTrigger>
-                <SelectContent>
-                  {roles.map((r) => (
-                    <SelectItem key={r.key} value={r.key}>
-                      {r.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {error && (
-              <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                {error}
-              </p>
-            )}
-
-            <SheetFooter className="px-0 pt-2">
-              <SheetClose render={<Button variant="outline" type="button" />}>
-                Cancelar
-              </SheetClose>
-              <Button type="submit" disabled={saving || !role}>
-                <Send />
-                {saving ? "Enviando…" : "Enviar invitación"}
-              </Button>
-            </SheetFooter>
-          </form>
+    <FormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      size="xl"
+      icon={Mail}
+      title="Invitar por correo"
+      description="Enviamos un enlace para que la persona defina su propia contraseña y entre con el rol que elijas."
+      footer={
+        result ? (
+          <>
+            <Button
+              variant="outline"
+              type="button"
+              onClick={() => {
+                setResult(null)
+                setEmail("")
+                setRole(roles[0]?.key ?? "")
+              }}
+              className="sm:min-w-28"
+            >
+              Invitar a otro
+            </Button>
+            <Button
+              type="button"
+              onClick={() => onOpenChange(false)}
+              className="sm:min-w-36"
+            >
+              Listo
+            </Button>
+          </>
         ) : (
-          <div className="flex flex-col gap-4 px-4 py-2">
-            <div className="flex flex-col items-center gap-2 rounded-xl border border-border bg-muted/40 py-6 text-center">
-              <span className="flex size-10 items-center justify-center rounded-full bg-success/15 text-success-ink">
-                <Check className="size-5" />
-              </span>
-              <p className="font-display text-base text-foreground">
-                Invitación creada
-              </p>
-              <p className="max-w-xs text-sm text-muted-foreground">
-                {result.emailSent
-                  ? `Enviamos un correo a ${result.email}.`
-                  : `No se pudo enviar el correo (revisa la API key de Resend). Comparte el enlace manualmente con ${result.email}.`}
-              </p>
-            </div>
+          <>
+            <Button
+              variant="outline"
+              type="button"
+              disabled={saving}
+              onClick={() => onOpenChange(false)}
+              className="sm:min-w-28"
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="submit"
+              form={INVITE_FORM_ID}
+              disabled={saving || !role}
+              className="sm:min-w-36"
+            >
+              {saving ? <Loader2 className="animate-spin" /> : <Send />}
+              {saving ? "Enviando…" : "Enviar invitación"}
+            </Button>
+          </>
+        )
+      }
+    >
+      {!result ? (
+        <form
+          id={INVITE_FORM_ID}
+          onSubmit={handleSubmit}
+          className="flex flex-col gap-5"
+        >
+          {error && <FormAlert>{error}</FormAlert>}
 
-            <div className="flex flex-col gap-1.5">
-              <Label>Enlace de invitación</Label>
-              <div className="flex items-center gap-2">
+          <FormSection
+            icon={Mail}
+            title="¿A quién invitas?"
+            description="La persona recibe un enlace, elige su contraseña y entra. Tú nunca ves su clave."
+          >
+            <FieldGrid cols={2}>
+              <Field id="i-email" label="Correo electrónico" required>
                 <Input
-                  readOnly
-                  value={result.inviteUrl}
-                  className="font-mono text-xs"
-                  onFocus={(e) => e.currentTarget.select()}
+                  id="i-email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="persona@empresa.com"
+                  required
                 />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  onClick={copyLink}
-                  aria-label="Copiar enlace"
-                >
-                  {copied ? <Check /> : <Copy />}
-                </Button>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Válido hasta que expire o se acepte.
-              </p>
-            </div>
-
-            <SheetFooter className="px-0 pt-2">
-              <Button
-                variant="outline"
-                type="button"
-                onClick={() => {
-                  setResult(null)
-                  setEmail("")
-                  setRole(roles[0]?.key ?? "")
-                }}
+              </Field>
+              <Field
+                id="i-role"
+                label="Rol"
+                required
+                help={{ term: "rol" }}
+                hint="Puedes cambiárselo después."
               >
-                Invitar a otro
-              </Button>
-              <SheetClose render={<Button type="button" />}>Listo</SheetClose>
-            </SheetFooter>
+                <NativeSelect
+                  id="i-role"
+                  value={role}
+                  onChange={setRole}
+                  options={roles.map((r) => ({ value: r.key, label: r.name }))}
+                  placeholder={roles.length === 0 ? "Sin roles" : undefined}
+                />
+              </Field>
+            </FieldGrid>
+          </FormSection>
+        </form>
+      ) : (
+        <div className="flex flex-col gap-5">
+          <div className="flex flex-col items-center gap-2 rounded-2xl border border-success/25 bg-success/[0.07] px-4 py-7 text-center">
+            <span className="flex size-11 items-center justify-center rounded-full bg-success/15 text-success-ink">
+              <Check className="size-5" />
+            </span>
+            <p className="font-display text-base text-foreground">
+              Invitación creada
+            </p>
+            <p className="max-w-sm text-sm leading-relaxed text-muted-foreground">
+              {result.emailSent
+                ? `Enviamos un correo a ${result.email}.`
+                : `No se pudo enviar el correo (revisa la API key de Resend). Comparte el enlace manualmente con ${result.email}.`}
+            </p>
           </div>
-        )}
-      </SheetContent>
-    </Sheet>
+
+          <Field
+            id="i-link"
+            label="Enlace de invitación"
+            hint="Válido hasta que expire o se acepte."
+          >
+            <div className="flex items-center gap-2">
+              <Input
+                id="i-link"
+                readOnly
+                value={result.inviteUrl}
+                className="font-mono text-xs"
+                onFocus={(e) => e.currentTarget.select()}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={copyLink}
+                aria-label="Copiar enlace"
+                className="shrink-0"
+              >
+                {copied ? <Check /> : <Copy />}
+              </Button>
+            </div>
+          </Field>
+        </div>
+      )}
+    </FormDialog>
   )
 }
 
@@ -1105,7 +1202,14 @@ export default function UsuariosPage() {
       <PageHeader
         section="Configuración"
         title="Usuarios y roles"
-        description="Gestiona el acceso y los permisos del equipo."
+        description={
+          <>
+            Quién entra al sistema y qué puede tocar. Cada persona tiene un{" "}
+            <Termino>rol</Termino>, que es un paquete de{" "}
+            <Termino>permisos</Termino>, y una o varias{" "}
+            <Termino>sedes</Termino> donde puede operar.
+          </>
+        }
         actions={
           tab === "usuarios" ? (
             <>
@@ -1196,8 +1300,12 @@ export default function UsuariosPage() {
                   <TableRow>
                     <TableHead>Nombre</TableHead>
                     <TableHead className="hidden sm:table-cell">Correo</TableHead>
-                    <TableHead>Rol</TableHead>
-                    <TableHead className="hidden md:table-cell">Sedes</TableHead>
+                    <TableHead>
+                      <Termino>Rol</Termino>
+                    </TableHead>
+                    <TableHead className="hidden md:table-cell">
+                      <Termino>Sedes</Termino>
+                    </TableHead>
                     <TableHead>Estado</TableHead>
                     <TableHead className="text-right">Acciones</TableHead>
                   </TableRow>
@@ -1431,7 +1539,7 @@ export default function UsuariosPage() {
       )}
 
       {/* ── Sheets ─────────────────────────────────────────────────────────── */}
-      <UserSheet
+      <UserDialog
         open={userSheetOpen}
         onOpenChange={setUserSheetOpen}
         mode={userSheetMode}
@@ -1442,7 +1550,7 @@ export default function UsuariosPage() {
         onSuccess={fetchUsers}
       />
 
-      <RoleSheet
+      <RoleDialog
         open={roleSheetOpen}
         onOpenChange={setRoleSheetOpen}
         mode={roleSheetMode}
@@ -1451,7 +1559,7 @@ export default function UsuariosPage() {
         onSuccess={fetchRoles}
       />
 
-      <InviteSheet
+      <InviteDialog
         open={inviteSheetOpen}
         onOpenChange={setInviteSheetOpen}
         roles={roles}

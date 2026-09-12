@@ -27,6 +27,7 @@ import {
 import { money, todayLocal, monthStart, errorMessage } from "@/lib/erp/finance-format"
 
 import { PageHeader } from "@/components/erp/page-header"
+import { Termino } from "@/components/ui/help-tip"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -98,7 +99,14 @@ export default function PlPage() {
       <PageHeader
         section="Finanzas"
         title="Estado de resultados"
-        description="P&L del período e IVA, y comparativo Metas vs Real."
+        titleHelp={{ term: "pl" }}
+        description={
+          <>
+            Cuánto vendiste, cuánto gastaste y cuánto te quedó en el período,
+            con el <Termino>IVA</Termino> y la comparación contra tus{" "}
+            <Termino>metas</Termino>.
+          </>
+        }
         actions={sedeSelector}
       />
 

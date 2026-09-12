@@ -22,6 +22,8 @@ import {
   CheckCircle2,
   Plus,
   Tag,
+  Percent,
+  Loader2,
   Trash2,
   ShoppingCart,
   KeyRound,
@@ -55,31 +57,31 @@ import { listEmployees, updateEmployee, type Employee } from "@/lib/erp/api-empl
 import { ApiError } from "@/lib/api"
 
 import { PageHeader } from "@/components/erp/page-header"
-import { SedeSheet } from "@/components/erp/sede-sheet"
+import { SedeDialog } from "@/components/erp/sede-dialog"
 import { SedeMap } from "@/components/erp/sede-map"
-import { EmployeeAccessSheet } from "@/components/erp/employee-access-sheet"
+import { EmployeeAccessDialog } from "@/components/erp/employee-access-dialog"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useConfirm } from "@/components/ui/confirm-dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Checkbox } from "@/components/ui/checkbox"
+import { Input, InputWithIcon } from "@/components/ui/input"
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+  FormDialog,
+  FormSection,
+  FormAlert,
+} from "@/components/ui/form-dialog"
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "@/components/ui/sheet"
+  Field,
+  FieldGrid,
+  FieldSpan,
+  CheckboxField,
+} from "@/components/ui/field"
+import { Segmented } from "@/components/ui/segmented"
+import { Termino } from "@/components/ui/help-tip"
+
+/** Id del `<form>`: el botón de guardar vive en el pie, fuera del formulario. */
+const DISCOUNT_FORM_ID = "descuento-form"
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -123,7 +125,8 @@ function Kpi({
   tone = "default",
 }: {
   icon: React.ElementType
-  label: string
+  /** Nodo y no texto: así la etiqueta puede llevar un `<Termino>`. */
+  label: React.ReactNode
   value: string
   hint?: string
   tone?: "default" | "warning"
@@ -156,7 +159,7 @@ function Kpi({
 
 // ─── Sheet asignar empleados ───────────────────────────────────────────────────
 
-interface AssignSheetProps {
+interface AssignDialogProps {
   open: boolean
   onOpenChange: (v: boolean) => void
   sedeId: string
@@ -166,7 +169,7 @@ interface AssignSheetProps {
   onChanged: () => void
 }
 
-function AssignEmployeesSheet({
+function AssignEmployeesDialog({
   open,
   onOpenChange,
   sedeId,
@@ -174,7 +177,7 @@ function AssignEmployeesSheet({
   employees,
   users,
   onChanged,
-}: AssignSheetProps) {
+}: AssignDialogProps) {
   const [busyId, setBusyId] = React.useState<string | null>(null)
   const [error, setError] = React.useState<string | null>(null)
   const [accessFor, setAccessFor] = React.useState<Employee | null>(null)
@@ -218,75 +221,76 @@ function AssignEmployeesSheet({
 
   return (
     <>
-      <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent side="right" className="sm:max-w-md overflow-y-auto">
-          <SheetHeader>
-            <SheetTitle className="font-display text-lg">
-              Asignar empleados
-            </SheetTitle>
-            <SheetDescription>
-              Asigna empleados a <span className="font-medium">{sedeName}</span>{" "}
-              para su nómina y control de horas. Si además van a vender, créales
-              un acceso al POS.
-            </SheetDescription>
-          </SheetHeader>
+      <FormDialog
+        open={open}
+        onOpenChange={onOpenChange}
+        size="2xl"
+        icon={UserPlus}
+        title="Asignar empleados"
+        description={
+          <>
+            Asigna empleados a <span className="font-semibold">{sedeName}</span>{" "}
+            para su nómina y su control de horas. Si además van a vender,
+            créales un acceso al POS.
+          </>
+        }
+        footer={
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Listo
+          </Button>
+        }
+      >
+        {error && <FormAlert>{error}</FormAlert>}
 
-          <div className="flex flex-col gap-2 px-4 py-2">
-            {error && (
-              <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                {error}
-              </p>
-            )}
-            {candidates.length === 0 ? (
-              <p className="py-10 text-center text-sm text-muted-foreground">
-                No hay empleados por asignar. Regístralos en Personal →
-                Empleados.
-              </p>
-            ) : (
-              candidates.map(({ employee, user }) => (
-                <div
-                  key={employee._id}
-                  className="flex items-center gap-3 rounded-lg border border-border p-2.5"
-                >
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">
-                      {employee.firstName} {employee.lastName}
-                    </p>
-                    <p className="truncate text-xs text-muted-foreground">
-                      {employee.positionName ?? "Sin cargo"}
-                      {user
-                        ? ` · @${user.username ?? user.email}`
-                        : " · sin acceso"}
-                    </p>
-                  </div>
-                  {!user && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      disabled={busyId === employee._id}
-                      onClick={() => setAccessFor(employee)}
-                    >
-                      <KeyRound />
-                      Crear acceso
-                    </Button>
-                  )}
+        {candidates.length === 0 ? (
+          <p className="rounded-2xl border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
+            No hay empleados por asignar. Regístralos en Personal → Empleados.
+          </p>
+        ) : (
+          <ul className="flex flex-col gap-2">
+            {candidates.map(({ employee, user }) => (
+              <li
+                key={employee._id}
+                className="flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-card p-3"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold">
+                    {employee.firstName} {employee.lastName}
+                  </p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {employee.positionName ?? "Sin cargo"}
+                    {user
+                      ? ` · @${user.username ?? user.email}`
+                      : " · sin acceso"}
+                  </p>
+                </div>
+                {!user && (
                   <Button
                     size="sm"
+                    variant="ghost"
                     disabled={busyId === employee._id}
-                    onClick={() => void assign(employee, user)}
+                    onClick={() => setAccessFor(employee)}
                   >
-                    <UserPlus />
-                    Asignar
+                    <KeyRound />
+                    Crear acceso
                   </Button>
-                </div>
-              ))
-            )}
-          </div>
-        </SheetContent>
-      </Sheet>
+                )}
+                <Button
+                  size="sm"
+                  disabled={busyId === employee._id}
+                  onClick={() => void assign(employee, user)}
+                >
+                  <UserPlus />
+                  Asignar
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </FormDialog>
 
       {/* Crear acceso desde el POS: forzado a acceso POS y asignado a esta sede. */}
-      <EmployeeAccessSheet
+      <EmployeeAccessDialog
         open={accessFor !== null}
         onOpenChange={(v) => !v && setAccessFor(null)}
         employee={accessFor}
@@ -328,7 +332,7 @@ export default function SedeDetailPage() {
 
   const [editOpen, setEditOpen] = React.useState(false)
   const [assignOpen, setAssignOpen] = React.useState(false)
-  const [discountSheetOpen, setDiscountSheetOpen] = React.useState(false)
+  const [discountDialogOpen, setDiscountDialogOpen] = React.useState(false)
   const [editingDiscount, setEditingDiscount] = React.useState<Discount | null>(null)
   const [toggling, setToggling] = React.useState(false)
   const [busyUserId, setBusyUserId] = React.useState<string | null>(null)
@@ -666,7 +670,7 @@ export default function SedeDetailPage() {
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <Kpi
             icon={Wallet}
-            label="Valor del inventario"
+            label={<Termino term="valorizado">Valor del inventario</Termino>}
             value={money.format(inventoryValue)}
             hint="Costo real por lote"
           />
@@ -841,7 +845,7 @@ export default function SedeDetailPage() {
               size="sm"
               onClick={() => {
                 setEditingDiscount(null)
-                setDiscountSheetOpen(true)
+                setDiscountDialogOpen(true)
               }}
             >
               <Plus />
@@ -896,7 +900,7 @@ export default function SedeDetailPage() {
                     size="icon-sm"
                     onClick={() => {
                       setEditingDiscount(d)
-                      setDiscountSheetOpen(true)
+                      setDiscountDialogOpen(true)
                     }}
                   >
                     <Pencil />
@@ -996,7 +1000,7 @@ export default function SedeDetailPage() {
 
       {/* ── Sheets ────────────────────────────────────────────────────────── */}
       {sede && (
-        <SedeSheet
+        <SedeDialog
           open={editOpen}
           onOpenChange={setEditOpen}
           mode="edit"
@@ -1006,7 +1010,7 @@ export default function SedeDetailPage() {
       )}
 
       {sede && canManageUsers && (
-        <AssignEmployeesSheet
+        <AssignEmployeesDialog
           open={assignOpen}
           onOpenChange={setAssignOpen}
           sedeId={sedeId}
@@ -1020,13 +1024,13 @@ export default function SedeDetailPage() {
         />
       )}
 
-      <DiscountSheet
-        open={discountSheetOpen}
-        onOpenChange={setDiscountSheetOpen}
+      <DiscountDialog
+        open={discountDialogOpen}
+        onOpenChange={setDiscountDialogOpen}
         sedeId={sedeId}
         discount={editingDiscount}
         onSuccess={() => {
-          setDiscountSheetOpen(false)
+          setDiscountDialogOpen(false)
           void refreshDiscounts()
         }}
       />
@@ -1036,7 +1040,7 @@ export default function SedeDetailPage() {
 
 // ─── Sheet crear/editar descuento ──────────────────────────────────────────────
 
-interface DiscountSheetProps {
+interface DiscountDialogProps {
   open: boolean
   onOpenChange: (v: boolean) => void
   sedeId: string
@@ -1044,13 +1048,13 @@ interface DiscountSheetProps {
   onSuccess: () => void
 }
 
-function DiscountSheet({
+function DiscountDialog({
   open,
   onOpenChange,
   sedeId,
   discount,
   onSuccess,
-}: DiscountSheetProps) {
+}: DiscountDialogProps) {
   const [name, setName] = React.useState("")
   const [type, setType] = React.useState<DiscountType>("percent")
   const [value, setValue] = React.useState("")
@@ -1106,96 +1110,98 @@ function DiscountSheet({
   }
 
   return (
-    <Sheet open={open} onOpenChange={(v) => !saving && onOpenChange(v)}>
-      <SheetContent side="right" className="sm:max-w-md overflow-y-auto">
-        <SheetHeader>
-          <SheetTitle className="font-display text-lg">
-            {discount ? "Editar descuento" : "Nuevo descuento"}
-          </SheetTitle>
-          <SheetDescription>
-            Define un descuento que se podrá aplicar por producto en el POS.
-          </SheetDescription>
-        </SheetHeader>
+    <FormDialog
+      open={open}
+      onOpenChange={(v) => !saving && onOpenChange(v)}
+      size="2xl"
+      icon={Percent}
+      title={discount ? "Editar descuento" : "Nuevo descuento"}
+      description="Un descuento que el cajero podrá aplicar a un producto desde el punto de venta."
+      footer={
+        <>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={saving}
+            onClick={() => onOpenChange(false)}
+            className="sm:min-w-28"
+          >
+            Cancelar
+          </Button>
+          <Button
+            type="submit"
+            form={DISCOUNT_FORM_ID}
+            disabled={saving}
+            className="sm:min-w-36"
+          >
+            {saving ? <Loader2 className="animate-spin" /> : <Percent />}
+            {saving ? "Guardando…" : discount ? "Guardar" : "Crear descuento"}
+          </Button>
+        </>
+      }
+    >
+      <form
+        id={DISCOUNT_FORM_ID}
+        onSubmit={handleSubmit}
+        className="flex flex-col gap-5"
+      >
+        {error && <FormAlert>{error}</FormAlert>}
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4 px-4 py-2">
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="d-name">Nombre</Label>
-            <Input
-              id="d-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Ej. Cliente frecuente, Empleado…"
-              required
-            />
-          </div>
+        <FormSection title="El descuento">
+          <FieldGrid cols={2}>
+            <FieldSpan span={2}>
+              <Field id="d-name" label="Nombre" required>
+                <Input
+                  id="d-name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Cliente frecuente, Empleado…"
+                  required
+                />
+              </Field>
+            </FieldSpan>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="d-type">Tipo</Label>
-              <Select
+            <Field id="d-type" label="Tipo">
+              <Segmented
+                fill
+                ariaLabel="Tipo de descuento"
                 value={type}
-                items={{ percent: "Porcentaje (%)", amount: "Monto fijo ($)" }}
-                onValueChange={(v) => {
-                  if (v === "percent" || v === "amount") setType(v)
-                }}
-              >
-                <SelectTrigger id="d-type" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="percent">Porcentaje (%)</SelectItem>
-                  <SelectItem value="amount">Monto fijo ($)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="d-value">
-                {type === "percent" ? "Porcentaje" : "Monto"}
-              </Label>
-              <Input
+                onValueChange={(v) => setType(v as "percent" | "amount")}
+                options={[
+                  { value: "percent", label: "Porcentaje" },
+                  { value: "amount", label: "Monto fijo" },
+                ]}
+              />
+            </Field>
+            <Field
+              id="d-value"
+              label={type === "percent" ? "Porcentaje" : "Monto"}
+              required
+            >
+              <InputWithIcon
                 id="d-value"
                 type="number"
                 min="0"
                 step="any"
                 inputMode="decimal"
+                suffix={type === "percent" ? "%" : "COP"}
                 value={value}
                 onChange={(e) => setValue(e.target.value)}
                 placeholder={type === "percent" ? "10" : "2000"}
                 required
               />
-            </div>
-          </div>
+            </Field>
+          </FieldGrid>
 
-          <div className="flex items-center gap-3">
-            <Checkbox
-              id="d-active"
-              checked={active}
-              onCheckedChange={(v) => setActive(Boolean(v))}
-            />
-            <Label htmlFor="d-active">Descuento activo</Label>
-          </div>
-
-          {error && (
-            <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
-              {error}
-            </p>
-          )}
-
-          <div className="flex justify-end gap-2 pt-2">
-            <Button
-              type="button"
-              variant="outline"
-              disabled={saving}
-              onClick={() => onOpenChange(false)}
-            >
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={saving}>
-              {saving ? "Guardando…" : discount ? "Guardar" : "Crear descuento"}
-            </Button>
-          </div>
-        </form>
-      </SheetContent>
-    </Sheet>
+          <CheckboxField
+            id="d-active"
+            label="Descuento activo"
+            hint="Si lo desactivas deja de aparecer en el punto de venta, pero se conserva."
+            checked={active}
+            onCheckedChange={setActive}
+          />
+        </FormSection>
+      </form>
+    </FormDialog>
   )
 }

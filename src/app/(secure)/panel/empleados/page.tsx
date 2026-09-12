@@ -32,13 +32,12 @@ import { listUsers, type AdminUser } from "@/lib/api-admin"
 import { ApiError } from "@/lib/api"
 
 import { PageHeader } from "@/components/erp/page-header"
-import { EmployeeSheet } from "@/components/erp/employee-sheet"
-import { EmployeeAccessSheet } from "@/components/erp/employee-access-sheet"
+import { EmployeeDialog } from "@/components/erp/employee-dialog"
+import { EmployeeAccessDialog } from "@/components/erp/employee-access-dialog"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useConfirm } from "@/components/ui/confirm-dialog"
 import {
@@ -50,12 +49,12 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "@/components/ui/sheet"
+  FormDialog,
+  FormSection,
+  FormAlert,
+} from "@/components/ui/form-dialog"
+import { Field } from "@/components/ui/field"
+import { Termino } from "@/components/ui/help-tip"
 
 const CONTRACT_LABELS: Record<ContractType, string> = {
   indefinido: "Indefinido",
@@ -103,7 +102,7 @@ export default function EmpleadosPage() {
   )
 
   const [editing, setEditing] = React.useState<Employee | null>(null)
-  const [sheetOpen, setSheetOpen] = React.useState(false)
+  const [formOpen, setFormOpen] = React.useState(false)
   const [positionsOpen, setPositionsOpen] = React.useState(false)
 
   const sedeName = React.useMemo(
@@ -170,12 +169,12 @@ export default function EmpleadosPage() {
 
   function openNew() {
     setEditing(null)
-    setSheetOpen(true)
+    setFormOpen(true)
   }
 
   function openEdit(e: Employee) {
     setEditing(e)
-    setSheetOpen(true)
+    setFormOpen(true)
   }
 
   async function handleDelete(e: Employee) {
@@ -235,7 +234,12 @@ export default function EmpleadosPage() {
       <PageHeader
         section="Personal"
         title="Empleados"
-        description="Registro de RRHH: contratación, seguridad social y documentos."
+        description={
+          <>
+            Contratación, <Termino>seguridad social</Termino> y documentos de
+            cada trabajador.
+          </>
+        }
         actions={actions}
       />
 
@@ -296,8 +300,12 @@ export default function EmpleadosPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Empleado</TableHead>
-                  <TableHead>Cargo</TableHead>
-                  <TableHead>Sede</TableHead>
+                  <TableHead>
+                    <Termino>Cargo</Termino>
+                  </TableHead>
+                  <TableHead>
+                    <Termino>Sede</Termino>
+                  </TableHead>
                   <TableHead>Contrato</TableHead>
                   <TableHead>Estado</TableHead>
                   {canManageUsers && <TableHead>Acceso</TableHead>}
@@ -380,12 +388,12 @@ export default function EmpleadosPage() {
         </CardContent>
       </Card>
 
-      <EmployeeSheet
-        open={sheetOpen}
+      <EmployeeDialog
+        open={formOpen}
         employee={editing}
         positions={positions}
         sedes={sedes}
-        onOpenChange={setSheetOpen}
+        onOpenChange={setFormOpen}
         onSaved={() => void load()}
       />
 
@@ -396,7 +404,7 @@ export default function EmpleadosPage() {
         onChanged={() => void refreshPositions()}
       />
 
-      <EmployeeAccessSheet
+      <EmployeeAccessDialog
         open={accessFor !== null}
         onOpenChange={(v) => !v && setAccessFor(null)}
         employee={accessFor}
@@ -478,61 +486,83 @@ function PositionsManager({
   }
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-md">
-        <div className="flex flex-col gap-4 px-4 py-2">
-          <SheetHeader className="px-0">
-            <SheetTitle className="font-display text-lg">Cargos</SheetTitle>
-            <SheetDescription>
-              Define los puestos del negocio para asignarlos a los empleados.
-            </SheetDescription>
-          </SheetHeader>
+    <FormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      size="lg"
+      icon={Briefcase}
+      title="Cargos"
+      description="Los puestos del negocio, para asignárselos a cada empleado."
+      footer={
+        <Button variant="outline" onClick={() => onOpenChange(false)}>
+          Listo
+        </Button>
+      }
+    >
+      {error && <FormAlert>{error}</FormAlert>}
 
-          <div className="flex items-end gap-2">
-            <div className="flex-1">
-              <Label className="text-xs">Nuevo cargo</Label>
-              <Input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Ej. Cajero, Cocinero, Mesero"
-                onKeyDown={(e) => e.key === "Enter" && void add()}
-              />
-            </div>
-            <Button className="gap-1.5" disabled={busy} onClick={() => void add()}>
-              {busy ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
-              Agregar
-            </Button>
-          </div>
-
-          {error && <p className="text-sm text-destructive">{error}</p>}
-
-          {positions.length === 0 ? (
-            <p className="py-6 text-center text-sm text-muted-foreground">
-              Aún no hay cargos.
-            </p>
-          ) : (
-            <ul className="divide-y divide-border rounded-lg border border-border">
-              {positions.map((p) => (
-                <li
-                  key={p._id}
-                  className="flex items-center justify-between gap-2 px-3 py-2"
-                >
-                  <span className="text-sm font-medium">{p.name}</span>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                    disabled={busy}
-                    onClick={() => void remove(p._id)}
-                  >
-                    <Trash2 className="size-4" />
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          )}
+      <FormSection
+        title="Agregar un cargo"
+        description="El puesto que ocupa la persona (cajero, cocinero), no lo que puede hacer en el sistema — eso es el rol."
+      >
+        <div className="flex items-end gap-2">
+          <Field id="cargo-nuevo" label="Nombre del cargo" className="flex-1">
+            <Input
+              id="cargo-nuevo"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Cajero, Cocinero, Mesero…"
+              onKeyDown={(e) => e.key === "Enter" && void add()}
+            />
+          </Field>
+          <Button
+            className="shrink-0"
+            disabled={busy || !name.trim()}
+            onClick={() => void add()}
+          >
+            {busy ? <Loader2 className="animate-spin" /> : <Plus />}
+            Agregar
+          </Button>
         </div>
-      </SheetContent>
-    </Sheet>
+      </FormSection>
+
+      <FormSection
+        title="Cargos definidos"
+        description={
+          positions.length > 0
+            ? `${positions.length} ${positions.length === 1 ? "cargo" : "cargos"} en el negocio.`
+            : undefined
+        }
+      >
+        {positions.length === 0 ? (
+          <p className="rounded-2xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
+            Aún no hay cargos. Agrega el primero arriba.
+          </p>
+        ) : (
+          <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border">
+            {positions.map((p) => (
+              <li
+                key={p._id}
+                className="flex items-center justify-between gap-2 bg-card px-3.5 py-2.5"
+              >
+                <span className="min-w-0 truncate text-sm font-medium">
+                  {p.name}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={`Eliminar el cargo ${p.name}`}
+                  className="shrink-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  disabled={busy}
+                  onClick={() => void remove(p._id)}
+                >
+                  <Trash2 />
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </FormSection>
+    </FormDialog>
   )
 }

@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { ShieldOff, Percent, Plus, RefreshCw, History, Loader2 } from "lucide-react"
+import { ShieldOff, Percent, Plus, RefreshCw, History } from "lucide-react"
 
 import { useAuth } from "@/lib/auth-context"
 import {
@@ -17,8 +17,7 @@ import { PageHeader } from "@/components/erp/page-header"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import { Input, InputWithIcon } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
@@ -29,15 +28,18 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "@/components/ui/sheet"
-
-const inputClass =
-  "h-9 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+  FormDialog,
+  FormSection,
+  FormAlert,
+  FormActions,
+} from "@/components/ui/form-dialog"
+import {
+  Field,
+  FieldGrid,
+  FieldSpan,
+  NativeSelect,
+} from "@/components/ui/field"
+import { HelpTip, Termino } from "@/components/ui/help-tip"
 
 const KIND_OPTIONS: { v: TaxKind; l: string }[] = [
   { v: "iva", l: "IVA" },
@@ -102,7 +104,16 @@ export default function ImpuestosPage() {
       <PageHeader
         section="Cumplimiento"
         title="Impuestos"
-        description="Motor de impuestos configurable por vigencia (IVA, INC, exento, excluido)."
+        description={
+          <>
+            Las tarifas que le cobras al cliente y le entregas a la{" "}
+            <Termino>DIAN</Termino>: <Termino>IVA</Termino>,{" "}
+            <Termino term="inc">INC</Termino>,{" "}
+            <Termino term="ivaExento">exento</Termino> y{" "}
+            <Termino term="ivaExcluido">excluido</Termino>. Cada una guarda su
+            histórico por fecha.
+          </>
+        }
         actions={
           <div className="flex items-center gap-2">
             <Button variant="outline" size="icon" onClick={() => void load()} title="Actualizar">
@@ -134,7 +145,17 @@ export default function ImpuestosPage() {
                 <TableHead>Código</TableHead>
                 <TableHead>Nombre</TableHead>
                 <TableHead>Tipo</TableHead>
-                <TableHead className="text-right">Tarifa vigente</TableHead>
+                <TableHead className="text-right">
+                  Tarifa vigente
+                  <HelpTip
+                    title="Tarifa vigente"
+                    side="bottom"
+                    className="ml-1.5"
+                  >
+                    La que se aplica hoy. Si publicaste una tarifa futura, esta
+                    sigue siendo la buena hasta que llegue esa fecha.
+                  </HelpTip>
+                </TableHead>
                 <TableHead>Desde</TableHead>
                 <TableHead className="text-right">Vigencias</TableHead>
               </TableRow>
@@ -184,13 +205,13 @@ export default function ImpuestosPage() {
         </CardContent>
       </Card>
 
-      <NewTaxSheet open={newOpen} onClose={() => setNewOpen(false)} onSaved={load} />
-      <TaxDetailSheet tax={detail} onClose={() => setDetail(null)} onSaved={load} />
+      <NewTaxDialog open={newOpen} onClose={() => setNewOpen(false)} onSaved={load} />
+      <TaxDetailDialog tax={detail} onClose={() => setDetail(null)} onSaved={load} />
     </>
   )
 }
 
-function NewTaxSheet({
+function NewTaxDialog({
   open,
   onClose,
   onSaved,
@@ -240,62 +261,92 @@ function NewTaxSheet({
   }
 
   return (
-    <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
-      <SheetContent className="w-full gap-0 sm:max-w-md">
-        <SheetHeader>
-          <SheetTitle>Nuevo impuesto</SheetTitle>
-          <SheetDescription>Define el código y su primera vigencia.</SheetDescription>
-        </SheetHeader>
-        <div className="flex flex-col gap-3 px-4 py-2">
-          <div className="flex flex-col gap-1">
-            <Label className="text-xs">Código</Label>
+    <FormDialog
+      open={open}
+      onOpenChange={(o) => !o && onClose()}
+      size="2xl"
+      icon={Percent}
+      title="Nuevo impuesto"
+      description="El código con el que marcarás tus productos y la tarifa con la que arranca."
+      footer={
+        <FormActions
+          onCancel={onClose}
+          onSubmit={() => void save()}
+          busy={saving}
+          disabled={!code || !name}
+          submitLabel="Crear"
+        />
+      }
+    >
+      {err && <FormAlert>{err}</FormAlert>}
+
+      <FormSection title="Identificación">
+        <FieldGrid cols={3}>
+          <Field
+            id="tx-code"
+            label="Código"
+            required
+            hint="Corto y en mayúsculas."
+          >
             <Input
+              id="tx-code"
               value={code}
               onChange={(e) => setCode(e.target.value.toUpperCase())}
               placeholder="IVA_19"
             />
-          </div>
-          <div className="flex flex-col gap-1">
-            <Label className="text-xs">Nombre</Label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="IVA general 19%" />
-          </div>
-          <div className="flex flex-col gap-1">
-            <Label className="text-xs">Tipo</Label>
-            <select className={inputClass} value={kind} onChange={(e) => setKind(e.target.value as TaxKind)}>
-              {KIND_OPTIONS.map((k) => (
-                <option key={k.v} value={k.v}>
-                  {k.l}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1">
-              <Label className="text-xs">Tarifa (%)</Label>
-              <Input type="number" value={rate} onChange={(e) => setRate(e.target.value)} />
-            </div>
-            <div className="flex flex-col gap-1">
-              <Label className="text-xs">Vigente desde</Label>
-              <Input type="date" value={effectiveFrom} onChange={(e) => setEffectiveFrom(e.target.value)} />
-            </div>
-          </div>
-          {err && <p className="text-sm text-destructive">{err}</p>}
-          <div className="mt-2 flex justify-end gap-2">
-            <Button variant="outline" onClick={onClose} disabled={saving}>
-              Cancelar
-            </Button>
-            <Button onClick={() => void save()} disabled={saving || !code || !name}>
-              {saving && <Loader2 className="size-4 animate-spin" />}
-              Crear
-            </Button>
-          </div>
-        </div>
-      </SheetContent>
-    </Sheet>
+          </Field>
+          <FieldSpan span={2}>
+            <Field id="tx-name" label="Nombre" required>
+              <Input
+                id="tx-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="IVA general 19%"
+              />
+            </Field>
+          </FieldSpan>
+
+          <Field
+            id="tx-kind"
+            label="Tipo"
+            help={{ term: kind === "inc" ? "inc" : "iva" }}
+          >
+            <NativeSelect
+              id="tx-kind"
+              value={kind}
+              onChange={(v) => setKind(v as TaxKind)}
+              options={KIND_OPTIONS.map((k) => ({ value: k.v, label: k.l }))}
+            />
+          </Field>
+          <Field id="tx-rate" label="Tarifa (%)">
+            <InputWithIcon
+              id="tx-rate"
+              type="number"
+              inputMode="decimal"
+              suffix="%"
+              value={rate}
+              onChange={(e) => setRate(e.target.value)}
+            />
+          </Field>
+          <Field
+            id="tx-from"
+            label="Vigente desde"
+            hint="Antes de esa fecha se usa la tarifa anterior."
+          >
+            <Input
+              id="tx-from"
+              type="date"
+              value={effectiveFrom}
+              onChange={(e) => setEffectiveFrom(e.target.value)}
+            />
+          </Field>
+        </FieldGrid>
+      </FormSection>
+    </FormDialog>
   )
 }
 
-function TaxDetailSheet({
+function TaxDetailDialog({
   tax,
   onClose,
   onSaved,
@@ -336,51 +387,73 @@ function TaxDetailSheet({
   }
 
   return (
-    <Sheet open={!!tax} onOpenChange={(o) => !o && onClose()}>
-      <SheetContent className="w-full gap-0 sm:max-w-md">
-        <SheetHeader>
-          <SheetTitle>
-            {tax.code} · {tax.name}
-          </SheetTitle>
-          <SheetDescription>{tax.kindLabel}</SheetDescription>
-        </SheetHeader>
-        <div className="flex flex-col gap-4 px-4 py-2">
-          <div className="rounded-lg border border-border bg-muted/40 p-3">
-            <p className="mb-2 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-              <History className="size-3.5" /> Histórico de vigencias
-            </p>
-            <div className="flex flex-col gap-1.5">
-              {tax.history.map((h, i) => (
-                <div key={i} className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">{fmtDate(h.effectiveFrom)}</span>
-                  <span className="tnum font-medium">
-                    {h.rate}%{h.upcoming && <Badge variant="secondary" className="ml-2">Futura</Badge>}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
+    <FormDialog
+      open={!!tax}
+      onOpenChange={(o) => !o && onClose()}
+      size="2xl"
+      icon={Percent}
+      title={`${tax.code} · ${tax.name}`}
+      description={tax.kindLabel}
+      footer={
+        <FormActions
+          onCancel={onClose}
+          onSubmit={() => void addVersion()}
+          busy={saving}
+          submitLabel="Publicar vigencia"
+        />
+      }
+    >
+      {err && <FormAlert>{err}</FormAlert>}
 
-          <div className="rounded-lg border border-border p-3">
-            <p className="mb-2 text-xs font-medium text-foreground">Nueva vigencia</p>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="flex flex-col gap-1">
-                <Label className="text-xs">Tarifa (%)</Label>
-                <Input type="number" value={rate} onChange={(e) => setRate(e.target.value)} />
-              </div>
-              <div className="flex flex-col gap-1">
-                <Label className="text-xs">Desde</Label>
-                <Input type="date" value={effectiveFrom} onChange={(e) => setEffectiveFrom(e.target.value)} />
-              </div>
-            </div>
-            {err && <p className="mt-2 text-sm text-destructive">{err}</p>}
-            <Button className="mt-3 w-full" onClick={() => void addVersion()} disabled={saving}>
-              {saving && <Loader2 className="size-4 animate-spin" />}
-              Publicar vigencia
-            </Button>
-          </div>
-        </div>
-      </SheetContent>
-    </Sheet>
+      <FormSection
+        icon={History}
+        title="Histórico de vigencias"
+        description="Las tarifas no se editan: se publica una nueva con su fecha, y la anterior queda para los documentos ya emitidos."
+        boxed
+      >
+        <ul className="flex flex-col gap-1.5">
+          {tax.history.map((h, i) => (
+            <li
+              key={i}
+              className="flex items-center justify-between gap-3 text-sm"
+            >
+              <span className="text-muted-foreground">
+                {fmtDate(h.effectiveFrom)}
+              </span>
+              <span className="flex items-center gap-2">
+                <span className="stat-figure text-sm">{h.rate}%</span>
+                {h.upcoming && <Badge variant="secondary">Futura</Badge>}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </FormSection>
+
+      <FormSection
+        title="Nueva vigencia"
+        description="Desde la fecha que pongas, los documentos nuevos usarán esta tarifa."
+      >
+        <FieldGrid cols={2}>
+          <Field id="txd-rate" label="Tarifa (%)">
+            <InputWithIcon
+              id="txd-rate"
+              type="number"
+              inputMode="decimal"
+              suffix="%"
+              value={rate}
+              onChange={(e) => setRate(e.target.value)}
+            />
+          </Field>
+          <Field id="txd-from" label="Desde">
+            <Input
+              id="txd-from"
+              type="date"
+              value={effectiveFrom}
+              onChange={(e) => setEffectiveFrom(e.target.value)}
+            />
+          </Field>
+        </FieldGrid>
+      </FormSection>
+    </FormDialog>
   )
 }

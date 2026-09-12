@@ -25,6 +25,10 @@ import {
   CheckCircle2,
   Search,
   CircleAlert,
+  Minus,
+  Loader2,
+  SlidersHorizontal,
+  FolderTree,
   Boxes as BoxesIcon,
   Package,
 } from "lucide-react"
@@ -93,15 +97,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "@/components/ui/sheet"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import {
   Select,
   SelectContent,
@@ -114,12 +110,17 @@ import {
   FormDialog,
   FormDivider,
   FormSection,
+  FormAlert,
 } from "@/components/ui/form-dialog"
-import { Field, FieldGrid } from "@/components/ui/field"
+import {
+  Field,
+  FieldGrid,
+  FieldSpan,
+  NativeSelect,
+  CheckboxField,
+} from "@/components/ui/field"
 import { Segmented } from "@/components/ui/segmented"
 import { useConfirm } from "@/components/ui/confirm-dialog"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Separator } from "@/components/ui/separator"
 import { cn } from "@/lib/utils"
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -128,6 +129,10 @@ const UNITS = ["und", "kg", "g", "lb", "l", "ml"]
 
 /** Enlaza el botón Guardar del pie del diálogo con el <form> del cuerpo. */
 const VARIANTS_FORM_ID = "ficha-producto-variantes"
+const PRODUCT_FORM_ID = "ficha-producto-inventario"
+const ENTRY_FORM_ID = "ficha-entrada-mercancia"
+const ADJUST_FORM_ID = "ficha-ajuste-inventario"
+const TRANSFER_FORM_ID = "ficha-traslado-sedes"
 
 /** Factores hacia una unidad base por dimensión (masa en g, volumen en ml). */
 const UNIT_FACTORS: Record<string, { base: string; factor: number }> = {
@@ -836,162 +841,178 @@ function ProductSheet({
   }
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="sm:max-w-md overflow-y-auto">
-        <SheetHeader>
-          <SheetTitle className="font-display text-lg">
-            {mode === "create" ? "Nuevo producto" : "Editar producto"}
-          </SheetTitle>
-          <SheetDescription>
-            {mode === "create"
-              ? "Agrega un producto al catálogo de inventario."
-              : "Modifica los datos del producto."}
-          </SheetDescription>
-        </SheetHeader>
+    <FormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      size="3xl"
+      icon={isIngredient ? Package : Boxes}
+      title={mode === "create" ? "Nuevo producto" : "Editar producto"}
+      description={
+        mode === "create"
+          ? "Un producto se compra y se vende. Un montaje es menaje que usas en el negocio y no vendes, como platos o utensilios."
+          : "Modifica los datos del producto."
+      }
+      footer={
+        <>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            className="sm:min-w-28"
+          >
+            Cancelar
+          </Button>
+          <Button
+            type="submit"
+            form={PRODUCT_FORM_ID}
+            disabled={saving || Boolean(skuClash) || Boolean(conflictProduct)}
+            className="sm:min-w-36"
+          >
+            {saving ? <Loader2 className="animate-spin" /> : <Package />}
+            {saving ? "Guardando…" : "Guardar"}
+          </Button>
+        </>
+      }
+    >
+      <form
+        id={PRODUCT_FORM_ID}
+        onSubmit={handleSubmit}
+        className="flex flex-col gap-5"
+      >
+        <FormError error={error} />
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4 px-4 py-2">
-          <div className="flex flex-col gap-1.5">
-            <Label>Tipo de ítem</Label>
-            <div className="grid grid-cols-2 gap-1 rounded-lg border border-border bg-muted p-1">
-              {(
-                [
-                  ["ingredient", "Producto"],
-                  ["assembly", "Montaje"],
-                ] as [ItemType, string][]
-              ).map(([key, label]) => (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => setItemType(key)}
-                  className={cn(
-                    "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-                    itemType === key
-                      ? "bg-background text-foreground shadow-xs"
-                      : "text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
+        <FormSection
+          title="Qué es"
+          description="Un producto se vende; un montaje se usa en el negocio y no se vende."
+        >
+          <Segmented
+            fill
+            size="lg"
+            ariaLabel="Tipo de ítem"
+            value={itemType}
+            onValueChange={(v) => setItemType(v as ItemType)}
+            options={[
+              { value: "ingredient", label: "Producto", icon: Package },
+              { value: "assembly", label: "Montaje", icon: Boxes },
+            ]}
+          />
+        </FormSection>
 
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="p-sku">SKU</Label>
-            <Input
+        <FormSection
+          title="Identificación"
+          description="Con qué lo reconoces tú y con qué lo reconoce la caja."
+        >
+          <FieldGrid cols={3}>
+            <Field
               id="p-sku"
-              value={sku}
-              onChange={(e) => {
-                setSku(e.target.value.toUpperCase())
-                setConflictProduct(null)
-              }}
-              placeholder="p. ej. 10001 (5 dígitos)"
+              label="SKU"
               required
-            />
-          </div>
+              help={{ term: "sku" }}
+              hint="Corto y que no se repita."
+            >
+              <Input
+                id="p-sku"
+                value={sku}
+                onChange={(e) => {
+                  setSku(e.target.value.toUpperCase())
+                  setConflictProduct(null)
+                }}
+                placeholder="10001"
+                required
+              />
+            </Field>
+            <FieldSpan span={2}>
+              <Field id="p-name" label="Nombre" required>
+                <Input
+                  id="p-name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder={
+                    isIngredient ? "Harina de trigo x 500 g" : "Cuchillo"
+                  }
+                  required
+                />
+              </Field>
+            </FieldSpan>
 
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="p-name">Nombre</Label>
-            <Input
-              id="p-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder={
-                isIngredient ? "Harina de trigo x 500 g" : "p. ej. Cuchillo"
-              }
-              required
-            />
-          </div>
+            {!isIngredient && (
+              <Field id="p-brand" label="Marca">
+                <Input
+                  id="p-brand"
+                  value={brand}
+                  onChange={(e) => setBrand(e.target.value)}
+                  placeholder="Doria (opcional)"
+                />
+              </Field>
+            )}
+            <FieldSpan span={2}>
+              <Field
+                id="p-barcode"
+                label="Código de barras"
+                help={{ term: "codigoBarras" }}
+                hint="Permite agregarlo al carrito escaneándolo en el punto de venta."
+              >
+                <Input
+                  id="p-barcode"
+                  value={barcode}
+                  onChange={(e) => setBarcode(e.target.value)}
+                  placeholder="Escanéalo o escríbelo (opcional)"
+                  inputMode="numeric"
+                  autoComplete="off"
+                />
+              </Field>
+            </FieldSpan>
+
+            <FieldSpan span={3}>
+              <Field id="p-desc" label="Descripción">
+                <Input
+                  id="p-desc"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Opcional"
+                />
+              </Field>
+            </FieldSpan>
+          </FieldGrid>
 
           {duplicate && (
-            <div className="flex flex-col gap-2 rounded-lg border border-warning/50 bg-warning/10 p-3 text-sm">
-              <p>
-                <span className="font-medium">{duplicate.name}</span> ya está
-                en tu inventario (SKU {duplicate.sku}). ¿Te llegó más
-                mercancía? No hace falta crearlo de nuevo: registra una
-                entrada y el stock se acumula.
-              </p>
+            <FormAlert tone="warning" icon={TriangleAlert}>
+              <span className="font-semibold">{duplicate.name}</span> ya está en
+              tu inventario (SKU {duplicate.sku}). ¿Te llegó más mercancía? No
+              hace falta crearlo de nuevo: registra una entrada y el stock se
+              acumula.
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                className="self-start"
+                className="mt-2 flex"
                 onClick={() => onRegisterEntry(duplicate._id)}
               >
                 <PackagePlus />
                 Registrar entrada de {duplicate.name}
               </Button>
-            </div>
+            </FormAlert>
           )}
+        </FormSection>
 
-          {!isIngredient && (
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="p-brand">Marca</Label>
-              <Input
-                id="p-brand"
-                value={brand}
-                onChange={(e) => setBrand(e.target.value)}
-                placeholder="p. ej. Doria (opcional)"
-              />
-            </div>
-          )}
-
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="p-barcode">Código de barras</Label>
-            <Input
-              id="p-barcode"
-              value={barcode}
-              onChange={(e) => setBarcode(e.target.value)}
-              placeholder="Escanéalo o escríbelo (opcional)"
-              inputMode="numeric"
-              autoComplete="off"
-            />
-            <span className="text-xs text-muted-foreground">
-              Permite agregarlo al carrito escaneándolo en el punto de venta.
-            </span>
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="p-desc">Descripción</Label>
-            <Input
-              id="p-desc"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Opcional"
-            />
-          </div>
-
-          <Separator />
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="p-cat">Categoría</Label>
-              <Select
+        <FormSection
+          title="Clasificación y precio"
+          description="Dónde se agrupa y cuánto cuesta."
+        >
+          <FieldGrid cols={3}>
+            <Field id="p-cat" label="Categoría" help={{ term: "categoria" }}>
+              <NativeSelect
+                id="p-cat"
                 value={categoryId}
-                items={{
-                  none: "Sin categoría",
-                  ...Object.fromEntries(categories.map((c) => [c._id, c.name])),
-                }}
-                onValueChange={(v) => {
-                  if (v !== null) setCategoryId(v)
-                }}
-              >
-                <SelectTrigger id="p-cat" className="w-full">
-                  <SelectValue placeholder="Sin categoría" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Sin categoría</SelectItem>
-                  {categories.map((c) => (
-                    <SelectItem key={c._id} value={c._id}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+                onChange={setCategoryId}
+                options={[
+                  { value: "none", label: "Sin categoría" },
+                  ...categories.map((c) => ({ value: c._id, label: c.name })),
+                ]}
+              />
+            </Field>
             {!isIngredient && (
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="p-supplier">Proveedor</Label>
+              <Field id="p-supplier" label="Proveedor">
                 <SupplierSelect
                   id="p-supplier"
                   suppliers={suppliers}
@@ -999,35 +1020,29 @@ function ProductSheet({
                   legacyText={legacySupplier}
                   onChange={setSupplierSel}
                 />
-              </div>
+              </Field>
             )}
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
             {isIngredient && (
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="p-unit">Unidad de medida</Label>
-                <Select
+              <Field
+                id="p-unit"
+                label="Unidad de medida"
+                help={{ term: "unidad" }}
+              >
+                <NativeSelect
+                  id="p-unit"
                   value={unit}
-                  onValueChange={(v) => {
-                    if (v !== null) setUnit(v)
-                  }}
-                >
-                  <SelectTrigger id="p-unit" className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {UNITS.map((u) => (
-                      <SelectItem key={u} value={u}>
-                        {u}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+                  onChange={setUnit}
+                  options={UNITS.map((u) => ({ value: u, label: u }))}
+                />
+              </Field>
             )}
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="p-min">Stock mínimo (opcional)</Label>
+
+            <Field
+              id="p-min"
+              label="Stock mínimo"
+              help={{ term: "stockMinimo" }}
+              hint="Te avisamos al llegar aquí."
+            >
               <Input
                 id="p-min"
                 type="number"
@@ -1035,12 +1050,15 @@ function ProductSheet({
                 step="any"
                 value={minStock}
                 onChange={(e) => setMinStock(e.target.value)}
-                placeholder="p. ej. 3"
+                placeholder="3"
               />
-            </div>
+            </Field>
             {!isIngredient && (
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="p-cost">Precio de compra</Label>
+              <Field
+                id="p-cost"
+                label="Precio de compra"
+                help={{ term: "costo" }}
+              >
                 <Input
                   id="p-cost"
                   type="number"
@@ -1050,11 +1068,14 @@ function ProductSheet({
                   onChange={(e) => setCost(e.target.value)}
                   placeholder="0"
                 />
-              </div>
+              </Field>
             )}
             {isIngredient && (
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="p-price">Precio de venta</Label>
+              <Field
+                id="p-price"
+                label="Precio de venta"
+                help={{ term: "precioVenta" }}
+              >
                 <Input
                   id="p-price"
                   type="number"
@@ -1064,48 +1085,23 @@ function ProductSheet({
                   onChange={(e) => setSalePrice(e.target.value)}
                   placeholder="Opcional"
                 />
-              </div>
+              </Field>
             )}
-          </div>
+          </FieldGrid>
+        </FormSection>
 
-          {isIngredient && (
-            <div className="flex flex-col gap-3 rounded-lg border border-border p-3">
-              <div className="flex items-center gap-3">
-                <Checkbox
-                  id="p-perishable"
-                  checked={perishable}
-                  onCheckedChange={(v) => setPerishable(Boolean(v))}
-                />
-                <div className="flex flex-col">
-                  <Label htmlFor="p-perishable">Producto perecedero</Label>
-                  <span className="text-xs text-muted-foreground">
-                    Exige lote y fecha de vencimiento en cada entrada.
-                  </span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          <FormError error={error} />
-
-          <div className="flex justify-end gap-2 pt-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-            >
-              Cancelar
-            </Button>
-            <Button
-              type="submit"
-              disabled={saving || Boolean(skuClash) || Boolean(conflictProduct)}
-            >
-              {saving ? "Guardando…" : "Guardar"}
-            </Button>
-          </div>
-        </form>
-      </SheetContent>
-    </Sheet>
+        {isIngredient && (
+          <CheckboxField
+            id="p-perishable"
+            label="Producto perecedero"
+            help={{ term: "perecedero" }}
+            hint="Exige lote y fecha de vencimiento en cada entrada."
+            checked={perishable}
+            onCheckedChange={setPerishable}
+          />
+        )}
+      </form>
+    </FormDialog>
   )
 }
 
@@ -1265,102 +1261,107 @@ function EntrySheet({
   }
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="sm:max-w-md overflow-y-auto">
-        <SheetHeader>
-          <SheetTitle className="font-display text-lg">
-            Entrada de mercancía
-          </SheetTitle>
-          <SheetDescription>
-            Registra una recepción de compra o carga inicial de stock.
-          </SheetDescription>
-        </SheetHeader>
+    <FormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      size="3xl"
+      icon={PackagePlus}
+      title="Entrada de mercancía"
+      description="Una recepción de compra o la carga inicial de existencias. Lo que entra forma un lote."
+      footer={
+        <>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            className="sm:min-w-28"
+          >
+            Cancelar
+          </Button>
+          <Button
+            type="submit"
+            form={ENTRY_FORM_ID}
+            disabled={saving || !productId || !sedeId || !qty}
+            className="sm:min-w-36"
+          >
+            {saving ? <Loader2 className="animate-spin" /> : <PackagePlus />}
+            {saving ? "Registrando…" : "Registrar entrada"}
+          </Button>
+        </>
+      }
+    >
+      <form
+        id={ENTRY_FORM_ID}
+        onSubmit={handleSubmit}
+        className="flex flex-col gap-5"
+      >
+        <FormError error={error} />
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4 px-4 py-2">
-          <div className="relative flex flex-col gap-1.5">
-            <Label htmlFor="e-product">Producto</Label>
-            <Input
-              id="e-product"
-              value={productQuery}
-              onChange={(e) => {
-                setProductQuery(e.target.value)
-                setProductListOpen(true)
-                setProductId("")
-              }}
-              onFocus={() => setProductListOpen(true)}
-              onBlur={() => setProductListOpen(false)}
-              placeholder="Escribe para buscar…"
-              autoComplete="off"
-              required
-            />
-            {productListOpen && productMatches.length > 0 && (
-              <div
-                className="absolute top-full z-20 mt-1 max-h-56 w-full overflow-auto rounded-md border border-border bg-popover p-1 shadow-md"
-                onMouseDown={(e) => e.preventDefault()}
-              >
-                {productMatches.map((p) => (
-                  <button
-                    key={p._id}
-                    type="button"
-                    className="flex w-full items-center justify-between gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent"
-                    onClick={() => handlePick(p)}
+        <FormSection title="Qué entra y dónde">
+          <FieldGrid cols={2}>
+            <Field id="e-product" label="Producto" required>
+              <div className="relative">
+                <Input
+                  id="e-product"
+                  value={productQuery}
+                  onChange={(e) => {
+                    setProductQuery(e.target.value)
+                    setProductListOpen(true)
+                    setProductId("")
+                  }}
+                  onFocus={() => setProductListOpen(true)}
+                  onBlur={() => setProductListOpen(false)}
+                  placeholder="Escribe para buscar…"
+                  autoComplete="off"
+                  required
+                />
+                {productListOpen && productMatches.length > 0 && (
+                  <div
+                    className="absolute top-full z-20 mt-1 max-h-56 w-full overflow-auto rounded-xl border border-border bg-popover p-1 shadow-lg"
+                    onMouseDown={(e) => e.preventDefault()}
                   >
-                    <span className="truncate">{p.name}</span>
-                    <span className="font-mono text-xs text-muted-foreground">
-                      {p.sku}
-                    </span>
-                  </button>
-                ))}
+                    {productMatches.map((p) => (
+                      <button
+                        key={p._id}
+                        type="button"
+                        className="flex w-full items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-left text-sm hover:bg-accent"
+                        onClick={() => handlePick(p)}
+                      >
+                        <span className="truncate">{p.name}</span>
+                        <span className="font-mono text-xs text-muted-foreground">
+                          {p.sku}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+            </Field>
 
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="e-sede">Sede</Label>
-            <Select
-              value={sedeId}
-              items={sedeItems(sedes)}
-              onValueChange={(v) => {
-                if (v !== null) setSedeId(v)
-              }}
-            >
-              <SelectTrigger id="e-sede" className="w-full">
-                <SelectValue placeholder="Seleccionar sede" />
-              </SelectTrigger>
-              <SelectContent>
-                {sedes.map((s) => (
-                  <SelectItem key={s._id} value={s._id}>
-                    {s.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+            <Field id="e-sede" label="Sede" required help={{ term: "sede" }}>
+              <NativeSelect
+                id="e-sede"
+                value={sedeId}
+                onChange={setSedeId}
+                options={sedes.map((s) => ({ value: s._id, label: s.name }))}
+                placeholder="Seleccionar sede"
+              />
+            </Field>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="e-unit">Unidad de medida</Label>
-              <Select
+            <Field id="e-unit" label="Unidad de medida" help={{ term: "unidad" }}>
+              <NativeSelect
+                id="e-unit"
                 value={entryUnit}
-                onValueChange={(v) => {
-                  if (v !== null) setEntryUnit(v)
-                }}
-              >
-                <SelectTrigger id="e-unit" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {UNITS.map((u) => (
-                    <SelectItem key={u} value={u}>
-                      {u}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+                onChange={setEntryUnit}
+                options={UNITS.map((u) => ({ value: u, label: u }))}
+              />
+            </Field>
             {!isAssembly && (
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="e-weight">Peso por unidad ({entryUnit})</Label>
+              <Field
+                id="e-weight"
+                label={`Peso por unidad (${entryUnit})`}
+                hint="Para productos que se compran por peso."
+              >
                 <Input
                   id="e-weight"
                   type="number"
@@ -1368,15 +1369,16 @@ function EntrySheet({
                   step="any"
                   value={entryWeight}
                   onChange={(e) => setEntryWeight(e.target.value)}
-                  placeholder="p. ej. 500"
+                  placeholder="500"
                 />
-              </div>
+              </Field>
             )}
-          </div>
+          </FieldGrid>
+        </FormSection>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="e-qty">Cantidad</Label>
+        <FormSection title="Cantidad y costo">
+          <FieldGrid cols={2}>
+            <Field id="e-qty" label="Cantidad" required>
               <Input
                 id="e-qty"
                 type="number"
@@ -1386,9 +1388,13 @@ function EntrySheet({
                 onChange={(e) => setQty(e.target.value)}
                 required
               />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="e-cost">Precio de compra</Label>
+            </Field>
+            <Field
+              id="e-cost"
+              label="Precio de compra"
+              help={{ term: "costo" }}
+              hint="Por unidad, sin lo que le sumas para ganar."
+            >
               <Input
                 id="e-cost"
                 type="number"
@@ -1398,57 +1404,43 @@ function EntrySheet({
                 onChange={(e) => setUnitCost(e.target.value)}
                 placeholder="Por unidad"
               />
-            </div>
-          </div>
+            </Field>
 
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="e-supplier">Proveedor (opcional)</Label>
-            <SupplierSelect
-              id="e-supplier"
-              suppliers={suppliers}
-              value={supplierSel}
-              legacyText={legacySupplier}
-              onChange={setSupplierSel}
-            />
-          </div>
-
-          {!isAssembly && (
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="e-exp">
-                Fecha de vencimiento
-                {product?.perishable ? "" : " (opcional)"}
-              </Label>
-              <Input
-                id="e-exp"
-                type="date"
-                min={localDateStr(new Date())}
-                value={expiresAt}
-                onChange={(e) => setExpiresAt(e.target.value)}
-                required={Boolean(product?.perishable)}
+            <Field id="e-supplier" label="Proveedor">
+              <SupplierSelect
+                id="e-supplier"
+                suppliers={suppliers}
+                value={supplierSel}
+                legacyText={legacySupplier}
+                onChange={setSupplierSel}
               />
-            </div>
-          )}
-
-          <FormError error={error} />
-
-          <div className="flex justify-end gap-2 pt-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-            >
-              Cancelar
-            </Button>
-            <Button
-              type="submit"
-              disabled={saving || !productId || !sedeId || !qty}
-            >
-              {saving ? "Registrando…" : "Registrar entrada"}
-            </Button>
-          </div>
-        </form>
-      </SheetContent>
-    </Sheet>
+            </Field>
+            {!isAssembly && (
+              <Field
+                id="e-exp"
+                label="Fecha de vencimiento"
+                required={Boolean(product?.perishable)}
+                help={{ term: "fefo" }}
+                hint={
+                  product?.perishable
+                    ? "Obligatoria: este producto es perecedero."
+                    : "Opcional."
+                }
+              >
+                <Input
+                  id="e-exp"
+                  type="date"
+                  min={localDateStr(new Date())}
+                  value={expiresAt}
+                  onChange={(e) => setExpiresAt(e.target.value)}
+                  required={Boolean(product?.perishable)}
+                />
+              </Field>
+            )}
+          </FieldGrid>
+        </FormSection>
+      </form>
+    </FormDialog>
   )
 }
 
@@ -1519,86 +1511,87 @@ function AdjustSheet({
   }
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="sm:max-w-md overflow-y-auto">
-        <SheetHeader>
-          <SheetTitle className="font-display text-lg">
-            Ajuste de inventario
-          </SheetTitle>
-          <SheetDescription>
-            Corrige existencias por conteo, daño, vencimiento o merma. Las
-            salidas descuentan primero los lotes más próximos a vencer.
-          </SheetDescription>
-        </SheetHeader>
+    <FormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      size="3xl"
+      icon={SlidersHorizontal}
+      title="Ajuste de inventario"
+      description="Corrige existencias por conteo, daño, vencimiento o merma. Las salidas descuentan primero los lotes más próximos a vencer."
+      footer={
+        <>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            className="sm:min-w-28"
+          >
+            Cancelar
+          </Button>
+          <Button
+            type="submit"
+            form={ADJUST_FORM_ID}
+            disabled={saving || !productId || !sedeId}
+            className="sm:min-w-36"
+          >
+            {saving ? (
+              <Loader2 className="animate-spin" />
+            ) : (
+              <SlidersHorizontal />
+            )}
+            {saving ? "Aplicando…" : "Aplicar ajuste"}
+          </Button>
+        </>
+      }
+    >
+      <form
+        id={ADJUST_FORM_ID}
+        onSubmit={handleSubmit}
+        className="flex flex-col gap-5"
+      >
+        <FormError error={error} />
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4 px-4 py-2">
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="a-product">Producto</Label>
-            <Select
-              value={productId}
-              items={productItems(products)}
-              onValueChange={(v) => {
-                if (v !== null) setProductId(v)
-              }}
-            >
-              <SelectTrigger id="a-product" className="w-full">
-                <SelectValue placeholder="Seleccionar producto" />
-              </SelectTrigger>
-              <SelectContent>
-                {products.map((p) => (
-                  <SelectItem key={p._id} value={p._id}>
-                    {p.name} · {p.sku}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+        <FormSection title="Qué se ajusta">
+          <FieldGrid cols={2}>
+            <Field id="a-product" label="Producto" required>
+              <NativeSelect
+                id="a-product"
+                value={productId}
+                onChange={setProductId}
+                options={products.map((p) => ({
+                  value: p._id,
+                  label: `${p.name} · ${p.sku}`,
+                }))}
+                placeholder="Seleccionar producto"
+              />
+            </Field>
+            <Field id="a-sede" label="Sede" required help={{ term: "sede" }}>
+              <NativeSelect
+                id="a-sede"
+                value={sedeId}
+                onChange={setSedeId}
+                options={sedes.map((s) => ({ value: s._id, label: s.name }))}
+                placeholder="Seleccionar sede"
+              />
+            </Field>
 
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="a-sede">Sede</Label>
-            <Select
-              value={sedeId}
-              items={sedeItems(sedes)}
-              onValueChange={(v) => {
-                if (v !== null) setSedeId(v)
-              }}
-            >
-              <SelectTrigger id="a-sede" className="w-full">
-                <SelectValue placeholder="Seleccionar sede" />
-              </SelectTrigger>
-              <SelectContent>
-                {sedes.map((s) => (
-                  <SelectItem key={s._id} value={s._id}>
-                    {s.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="a-dir">Tipo</Label>
-              <Select
+            <Field id="a-dir" label="Tipo">
+              <Segmented
+                fill
+                ariaLabel="Tipo de ajuste"
                 value={direction}
-                items={{ remove: "Salida (−)", add: "Entrada (+)" }}
-                onValueChange={(v) => {
-                  if (v === "add" || v === "remove") setDirection(v)
-                }}
-              >
-                <SelectTrigger id="a-dir" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="remove">Salida (−)</SelectItem>
-                  <SelectItem value="add">Entrada (+)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="a-qty">
-                Cantidad{product ? ` (${product.unit})` : ""}
-              </Label>
+                onValueChange={(v) => setDirection(v as "add" | "remove")}
+                options={[
+                  { value: "remove", label: "Salida (−)", icon: Minus },
+                  { value: "add", label: "Entrada (+)", icon: Plus },
+                ]}
+              />
+            </Field>
+            <Field
+              id="a-qty"
+              label={`Cantidad${product ? ` (${product.unit})` : ""}`}
+              required
+            >
               <Input
                 id="a-qty"
                 type="number"
@@ -1608,48 +1601,57 @@ function AdjustSheet({
                 onChange={(e) => setQty(e.target.value)}
                 required
               />
-            </div>
-          </div>
+            </Field>
 
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="a-reason">Razón</Label>
-            <Select
-              value={reason}
-              items={ADJUST_REASON_LABELS}
-              onValueChange={(v) => {
-                if (v !== null) setReason(v as AdjustReason)
-              }}
-            >
-              <SelectTrigger id="a-reason" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {(
-                  Object.entries(ADJUST_REASON_LABELS) as [AdjustReason, string][]
-                ).map(([key, label]) => (
-                  <SelectItem key={key} value={key}>
-                    {label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+            <FieldSpan span={2}>
+              <Field
+                id="a-reason"
+                label="Razón"
+                help={{ term: "merma" }}
+                hint="Queda registrada en el kárdex con tu nombre."
+              >
+                <NativeSelect
+                  id="a-reason"
+                  value={reason}
+                  onChange={(v) => setReason(v as AdjustReason)}
+                  options={(
+                    Object.entries(ADJUST_REASON_LABELS) as [
+                      AdjustReason,
+                      string,
+                    ][]
+                  ).map(([value, label]) => ({ value, label }))}
+                />
+              </Field>
+            </FieldSpan>
+          </FieldGrid>
+        </FormSection>
 
-          {createsLot && (
-            <div className="grid grid-cols-2 gap-3">
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="a-lot">Código de lote</Label>
+        {createsLot && (
+          <FormSection
+            title="Lote que entra"
+            description="Las unidades que entran forman un lote propio, para poder sacar primero lo que se vence antes."
+            boxed
+          >
+            <FieldGrid cols={2}>
+              <Field
+                id="a-lot"
+                label="Código de lote"
+                help={{ term: "lote" }}
+                hint="Se genera solo si lo dejas vacío."
+              >
                 <Input
                   id="a-lot"
                   value={lotCode}
                   onChange={(e) => setLotCode(e.target.value)}
-                  placeholder="Auto si se deja vacío"
+                  placeholder="Auto"
                 />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="a-exp">
-                  Vencimiento{product?.perishable ? "" : " (opcional)"}
-                </Label>
+              </Field>
+              <Field
+                id="a-exp"
+                label="Vencimiento"
+                required={product?.perishable}
+                help={{ term: "fefo" }}
+              >
                 <Input
                   id="a-exp"
                   type="date"
@@ -1657,41 +1659,24 @@ function AdjustSheet({
                   onChange={(e) => setExpiresAt(e.target.value)}
                   required={product?.perishable}
                 />
-              </div>
-            </div>
-          )}
+              </Field>
+            </FieldGrid>
+          </FormSection>
+        )}
 
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="a-note">Nota</Label>
-            <Input
-              id="a-note"
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="Detalle del ajuste (opcional)"
-            />
-          </div>
-
-          <FormError error={error} />
-
-          <div className="flex justify-end gap-2 pt-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-            >
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={saving || !productId || !sedeId}>
-              {saving ? "Aplicando…" : "Aplicar ajuste"}
-            </Button>
-          </div>
-        </form>
-      </SheetContent>
-    </Sheet>
+        <Field id="a-note" label="Nota">
+          <Input
+            id="a-note"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="Detalle del ajuste (opcional)"
+          />
+        </Field>
+      </form>
+    </FormDialog>
   )
 }
-
-// ─── Transfer sheet ──────────────────────────────────────────────────────────
+// ─── Ficha de traslado entre sedes ───────────────────────────────────────────
 
 function TransferSheet({
   open,
@@ -1747,135 +1732,109 @@ function TransferSheet({
   }
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="sm:max-w-md overflow-y-auto">
-        <SheetHeader>
-          <SheetTitle className="font-display text-lg">
-            Traslado entre sedes
-          </SheetTitle>
-          <SheetDescription>
-            Mueve stock de una sede a otra conservando lotes y vencimientos.
-          </SheetDescription>
-        </SheetHeader>
+    <FormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      size="2xl"
+      icon={ArrowLeftRight}
+      title="Traslado entre sedes"
+      description="Mueve existencias de una sede a otra conservando los lotes y sus vencimientos. No es una venta ni una compra."
+      footer={
+        <>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            className="sm:min-w-28"
+          >
+            Cancelar
+          </Button>
+          <Button
+            type="submit"
+            form={TRANSFER_FORM_ID}
+            disabled={saving || !productId || !fromSedeId || !toSedeId}
+            className="sm:min-w-36"
+          >
+            {saving ? <Loader2 className="animate-spin" /> : <ArrowLeftRight />}
+            {saving ? "Trasladando…" : "Trasladar"}
+          </Button>
+        </>
+      }
+    >
+      <form
+        id={TRANSFER_FORM_ID}
+        onSubmit={handleSubmit}
+        className="flex flex-col gap-5"
+      >
+        <FormError error={error} />
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4 px-4 py-2">
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="t-product">Producto</Label>
-            <Select
-              value={productId}
-              items={productItems(products)}
-              onValueChange={(v) => {
-                if (v !== null) setProductId(v)
-              }}
-            >
-              <SelectTrigger id="t-product" className="w-full">
-                <SelectValue placeholder="Seleccionar producto" />
-              </SelectTrigger>
-              <SelectContent>
-                {products.map((p) => (
-                  <SelectItem key={p._id} value={p._id}>
-                    {p.name} · {p.sku}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+        <FormSection title="Qué se mueve">
+          <FieldGrid cols={2}>
+            <FieldSpan span={2}>
+              <Field id="t-product" label="Producto" required>
+                <NativeSelect
+                  id="t-product"
+                  value={productId}
+                  onChange={setProductId}
+                  options={products.map((p) => ({
+                    value: p._id,
+                    label: `${p.name} · ${p.sku}`,
+                  }))}
+                  placeholder="Seleccionar producto"
+                />
+              </Field>
+            </FieldSpan>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="t-from">Desde</Label>
-              <Select
+            <Field id="t-from" label="Desde" required help={{ term: "traslado" }}>
+              <NativeSelect
+                id="t-from"
                 value={fromSedeId}
-                items={sedeItems(sedes)}
-                onValueChange={(v) => {
-                  if (v !== null) setFromSedeId(v)
-                }}
-              >
-                <SelectTrigger id="t-from" className="w-full">
-                  <SelectValue placeholder="Sede origen" />
-                </SelectTrigger>
-                <SelectContent>
-                  {sedes.map((s) => (
-                    <SelectItem key={s._id} value={s._id}>
-                      {s.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="t-to">Hacia</Label>
-              <Select
+                onChange={setFromSedeId}
+                options={sedes.map((s) => ({ value: s._id, label: s.name }))}
+                placeholder="Sede origen"
+              />
+            </Field>
+            <Field id="t-to" label="Hacia" required>
+              <NativeSelect
+                id="t-to"
                 value={toSedeId}
-                items={sedeItems(sedes.filter((s) => s._id !== fromSedeId))}
-                onValueChange={(v) => {
-                  if (v !== null) setToSedeId(v)
-                }}
-              >
-                <SelectTrigger id="t-to" className="w-full">
-                  <SelectValue placeholder="Sede destino" />
-                </SelectTrigger>
-                <SelectContent>
-                  {sedes
-                    .filter((s) => s._id !== fromSedeId)
-                    .map((s) => (
-                      <SelectItem key={s._id} value={s._id}>
-                        {s.name}
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+                onChange={setToSedeId}
+                options={sedes
+                  .filter((s) => s._id !== fromSedeId)
+                  .map((s) => ({ value: s._id, label: s.name }))}
+                placeholder="Sede destino"
+              />
+            </Field>
 
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="t-qty">
-              Cantidad{product ? ` (${product.unit})` : ""}
-            </Label>
-            <Input
+            <Field
               id="t-qty"
-              type="number"
-              min="0"
-              step="any"
-              value={qty}
-              onChange={(e) => setQty(e.target.value)}
+              label={`Cantidad${product ? ` (${product.unit})` : ""}`}
               required
-            />
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="t-note">Nota</Label>
-            <Input
-              id="t-note"
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="Motivo del traslado (opcional)"
-            />
-          </div>
-
-          <FormError error={error} />
-
-          <div className="flex justify-end gap-2 pt-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
             >
-              Cancelar
-            </Button>
-            <Button
-              type="submit"
-              disabled={saving || !productId || !fromSedeId || !toSedeId}
-            >
-              {saving ? "Trasladando…" : "Trasladar"}
-            </Button>
-          </div>
-        </form>
-      </SheetContent>
-    </Sheet>
+              <Input
+                id="t-qty"
+                type="number"
+                min="0"
+                step="any"
+                value={qty}
+                onChange={(e) => setQty(e.target.value)}
+                required
+              />
+            </Field>
+            <Field id="t-note" label="Nota">
+              <Input
+                id="t-note"
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="Motivo del traslado (opcional)"
+              />
+            </Field>
+          </FieldGrid>
+        </FormSection>
+      </form>
+    </FormDialog>
   )
 }
-
 // ─── Lotes de una existencia (dentro del panel desplegable) ──────────────────
 
 /** Carga y muestra los lotes de la existencia expandida (orden FEFO). */
@@ -2067,118 +2026,133 @@ function CategoriesSheet({
   }
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="sm:max-w-md overflow-y-auto">
-        <SheetHeader>
-          <SheetTitle className="font-display text-lg">Categorías</SheetTitle>
-          <SheetDescription>
-            Crea, renombra o elimina las categorías del catálogo. Solo se
-            pueden eliminar las que no tengan ítems asignados.
-          </SheetDescription>
-        </SheetHeader>
+    <FormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      size="lg"
+      icon={FolderTree}
+      title="Categorías"
+      description="Los grupos del catálogo: bebidas, aseo, panadería. Solo se pueden eliminar las que no tengan ítems."
+      footer={
+        <Button variant="outline" onClick={() => onOpenChange(false)}>
+          Listo
+        </Button>
+      }
+    >
+      <FormError error={error} />
 
-        <div className="flex flex-col gap-4 px-4 py-2">
-          <form onSubmit={handleCreate} className="flex gap-2">
+      <FormSection title="Agregar una categoría" help={{ term: "categoria" }}>
+        <form onSubmit={handleCreate} className="flex items-end gap-2">
+          <Field id="cat-new" label="Nombre" className="flex-1">
             <Input
+              id="cat-new"
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
-              placeholder="Nueva categoría"
+              placeholder="Bebidas, aseo, panadería…"
             />
-            <Button type="submit" disabled={busy || !newName.trim()}>
-              <Plus />
-              Agregar
-            </Button>
-          </form>
+          </Field>
+          <Button type="submit" className="shrink-0" disabled={busy || !newName.trim()}>
+            <Plus />
+            Agregar
+          </Button>
+        </form>
+      </FormSection>
 
-          <FormError error={error} />
-
-          {categories.length === 0 ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">
-              Aún no hay categorías.
-            </p>
-          ) : (
-            <div className="flex flex-col divide-y divide-border rounded-lg border border-border">
-              {categories.map((cat) => {
-                const count = usage.get(cat._id) ?? 0
-                const isEditing = editingId === cat._id
-                return (
-                  <div
-                    key={cat._id}
-                    className="flex items-center gap-2 px-3 py-2"
-                  >
-                    {isEditing ? (
-                      <>
-                        <Input
-                          value={editName}
-                          onChange={(e) => setEditName(e.target.value)}
-                          autoFocus
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") {
-                              e.preventDefault()
-                              void handleRename(cat._id)
-                            }
-                            if (e.key === "Escape") setEditingId(null)
-                          }}
-                        />
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          aria-label="Guardar nombre"
-                          disabled={busy || !editName.trim()}
-                          onClick={() => void handleRename(cat._id)}
-                        >
-                          <Check />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          aria-label="Cancelar edición"
-                          onClick={() => setEditingId(null)}
-                        >
-                          <X />
-                        </Button>
-                      </>
-                    ) : (
-                      <>
-                        <span className="flex-1 text-sm font-medium">
-                          {cat.name}
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          {count} ítem{count !== 1 ? "s" : ""}
-                        </span>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          aria-label={`Renombrar ${cat.name}`}
-                          onClick={() => {
-                            setEditingId(cat._id)
-                            setEditName(cat.name)
-                          }}
-                        >
-                          <Pencil />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          aria-label={`Eliminar ${cat.name}`}
-                          disabled={busy}
-                          onClick={() => void handleDelete(cat)}
-                        >
-                          <Trash2 />
-                        </Button>
-                      </>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-      </SheetContent>
-    </Sheet>
+      <FormSection
+        title="Categorías del catálogo"
+        description={
+          categories.length > 0
+            ? `${categories.length} en total.`
+            : undefined
+        }
+      >
+        {categories.length === 0 ? (
+          <p className="rounded-2xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
+            Aún no hay categorías. Agrega la primera arriba.
+          </p>
+        ) : (
+          <ul className="flex flex-col divide-y divide-border overflow-hidden rounded-2xl border border-border">
+            {categories.map((cat) => {
+              const count = usage.get(cat._id) ?? 0
+              const isEditing = editingId === cat._id
+              return (
+                <li
+                  key={cat._id}
+                  className="flex items-center gap-2 bg-card px-3.5 py-2.5"
+                >
+                  {isEditing ? (
+                    <>
+                      <Input
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                        autoFocus
+                        aria-label={`Nuevo nombre de ${cat.name}`}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault()
+                            void handleRename(cat._id)
+                          }
+                          if (e.key === "Escape") setEditingId(null)
+                        }}
+                      />
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label="Guardar nombre"
+                        disabled={busy || !editName.trim()}
+                        onClick={() => void handleRename(cat._id)}
+                      >
+                        <Check />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label="Cancelar edición"
+                        onClick={() => setEditingId(null)}
+                      >
+                        <X />
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                        {cat.name}
+                      </span>
+                      <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+                        {count} ítem{count !== 1 ? "s" : ""}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={`Renombrar ${cat.name}`}
+                        onClick={() => {
+                          setEditingId(cat._id)
+                          setEditName(cat.name)
+                        }}
+                      >
+                        <Pencil />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={`Eliminar ${cat.name}`}
+                        className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                        disabled={busy}
+                        onClick={() => void handleDelete(cat)}
+                      >
+                        <Trash2 />
+                      </Button>
+                    </>
+                  )}
+                </li>
+              )
+            })}
+          </ul>
+        )}
+      </FormSection>
+    </FormDialog>
   )
 }
-
 // ─── Panel de lotes (trazabilidad y vencimientos) ────────────────────────────
 
 const LOT_STATUS_OPTIONS: { value: LotStatus; label: string }[] = [
@@ -3099,111 +3073,97 @@ function ImportProductsSheet({
   }
 
   return (
-    <Sheet
+    <FormDialog
       open={open}
       onOpenChange={(v) => {
         onOpenChange(v)
         if (!v) reset()
       }}
-    >
-      <SheetContent side="right" className="flex flex-col sm:max-w-md">
-        <SheetHeader>
-          <SheetTitle>Importar productos (CSV)</SheetTitle>
-          <SheetDescription>
-            Se hace match por SKU: crea los nuevos y actualiza los existentes. La
-            categoría se resuelve por nombre (se crea si no existe).
-          </SheetDescription>
-        </SheetHeader>
-
-        <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => downloadCsv("plantilla-inventario.csv", csvTemplate())}
-          >
-            <Download />
-            Descargar plantilla
-          </Button>
-
-          <input
-            ref={inputRef}
-            type="file"
-            accept=".csv,text/csv"
-            onChange={onFile}
-            className="hidden"
-          />
-          <Button
-            variant="outline"
-            className="w-full justify-start"
-            onClick={() => inputRef.current?.click()}
-          >
-            <FileUp />
-            <span className="truncate">{fileName ?? "Elegir archivo CSV…"}</span>
-          </Button>
-
-          {parseError && (
-            <p className="text-sm text-destructive">{parseError}</p>
-          )}
-
-          {rows.length > 0 && !result && (
-            <p className="text-sm text-muted-foreground">
-              <strong className="text-foreground">{rows.length}</strong> fila(s)
-              listas para importar.
-            </p>
-          )}
-
-          {result && (
-            <div className="space-y-2 rounded-lg border border-border p-3 text-sm">
-              <p className="flex items-center gap-2 font-medium text-success-ink">
-                <CheckCircle2 className="size-4" />
-                Importación completada
-              </p>
-              <p className="text-muted-foreground">
-                Creados:{" "}
-                <strong className="text-foreground">{result.created}</strong> ·
-                Actualizados:{" "}
-                <strong className="text-foreground">{result.updated}</strong> ·
-                Errores:{" "}
-                <strong
-                  className={
-                    result.errors.length ? "text-destructive" : "text-foreground"
-                  }
-                >
-                  {result.errors.length}
-                </strong>
-              </p>
-              {result.errors.length > 0 && (
-                <ul className="max-h-40 space-y-1 overflow-y-auto text-xs text-destructive">
-                  {result.errors.slice(0, 50).map((er, i) => (
-                    <li key={i}>
-                      Fila {er.row}
-                      {er.sku ? ` (${er.sku})` : ""}: {er.message}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          )}
-
-          <p className="text-xs text-muted-foreground">
-            Columnas: {CSV_COLUMNS.join(", ")}. Solo <code>sku</code> y{" "}
-            <code>name</code> son obligatorios; el resto es opcional.
-          </p>
-        </div>
-
-        <div className="flex justify-end gap-2 border-t border-border px-4 py-3">
-          <Button variant="ghost" onClick={() => onOpenChange(false)}>
+      size="2xl"
+      icon={FileUp}
+      title="Importar productos (CSV)"
+      description="Se hace match por SKU: crea los nuevos y actualiza los que ya existen. La categoría se resuelve por nombre y se crea si hace falta."
+      footer={
+        <>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
             {result ? "Cerrar" : "Cancelar"}
           </Button>
           {!result && (
             <Button onClick={doImport} disabled={rows.length === 0 || importing}>
-              <Upload />
+              {importing ? <Loader2 className="animate-spin" /> : <Upload />}
               {importing ? "Importando…" : "Importar"}
             </Button>
           )}
+        </>
+      }
+    >
+      {parseError && <FormAlert>{parseError}</FormAlert>}
+
+      <FormSection
+        title="El archivo"
+        description="Descarga la plantilla, llénala en Excel y vuelve a subirla."
+      >
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="outline"
+            onClick={() =>
+              downloadCsv("plantilla-inventario.csv", csvTemplate())
+            }
+          >
+            <Download />
+            Descargar plantilla
+          </Button>
         </div>
-      </SheetContent>
-    </Sheet>
+
+        <input
+          ref={inputRef}
+          type="file"
+          accept=".csv,text/csv"
+          onChange={onFile}
+          className="hidden"
+        />
+        <Button
+          variant="outline"
+          className="w-full justify-start"
+          onClick={() => inputRef.current?.click()}
+        >
+          <FileUp />
+          <span className="truncate">{fileName ?? "Elegir archivo CSV…"}</span>
+        </Button>
+
+        {rows.length > 0 && !result && (
+          <FormAlert tone="info" icon={FileUp}>
+            <strong>{rows.length}</strong> fila(s) listas para importar.
+          </FormAlert>
+        )}
+
+        <p className="text-xs leading-relaxed text-muted-foreground">
+          Columnas: {CSV_COLUMNS.join(", ")}. Solo <code>sku</code> y{" "}
+          <code>name</code> son obligatorios; el resto es opcional.
+        </p>
+      </FormSection>
+
+      {result && (
+        <FormSection title="Resultado" boxed>
+          <FormAlert tone="success" icon={CheckCircle2}>
+            Importación completada. Creados{" "}
+            <strong>{result.created}</strong>, actualizados{" "}
+            <strong>{result.updated}</strong>, con error{" "}
+            <strong>{result.errors.length}</strong>.
+          </FormAlert>
+          {result.errors.length > 0 && (
+            <ul className="max-h-48 space-y-1 overflow-y-auto text-xs text-destructive">
+              {result.errors.slice(0, 50).map((er, i) => (
+                <li key={i}>
+                  Fila {er.row}
+                  {er.sku ? ` (${er.sku})` : ""}: {er.message}
+                </li>
+              ))}
+            </ul>
+          )}
+        </FormSection>
+      )}
+    </FormDialog>
   )
 }
 
@@ -3268,35 +3228,44 @@ function StockImportSheet({
   }
 
   return (
-    <Sheet
+    <FormDialog
       open={open}
       onOpenChange={(v) => {
         onOpenChange(v)
         if (!v) reset()
       }}
+      size="2xl"
+      icon={Upload}
+      title="Cargar existencias (CSV)"
+      description="Cada fila registra una entrada de mercancía del producto (por SKU) en la sede (por nombre o código)."
+      footer={
+        <>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            {result ? "Cerrar" : "Cancelar"}
+          </Button>
+          {!result && (
+            <Button onClick={doImport} disabled={rows.length === 0 || importing}>
+              {importing ? <Loader2 className="animate-spin" /> : <Upload />}
+              {importing ? "Cargando…" : "Cargar"}
+            </Button>
+          )}
+        </>
+      }
     >
-      <SheetContent side="right" className="flex flex-col sm:max-w-md">
-        <SheetHeader>
-          <SheetTitle>Cargar existencias (CSV)</SheetTitle>
-          <SheetDescription>
-            Cada fila registra una ENTRADA de mercancía (suma stock) del producto
-            (por SKU) en la sede (por nombre o código).
-          </SheetDescription>
-        </SheetHeader>
+      <FormAlert tone="warning" icon={TriangleAlert}>
+        Importar <strong>suma</strong> las cantidades como entradas; no
+        reemplaza el stock actual. Úsalo para carga inicial o recepción masiva.
+      </FormAlert>
 
-        <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4">
-          <div className="flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/5 p-3 text-sm text-muted-foreground">
-            <TriangleAlert className="mt-0.5 size-4 shrink-0 text-warning-ink" />
-            <span>
-              Importar <strong className="text-foreground">suma</strong> las
-              cantidades como entradas; no reemplaza el stock actual. Úsalo para
-              carga inicial o recepción masiva.
-            </span>
-          </div>
+      {parseError && <FormAlert>{parseError}</FormAlert>}
 
+      <FormSection
+        title="El archivo"
+        description="Descarga la plantilla, llénala en Excel y vuelve a subirla."
+      >
+        <div className="flex flex-wrap gap-2">
           <Button
             variant="outline"
-            size="sm"
             onClick={() =>
               downloadCsv("plantilla-existencias.csv", stockTemplate())
             }
@@ -3304,87 +3273,58 @@ function StockImportSheet({
             <Download />
             Descargar plantilla
           </Button>
-
-          <input
-            ref={inputRef}
-            type="file"
-            accept=".csv,text/csv"
-            onChange={onFile}
-            className="hidden"
-          />
-          <Button
-            variant="outline"
-            className="w-full justify-start"
-            onClick={() => inputRef.current?.click()}
-          >
-            <FileUp />
-            <span className="truncate">{fileName ?? "Elegir archivo CSV…"}</span>
-          </Button>
-
-          {parseError && (
-            <p className="text-sm text-destructive">{parseError}</p>
-          )}
-
-          {rows.length > 0 && !result && (
-            <p className="text-sm text-muted-foreground">
-              <strong className="text-foreground">{rows.length}</strong>{" "}
-              entrada(s) listas para cargar.
-            </p>
-          )}
-
-          {result && (
-            <div className="space-y-2 rounded-lg border border-border p-3 text-sm">
-              <p className="flex items-center gap-2 font-medium text-success-ink">
-                <CheckCircle2 className="size-4" />
-                Carga completada
-              </p>
-              <p className="text-muted-foreground">
-                Entradas:{" "}
-                <strong className="text-foreground">{result.imported}</strong> ·
-                Errores:{" "}
-                <strong
-                  className={
-                    result.errors.length ? "text-destructive" : "text-foreground"
-                  }
-                >
-                  {result.errors.length}
-                </strong>
-              </p>
-              {result.errors.length > 0 && (
-                <ul className="max-h-40 space-y-1 overflow-y-auto text-xs text-destructive">
-                  {result.errors.slice(0, 50).map((er, i) => (
-                    <li key={i}>
-                      Fila {er.row}
-                      {er.sku ? ` (${er.sku}` : ""}
-                      {er.sku && er.sede ? ` · ${er.sede})` : er.sku ? ")" : ""}:{" "}
-                      {er.message}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          )}
-
-          <p className="text-xs text-muted-foreground">
-            Columnas: {STOCK_IMPORT_COLUMNS.join(", ")}. Obligatorias:{" "}
-            <code>sku</code>, <code>sede</code> y <code>qty</code>. Los
-            perecederos requieren <code>expiresAt</code>.
-          </p>
         </div>
 
-        <div className="flex justify-end gap-2 border-t border-border px-4 py-3">
-          <Button variant="ghost" onClick={() => onOpenChange(false)}>
-            {result ? "Cerrar" : "Cancelar"}
-          </Button>
-          {!result && (
-            <Button onClick={doImport} disabled={rows.length === 0 || importing}>
-              <Upload />
-              {importing ? "Cargando…" : "Cargar"}
-            </Button>
+        <input
+          ref={inputRef}
+          type="file"
+          accept=".csv,text/csv"
+          onChange={onFile}
+          className="hidden"
+        />
+        <Button
+          variant="outline"
+          className="w-full justify-start"
+          onClick={() => inputRef.current?.click()}
+        >
+          <FileUp />
+          <span className="truncate">{fileName ?? "Elegir archivo CSV…"}</span>
+        </Button>
+
+        {rows.length > 0 && !result && (
+          <FormAlert tone="info" icon={FileUp}>
+            <strong>{rows.length}</strong> entrada(s) listas para cargar.
+          </FormAlert>
+        )}
+
+        <p className="text-xs leading-relaxed text-muted-foreground">
+          Columnas: {STOCK_IMPORT_COLUMNS.join(", ")}. Obligatorias:{" "}
+          <code>sku</code>, <code>sede</code> y <code>qty</code>. Los
+          perecederos requieren <code>expiresAt</code>.
+        </p>
+      </FormSection>
+
+      {result && (
+        <FormSection title="Resultado" boxed>
+          <FormAlert tone="success" icon={CheckCircle2}>
+            Carga completada. Entradas <strong>{result.imported}</strong>, con
+            error <strong>{result.errors.length}</strong>.
+          </FormAlert>
+          {result.errors.length > 0 && (
+            <ul className="max-h-48 space-y-1 overflow-y-auto text-xs text-destructive">
+              {result.errors.slice(0, 50).map((er, i) => (
+                <li key={i}>
+                  Fila {er.row}
+                  {er.sku ? ` (${er.sku}` : ""}
+                  {er.sku && er.sede ? ` · ${er.sede})` : er.sku ? ")" : ""}:{" "}
+                  {er.message}
+                </li>
+              ))}
+            </ul>
           )}
-        </div>
-      </SheetContent>
-    </Sheet>
+        </FormSection>
+      )}
+    </FormDialog>
   )
 }
 

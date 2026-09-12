@@ -4,7 +4,6 @@ import * as React from "react"
 import {
   Receipt,
   Plus,
-  Loader2,
   RefreshCw,
   HandCoins,
   AlertTriangle,
@@ -36,7 +35,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import { MoneyInput } from "@/components/ui/money-input"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
@@ -48,16 +47,20 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "@/components/ui/sheet"
+  FormDialog,
+  FormSection,
+  FormAlert,
+  FormActions,
+} from "@/components/ui/form-dialog"
+import {
+  Field,
+  FieldGrid,
+  FieldSpan,
+  NativeSelect,
+} from "@/components/ui/field"
+import { Termino } from "@/components/ui/help-tip"
 
 const ALL = "all"
-const inputClass =
-  "h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
 
 const STATUS_FILTERS: { v: string; l: string }[] = [
   { v: ALL, l: "Todas" },
@@ -153,35 +156,28 @@ export function PayablesPanel({ showKpis = true }: { showKpis?: boolean }) {
 
       <Card>
         <CardContent className="flex flex-wrap items-end gap-3 py-4">
-          <div className="flex flex-col gap-1">
-            <Label className="text-xs">Sede</Label>
-            <select
-              className={`${inputClass} w-48`}
+          <Field id="cxpf-sede" label="Sede" className="w-48">
+            <NativeSelect
+              id="cxpf-sede"
               value={sedeId}
-              onChange={(e) => setSedeId(e.target.value)}
-            >
-              <option value={ALL}>Todas las sedes</option>
-              {sedes.map((s) => (
-                <option key={s._id} value={s._id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="flex flex-col gap-1">
-            <Label className="text-xs">Estado</Label>
-            <select
-              className={`${inputClass} w-44`}
+              onChange={setSedeId}
+              options={[
+                { value: ALL, label: "Todas las sedes" },
+                ...sedes.map((s) => ({ value: s._id, label: s.name })),
+              ]}
+            />
+          </Field>
+          <Field id="cxpf-estado" label="Estado" className="w-44">
+            <NativeSelect
+              id="cxpf-estado"
               value={status}
-              onChange={(e) => setStatus(e.target.value)}
-            >
-              {STATUS_FILTERS.map((s) => (
-                <option key={s.v} value={s.v}>
-                  {s.l}
-                </option>
-              ))}
-            </select>
-          </div>
+              onChange={setStatus}
+              options={STATUS_FILTERS.map((s) => ({
+                value: s.v,
+                label: s.l,
+              }))}
+            />
+          </Field>
         </CardContent>
       </Card>
 
@@ -208,12 +204,18 @@ export function PayablesPanel({ showKpis = true }: { showKpis?: boolean }) {
                 <TableRow>
                   <TableHead>Proveedor</TableHead>
                   <TableHead>Documento</TableHead>
-                  <TableHead>Sede</TableHead>
+                  <TableHead>
+                    <Termino>Sede</Termino>
+                  </TableHead>
                   <TableHead>Vence</TableHead>
                   <TableHead>Estado</TableHead>
                   <TableHead className="text-right">Total</TableHead>
-                  <TableHead className="text-right">Abonado</TableHead>
-                  <TableHead className="text-right">Saldo</TableHead>
+                  <TableHead className="text-right">
+                    <Termino>Abonado</Termino>
+                  </TableHead>
+                  <TableHead className="text-right">
+                    <Termino>Saldo</Termino>
+                  </TableHead>
                   {canManage && <TableHead className="text-right"></TableHead>}
                 </TableRow>
               </TableHeader>
@@ -295,7 +297,7 @@ export function PayablesPanel({ showKpis = true }: { showKpis?: boolean }) {
 
       {canManage && (
         <>
-          <NewPayableSheet
+          <NewPayableDialog
             open={newOpen}
             onOpenChange={setNewOpen}
             sedes={sedes}
@@ -304,7 +306,7 @@ export function PayablesPanel({ showKpis = true }: { showKpis?: boolean }) {
               void load()
             }}
           />
-          <PaymentSheet
+          <PaymentDialog
             payable={payFor}
             onOpenChange={(v) => !v && setPayFor(null)}
             onSaved={() => {
@@ -318,7 +320,7 @@ export function PayablesPanel({ showKpis = true }: { showKpis?: boolean }) {
   )
 }
 
-function NewPayableSheet({
+function NewPayableDialog({
   open,
   onOpenChange,
   sedes,
@@ -377,95 +379,105 @@ function NewPayableSheet({
   const valid = sedeId && supplierName.trim() && numOr(amount) > 0
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-md">
-        <div className="flex flex-col gap-4 px-4 py-2">
-          <SheetHeader className="px-0">
-            <SheetTitle className="font-display text-lg">Nueva cuenta por pagar</SheetTitle>
-            <SheetDescription>Factura de un proveedor pendiente de pago.</SheetDescription>
-          </SheetHeader>
+    <FormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      size="2xl"
+      icon={Receipt}
+      title="Nueva cuenta por pagar"
+      description="Una factura de proveedor que todavía no has pagado."
+      footer={
+        <FormActions
+          onCancel={() => onOpenChange(false)}
+          onSubmit={() => void save()}
+          busy={busy}
+          disabled={!valid}
+          submitLabel="Registrar"
+        />
+      }
+    >
+      {error && <FormAlert>{error}</FormAlert>}
 
-          <div className="flex flex-col gap-1">
-            <Label className="text-xs">Sede</Label>
-            <select
-              className={inputClass}
+      <FormSection title="A quién le debes">
+        <FieldGrid cols={2}>
+          <Field id="cxp-sede" label="Sede" required help={{ term: "sede" }}>
+            <NativeSelect
+              id="cxp-sede"
               value={sedeId}
-              onChange={(e) => setSedeId(e.target.value)}
-            >
-              <option value="">Selecciona…</option>
-              {sedes.map((s) => (
-                <option key={s._id} value={s._id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="flex flex-col gap-1">
-            <Label className="text-xs">Proveedor</Label>
+              onChange={setSedeId}
+              options={sedes.map((s) => ({ value: s._id, label: s.name }))}
+              placeholder="Selecciona…"
+            />
+          </Field>
+          <Field id="cxp-supplier" label="Proveedor" required>
             <Input
+              id="cxp-supplier"
               value={supplierName}
               onChange={(e) => setSupplierName(e.target.value)}
-              placeholder="Nombre del proveedor"
+              placeholder="Distribuidora ABC"
             />
-          </div>
-
-          <div className="flex flex-col gap-1">
-            <Label className="text-xs">N.º de documento (opcional)</Label>
-            <Input value={docNumber} onChange={(e) => setDocNumber(e.target.value)} />
-          </div>
-
-          <div className="grid grid-cols-2 gap-2">
-            <div className="flex flex-col gap-1">
-              <Label className="text-xs">Emisión</Label>
+          </Field>
+          <FieldSpan span={2}>
+            <Field id="cxp-doc" label="N.º de documento">
               <Input
-                type="date"
-                value={issueDate}
-                onChange={(e) => setIssueDate(e.target.value)}
+                id="cxp-doc"
+                value={docNumber}
+                onChange={(e) => setDocNumber(e.target.value)}
+                placeholder="Opcional — el de su factura"
               />
-            </div>
-            <div className="flex flex-col gap-1">
-              <Label className="text-xs">Vencimiento</Label>
-              <Input
-                type="date"
-                value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
-              />
-            </div>
-          </div>
+            </Field>
+          </FieldSpan>
+        </FieldGrid>
+      </FormSection>
 
-          <div className="flex flex-col gap-1">
-            <Label className="text-xs">Monto</Label>
+      <FormSection title="Cuánto y para cuándo">
+        <FieldGrid cols={3}>
+          <Field id="cxp-amount" label="Monto" required>
+            <MoneyInput
+              id="cxp-amount"
+              value={numOr(amount) || null}
+              onValueChange={(v) => setAmount(v == null ? "" : String(v))}
+              placeholder="0"
+            />
+          </Field>
+          <Field id="cxp-issue" label="Emisión">
             <Input
-              type="number"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
+              id="cxp-issue"
+              type="date"
+              value={issueDate}
+              onChange={(e) => setIssueDate(e.target.value)}
             />
-          </div>
-
-          <div className="flex flex-col gap-1">
-            <Label className="text-xs">Nota (opcional)</Label>
-            <Input value={note} onChange={(e) => setNote(e.target.value)} />
-          </div>
-
-          {error && <p className="text-sm text-destructive">{error}</p>}
-
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Cancelar
-            </Button>
-            <Button className="gap-2" disabled={busy || !valid} onClick={() => void save()}>
-              {busy && <Loader2 className="size-4 animate-spin" />}
-              Registrar
-            </Button>
-          </div>
-        </div>
-      </SheetContent>
-    </Sheet>
+          </Field>
+          <Field
+            id="cxp-due"
+            label="Vencimiento"
+            help={{ term: "plazoPago" }}
+            hint="La fecha límite que te dio el proveedor."
+          >
+            <Input
+              id="cxp-due"
+              type="date"
+              value={dueDate}
+              onChange={(e) => setDueDate(e.target.value)}
+            />
+          </Field>
+          <FieldSpan span={3}>
+            <Field id="cxp-note" label="Nota">
+              <Input
+                id="cxp-note"
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="Opcional"
+              />
+            </Field>
+          </FieldSpan>
+        </FieldGrid>
+      </FormSection>
+    </FormDialog>
   )
 }
 
-function PaymentSheet({
+function PaymentDialog({
   payable,
   onOpenChange,
   onSaved,
@@ -515,115 +527,124 @@ function PaymentSheet({
   const valid = val > 0 && val <= saldo
 
   return (
-    <Sheet open={payable !== null} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-md">
-        {payable && (
-          <div className="flex flex-col gap-4 px-4 py-2">
-            <SheetHeader className="px-0">
-              <SheetTitle className="font-display text-lg">Registrar abono</SheetTitle>
-              <SheetDescription>{payable.supplierName}</SheetDescription>
-            </SheetHeader>
+    <FormDialog
+      open={payable !== null}
+      onOpenChange={onOpenChange}
+      size="2xl"
+      icon={HandCoins}
+      title="Registrar abono"
+      description={
+        payable
+          ? `${payable.supplierName} · saldo de ${money.format(saldo)}`
+          : undefined
+      }
+      footer={
+        <FormActions
+          onCancel={() => onOpenChange(false)}
+          onSubmit={() => void save()}
+          busy={busy}
+          disabled={!valid}
+          icon={HandCoins}
+          submitLabel="Registrar abono"
+        />
+      }
+    >
+      {payable && (
+        <>
+          {error && <FormAlert>{error}</FormAlert>}
 
-            <div className="grid grid-cols-3 gap-2 rounded-lg border border-border p-3 text-sm">
-              <div className="flex flex-col">
-                <span className="text-xs text-muted-foreground">Total</span>
-                <span className="tabular-nums">{money.format(payable.amount)}</span>
-              </div>
-              <div className="flex flex-col">
-                <span className="text-xs text-muted-foreground">Abonado</span>
-                <span className="tabular-nums">{money.format(payable.paidAmount)}</span>
-              </div>
-              <div className="flex flex-col">
-                <span className="text-xs text-muted-foreground">Saldo</span>
-                <span className="font-medium tabular-nums text-primary">
-                  {money.format(saldo)}
+          <div className="grid grid-cols-3 divide-x divide-border overflow-hidden rounded-2xl border border-border bg-muted/35">
+            {[
+              { label: "Total", value: payable.amount, tone: "" },
+              { label: "Abonado", value: payable.paidAmount, tone: "" },
+              { label: "Saldo", value: saldo, tone: "text-primary" },
+            ].map((c) => (
+              <div key={c.label} className="flex flex-col gap-0.5 px-3.5 py-3">
+                <span className="text-xs text-muted-foreground">{c.label}</span>
+                <span className={`stat-figure text-base ${c.tone}`}>
+                  {money.format(c.value)}
                 </span>
               </div>
-            </div>
+            ))}
+          </div>
 
-            <div className="grid grid-cols-2 gap-2">
-              <div className="flex flex-col gap-1">
-                <Label className="text-xs">Fecha</Label>
+          <FormSection title="El abono">
+            <FieldGrid cols={3}>
+              <Field id="cxpa-date" label="Fecha">
                 <Input
+                  id="cxpa-date"
                   type="date"
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
                 />
-              </div>
-              <div className="flex flex-col gap-1">
-                <Label className="text-xs">Método</Label>
-                <select
-                  className={inputClass}
+              </Field>
+              <Field
+                id="cxpa-method"
+                label="Medio de pago"
+                help={{ term: "nequi" }}
+              >
+                <NativeSelect
+                  id="cxpa-method"
                   value={method}
-                  onChange={(e) => setMethod(e.target.value as PaymentMethod)}
-                >
-                  {(Object.keys(PAYMENT_METHOD_LABELS) as PaymentMethod[]).map((k) => (
-                    <option key={k} value={k}>
-                      {PAYMENT_METHOD_LABELS[k]}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
+                  onChange={(v) => setMethod(v as PaymentMethod)}
+                  options={(
+                    Object.keys(PAYMENT_METHOD_LABELS) as PaymentMethod[]
+                  ).map((k) => ({ value: k, label: PAYMENT_METHOD_LABELS[k] }))}
+                />
+              </Field>
+              <Field
+                id="cxpa-amount"
+                label="Monto del abono"
+                help={{ term: "abono" }}
+                error={val > saldo ? "El abono no puede superar el saldo." : null}
+              >
+                <MoneyInput
+                  id="cxpa-amount"
+                  value={val || null}
+                  onValueChange={(v) => setAmount(v == null ? "" : String(v))}
+                  placeholder="0"
+                />
+              </Field>
+              <FieldSpan span={3}>
+                <Field id="cxpa-note" label="Nota">
+                  <Input
+                    id="cxpa-note"
+                    value={note}
+                    onChange={(e) => setNote(e.target.value)}
+                    placeholder="Opcional"
+                  />
+                </Field>
+              </FieldSpan>
+            </FieldGrid>
+          </FormSection>
 
-            <div className="flex flex-col gap-1">
-              <Label className="text-xs">Monto del abono</Label>
-              <Input
-                type="number"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-              />
-              {val > saldo && (
-                <span className="text-xs text-destructive">
-                  El abono no puede superar el saldo.
-                </span>
-              )}
-            </div>
-
-            <div className="flex flex-col gap-1">
-              <Label className="text-xs">Nota (opcional)</Label>
-              <Input value={note} onChange={(e) => setNote(e.target.value)} />
-            </div>
-
-            {payable.payments.length > 0 && (
-              <div className="flex flex-col gap-1">
-                <span className="text-xs font-medium text-muted-foreground">
-                  Abonos anteriores
-                </span>
+          {payable.payments.length > 0 && (
+            <FormSection
+              title="Abonos anteriores"
+              description={`${payable.payments.length} pago${payable.payments.length === 1 ? "" : "s"} registrado${payable.payments.length === 1 ? "" : "s"}.`}
+              boxed
+            >
+              <ul className="flex flex-col gap-1.5">
                 {payable.payments.map((p, i) => (
-                  <div
+                  <li
                     key={i}
-                    className="flex items-center justify-between text-xs text-muted-foreground"
+                    className="flex items-center justify-between gap-3 text-xs text-muted-foreground"
                   >
                     <span>
                       {fmtDate(p.date)}
                       {p.method ? ` · ${PAYMENT_METHOD_LABELS[p.method]}` : ""}
                     </span>
-                    <span className="tabular-nums">{money.format(p.amount)}</span>
-                  </div>
+                    <span className="font-semibold tabular-nums text-foreground">
+                      {money.format(p.amount)}
+                    </span>
+                  </li>
                 ))}
-              </div>
-            )}
-
-            {error && <p className="text-sm text-destructive">{error}</p>}
-
-            <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" onClick={() => onOpenChange(false)}>
-                Cancelar
-              </Button>
-              <Button
-                className="gap-2"
-                disabled={busy || !valid}
-                onClick={() => void save()}
-              >
-                {busy && <Loader2 className="size-4 animate-spin" />}
-                Registrar abono
-              </Button>
-            </div>
-          </div>
-        )}
-      </SheetContent>
-    </Sheet>
+              </ul>
+            </FormSection>
+          )}
+        </>
+      )}
+    </FormDialog>
   )
 }
 

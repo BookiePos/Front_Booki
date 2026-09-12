@@ -43,7 +43,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import { MoneyInput } from "@/components/ui/money-input"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
@@ -55,16 +55,21 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "@/components/ui/sheet"
+  FormDialog,
+  FormSection,
+  FormAlert,
+  FormActions,
+} from "@/components/ui/form-dialog"
+import {
+  Field,
+  FieldGrid,
+  FieldSpan,
+  NativeSelect,
+} from "@/components/ui/field"
+import { Termino } from "@/components/ui/help-tip"
+import { cn } from "@/lib/utils"
 
 const ALL = "all"
-const inputClass =
-  "h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
 
 const STATUS_FILTERS: { v: string; l: string }[] = [
   { v: ALL, l: "Todas" },
@@ -216,7 +221,14 @@ export default function ClientesPage() {
       <PageHeader
         section="Comercial"
         title="Cuentas por cobrar"
-        description="Ventas a crédito (fiado) por cliente, con abonos, vencimientos y antigüedad de saldos."
+        titleHelp={{ term: "cxc" }}
+        description={
+          <>
+            Lo que te deben los clientes a los que les fiaste, con sus{" "}
+            <Termino>abonos</Termino>, sus vencimientos y qué tan vieja está
+            cada deuda.
+          </>
+        }
         actions={actions}
       />
 
@@ -259,35 +271,28 @@ export default function ClientesPage() {
 
       <Card className="mb-4">
         <CardContent className="flex flex-wrap items-end gap-3 py-4">
-          <div className="flex flex-col gap-1">
-            <Label className="text-xs">Sede</Label>
-            <select
-              className={`${inputClass} w-48`}
+          <Field id="cxc-sede" label="Sede" className="w-48">
+            <NativeSelect
+              id="cxc-sede"
               value={sedeId}
-              onChange={(e) => setSedeId(e.target.value)}
-            >
-              <option value={ALL}>Todas las sedes</option>
-              {sedes.map((s) => (
-                <option key={s._id} value={s._id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="flex flex-col gap-1">
-            <Label className="text-xs">Estado</Label>
-            <select
-              className={`${inputClass} w-44`}
+              onChange={setSedeId}
+              options={[
+                { value: ALL, label: "Todas las sedes" },
+                ...sedes.map((s) => ({ value: s._id, label: s.name })),
+              ]}
+            />
+          </Field>
+          <Field id="cxc-estado" label="Estado" className="w-44">
+            <NativeSelect
+              id="cxc-estado"
               value={status}
-              onChange={(e) => setStatus(e.target.value)}
-            >
-              {STATUS_FILTERS.map((s) => (
-                <option key={s.v} value={s.v}>
-                  {s.l}
-                </option>
-              ))}
-            </select>
-          </div>
+              onChange={setStatus}
+              options={STATUS_FILTERS.map((s) => ({
+                value: s.v,
+                label: s.l,
+              }))}
+            />
+          </Field>
         </CardContent>
       </Card>
 
@@ -315,12 +320,18 @@ export default function ClientesPage() {
                 <TableRow>
                   <TableHead>Cliente</TableHead>
                   <TableHead>Documento</TableHead>
-                  <TableHead>Sede</TableHead>
+                  <TableHead>
+                    <Termino>Sede</Termino>
+                  </TableHead>
                   <TableHead>Vence</TableHead>
                   <TableHead>Estado</TableHead>
                   <TableHead className="text-right">Total</TableHead>
-                  <TableHead className="text-right">Abonado</TableHead>
-                  <TableHead className="text-right">Saldo</TableHead>
+                  <TableHead className="text-right">
+                    <Termino>Abonado</Termino>
+                  </TableHead>
+                  <TableHead className="text-right">
+                    <Termino>Saldo</Termino>
+                  </TableHead>
                   {canManage && <TableHead className="text-right"></TableHead>}
                 </TableRow>
               </TableHeader>
@@ -407,7 +418,7 @@ export default function ClientesPage() {
 
       {canManage && (
         <>
-          <NewReceivableSheet
+          <NewReceivableDialog
             open={newOpen}
             onOpenChange={setNewOpen}
             sedes={sedes}
@@ -416,7 +427,7 @@ export default function ClientesPage() {
               void load()
             }}
           />
-          <PaymentSheet
+          <PaymentDialog
             receivable={payFor}
             onOpenChange={(v) => !v && setPayFor(null)}
             onSaved={() => {
@@ -430,7 +441,7 @@ export default function ClientesPage() {
   )
 }
 
-function NewReceivableSheet({
+function NewReceivableDialog({
   open,
   onOpenChange,
   sedes,
@@ -530,144 +541,189 @@ function NewReceivableSheet({
   const valid = sedeId && customerId && numOr(amount) > 0
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-md">
-        <div className="flex flex-col gap-4 px-4 py-2">
-          <SheetHeader className="px-0">
-            <SheetTitle className="font-display text-lg">Nuevo fiado</SheetTitle>
-            <SheetDescription>
-              La cuenta por cobrar debe ir a nombre de un cliente registrado.
-            </SheetDescription>
-          </SheetHeader>
+    <FormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      size="2xl"
+      icon={Plus}
+      title="Nuevo fiado"
+      description="Lo que le queda debiendo un cliente. Tiene que ir a nombre de alguien registrado, para poder cobrárselo después."
+      footer={
+        <FormActions
+          onCancel={() => onOpenChange(false)}
+          onSubmit={() => void save()}
+          busy={busy}
+          disabled={!valid}
+          submitLabel="Registrar"
+        />
+      }
+    >
+      {error && <FormAlert>{error}</FormAlert>}
 
-          <div className="flex flex-col gap-1">
-            <Label className="text-xs">Sede</Label>
-            <select
-              className={inputClass}
+      <FormSection title="A quién y dónde">
+        <FieldGrid cols={2}>
+          <Field id="fi-sede" label="Sede" required help={{ term: "sede" }}>
+            <NativeSelect
+              id="fi-sede"
               value={sedeId}
-              onChange={(e) => setSedeId(e.target.value)}
-            >
-              <option value="">Selecciona…</option>
-              {sedes.map((s) => (
-                <option key={s._id} value={s._id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-          </div>
+              onChange={setSedeId}
+              options={sedes.map((s) => ({ value: s._id, label: s.name }))}
+              placeholder="Selecciona…"
+            />
+          </Field>
 
-          <div className="flex flex-col gap-1">
-            <div className="flex items-center justify-between">
-              <Label className="text-xs">Cliente registrado</Label>
-              <button
+          <Field
+            id="fi-customer"
+            label="Cliente registrado"
+            required
+            help={{ term: "cxc" }}
+          >
+            <NativeSelect
+              id="fi-customer"
+              value={customerId}
+              onChange={setCustomerId}
+              options={customers.map((c) => ({
+                value: c._id,
+                label: `${c.name} · ${c.docType} ${c.docNumber}`,
+              }))}
+              placeholder="Selecciona un cliente…"
+              disabled={showNewCustomer}
+            />
+          </Field>
+        </FieldGrid>
+
+        {/* Alta rápida: fiarle a alguien que todavía no está en el directorio
+            es el caso normal en el mostrador; obligar a salir de la ficha para
+            registrarlo hacía perder lo ya escrito. */}
+        {!showNewCustomer ? (
+          <button
+            type="button"
+            className="self-start text-xs font-semibold text-primary hover:underline"
+            onClick={() => setShowNewCustomer(true)}
+          >
+            + El cliente no está en la lista
+          </button>
+        ) : (
+          <div className="flex flex-col gap-3 rounded-2xl border border-primary/25 bg-primary/[0.04] p-3.5">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[0.8125rem] font-bold text-foreground">
+                Registrar un cliente nuevo
+              </p>
+              <Button
                 type="button"
-                className="text-xs font-medium text-primary hover:underline"
-                onClick={() => setShowNewCustomer((v) => !v)}
+                variant="ghost"
+                size="xs"
+                onClick={() => setShowNewCustomer(false)}
               >
-                {showNewCustomer ? "Cancelar" : "+ Registrar nuevo"}
-              </button>
+                Cancelar
+              </Button>
             </div>
-            {!showNewCustomer ? (
-              <select
-                className={inputClass}
-                value={customerId}
-                onChange={(e) => setCustomerId(e.target.value)}
-              >
-                <option value="">Selecciona un cliente…</option>
-                {customers.map((c) => (
-                  <option key={c._id} value={c._id}>
-                    {c.name} · {c.docType} {c.docNumber}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <div className="flex flex-col gap-2 rounded-lg border border-border p-2">
-                <Input
-                  placeholder="Nombre del cliente"
-                  value={ncName}
-                  onChange={(e) => setNcName(e.target.value)}
-                />
-                <div className="grid grid-cols-2 gap-2">
+            <FieldGrid cols={3}>
+              <FieldSpan span={3}>
+                <Field id="nc-name" label="Nombre" required>
                   <Input
-                    placeholder="Cédula / NIT"
+                    id="nc-name"
+                    placeholder="Nombre del cliente"
+                    value={ncName}
+                    onChange={(e) => setNcName(e.target.value)}
+                  />
+                </Field>
+              </FieldSpan>
+              <FieldSpan span={2}>
+                <Field id="nc-doc" label="Cédula o NIT" required>
+                  <Input
+                    id="nc-doc"
+                    inputMode="numeric"
+                    placeholder="1020304050"
                     value={ncDoc}
                     onChange={(e) => setNcDoc(e.target.value)}
                   />
-                  <Input
-                    placeholder="Teléfono"
-                    value={ncPhone}
-                    onChange={(e) => setNcPhone(e.target.value)}
-                  />
-                </div>
-                <Button
-                  size="sm"
-                  className="gap-2"
-                  disabled={ncBusy || !ncName.trim() || !ncDoc.trim()}
-                  onClick={() => void quickAddCustomer()}
-                >
-                  {ncBusy && <Loader2 className="size-4 animate-spin" />}
-                  Registrar y seleccionar
-                </Button>
-              </div>
-            )}
+                </Field>
+              </FieldSpan>
+              <Field id="nc-phone" label="Teléfono">
+                <Input
+                  id="nc-phone"
+                  type="tel"
+                  inputMode="tel"
+                  placeholder="Opcional"
+                  value={ncPhone}
+                  onChange={(e) => setNcPhone(e.target.value)}
+                />
+              </Field>
+            </FieldGrid>
+            <Button
+              type="button"
+              size="sm"
+              className="self-start"
+              disabled={ncBusy || !ncName.trim() || !ncDoc.trim()}
+              onClick={() => void quickAddCustomer()}
+            >
+              {ncBusy && <Loader2 className="animate-spin" />}
+              Registrar y seleccionar
+            </Button>
           </div>
+        )}
+      </FormSection>
 
-          <div className="flex flex-col gap-1">
-            <Label className="text-xs">Referencia / documento (opcional)</Label>
-            <Input value={docNumber} onChange={(e) => setDocNumber(e.target.value)} />
-          </div>
-
-          <div className="grid grid-cols-2 gap-2">
-            <div className="flex flex-col gap-1">
-              <Label className="text-xs">Fecha</Label>
-              <Input
-                type="date"
-                value={issueDate}
-                onChange={(e) => setIssueDate(e.target.value)}
-              />
-            </div>
-            <div className="flex flex-col gap-1">
-              <Label className="text-xs">Vencimiento</Label>
-              <Input
-                type="date"
-                value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-1">
-            <Label className="text-xs">Monto</Label>
-            <Input
-              type="number"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
+      <FormSection title="La deuda">
+        <FieldGrid cols={3}>
+          <Field id="fi-amount" label="Monto" required>
+            <MoneyInput
+              id="fi-amount"
+              value={numOr(amount) || null}
+              onValueChange={(v) => setAmount(v == null ? "" : String(v))}
+              placeholder="0"
             />
-          </div>
+          </Field>
+          <Field id="fi-issue" label="Fecha">
+            <Input
+              id="fi-issue"
+              type="date"
+              value={issueDate}
+              onChange={(e) => setIssueDate(e.target.value)}
+            />
+          </Field>
+          <Field
+            id="fi-due"
+            label="Vencimiento"
+            help={{ term: "cartera" }}
+            hint="Desde esta fecha la deuda cuenta como vencida."
+          >
+            <Input
+              id="fi-due"
+              type="date"
+              value={dueDate}
+              onChange={(e) => setDueDate(e.target.value)}
+            />
+          </Field>
 
-          <div className="flex flex-col gap-1">
-            <Label className="text-xs">Nota (opcional)</Label>
-            <Input value={note} onChange={(e) => setNote(e.target.value)} />
-          </div>
-
-          {error && <p className="text-sm text-destructive">{error}</p>}
-
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Cancelar
-            </Button>
-            <Button className="gap-2" disabled={busy || !valid} onClick={() => void save()}>
-              {busy && <Loader2 className="size-4 animate-spin" />}
-              Registrar
-            </Button>
-          </div>
-        </div>
-      </SheetContent>
-    </Sheet>
+          <FieldSpan span={2}>
+            <Field id="fi-doc" label="Referencia / documento">
+              <Input
+                id="fi-doc"
+                value={docNumber}
+                onChange={(e) => setDocNumber(e.target.value)}
+                placeholder="Opcional"
+              />
+            </Field>
+          </FieldSpan>
+          <FieldSpan span={3}>
+            <Field id="fi-note" label="Nota">
+              <Input
+                id="fi-note"
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="Opcional"
+              />
+            </Field>
+          </FieldSpan>
+        </FieldGrid>
+      </FormSection>
+    </FormDialog>
   )
 }
 
-function PaymentSheet({
+function PaymentDialog({
   receivable,
   onOpenChange,
   onSaved,
@@ -717,117 +773,127 @@ function PaymentSheet({
   const valid = val > 0 && val <= saldo
 
   return (
-    <Sheet open={receivable !== null} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-md">
-        {receivable && (
-          <div className="flex flex-col gap-4 px-4 py-2">
-            <SheetHeader className="px-0">
-              <SheetTitle className="font-display text-lg">Registrar abono</SheetTitle>
-              <SheetDescription>{receivable.customerName}</SheetDescription>
-            </SheetHeader>
+    <FormDialog
+      open={receivable !== null}
+      onOpenChange={onOpenChange}
+      size="2xl"
+      icon={HandCoins}
+      title="Registrar abono"
+      description={
+        receivable
+          ? `${receivable.customerName} · saldo de ${money.format(saldo)}`
+          : undefined
+      }
+      footer={
+        <FormActions
+          onCancel={() => onOpenChange(false)}
+          onSubmit={() => void save()}
+          busy={busy}
+          disabled={!valid}
+          icon={HandCoins}
+          submitLabel="Registrar abono"
+        />
+      }
+    >
+      {receivable && (
+        <>
+          {error && <FormAlert>{error}</FormAlert>}
 
-            <div className="grid grid-cols-3 gap-2 rounded-lg border border-border p-3 text-sm">
-              <div className="flex flex-col">
-                <span className="text-xs text-muted-foreground">Total</span>
-                <span className="tabular-nums">{money.format(receivable.amount)}</span>
-              </div>
-              <div className="flex flex-col">
-                <span className="text-xs text-muted-foreground">Abonado</span>
-                <span className="tabular-nums">
-                  {money.format(receivable.paidAmount)}
+          {/* Las tres cifras que importan antes de escribir nada: cuánto era,
+              cuánto lleva pagado y cuánto falta. */}
+          <div className="grid grid-cols-3 divide-x divide-border overflow-hidden rounded-2xl border border-border bg-muted/35">
+            {[
+              { label: "Total", value: receivable.amount, tone: "" },
+              { label: "Abonado", value: receivable.paidAmount, tone: "" },
+              { label: "Saldo", value: saldo, tone: "text-primary" },
+            ].map((c) => (
+              <div key={c.label} className="flex flex-col gap-0.5 px-3.5 py-3">
+                <span className="text-xs text-muted-foreground">{c.label}</span>
+                <span className={cn("stat-figure text-base", c.tone)}>
+                  {money.format(c.value)}
                 </span>
               </div>
-              <div className="flex flex-col">
-                <span className="text-xs text-muted-foreground">Saldo</span>
-                <span className="font-medium tabular-nums text-primary">
-                  {money.format(saldo)}
-                </span>
-              </div>
-            </div>
+            ))}
+          </div>
 
-            <div className="grid grid-cols-2 gap-2">
-              <div className="flex flex-col gap-1">
-                <Label className="text-xs">Fecha</Label>
+          <FormSection title="El abono">
+            <FieldGrid cols={3}>
+              <Field id="ab-date" label="Fecha">
                 <Input
+                  id="ab-date"
                   type="date"
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
                 />
-              </div>
-              <div className="flex flex-col gap-1">
-                <Label className="text-xs">Método</Label>
-                <select
-                  className={inputClass}
+              </Field>
+              <Field
+                id="ab-method"
+                label="Medio de pago"
+                help={{ term: "nequi" }}
+              >
+                <NativeSelect
+                  id="ab-method"
                   value={method}
-                  onChange={(e) => setMethod(e.target.value as PaymentMethod)}
-                >
-                  {(Object.keys(PAYMENT_METHOD_LABELS) as PaymentMethod[]).map((k) => (
-                    <option key={k} value={k}>
-                      {PAYMENT_METHOD_LABELS[k]}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
+                  onChange={(v) => setMethod(v as PaymentMethod)}
+                  options={(
+                    Object.keys(PAYMENT_METHOD_LABELS) as PaymentMethod[]
+                  ).map((k) => ({ value: k, label: PAYMENT_METHOD_LABELS[k] }))}
+                />
+              </Field>
+              <Field
+                id="ab-amount"
+                label="Monto del abono"
+                help={{ term: "abono" }}
+                error={val > saldo ? "El abono no puede superar el saldo." : null}
+              >
+                <MoneyInput
+                  id="ab-amount"
+                  value={val || null}
+                  onValueChange={(v) => setAmount(v == null ? "" : String(v))}
+                  placeholder="0"
+                />
+              </Field>
 
-            <div className="flex flex-col gap-1">
-              <Label className="text-xs">Monto del abono</Label>
-              <Input
-                type="number"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-              />
-              {val > saldo && (
-                <span className="text-xs text-destructive">
-                  El abono no puede superar el saldo.
-                </span>
-              )}
-            </div>
+              <FieldSpan span={3}>
+                <Field id="ab-note" label="Nota">
+                  <Input
+                    id="ab-note"
+                    value={note}
+                    onChange={(e) => setNote(e.target.value)}
+                    placeholder="Opcional"
+                  />
+                </Field>
+              </FieldSpan>
+            </FieldGrid>
+          </FormSection>
 
-            <div className="flex flex-col gap-1">
-              <Label className="text-xs">Nota (opcional)</Label>
-              <Input value={note} onChange={(e) => setNote(e.target.value)} />
-            </div>
-
-            {receivable.payments.length > 0 && (
-              <div className="flex flex-col gap-1">
-                <span className="text-xs font-medium text-muted-foreground">
-                  Abonos anteriores
-                </span>
+          {receivable.payments.length > 0 && (
+            <FormSection
+              title="Abonos anteriores"
+              description={`${receivable.payments.length} pago${receivable.payments.length === 1 ? "" : "s"} registrado${receivable.payments.length === 1 ? "" : "s"}.`}
+              boxed
+            >
+              <ul className="flex flex-col gap-1.5">
                 {receivable.payments.map((p, i) => (
-                  <div
+                  <li
                     key={i}
-                    className="flex items-center justify-between text-xs text-muted-foreground"
+                    className="flex items-center justify-between gap-3 text-xs text-muted-foreground"
                   >
                     <span>
                       {fmtDate(p.date)}
                       {p.method ? ` · ${PAYMENT_METHOD_LABELS[p.method]}` : ""}
                     </span>
-                    <span className="tabular-nums">{money.format(p.amount)}</span>
-                  </div>
+                    <span className="font-semibold tabular-nums text-foreground">
+                      {money.format(p.amount)}
+                    </span>
+                  </li>
                 ))}
-              </div>
-            )}
-
-            {error && <p className="text-sm text-destructive">{error}</p>}
-
-            <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" onClick={() => onOpenChange(false)}>
-                Cancelar
-              </Button>
-              <Button
-                className="gap-2"
-                disabled={busy || !valid}
-                onClick={() => void save()}
-              >
-                {busy && <Loader2 className="size-4 animate-spin" />}
-                Registrar abono
-              </Button>
-            </div>
-          </div>
-        )}
-      </SheetContent>
-    </Sheet>
+              </ul>
+            </FormSection>
+          )}
+        </>
+      )}
+    </FormDialog>
   )
 }
 

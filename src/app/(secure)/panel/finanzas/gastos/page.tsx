@@ -58,7 +58,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import { MoneyInput } from "@/components/ui/money-input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useConfirm } from "@/components/ui/confirm-dialog"
 import {
@@ -71,16 +71,22 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "@/components/ui/sheet"
+  FormDialog,
+  FormSection,
+  FormAlert,
+  FormActions,
+} from "@/components/ui/form-dialog"
+import {
+  Field,
+  FieldGrid,
+  FieldSpan,
+  NativeSelect,
+  CheckboxField,
+} from "@/components/ui/field"
+import { Termino } from "@/components/ui/help-tip"
+import { X } from "lucide-react"
 
 const ALL = "all"
-const inputClass =
-  "h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
 
 const STATUS_FILTERS: { v: string; l: string }[] = [
   { v: ALL, l: "Todos" },
@@ -264,7 +270,14 @@ export default function GastosPage() {
       <PageHeader
         section="Finanzas"
         title="Gastos"
-        description="Gastos operativos, plantillas recurrentes y cuentas por pagar en un solo lugar."
+        description={
+          <>
+            Todo lo que sale del negocio y no es mercancía: los{" "}
+            <Termino>gastos fijos</Termino>, los{" "}
+            <Termino>gastos variables</Termino> y lo que queda en{" "}
+            <Termino>cuentas por pagar</Termino>.
+          </>
+        }
         actions={actions}
       />
 
@@ -299,72 +312,59 @@ export default function GastosPage() {
         <>
           <Card data-tour="gastos-filtro" className="mb-4">
             <CardContent className="flex flex-wrap items-end gap-3 py-4">
-              <div className="flex flex-col gap-1">
-                <Label className="text-xs">Sede</Label>
-                <select
-                  className={`${inputClass} w-48`}
+              <Field id="gf-sede" label="Sede" className="w-48">
+                <NativeSelect
+                  id="gf-sede"
                   value={sedeId}
-                  onChange={(e) => setSedeId(e.target.value)}
-                >
-                  <option value={ALL}>Todas las sedes</option>
-                  {sedes.map((s) => (
-                    <option key={s._id} value={s._id}>
-                      {s.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex flex-col gap-1">
-                <Label className="text-xs">Categoría</Label>
-                <select
-                  className={`${inputClass} w-44`}
+                  onChange={setSedeId}
+                  options={[
+                    { value: ALL, label: "Todas las sedes" },
+                    ...sedes.map((s) => ({ value: s._id, label: s.name })),
+                  ]}
+                />
+              </Field>
+              <Field id="gf-cat" label="Categoría" className="w-44">
+                <NativeSelect
+                  id="gf-cat"
                   value={categoryId}
-                  onChange={(e) => setCategoryId(e.target.value)}
-                >
-                  <option value={ALL}>Todas</option>
-                  {categories
-                    .filter((c) => c.kind === "expense")
-                    .map((c) => (
-                      <option key={c._id} value={c._id}>
-                        {c.name}
-                      </option>
-                    ))}
-                </select>
-              </div>
-              <div className="flex flex-col gap-1">
-                <Label className="text-xs">Desde</Label>
+                  onChange={setCategoryId}
+                  options={[
+                    { value: ALL, label: "Todas" },
+                    ...categories
+                      .filter((c) => c.kind === "expense")
+                      .map((c) => ({ value: c._id, label: c.name })),
+                  ]}
+                />
+              </Field>
+              <Field id="gf-from" label="Desde" className="w-40">
                 <Input
+                  id="gf-from"
                   type="date"
                   value={from}
                   max={to}
                   onChange={(e) => setFrom(e.target.value)}
-                  className="w-40"
                 />
-              </div>
-              <div className="flex flex-col gap-1">
-                <Label className="text-xs">Hasta</Label>
+              </Field>
+              <Field id="gf-to" label="Hasta" className="w-40">
                 <Input
+                  id="gf-to"
                   type="date"
                   value={to}
                   min={from}
                   onChange={(e) => setTo(e.target.value)}
-                  className="w-40"
                 />
-              </div>
-              <div className="flex flex-col gap-1">
-                <Label className="text-xs">Estado</Label>
-                <select
-                  className={`${inputClass} w-40`}
+              </Field>
+              <Field id="gf-status" label="Estado" className="w-40">
+                <NativeSelect
+                  id="gf-status"
                   value={status}
-                  onChange={(e) => setStatus(e.target.value)}
-                >
-                  {STATUS_FILTERS.map((s) => (
-                    <option key={s.v} value={s.v}>
-                      {s.l}
-                    </option>
-                  ))}
-                </select>
-              </div>
+                  onChange={setStatus}
+                  options={STATUS_FILTERS.map((s) => ({
+                    value: s.v,
+                    label: s.l,
+                  }))}
+                />
+              </Field>
             </CardContent>
           </Card>
 
@@ -588,7 +588,7 @@ export default function GastosPage() {
       {tab === "cxp" && <PayablesPanel showKpis={false} />}
 
       {canManage && (
-        <ExpenseSheet
+        <ExpenseDialog
           open={sheetOpen}
           onOpenChange={setSheetOpen}
           editing={editing}
@@ -878,7 +878,7 @@ function RecurringPanel({
       </Card>
 
       {canManage && (
-        <RecurringSheet
+        <RecurringDialog
           open={sheetOpen}
           onOpenChange={setSheetOpen}
           editing={editing}
@@ -896,7 +896,7 @@ function RecurringPanel({
   )
 }
 
-function RecurringSheet({
+function RecurringDialog({
   open,
   onOpenChange,
   editing,
@@ -1004,35 +1004,40 @@ function RecurringSheet({
   const valid = sedeId && categoryId && concept.trim() && numOr(amount) > 0
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-md">
-        <div className="flex flex-col gap-4 px-4 py-2">
-          <SheetHeader className="px-0">
-            <SheetTitle className="font-display text-lg">
-              {editing ? "Editar plantilla" : "Nueva plantilla recurrente"}
-            </SheetTitle>
-            <SheetDescription>
-              {editing
-                ? "Actualiza la plantilla de gasto recurrente."
-                : "Se generará un gasto cada período según la frecuencia."}
-            </SheetDescription>
-          </SheetHeader>
+    <FormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      size="3xl"
+      icon={Repeat}
+      title={editing ? "Editar plantilla" : "Nueva plantilla recurrente"}
+      description={
+        editing
+          ? "Actualiza la plantilla de gasto recurrente."
+          : "Para lo que se paga igual todos los meses. El sistema crea el gasto solo, en la fecha que le digas."
+      }
+      footer={
+        <FormActions
+          onCancel={() => onOpenChange(false)}
+          onSubmit={() => void save()}
+          busy={busy}
+          disabled={!valid}
+          submitLabel={editing ? "Guardar" : "Crear plantilla"}
+        />
+      }
+    >
+      {error && <FormAlert>{error}</FormAlert>}
 
-          <div className="flex flex-col gap-1">
-            <Label className="text-xs">Sede</Label>
-            <select
-              className={inputClass}
+      <FormSection title="Qué se paga">
+        <FieldGrid cols={2}>
+          <Field id="rec-sede" label="Sede" required help={{ term: "sede" }}>
+            <NativeSelect
+              id="rec-sede"
               value={sedeId}
-              onChange={(e) => setSedeId(e.target.value)}
-            >
-              <option value="">Selecciona…</option>
-              {sedes.map((s) => (
-                <option key={s._id} value={s._id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-          </div>
+              onChange={setSedeId}
+              options={sedes.map((s) => ({ value: s._id, label: s.name }))}
+              placeholder="Selecciona…"
+            />
+          </Field>
 
           <ExpenseCategorySelect
             value={categoryId}
@@ -1045,160 +1050,160 @@ function RecurringSheet({
             }}
           />
 
-          <div className="flex flex-col gap-1">
-            <Label className="text-xs">Concepto</Label>
-            <Input
-              value={concept}
-              onChange={(e) => setConcept(e.target.value)}
-              placeholder="Ej. Arriendo local"
+          <FieldSpan span={2}>
+            <Field id="rec-concept" label="Concepto" required>
+              <Input
+                id="rec-concept"
+                value={concept}
+                onChange={(e) => setConcept(e.target.value)}
+                placeholder="Arriendo del local"
+              />
+            </Field>
+          </FieldSpan>
+
+          <Field id="rec-amount" label="Monto (sin IVA)" required>
+            <MoneyInput
+              id="rec-amount"
+              value={numOr(amount) || null}
+              onValueChange={(v) => setAmount(v == null ? "" : String(v))}
+              placeholder="0"
             />
-          </div>
+          </Field>
+          <Field id="rec-tax" label="IVA" help={{ term: "iva" }}>
+            <MoneyInput
+              id="rec-tax"
+              value={numOr(taxAmount) || null}
+              onValueChange={(v) => setTaxAmount(v == null ? "" : String(v))}
+              placeholder="0"
+            />
+          </Field>
+        </FieldGrid>
+      </FormSection>
 
-          <div className="grid grid-cols-2 gap-2">
-            <div className="flex flex-col gap-1">
-              <Label className="text-xs">Monto (sin IVA)</Label>
-              <Input
-                type="number"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-              />
-            </div>
-            <div className="flex flex-col gap-1">
-              <Label className="text-xs">IVA</Label>
-              <Input
-                type="number"
-                value={taxAmount}
-                onChange={(e) => setTaxAmount(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2">
-            <div className="flex flex-col gap-1">
-              <Label className="text-xs">Frecuencia</Label>
-              <select
-                className={inputClass}
-                value={frequency}
-                onChange={(e) => setFrequency(e.target.value as RecurrenceFrequency)}
-              >
-                {(
-                  Object.keys(RECURRENCE_FREQUENCY_LABELS) as RecurrenceFrequency[]
-                ).map((k) => (
-                  <option key={k} value={k}>
-                    {RECURRENCE_FREQUENCY_LABELS[k]}
-                  </option>
-                ))}
-              </select>
-            </div>
-            {frequency !== "weekly" && (
-              <div className="flex flex-col gap-1">
-                <Label className="text-xs">Día del mes (1–28)</Label>
-                <Input
-                  type="number"
-                  min={1}
-                  max={28}
-                  value={dayOfMonth}
-                  onChange={(e) => setDayOfMonth(e.target.value)}
-                />
-              </div>
-            )}
-          </div>
-
-          <div className="grid grid-cols-2 gap-2">
-            <div className="flex flex-col gap-1">
-              <Label className="text-xs">Inicio</Label>
-              <Input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-              />
-            </div>
-            <div className="flex flex-col gap-1">
-              <Label className="text-xs">Fin (opcional)</Label>
-              <Input
-                type="date"
-                value={endDate}
-                min={startDate}
-                onChange={(e) => setEndDate(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-1">
-            <Label className="text-xs">Estado del gasto generado</Label>
-            <select
-              className={inputClass}
-              value={defaultStatus}
-              onChange={(e) => setDefaultStatus(e.target.value as ExpenseStatus)}
+      <FormSection
+        title="Cada cuánto"
+        description="Con qué ritmo se repite y hasta cuándo."
+      >
+        <FieldGrid cols={2}>
+          <Field id="rec-freq" label="Frecuencia">
+            <NativeSelect
+              id="rec-freq"
+              value={frequency}
+              onChange={(v) => setFrequency(v as RecurrenceFrequency)}
+              options={(
+                Object.keys(
+                  RECURRENCE_FREQUENCY_LABELS,
+                ) as RecurrenceFrequency[]
+              ).map((k) => ({
+                value: k,
+                label: RECURRENCE_FREQUENCY_LABELS[k],
+              }))}
+            />
+          </Field>
+          {frequency !== "weekly" && (
+            <Field
+              id="rec-dom"
+              label="Día del mes"
+              hint="Del 1 al 28, para que exista en todos los meses."
             >
-              {(Object.keys(EXPENSE_STATUS_LABELS) as ExpenseStatus[]).map((k) => (
-                <option key={k} value={k}>
-                  {EXPENSE_STATUS_LABELS[k]}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {defaultStatus === "paid" && (
-            <div className="flex flex-col gap-1">
-              <Label className="text-xs">Método de pago</Label>
-              <select
-                className={inputClass}
-                value={paymentMethod}
-                onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
-              >
-                {(Object.keys(PAYMENT_METHOD_LABELS) as PaymentMethod[]).map((k) => (
-                  <option key={k} value={k}>
-                    {PAYMENT_METHOD_LABELS[k]}
-                  </option>
-                ))}
-              </select>
-            </div>
+              <Input
+                id="rec-dom"
+                type="number"
+                inputMode="numeric"
+                min={1}
+                max={28}
+                value={dayOfMonth}
+                onChange={(e) => setDayOfMonth(e.target.value)}
+              />
+            </Field>
           )}
 
-          <div className="flex flex-col gap-1">
-            <Label className="text-xs">Proveedor (opcional)</Label>
+          <Field id="rec-start" label="Inicio">
             <Input
+              id="rec-start"
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+            />
+          </Field>
+          <Field id="rec-end" label="Fin" hint="Déjalo vacío si no tiene fin.">
+            <Input
+              id="rec-end"
+              type="date"
+              value={endDate}
+              min={startDate}
+              onChange={(e) => setEndDate(e.target.value)}
+            />
+          </Field>
+        </FieldGrid>
+
+        <CheckboxField
+          id="rec-auto"
+          label="Generar automáticamente cada período"
+          hint="Si lo dejas sin marcar, el gasto queda propuesto y lo confirmas tú."
+          checked={autoGenerate}
+          onCheckedChange={setAutoGenerate}
+        />
+      </FormSection>
+
+      <FormSection
+        title="Cómo nace cada gasto"
+        description="Los valores con los que se crea el gasto generado."
+      >
+        <FieldGrid cols={2}>
+          <Field id="rec-status" label="Estado del gasto generado">
+            <NativeSelect
+              id="rec-status"
+              value={defaultStatus}
+              onChange={(v) => setDefaultStatus(v as ExpenseStatus)}
+              options={(
+                Object.keys(EXPENSE_STATUS_LABELS) as ExpenseStatus[]
+              ).map((k) => ({ value: k, label: EXPENSE_STATUS_LABELS[k] }))}
+            />
+          </Field>
+          {defaultStatus === "paid" && (
+            <Field
+              id="rec-method"
+              label="Medio de pago"
+              help={{ term: "nequi" }}
+            >
+              <NativeSelect
+                id="rec-method"
+                value={paymentMethod}
+                onChange={(v) => setPaymentMethod(v as PaymentMethod)}
+                options={(
+                  Object.keys(PAYMENT_METHOD_LABELS) as PaymentMethod[]
+                ).map((k) => ({ value: k, label: PAYMENT_METHOD_LABELS[k] }))}
+              />
+            </Field>
+          )}
+          <Field id="rec-supplier" label="Proveedor">
+            <Input
+              id="rec-supplier"
               value={supplierName}
               onChange={(e) => setSupplierName(e.target.value)}
-              placeholder="Nombre del proveedor"
+              placeholder="Opcional"
             />
-          </div>
-
-          <div className="flex flex-col gap-1">
-            <Label className="text-xs">Nota (opcional)</Label>
-            <Input value={note} onChange={(e) => setNote(e.target.value)} />
-          </div>
-
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={autoGenerate}
-              onChange={(e) => setAutoGenerate(e.target.checked)}
-            />
-            Generar automáticamente cada período
-          </label>
-
-          {error && <p className="text-sm text-destructive">{error}</p>}
-
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Cancelar
-            </Button>
-            <Button className="gap-2" disabled={busy || !valid} onClick={() => void save()}>
-              {busy && <Loader2 className="size-4 animate-spin" />}
-              {editing ? "Guardar" : "Crear plantilla"}
-            </Button>
-          </div>
-        </div>
-      </SheetContent>
-    </Sheet>
+          </Field>
+          <FieldSpan span={2}>
+            <Field id="rec-note" label="Nota">
+              <Input
+                id="rec-note"
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="Opcional"
+              />
+            </Field>
+          </FieldSpan>
+        </FieldGrid>
+      </FormSection>
+    </FormDialog>
   )
 }
 
 // ─── Gasto puntual ───────────────────────────────────────────────────────────
 
-function ExpenseSheet({
+function ExpenseDialog({
   open,
   onOpenChange,
   editing,
@@ -1294,35 +1299,40 @@ function ExpenseSheet({
   const valid = sedeId && categoryId && concept.trim() && numOr(amount) > 0
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-md">
-        <div className="flex flex-col gap-4 px-4 py-2">
-          <SheetHeader className="px-0">
-            <SheetTitle className="font-display text-lg">
-              {editing ? "Editar gasto" : "Nuevo gasto"}
-            </SheetTitle>
-            <SheetDescription>
-              {editing
-                ? "Actualiza los datos del gasto."
-                : "Registra un gasto operativo."}
-            </SheetDescription>
-          </SheetHeader>
+    <FormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      size="3xl"
+      icon={FileMinus}
+      title={editing ? "Editar gasto" : "Nuevo gasto"}
+      description={
+        editing
+          ? "Actualiza los datos del gasto."
+          : "Todo lo que sale del negocio y no es mercancía: arriendo, servicios, aseo, transporte."
+      }
+      footer={
+        <FormActions
+          onCancel={() => onOpenChange(false)}
+          onSubmit={() => void save()}
+          busy={busy}
+          disabled={!valid}
+          submitLabel={editing ? "Guardar" : "Registrar"}
+        />
+      }
+    >
+      {error && <FormAlert>{error}</FormAlert>}
 
-          <div className="flex flex-col gap-1">
-            <Label className="text-xs">Sede</Label>
-            <select
-              className={inputClass}
+      <FormSection title="Qué se gastó">
+        <FieldGrid cols={2}>
+          <Field id="gt-sede" label="Sede" required help={{ term: "sede" }}>
+            <NativeSelect
+              id="gt-sede"
               value={sedeId}
-              onChange={(e) => setSedeId(e.target.value)}
-            >
-              <option value="">Selecciona…</option>
-              {sedes.map((s) => (
-                <option key={s._id} value={s._id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-          </div>
+              onChange={setSedeId}
+              options={sedes.map((s) => ({ value: s._id, label: s.name }))}
+              placeholder="Selecciona…"
+            />
+          </Field>
 
           <ExpenseCategorySelect
             value={categoryId}
@@ -1335,113 +1345,109 @@ function ExpenseSheet({
             }}
           />
 
-          <div className="flex flex-col gap-1">
-            <Label className="text-xs">Concepto</Label>
-            <Input
-              value={concept}
-              onChange={(e) => setConcept(e.target.value)}
-              placeholder="Ej. Arriendo local"
+          <FieldSpan span={2}>
+            <Field id="gt-concept" label="Concepto" required>
+              <Input
+                id="gt-concept"
+                value={concept}
+                onChange={(e) => setConcept(e.target.value)}
+                placeholder="Arriendo del local — marzo"
+              />
+            </Field>
+          </FieldSpan>
+        </FieldGrid>
+      </FormSection>
+
+      <FormSection title="Cuánto y cuándo">
+        <FieldGrid cols={2}>
+          <Field
+            id="gt-amount"
+            label="Monto (sin IVA)"
+            required
+            hint="Lo que vale el gasto antes del impuesto."
+          >
+            <MoneyInput
+              id="gt-amount"
+              value={numOr(amount) || null}
+              onValueChange={(v) => setAmount(v == null ? "" : String(v))}
+              placeholder="0"
             />
-          </div>
+          </Field>
+          <Field id="gt-tax" label="IVA" help={{ term: "iva" }}>
+            <MoneyInput
+              id="gt-tax"
+              value={numOr(taxAmount) || null}
+              onValueChange={(v) => setTaxAmount(v == null ? "" : String(v))}
+              placeholder="0"
+            />
+          </Field>
 
-          <div className="grid grid-cols-2 gap-2">
-            <div className="flex flex-col gap-1">
-              <Label className="text-xs">Monto (sin IVA)</Label>
-              <Input
-                type="number"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-              />
-            </div>
-            <div className="flex flex-col gap-1">
-              <Label className="text-xs">IVA</Label>
-              <Input
-                type="number"
-                value={taxAmount}
-                onChange={(e) => setTaxAmount(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2">
-            <div className="flex flex-col gap-1">
-              <Label className="text-xs">Fecha</Label>
-              <Input
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-              />
-            </div>
-            <div className="flex flex-col gap-1">
-              <Label className="text-xs">Estado</Label>
-              <select
-                className={inputClass}
-                value={status}
-                onChange={(e) => setStatus(e.target.value as ExpenseStatus)}
-              >
-                {(Object.keys(EXPENSE_STATUS_LABELS) as ExpenseStatus[]).map((k) => (
-                  <option key={k} value={k}>
-                    {EXPENSE_STATUS_LABELS[k]}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
+          <Field id="gt-date" label="Fecha">
+            <Input
+              id="gt-date"
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+            />
+          </Field>
+          <Field id="gt-status" label="Estado">
+            <NativeSelect
+              id="gt-status"
+              value={status}
+              onChange={(v) => setStatus(v as ExpenseStatus)}
+              options={(
+                Object.keys(EXPENSE_STATUS_LABELS) as ExpenseStatus[]
+              ).map((k) => ({ value: k, label: EXPENSE_STATUS_LABELS[k] }))}
+            />
+          </Field>
 
           {status === "paid" && (
-            <div className="flex flex-col gap-1">
-              <Label className="text-xs">Método de pago</Label>
-              <select
-                className={inputClass}
+            <Field
+              id="gt-method"
+              label="Medio de pago"
+              help={{ term: "nequi" }}
+            >
+              <NativeSelect
+                id="gt-method"
                 value={paymentMethod}
-                onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
-              >
-                {(Object.keys(PAYMENT_METHOD_LABELS) as PaymentMethod[]).map((k) => (
-                  <option key={k} value={k}>
-                    {PAYMENT_METHOD_LABELS[k]}
-                  </option>
-                ))}
-              </select>
-            </div>
+                onChange={(v) => setPaymentMethod(v as PaymentMethod)}
+                options={(
+                  Object.keys(PAYMENT_METHOD_LABELS) as PaymentMethod[]
+                ).map((k) => ({ value: k, label: PAYMENT_METHOD_LABELS[k] }))}
+              />
+            </Field>
           )}
-
-          <div className="flex flex-col gap-1">
-            <Label className="text-xs">Proveedor (opcional)</Label>
+          <Field id="gt-supplier" label="Proveedor">
             <Input
+              id="gt-supplier"
               value={supplierName}
               onChange={(e) => setSupplierName(e.target.value)}
-              placeholder="Nombre del proveedor"
+              placeholder="Opcional"
             />
-          </div>
+          </Field>
 
-          <div className="flex flex-col gap-1">
-            <Label className="text-xs">Nota (opcional)</Label>
-            <Input value={note} onChange={(e) => setNote(e.target.value)} />
-          </div>
+          <FieldSpan span={2}>
+            <Field id="gt-note" label="Nota">
+              <Input
+                id="gt-note"
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="Opcional"
+              />
+            </Field>
+          </FieldSpan>
+        </FieldGrid>
 
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={recurring}
-              onChange={(e) => setRecurring(e.target.checked)}
-            />
-            Marcar como recurrente
-          </label>
-
-          {error && <p className="text-sm text-destructive">{error}</p>}
-
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Cancelar
-            </Button>
-            <Button className="gap-2" disabled={busy || !valid} onClick={() => void save()}>
-              {busy && <Loader2 className="size-4 animate-spin" />}
-              {editing ? "Guardar" : "Registrar"}
-            </Button>
-          </div>
-        </div>
-      </SheetContent>
-    </Sheet>
+        <CheckboxField
+          id="gt-recurring"
+          label="Marcar como recurrente"
+          help={{ term: "gastoFijo" }}
+          hint="Los que se repiten todos los meses: arriendo, internet, seguridad."
+          checked={recurring}
+          onCheckedChange={setRecurring}
+        />
+      </FormSection>
+    </FormDialog>
   )
 }
 
@@ -1481,23 +1487,19 @@ function ExpenseCategorySelect({
     }
   }
 
-  return (
-    <div className="flex flex-col gap-1">
-      <div className="flex items-center justify-between">
-        <Label className="text-xs">Categoría</Label>
-        {canCreate && !creating && (
-          <button
-            type="button"
-            className="text-[11px] font-medium text-primary hover:underline"
-            onClick={() => setCreating(true)}
-          >
-            + Nueva categoría
-          </button>
-        )}
-      </div>
-      {creating ? (
-        <div className="flex flex-col gap-1.5 rounded-lg border border-border p-2">
+  // Creando: el bloque sustituye al desplegable, para no dejar dos controles
+  // pidiendo lo mismo al mismo tiempo.
+  if (creating) {
+    return (
+      <Field
+        id="gt-cat-new"
+        label="Nueva categoría"
+        error={error}
+        hint={error ? undefined : "Pulsa Enter para crearla."}
+      >
+        <div className="flex items-center gap-2">
           <Input
+            id="gt-cat-new"
             value={name}
             autoFocus
             placeholder="Nombre de la categoría"
@@ -1509,47 +1511,62 @@ function ExpenseCategorySelect({
               }
             }}
           />
-          {error && <p className="text-xs text-destructive">{error}</p>}
-          <div className="flex justify-end gap-1.5">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setCreating(false)
-                setName("")
-                setError(null)
-              }}
-            >
-              Cancelar
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              className="gap-1.5"
-              disabled={busy || !name.trim()}
-              onClick={() => void create()}
-            >
-              {busy && <Loader2 className="size-3.5 animate-spin" />}
-              Crear
-            </Button>
-          </div>
+          <Button
+            type="button"
+            size="sm"
+            className="shrink-0"
+            disabled={busy || !name.trim()}
+            onClick={() => void create()}
+          >
+            {busy && <Loader2 className="animate-spin" />}
+            Crear
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Cancelar"
+            className="shrink-0"
+            onClick={() => {
+              setCreating(false)
+              setName("")
+              setError(null)
+            }}
+          >
+            <X />
+          </Button>
         </div>
-      ) : (
-        <select
-          className={inputClass}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-        >
-          <option value="">Selecciona…</option>
-          {categories.map((c) => (
-            <option key={c._id} value={c._id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
-      )}
-    </div>
+      </Field>
+    )
+  }
+
+  return (
+    <Field
+      id="gt-cat"
+      label={
+        <span className="flex w-full items-center justify-between gap-2">
+          Categoría
+          {canCreate && (
+            <button
+              type="button"
+              className="text-[0.6875rem] font-bold text-primary hover:underline"
+              onClick={() => setCreating(true)}
+            >
+              + Nueva
+            </button>
+          )}
+        </span>
+      }
+      className="[&_label]:w-full"
+    >
+      <NativeSelect
+        id="gt-cat"
+        value={value}
+        onChange={onChange}
+        options={categories.map((c) => ({ value: c._id, label: c.name }))}
+        placeholder="Selecciona…"
+      />
+    </Field>
   )
 }
 

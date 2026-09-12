@@ -5,6 +5,8 @@ import {
   Plus,
   Pencil,
   Building2,
+  Phone,
+  Loader2,
   ShieldOff,
   Power,
   PowerOff,
@@ -41,21 +43,18 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "@/components/ui/sheet"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+  FormDialog,
+  FormSection,
+  FormAlert,
+} from "@/components/ui/form-dialog"
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+  Field,
+  FieldGrid,
+  FieldSpan,
+  NativeSelect,
+} from "@/components/ui/field"
+import { Termino } from "@/components/ui/help-tip"
+import { Input, Textarea } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Checkbox } from "@/components/ui/checkbox"
 
@@ -71,11 +70,7 @@ const DOC_TYPES: SupplierDocType[] = ["NIT", "CC", "CE"]
 
 function FormError({ error }: { error: string | null }) {
   if (!error) return null
-  return (
-    <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
-      {error}
-    </p>
-  )
+  return <FormAlert>{error}</FormAlert>
 }
 
 function TableSkeleton({ cols = 5, rows = 5 }: { cols?: number; rows?: number }) {
@@ -92,9 +87,12 @@ function TableSkeleton({ cols = 5, rows = 5 }: { cols?: number; rows?: number })
   )
 }
 
-// ─── Supplier sheet (crear / editar) ─────────────────────────────────────────
+// ─── Ficha de proveedor (crear / editar) ────────────────────────────────────
 
-interface SupplierSheetProps {
+/** Id del `<form>`: el botón de guardar vive en el pie, fuera del formulario. */
+const SUPPLIER_FORM_ID = "proveedor-form"
+
+interface SupplierDialogProps {
   open: boolean
   onOpenChange: (v: boolean) => void
   mode: "create" | "edit"
@@ -102,13 +100,13 @@ interface SupplierSheetProps {
   onSuccess: () => void
 }
 
-function SupplierSheet({
+function SupplierDialog({
   open,
   onOpenChange,
   mode,
   supplier,
   onSuccess,
-}: SupplierSheetProps) {
+}: SupplierDialogProps) {
   const [name, setName] = React.useState("")
   const [docType, setDocType] = React.useState<SupplierDocType>("NIT")
   const [docNumber, setDocNumber] = React.useState("")
@@ -196,77 +194,135 @@ function SupplierSheet({
   }
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="sm:max-w-md overflow-y-auto">
-        <SheetHeader>
-          <SheetTitle className="font-display text-lg">
-            {mode === "create" ? "Nuevo proveedor" : "Editar proveedor"}
-          </SheetTitle>
-          <SheetDescription>
-            {mode === "create"
-              ? "Inscribe un proveedor para llevar el control de tus compras."
-              : "Modifica los datos del proveedor."}
-          </SheetDescription>
-        </SheetHeader>
+    <FormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      size="3xl"
+      icon={Building2}
+      title={mode === "create" ? "Nuevo proveedor" : "Editar proveedor"}
+      description={
+        mode === "create"
+          ? "A quién le compras. Con el proveedor inscrito puedes registrar órdenes de compra y llevar lo que le debes."
+          : "Datos de contacto y de facturación del proveedor."
+      }
+      footer={
+        <>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={saving}
+            className="sm:min-w-28"
+          >
+            Cancelar
+          </Button>
+          <Button
+            type="submit"
+            form={SUPPLIER_FORM_ID}
+            disabled={saving || !name.trim() || !docNumber.trim()}
+            className="sm:min-w-36"
+          >
+            {saving ? <Loader2 className="animate-spin" /> : <Building2 />}
+            {saving ? "Guardando…" : "Guardar"}
+          </Button>
+        </>
+      }
+    >
+      <form
+        id={SUPPLIER_FORM_ID}
+        onSubmit={handleSubmit}
+        className="flex flex-col gap-5"
+      >
+        <FormError error={error} />
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4 px-4 py-2">
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="s-name">Nombre o razón social</Label>
-            <Input
-              id="s-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="p. ej. Distribuidora ABC S.A.S."
-              required
-            />
-          </div>
+        <FormSection
+          icon={Building2}
+          title="Identificación"
+          description="Como figura en su RUT o en la factura que te entrega."
+        >
+          <FieldGrid cols={3}>
+            <FieldSpan span={3}>
+              <Field id="s-name" label="Nombre o razón social" required>
+                <Input
+                  id="s-name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Distribuidora ABC S.A.S."
+                  required
+                />
+              </Field>
+            </FieldSpan>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="s-doctype">Tipo de documento</Label>
-              <Select
+            <Field
+              id="s-doctype"
+              label="Tipo de documento"
+              help={{ term: "tipoDocumento" }}
+            >
+              <NativeSelect
+                id="s-doctype"
                 value={docType}
-                items={SUPPLIER_DOC_TYPE_LABELS}
-                onValueChange={(v) => {
-                  if (v !== null) setDocType(v as SupplierDocType)
-                }}
-              >
-                <SelectTrigger id="s-doctype" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {DOC_TYPES.map((t) => (
-                    <SelectItem key={t} value={t}>
-                      {SUPPLIER_DOC_TYPE_LABELS[t]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="s-docnumber">Número de documento</Label>
+                onChange={(v) => setDocType(v as SupplierDocType)}
+                options={DOC_TYPES.map((t) => ({
+                  value: t,
+                  label: SUPPLIER_DOC_TYPE_LABELS[t],
+                }))}
+              />
+            </Field>
+            <Field
+              id="s-docnumber"
+              label="Número de documento"
+              required
+              help={docType === "NIT" ? { term: "nit" } : undefined}
+            >
               <Input
                 id="s-docnumber"
+                inputMode="numeric"
                 value={docNumber}
                 onChange={(e) => setDocNumber(e.target.value)}
-                placeholder="p. ej. 900123456"
+                placeholder="900123456"
                 required
               />
-            </div>
-          </div>
+            </Field>
+            <Field
+              id="s-category"
+              label="Categoría"
+              hint="Para agrupar tus compras."
+            >
+              <Input
+                id="s-category"
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                placeholder="Carnes, lácteos, aseo…"
+              />
+            </Field>
+          </FieldGrid>
+        </FormSection>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="s-phone">Teléfono</Label>
+        <FormSection
+          icon={Phone}
+          title="Contacto"
+          description="A quién llamas cuando falta el pedido."
+        >
+          <FieldGrid cols={3}>
+            <Field id="s-contact" label="Nombre de contacto">
+              <Input
+                id="s-contact"
+                value={contactName}
+                onChange={(e) => setContactName(e.target.value)}
+                placeholder="Opcional"
+              />
+            </Field>
+            <Field id="s-phone" label="Teléfono">
               <Input
                 id="s-phone"
+                type="tel"
+                inputMode="tel"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="Opcional"
               />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="s-email">Email</Label>
+            </Field>
+            <Field id="s-email" label="Correo">
               <Input
                 id="s-email"
                 type="email"
@@ -274,80 +330,42 @@ function SupplierSheet({
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="Opcional"
               />
-            </div>
-          </div>
+            </Field>
 
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="s-contact">Nombre de contacto</Label>
-            <Input
-              id="s-contact"
-              value={contactName}
-              onChange={(e) => setContactName(e.target.value)}
-              placeholder="Opcional"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="s-address">Dirección</Label>
-              <Input
-                id="s-address"
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-                placeholder="Opcional"
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="s-city">Ciudad</Label>
+            <FieldSpan span={2}>
+              <Field id="s-address" label="Dirección">
+                <Input
+                  id="s-address"
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  placeholder="Opcional"
+                />
+              </Field>
+            </FieldSpan>
+            <Field id="s-city" label="Ciudad">
               <Input
                 id="s-city"
                 value={city}
                 onChange={(e) => setCity(e.target.value)}
                 placeholder="Opcional"
               />
-            </div>
-          </div>
+            </Field>
 
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="s-category">Categoría</Label>
-            <Input
-              id="s-category"
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              placeholder="p. ej. Carnes, lácteos, aseo (opcional)"
-            />
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="s-notes">Notas</Label>
-            <Input
-              id="s-notes"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Opcional"
-            />
-          </div>
-
-          <FormError error={error} />
-
-          <div className="flex justify-end gap-2 pt-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-            >
-              Cancelar
-            </Button>
-            <Button
-              type="submit"
-              disabled={saving || !name.trim() || !docNumber.trim()}
-            >
-              {saving ? "Guardando…" : "Guardar"}
-            </Button>
-          </div>
-        </form>
-      </SheetContent>
-    </Sheet>
+            <FieldSpan span={3}>
+              <Field id="s-notes" label="Notas">
+                <Textarea
+                  id="s-notes"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Días de entrega, plazo de pago acordado, mínimo de pedido…"
+                  className="min-h-16"
+                />
+              </Field>
+            </FieldSpan>
+          </FieldGrid>
+        </FormSection>
+      </form>
+    </FormDialog>
   )
 }
 
@@ -403,7 +421,13 @@ export default function ProveedoresPage() {
         <PageHeader
           section="Comercial"
           title="Proveedores"
-          description="Inscribe y administra los proveedores del restaurante."
+          description={
+          <>
+            A quién le compras. Desde aquí salen las{" "}
+            <Termino>órdenes de compra</Termino> y lo que queda en{" "}
+            <Termino>cuentas por pagar</Termino>.
+          </>
+        }
         />
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-14 text-center">
@@ -435,7 +459,13 @@ export default function ProveedoresPage() {
       <PageHeader
         section="Comercial"
         title="Proveedores"
-        description="Inscribe y administra los proveedores del restaurante."
+        description={
+          <>
+            A quién le compras. Desde aquí salen las{" "}
+            <Termino>órdenes de compra</Termino> y lo que queda en{" "}
+            <Termino>cuentas por pagar</Termino>.
+          </>
+        }
         actions={
           canManage ? (
             <Button
@@ -579,7 +609,7 @@ export default function ProveedoresPage() {
         </CardContent>
       </Card>
 
-      <SupplierSheet
+      <SupplierDialog
         open={sheetOpen}
         onOpenChange={setSheetOpen}
         mode={sheetMode}

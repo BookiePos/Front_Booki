@@ -6,7 +6,6 @@ import {
   ShieldOff,
   Landmark,
   Plus,
-  Loader2,
   RefreshCw,
   Banknote,
   Wallet,
@@ -48,7 +47,8 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import { MoneyInput } from "@/components/ui/money-input"
+import { Segmented } from "@/components/ui/segmented"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
@@ -59,15 +59,19 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "@/components/ui/sheet"
-
-const inputClass =
-  "h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+  FormDialog,
+  FormSection,
+  FormAlert,
+  FormActions,
+} from "@/components/ui/form-dialog"
+import {
+  Field,
+  FieldGrid,
+  FieldSpan,
+  NativeSelect,
+  CheckboxField,
+} from "@/components/ui/field"
+import { Termino } from "@/components/ui/help-tip"
 
 /** Medios que pueden auto-alimentar una cuenta (el efectivo vive en la caja del POS). */
 const AUTO_METHODS: PaymentMethod[] = ["card", "transfer"]
@@ -183,7 +187,14 @@ export default function BancosPage() {
       <PageHeader
         section="Finanzas"
         title="Caja y bancos"
-        description="Tu tesorería en tiempo real: el efectivo lo lleva la caja del POS y los bancos/billeteras se alimentan solos de las ventas, pagos y cobros."
+        description={
+          <>
+            Dónde está tu plata hoy. El efectivo lo lleva la{" "}
+            <Termino term="arqueo">caja del POS</Termino>; los bancos y las{" "}
+            <Termino term="nequi">billeteras</Termino> se alimentan solos de las
+            ventas, los pagos y los cobros.
+          </>
+        }
         actions={actions}
       />
 
@@ -390,7 +401,7 @@ export default function BancosPage() {
       </Card>
 
       {canManage && (
-        <AccountSheet
+        <AccountDialog
           open={accSheet.open}
           editing={accSheet.editing}
           onOpenChange={(v) => setAccSheet((s) => ({ ...s, open: v }))}
@@ -402,7 +413,7 @@ export default function BancosPage() {
         />
       )}
 
-      <AccountMovementsSheet
+      <AccountMovementsDialog
         account={selected}
         onOpenChange={(v) => !v && setSelected(null)}
         canTx={canTx}
@@ -416,7 +427,7 @@ export default function BancosPage() {
   )
 }
 
-function AccountSheet({
+function AccountDialog({
   open,
   editing,
   onOpenChange,
@@ -496,117 +507,119 @@ function AccountSheet({
   const valid = name.trim().length > 0
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-md">
-        <div className="flex flex-col gap-4 px-4 py-2">
-          <SheetHeader className="px-0">
-            <SheetTitle className="font-display text-lg">
-              {editing ? "Editar cuenta" : "Nueva cuenta"}
-            </SheetTitle>
-            <SheetDescription>
-              Banco, efectivo o billetera digital. Marca qué medios la alimentan
-              automáticamente.
-            </SheetDescription>
-          </SheetHeader>
+    <FormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      size="2xl"
+      icon={Landmark}
+      title={editing ? "Editar cuenta" : "Nueva cuenta"}
+      description="Un banco, una billetera digital o una caja fuerte. Marca qué medios de pago la alimentan solos."
+      footer={
+        <FormActions
+          onCancel={() => onOpenChange(false)}
+          onSubmit={() => void save()}
+          busy={busy}
+          disabled={!valid}
+          submitLabel={editing ? "Guardar" : "Crear cuenta"}
+        />
+      }
+    >
+      {error && <FormAlert>{error}</FormAlert>}
 
-          <div className="flex flex-col gap-1">
-            <Label className="text-xs">Nombre</Label>
-            <Input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Ej. Bancolombia principal"
+      <FormSection title="La cuenta">
+        <FieldGrid cols={2}>
+          <FieldSpan span={2}>
+            <Field id="ac-name" label="Nombre" required>
+              <Input
+                id="ac-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Bancolombia principal"
+              />
+            </Field>
+          </FieldSpan>
+
+          <Field
+            id="ac-type"
+            label="Tipo"
+            hint={editing ? "No se puede cambiar después de crearla." : undefined}
+          >
+            <NativeSelect
+              id="ac-type"
+              value={type}
+              disabled={!!editing}
+              onChange={(v) => setType(v as AccountType)}
+              options={(Object.keys(ACCOUNT_TYPE_LABELS) as AccountType[]).map(
+                (k) => ({ value: k, label: ACCOUNT_TYPE_LABELS[k] }),
+              )}
             />
-          </div>
-
-          <div className="grid grid-cols-2 gap-2">
-            <div className="flex flex-col gap-1">
-              <Label className="text-xs">Tipo</Label>
-              <select
-                className={inputClass}
-                value={type}
-                disabled={!!editing}
-                onChange={(e) => setType(e.target.value as AccountType)}
-              >
-                {(Object.keys(ACCOUNT_TYPE_LABELS) as AccountType[]).map((k) => (
-                  <option key={k} value={k}>
-                    {ACCOUNT_TYPE_LABELS[k]}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="flex flex-col gap-1">
-              <Label className="text-xs">Sede</Label>
-              <select
-                className={inputClass}
-                value={sedeId}
-                disabled={!!editing}
-                onChange={(e) => setSedeId(e.target.value)}
-              >
-                <option value="">Consolidada</option>
-                {sedes.map((s) => (
-                  <option key={s._id} value={s._id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
+          </Field>
+          <Field
+            id="ac-sede"
+            label="Sede"
+            help={{ term: "sede" }}
+            hint="«Consolidada» si la cuenta sirve a todo el negocio."
+          >
+            <NativeSelect
+              id="ac-sede"
+              value={sedeId}
+              disabled={!!editing}
+              onChange={setSedeId}
+              options={sedes.map((s) => ({ value: s._id, label: s.name }))}
+              placeholder="Consolidada"
+            />
+          </Field>
 
           {!editing && (
-            <div className="flex flex-col gap-1">
-              <Label className="text-xs">Saldo inicial</Label>
-              <Input
-                type="number"
-                value={openingBalance}
-                onChange={(e) => setOpeningBalance(e.target.value)}
+            <Field
+              id="ac-opening"
+              label="Saldo inicial"
+              hint="Lo que hay en la cuenta hoy, antes de empezar a registrar."
+            >
+              <MoneyInput
+                id="ac-opening"
+                value={numOr(openingBalance) || null}
+                onValueChange={(v) =>
+                  setOpeningBalance(v == null ? "" : String(v))
+                }
+                placeholder="0"
               />
-            </div>
+            </Field>
           )}
+        </FieldGrid>
+      </FormSection>
 
-          <div className="flex flex-col gap-1.5">
-            <Label className="text-xs">Auto-alimenta con</Label>
-            <div className="flex flex-col gap-1.5 rounded-lg border border-border p-3">
-              {AUTO_METHODS.map((m) => (
-                <label key={m} className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={autoMethods.includes(m)}
-                    onChange={() => toggleMethod(m)}
-                  />
-                  {PAYMENT_METHOD_LABELS[m]}
-                </label>
-              ))}
-              <p className="text-[11px] text-muted-foreground">
-                Las ventas del POS, pagos y cobros por estos medios entran o salen
-                de esta cuenta automáticamente. El efectivo se lleva en la caja del
-                POS, no aquí.
-              </p>
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-1">
-            <Label className="text-xs">Nota (opcional)</Label>
-            <Input value={note} onChange={(e) => setNote(e.target.value)} />
-          </div>
-
-          {error && <p className="text-sm text-destructive">{error}</p>}
-
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Cancelar
-            </Button>
-            <Button className="gap-2" disabled={busy || !valid} onClick={() => void save()}>
-              {busy && <Loader2 className="size-4 animate-spin" />}
-              {editing ? "Guardar" : "Crear cuenta"}
-            </Button>
-          </div>
+      <FormSection
+        title="Auto-alimenta con"
+        description="Las ventas del POS, los pagos y los cobros por estos medios entran o salen de esta cuenta sin que registres nada. El efectivo se lleva en la caja del POS, no aquí."
+        boxed
+      >
+        <div className="grid gap-2 sm:grid-cols-2">
+          {AUTO_METHODS.map((m) => (
+            <CheckboxField
+              key={m}
+              id={`ac-auto-${m}`}
+              label={PAYMENT_METHOD_LABELS[m]}
+              checked={autoMethods.includes(m)}
+              onCheckedChange={() => toggleMethod(m)}
+            />
+          ))}
         </div>
-      </SheetContent>
-    </Sheet>
+      </FormSection>
+
+      <Field id="ac-note" label="Nota">
+        <Input
+          id="ac-note"
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          placeholder="Opcional"
+        />
+      </Field>
+    </FormDialog>
   )
 }
 
-function AccountMovementsSheet({
+function AccountMovementsDialog({
   account,
   onOpenChange,
   canTx,
@@ -648,91 +661,115 @@ function AccountMovementsSheet({
   }, [account, reload])
 
   return (
-    <Sheet open={account !== null} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-xl">
-        {account && (
-          <div className="flex flex-col gap-4 px-4 py-2">
-            <SheetHeader className="px-0">
-              <SheetTitle className="font-display text-lg">{account.name}</SheetTitle>
-              <SheetDescription>
-                Saldo actual{" "}
-                {money.format(account.balance ?? account.openingBalance)} ·{" "}
-                {ACCOUNT_TYPE_LABELS[account.type]}
-              </SheetDescription>
-            </SheetHeader>
-
+    <>
+      <FormDialog
+        open={account !== null}
+        onOpenChange={onOpenChange}
+        size="3xl"
+        icon={CreditCard}
+        title={account?.name ?? "Cuenta"}
+        description={
+          account
+            ? `Saldo actual ${money.format(account.balance ?? account.openingBalance)} · ${ACCOUNT_TYPE_LABELS[account.type]}`
+            : undefined
+        }
+        footer={
+          <>
             {canTx && (
-              <div>
-                <Button size="sm" className="gap-1.5" onClick={onNewMovement}>
-                  <Plus className="size-4" />
-                  Movimiento manual
-                </Button>
-              </div>
+              <Button
+                variant="outline"
+                className="mr-auto"
+                onClick={onNewMovement}
+              >
+                <Plus />
+                Movimiento manual
+              </Button>
             )}
-
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              Cerrar
+            </Button>
+          </>
+        }
+      >
+        {account && (
+          <FormSection
+            title="Movimientos"
+            description="Todo lo que ha entrado y salido de esta cuenta. Los marcados como «Auto» los generó una venta o un pago."
+          >
             {loading ? (
               <div className="flex flex-col gap-2">
                 {Array.from({ length: 4 }).map((_, i) => (
-                  <Skeleton key={i} className="h-10 rounded-lg" />
+                  <Skeleton key={i} className="h-10 rounded-xl" />
                 ))}
               </div>
             ) : error ? (
-              <p className="py-6 text-center text-sm text-destructive">{error}</p>
+              <FormAlert>{error}</FormAlert>
             ) : movements.length === 0 ? (
-              <div className="flex flex-col items-center gap-2 py-12 text-center">
+              <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-border py-12 text-center">
                 <CreditCard className="size-8 text-muted-foreground" />
                 <p className="text-sm text-muted-foreground">
                   Sin movimientos registrados.
                 </p>
               </div>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Fecha</TableHead>
-                    <TableHead>Concepto</TableHead>
-                    <TableHead className="text-right">Monto</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {movements.map((m) => (
-                    <TableRow key={m._id}>
-                      <TableCell className="tabular-nums">{fmtDate(m.date)}</TableCell>
-                      <TableCell>
-                        <span className="flex items-center gap-1.5">
-                          {m.direction === "in" ? (
-                            <ArrowDownLeft className="size-4 text-success-ink" />
-                          ) : (
-                            <ArrowUpRight className="size-4 text-destructive" />
-                          )}
-                          {m.concept}
-                          {m.auto && (
-                            <Badge variant="outline" className="gap-0.5 text-[10px]">
-                              <Sparkles className="size-2.5" />
-                              Auto
-                            </Badge>
-                          )}
-                        </span>
-                      </TableCell>
-                      <TableCell
-                        className={`text-right font-medium tabular-nums ${
-                          m.direction === "in" ? "text-success-ink" : "text-destructive"
-                        }`}
-                      >
-                        {m.direction === "in" ? "+" : "−"}
-                        {money.format(m.amount)}
-                      </TableCell>
+              <div className="overflow-hidden rounded-2xl border border-border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Fecha</TableHead>
+                      <TableHead>Concepto</TableHead>
+                      <TableHead className="text-right">Monto</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {movements.map((m) => (
+                      <TableRow key={m._id}>
+                        <TableCell className="tabular-nums">
+                          {fmtDate(m.date)}
+                        </TableCell>
+                        <TableCell>
+                          <span className="flex items-center gap-1.5">
+                            {m.direction === "in" ? (
+                              <ArrowDownLeft className="size-4 text-success-ink" />
+                            ) : (
+                              <ArrowUpRight className="size-4 text-destructive" />
+                            )}
+                            {m.concept}
+                            {m.auto && (
+                              <Badge
+                                variant="outline"
+                                className="gap-0.5 text-[0.625rem]"
+                              >
+                                <Sparkles className="size-2.5" />
+                                Auto
+                              </Badge>
+                            )}
+                          </span>
+                        </TableCell>
+                        <TableCell
+                          className={`text-right font-semibold tabular-nums ${
+                            m.direction === "in"
+                              ? "text-success-ink"
+                              : "text-destructive"
+                          }`}
+                        >
+                          {m.direction === "in" ? "+" : "−"}
+                          {money.format(m.amount)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             )}
-          </div>
+          </FormSection>
         )}
-      </SheetContent>
+      </FormDialog>
 
+      {/* Fuera del `FormDialog` a propósito: anidar un diálogo dentro de otro
+          deja el de abajo atrapado por el foco del de arriba. */}
       {account && canTx && (
-        <NewMovementSheet
+        <NewMovementDialog
           accountId={account._id}
           open={movOpen}
           onOpenChange={setMovOpen}
@@ -744,11 +781,11 @@ function AccountMovementsSheet({
           }}
         />
       )}
-    </Sheet>
+    </>
   )
 }
 
-function NewMovementSheet({
+function NewMovementDialog({
   accountId,
   open,
   onOpenChange,
@@ -802,89 +839,81 @@ function NewMovementSheet({
   const valid = concept.trim() && numOr(amount) > 0
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-md">
-        <div className="flex flex-col gap-4 px-4 py-2">
-          <SheetHeader className="px-0">
-            <SheetTitle className="font-display text-lg">Movimiento manual</SheetTitle>
-            <SheetDescription>
-              Ingreso o egreso que no viene de una operación (ej. consignación,
-              retiro, ajuste).
-            </SheetDescription>
-          </SheetHeader>
+    <FormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      size="2xl"
+      icon={ArrowDownLeft}
+      title="Movimiento manual"
+      description="Plata que entra o sale de la cuenta sin venir de una venta o una compra: una consignación, un retiro, un ajuste."
+      footer={
+        <FormActions
+          onCancel={() => onOpenChange(false)}
+          onSubmit={() => void save()}
+          busy={busy}
+          disabled={!valid}
+          submitLabel="Registrar"
+        />
+      }
+    >
+      {error && <FormAlert>{error}</FormAlert>}
 
-          <div className="grid grid-cols-2 gap-2">
-            <div className="flex flex-col gap-1">
-              <Label className="text-xs">Fecha</Label>
-              <Input
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-              />
-            </div>
-            <div className="flex flex-col gap-1">
-              <Label className="text-xs">Tipo</Label>
-              <select
-                className={inputClass}
-                value={direction}
-                onChange={(e) => setDirection(e.target.value as "in" | "out")}
-              >
-                <option value="in">Ingreso</option>
-                <option value="out">Egreso</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-1">
-            <Label className="text-xs">Monto</Label>
+      <FormSection title="El movimiento">
+        <FieldGrid cols={2}>
+          <Field id="mv-date" label="Fecha">
             <Input
-              type="number"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
+              id="mv-date"
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
             />
-          </div>
+          </Field>
+          <Field id="mv-dir" label="Tipo">
+            <Segmented
+              fill
+              ariaLabel="Tipo de movimiento"
+              value={direction}
+              onValueChange={(v) => setDirection(v as "in" | "out")}
+              options={[
+                { value: "in", label: "Ingreso", icon: ArrowDownLeft },
+                { value: "out", label: "Egreso", icon: ArrowUpRight },
+              ]}
+            />
+          </Field>
 
-          <div className="flex flex-col gap-1">
-            <Label className="text-xs">Categoría (opcional)</Label>
-            <select
-              className={inputClass}
+          <Field id="mv-amount" label="Monto" required>
+            <MoneyInput
+              id="mv-amount"
+              value={numOr(amount) || null}
+              onValueChange={(v) => setAmount(v == null ? "" : String(v))}
+              placeholder="0"
+            />
+          </Field>
+          <Field id="mv-cat" label="Categoría">
+            <NativeSelect
+              id="mv-cat"
               value={categoryId}
-              onChange={(e) => setCategoryId(e.target.value)}
-            >
-              <option value="">Sin categoría</option>
-              {categories
+              onChange={setCategoryId}
+              options={categories
                 .filter((c) => c.active)
-                .map((c) => (
-                  <option key={c._id} value={c._id}>
-                    {c.name}
-                  </option>
-                ))}
-            </select>
-          </div>
-
-          <div className="flex flex-col gap-1">
-            <Label className="text-xs">Concepto</Label>
-            <Input
-              value={concept}
-              onChange={(e) => setConcept(e.target.value)}
-              placeholder="Ej. Consignación de efectivo"
+                .map((c) => ({ value: c._id, label: c.name }))}
+              placeholder="Sin categoría"
             />
-          </div>
+          </Field>
 
-          {error && <p className="text-sm text-destructive">{error}</p>}
-
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Cancelar
-            </Button>
-            <Button className="gap-2" disabled={busy || !valid} onClick={() => void save()}>
-              {busy && <Loader2 className="size-4 animate-spin" />}
-              Registrar
-            </Button>
-          </div>
-        </div>
-      </SheetContent>
-    </Sheet>
+          <FieldSpan span={2}>
+            <Field id="mv-concept" label="Concepto" required>
+              <Input
+                id="mv-concept"
+                value={concept}
+                onChange={(e) => setConcept(e.target.value)}
+                placeholder="Consignación de efectivo del viernes"
+              />
+            </Field>
+          </FieldSpan>
+        </FieldGrid>
+      </FormSection>
+    </FormDialog>
   )
 }
 

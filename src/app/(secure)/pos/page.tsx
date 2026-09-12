@@ -78,6 +78,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { useConfirm } from "@/components/ui/confirm-dialog"
 import { Separator } from "@/components/ui/separator"
 import { MoneyInput } from "@/components/ui/money-input"
+import { Termino } from "@/components/ui/help-tip"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -1609,7 +1610,7 @@ export default function VentaPage() {
                 <div className="flex items-center justify-between">
                   <span className="flex items-center gap-1.5 text-sm font-medium text-foreground">
                     <HandCoins className="size-4 text-muted-foreground" />
-                    Propina
+                    <Termino>Propina</Termino>
                     <span className="text-xs font-normal text-muted-foreground">
                       (opcional)
                     </span>
@@ -1891,7 +1892,7 @@ export default function VentaPage() {
                   <div className="flex flex-col gap-2 rounded-lg border border-warning/30 bg-warning/10 p-3">
                     <p className="flex items-center gap-1.5 text-xs font-medium text-warning-ink">
                       <HandCoins className="size-4" />
-                      Venta a crédito (fiado)
+                      <Termino term="credito">Venta a crédito (fiado)</Termino>
                     </p>
 
                     {/* Segmento cliente / empleado */}
