@@ -107,6 +107,27 @@ export interface Discount {
   active: boolean
 }
 
+/**
+ * Quién vendió. En el mostrador uno atiende y otro cobra, y lo que se quiere
+ * saber es cuánto vendió cada uno.
+ */
+export interface SaleSeller {
+  /** Empleado de nómina, si lo es. */
+  employeeId?: string
+  name: string
+}
+
+/**
+ * Empaque anotado a mano al cobrar: la bolsa grande, la caja de más. Sale del
+ * inventario y suma al costo; no se le cobra al cliente. Lo que cada producto
+ * ya gasta por su ficha se descuenta solo y no hay que anotarlo.
+ */
+export interface SalePackagingInput {
+  /** Ítem de INVENTARIO (la bolsa), no un producto vendible. */
+  productId: string
+  qty: number
+}
+
 /** Datos del cliente para la factura (todos opcionales). */
 export interface Customer {
   name?: string
@@ -121,6 +142,11 @@ export interface Sale {
   sedeId: SedeRef
   cashierEmail: string
   cashierName?: string
+  /**
+   * Quién vendió, si no fue quien cobró. Vacío en ventas viejas y cuando el
+   * mismo cajero atendió: en ese caso el vendedor es `cashierName`.
+   */
+  seller?: SaleSeller
   status: "completed" | "void"
   lines: SaleLine[]
   subtotal: number
@@ -215,6 +241,10 @@ export interface CreateSalePayload {
    * viaja el id.
    */
   delivery?: DeliveryInput
+  /** Quién vendió. Sin esto, la venta queda a nombre de quien cobra. */
+  seller?: SaleSeller
+  /** Empaque extra de este cobro. */
+  packaging?: SalePackagingInput[]
 }
 
 // ─── Cuentas abiertas (comandas / mesas) ─────────────────────────────────────
@@ -282,6 +312,10 @@ export interface CheckoutOrderPayload {
    * último, en vez de quedar un pedazo que nadie paga.
    */
   lines?: { productId: string; qty: number }[]
+  /** Quién vendió. Sin esto, la venta queda a nombre de quien cobra. */
+  seller?: SaleSeller
+  /** Empaque extra de este cobro. */
+  packaging?: SalePackagingInput[]
 }
 
 /** Lo que falta por cobrar de cada producto de una comanda. */

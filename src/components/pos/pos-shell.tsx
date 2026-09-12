@@ -19,6 +19,7 @@ import { navItems } from "@/lib/pos/navigation"
 import { useOnboarding } from "@/lib/onboarding/onboarding-context"
 import { guideForPath } from "@/lib/onboarding/guides"
 import { ProductTour } from "@/components/onboarding/product-tour"
+import { PosSearch } from "@/components/pos/pos-search"
 import { GuideAutoStart } from "@/components/onboarding/guide-autostart"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -297,7 +298,8 @@ export function PosShell({ children }: { children: React.ReactNode }) {
         {/* Barra superior */}
         <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border bg-background/80 px-4 backdrop-blur-md supports-[backdrop-filter]:bg-background/70">
           <SedeBadge />
-          <div className="ml-auto flex items-center gap-1.5">
+          <PosSearch />
+          <div className="ml-auto flex shrink-0 items-center gap-1.5">
             <GuideButton />
             <ThemeToggle />
             <UserMenu />

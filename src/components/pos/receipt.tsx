@@ -66,6 +66,12 @@ export function Receipt({
         <span className="text-muted-foreground">Cajero</span>
         <span className="max-w-[60%] truncate">{cashier}</span>
       </div>
+      {sale.seller?.name && (
+        <div className="flex justify-between">
+          <span className="text-muted-foreground">Vendedor</span>
+          <span className="max-w-[60%] truncate">{sale.seller.name}</span>
+        </div>
+      )}
 
       {hasCustomer && (
         <>
@@ -162,7 +168,7 @@ export function Receipt({
           <Row label="Recibido" value={money(payment.received)} muted />
         )}
         {payment.change !== undefined && payment.change > 0 && (
-          <Row label="Cambio" value={money(payment.change)} muted />
+          <Row label="Devuelta" value={money(payment.change)} muted />
         )}
       </div>
 

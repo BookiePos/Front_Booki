@@ -25,6 +25,7 @@ import {
 } from "@/lib/pos/api-sales"
 import { DevolucionDialog } from "@/components/pos/devolucion-dialog"
 import { money, timeOnly, isToday } from "@/lib/pos/format"
+import { coincide, useBusquedaPendiente } from "@/lib/pos/busqueda"
 import { Receipt } from "@/components/pos/receipt"
 import { Factura } from "@/components/pos/factura"
 
@@ -113,18 +114,28 @@ export default function VentasPage() {
     }
   }, [rows])
 
+  // Por palabras y sin tildes, y también por vendedor y por producto: buscar
+  // "galleta" tiene que traer las ventas que llevaron galletas.
   const filteredRows = React.useMemo(() => {
-    const q = query.trim().toLowerCase()
     return rows.filter((s) => {
       if (statusFilter !== "all" && s.status !== statusFilter) return false
-      if (!q) return true
-      return (
-        s.saleNumber.toLowerCase().includes(q) ||
-        (s.customer?.name?.toLowerCase().includes(q) ?? false) ||
-        (s.customer?.idNumber?.toLowerCase().includes(q) ?? false)
+      return coincide(
+        query,
+        s.saleNumber,
+        s.customer?.name,
+        s.customer?.idNumber,
+        s.seller?.name,
+        s.cashierName,
+        ...s.lines.map((l) => l.name),
       )
     })
   }, [rows, query, statusFilter])
+
+  // Lo que se buscó en la barra de arriba llega aquí ya escrito.
+  useBusquedaPendiente("/pos/ventas", (pedido) => {
+    setStatusFilter("all")
+    setQuery(pedido.termino)
+  })
 
   async function handleVoid() {
     if (!selected) return
@@ -214,7 +225,7 @@ export default function VentasPage() {
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Buscar por número o cliente…"
+            placeholder="Buscar por número, cliente, vendedor o producto…"
             className="h-10 pl-9"
             aria-label="Buscar ventas"
           />
@@ -291,6 +302,7 @@ export default function VentasPage() {
                         <p className="text-xs text-muted-foreground">
                           {timeOnly(s.createdAt)} · {items} ítem(s)
                           {s.customer?.name ? ` · ${s.customer.name}` : ""}
+                          {s.seller?.name ? ` · vendió ${s.seller.name}` : ""}
                         </p>
                       </div>
                       <div className="flex flex-col items-end gap-0.5">
