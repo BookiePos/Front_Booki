@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 import { AppShell } from "@/components/erp/app-shell"
 import { FeatureGuard } from "@/components/erp/feature-guard"
+import { NovedadesCard } from "@/components/erp/novedades-card"
 import { RequireAuth } from "@/components/erp/require-auth"
 import { SuspensionGuard } from "@/components/erp/suspension-guard"
 import { TooltipProvider } from "@/components/ui/tooltip"
@@ -28,6 +29,9 @@ export default function PanelLayout({
             <FeatureGuard>{children}</FeatureGuard>
           </SuspensionGuard>
         </AppShell>
+        {/* Qué trae la última versión. Va fuera de los guardias a propósito:
+            una cuenta suspendida no necesita enterarse de las novedades. */}
+        <NovedadesCard />
       </TooltipProvider>
     </RequireAuth>
   )

@@ -20,6 +20,30 @@ es decidir "esto ya es lo que va a usar el negocio".
 
 ---
 
+## 1.1.1 — 12 de septiembre de 2026
+
+**Tarjeta de novedades.** Al entrar al panel o al terminal aparece una tarjeta
+con lo que trae la última versión.
+
+Va aparte de la 1.1.0 porque no cambia lo que el sistema hace por el negocio:
+solo cuenta lo que ya se había entregado. Por eso la tarjeta dice "Versión
+1.1.0" — es la versión que anuncia, no la que la trae.
+
+Existe porque nadie lee un historial de versiones en GitHub: quien usa esto está
+detrás de un mostrador, y una función nueva que no se anuncia dentro de la
+aplicación sencillamente no existe.
+
+Cuándo sale, en `src/lib/novedades.ts`: con cada versión nueva, y después una
+vez al día hasta que la persona la cierra con "Entendido". Cerrarla es decir "ya
+la leí" y no vuelve a salir para esa versión. No bloquea nada — se quita con
+Escape o tocando fuera.
+
+Para anunciar la próxima versión basta con cambiar `NOVEDADES`: el número de
+versión es la clave, y en cuanto no coincide con el que la persona vio, la
+tarjeta vuelve a salir.
+
+---
+
 ## 1.1.0 — 12 de septiembre de 2026
 
 Diez funcionalidades nuevas, en veinte pull requests. **Nada de esto requirió
