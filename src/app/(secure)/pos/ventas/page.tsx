@@ -23,6 +23,7 @@ import {
   PAYMENT_METHOD_LABELS,
   type Sale,
 } from "@/lib/pos/api-sales"
+import { DevolucionDialog } from "@/components/pos/devolucion-dialog"
 import { money, timeOnly, isToday } from "@/lib/pos/format"
 import { Receipt } from "@/components/pos/receipt"
 import { Factura } from "@/components/pos/factura"
@@ -51,6 +52,9 @@ export default function VentasPage() {
   const { hasPermission } = useAuth()
   const canView = hasPermission("pos.sell")
   const canVoid = hasPermission("pos.void.authorize")
+  // Devolver es atención al cliente, no corregir un error de digitación: va
+  // con su propio permiso para que el cajero del turno pueda hacerlo.
+  const canRefund = hasPermission("pos.refund")
   const { sedeId, sede } = useSede()
   const confirm = useConfirm()
 
@@ -63,6 +67,8 @@ export default function VentasPage() {
   const [selected, setSelected] = React.useState<Sale | null>(null)
   const [detailView, setDetailView] = React.useState<DetailView>("factura")
   const [voiding, setVoiding] = React.useState(false)
+  /** Ficha de devolución parcial abierta sobre la venta seleccionada. */
+  const [returning, setReturning] = React.useState(false)
   const [voidError, setVoidError] = React.useState<string | null>(null)
 
   // Filtros
@@ -330,16 +336,28 @@ export default function VentasPage() {
         description="Detalle de la venta y comprobante."
         footer={
           <>
-            {canVoid && selected?.status === "completed" && (
-              <Button
-                variant="destructive"
-                className="no-print mr-auto"
-                disabled={voiding}
-                onClick={() => void handleVoid()}
-              >
-                <Ban />
-                {voiding ? "Anulando…" : "Anular venta"}
-              </Button>
+            {selected?.status === "completed" && (
+              <div className="no-print mr-auto flex flex-wrap gap-2">
+                {canRefund && (
+                  <Button
+                    variant="outline"
+                    onClick={() => setReturning(true)}
+                  >
+                    <PackageX />
+                    Devolución
+                  </Button>
+                )}
+                {canVoid && (
+                  <Button
+                    variant="destructive"
+                    disabled={voiding}
+                    onClick={() => void handleVoid()}
+                  >
+                    <Ban />
+                    {voiding ? "Anulando…" : "Anular venta"}
+                  </Button>
+                )}
+              </div>
             )}
             <Button
               variant="outline"
@@ -399,6 +417,16 @@ export default function VentasPage() {
           </>
         )}
       </FormDialog>
+
+      {/* Devolución parcial. Se recarga la lista al terminar porque la venta
+          no cambia de estado —sigue completada— pero la caja y el inventario
+          sí se movieron. */}
+      <DevolucionDialog
+        sale={selected}
+        open={returning}
+        onOpenChange={setReturning}
+        onDone={() => void load(1)}
+      />
     </div>
   )
 }
