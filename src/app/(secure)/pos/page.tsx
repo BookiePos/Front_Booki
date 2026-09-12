@@ -69,6 +69,12 @@ import {
 } from "@/lib/pos/api-customers"
 import { listPriceLists, type PriceList } from "@/lib/erp/api-catalog"
 import { resolveUnitPrice } from "@/lib/erp/price-list"
+import {
+  listDeliveryZones,
+  ORDER_TYPE_LABELS,
+  type DeliveryZone,
+  type OrderType,
+} from "@/lib/pos/api-delivery"
 import { createInvoiceFromSale } from "@/lib/pos/api-einvoicing"
 import { money, qty as fmtQty } from "@/lib/pos/format"
 import { Receipt } from "@/components/pos/receipt"
@@ -274,6 +280,18 @@ export default function VentaPage() {
   )
   const [splitParts, setSplitParts] = React.useState("2")
   const [splitQty, setSplitQty] = React.useState<Record<string, string>>({})
+  // ── Domicilio ──────────────────────────────────────────────────────────────
+  // Cómo sale el pedido y, si es domicilio, a dónde. El cobro del domicilio va
+  // ENCIMA del total y sin IVA, igual que la propina.
+  const [orderType, setOrderType] = React.useState<OrderType>("mostrador")
+  const [zones, setZones] = React.useState<DeliveryZone[]>([])
+  const [zoneId, setZoneId] = React.useState("")
+  /** Valor a mano, para el pedido que no cae en ninguna zona. */
+  const [manualFee, setManualFee] = React.useState("")
+  const [address, setAddress] = React.useState("")
+  const [deliveryPhone, setDeliveryPhone] = React.useState("")
+  const [deliveryNotes, setDeliveryNotes] = React.useState("")
+  const [courier, setCourier] = React.useState("")
   const [label, setLabel] = React.useState("")
   const [saveState, setSaveState] = React.useState<SaveState>("idle")
   const [orderBusy, setOrderBusy] = React.useState(false)
@@ -375,6 +393,27 @@ export default function VentaPage() {
       setError(errorMessage(err))
     } finally {
       setLoading(false)
+    }
+  }, [sedeId])
+
+  // Zonas de domicilio de la sede. Se cargan con el catálogo porque el cajero
+  // las necesita en el momento de cobrar, no puede esperar a que carguen.
+  React.useEffect(() => {
+    let vivo = true
+    async function cargar() {
+      await Promise.resolve()
+      if (!vivo || !sedeId) return
+      try {
+        const z = await listDeliveryZones(sedeId)
+        if (vivo) setZones(z)
+      } catch {
+        // Sin zonas todavía se puede cobrar el domicilio a mano.
+        if (vivo) setZones([])
+      }
+    }
+    void cargar()
+    return () => {
+      vivo = false
     }
   }, [sedeId])
 
@@ -989,10 +1028,25 @@ export default function VentaPage() {
       : pendingTotal(activeOrder)
     : total
 
+  /**
+   * Lo que se cobra por llevar el pedido.
+   *
+   * Con zona elegida manda la tarifa de la zona; el valor a mano es para el
+   * pedido que no cae en ninguna. El servidor vuelve a resolverlo igual: esto
+   * es solo para que el cajero vea el total antes de cobrar.
+   */
+  const zonaElegida = zones.find((z) => z._id === zoneId)
+  const deliveryFee =
+    orderType !== "domicilio"
+      ? 0
+      : zonaElegida
+        ? zonaElegida.fee
+        : Math.max(0, Math.round(Number(manualFee) || 0))
+
   // Total a cobrar. Los descuentos son solo los predefinidos por línea (ya
   // netos en `total`); en el POS no se permiten descuentos libres. La propina
-  // (restaurante) se cobra ENCIMA del total de bienes.
-  const netTotal = chargeTotal + tipAmount
+  // (restaurante) y el domicilio se cobran ENCIMA del total y sin IVA.
+  const netTotal = chargeTotal + tipAmount + deliveryFee
 
   const receivedNum = received ? Number(received) : undefined
   const change =
@@ -1092,6 +1146,20 @@ export default function VentaPage() {
           // Solo cuando no hay cliente: si lo hay, manda su lista y mandar las
           // dos haría que el backend pidiera permiso sin necesidad.
           priceListId: !custId ? manualListId || undefined : undefined,
+          orderType,
+          // La tarifa NO viaja cuando hay zona: se manda el id y el servidor
+          // pone el precio. El valor a mano solo para el pedido suelto.
+          delivery:
+            orderType === "domicilio"
+              ? {
+                  address: address.trim(),
+                  phone: deliveryPhone.trim() || undefined,
+                  notes: deliveryNotes.trim() || undefined,
+                  courier: courier.trim() || undefined,
+                  zoneId: zoneId || undefined,
+                  fee: zoneId ? undefined : deliveryFee,
+                }
+              : undefined,
         })
       }
       setCompletedSale(sale)
@@ -1104,6 +1172,15 @@ export default function VentaPage() {
       // empieza desde cero y no hereda lo que escribió el anterior.
       setSplitMode("todo")
       setSplitQty({})
+      // El domicilio es de ESTE pedido: el siguiente arranca en mostrador y sin
+      // dirección, para que nadie cobre un envío heredado del anterior.
+      setOrderType("mostrador")
+      setZoneId("")
+      setManualFee("")
+      setAddress("")
+      setDeliveryPhone("")
+      setDeliveryNotes("")
+      setCourier("")
       void fetchProducts()
 
       // La venta ya está registrada. Lo que sigue (factura DIAN y alta del
@@ -2251,6 +2328,121 @@ export default function VentaPage() {
                   </div>
                 )}
 
+                {/* Cómo sale el pedido. Con domicilio aparece a dónde va y
+                    cuánto se cobra por llevarlo, que se suma ENCIMA del total y
+                    sin IVA — igual que la propina. */}
+                <div className="flex flex-col gap-1.5">
+                  <Label>Tipo de pedido</Label>
+                  <div className="grid grid-cols-4 gap-1 rounded-lg border border-border bg-muted p-1">
+                    {(
+                      Object.entries(ORDER_TYPE_LABELS) as [OrderType, string][]
+                    ).map(([key, lbl]) => (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => setOrderType(key)}
+                        className={cn(
+                          "rounded-md px-1 py-1.5 text-[11px] font-medium transition-colors",
+                          orderType === key
+                            ? "bg-background text-foreground shadow-xs"
+                            : "text-muted-foreground hover:text-foreground",
+                        )}
+                      >
+                        {lbl}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {orderType === "domicilio" && (
+                  <div className="flex flex-col gap-2 rounded-lg border border-border bg-muted/40 p-3">
+                    <div className="flex flex-col gap-1.5">
+                      <Label className="text-xs">Dirección de entrega</Label>
+                      <Input
+                        value={address}
+                        onChange={(e) => setAddress(e.target.value)}
+                        placeholder="Calle 33 #70-20, apto 302"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="flex flex-col gap-1.5">
+                        <Label className="text-xs">Teléfono</Label>
+                        <Input
+                          value={deliveryPhone}
+                          onChange={(e) => setDeliveryPhone(e.target.value)}
+                          placeholder="300 123 4567"
+                          inputMode="tel"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <Label className="text-xs">Quién lo lleva</Label>
+                        <Input
+                          value={courier}
+                          onChange={(e) => setCourier(e.target.value)}
+                          placeholder="Nombre del repartidor"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-1.5">
+                      <Label className="text-xs">Indicaciones</Label>
+                      <Input
+                        value={deliveryNotes}
+                        onChange={(e) => setDeliveryNotes(e.target.value)}
+                        placeholder="Timbre dañado, llamar al llegar"
+                      />
+                    </div>
+
+                    <div className="flex flex-col gap-1.5">
+                      <Label className="text-xs">Zona</Label>
+                      <select
+                        className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm"
+                        value={zoneId}
+                        onChange={(e) => setZoneId(e.target.value)}
+                      >
+                        <option value="">
+                          {zones.length === 0
+                            ? "No hay zonas configuradas"
+                            : "Otra zona (escribo el valor)"}
+                        </option>
+                        {zones.map((z) => (
+                          <option key={z._id} value={z._id}>
+                            {z.name} · {money(z.fee)}
+                          </option>
+                        ))}
+                      </select>
+                      {/* El valor a mano es para el pedido que no cae en
+                          ninguna zona: es lo que se acordó en vez de calcular
+                          por kilómetros. */}
+                      {!zoneId && (
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-muted-foreground">
+                            Cobro del domicilio
+                          </span>
+                          <Input
+                            type="number"
+                            min="0"
+                            step="any"
+                            inputMode="decimal"
+                            className="h-9 w-32 text-right tnum"
+                            aria-label="Valor del domicilio"
+                            placeholder="0"
+                            value={manualFee}
+                            onChange={(e) => setManualFee(e.target.value)}
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    <p className="text-[11px] text-muted-foreground">
+                      {deliveryFee > 0
+                        ? `Se cobran ${money(deliveryFee)} encima del total. El domicilio no lleva IVA.`
+                        : "Domicilio sin costo para el cliente."}
+                    </p>
+                  </div>
+                )}
+
                 {/* Fiado (crédito): deudor obligatorio (cliente o empleado) */}
                 {method === "credit" && (
                   <div className="flex flex-col gap-2 rounded-lg border border-warning/30 bg-warning/10 p-3">
@@ -2575,7 +2767,11 @@ export default function VentaPage() {
                         receivedNum < netTotal) ||
                       (method === "credit" &&
                         ((debtorType === "customer" && !custId) ||
-                          (debtorType === "employee" && !empId)))
+                          (debtorType === "employee" && !empId))) ||
+                      // Un domicilio sin dirección se cobraría igual y nadie
+                      // sabría a dónde llevarlo. El servidor también lo
+                      // rechaza; aquí se evita el viaje.
+                      (orderType === "domicilio" && !address.trim())
                     }
                     onClick={() => void handleConfirm()}
                   >
