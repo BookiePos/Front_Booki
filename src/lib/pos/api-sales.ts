@@ -3,6 +3,7 @@
  * Reutiliza authFetch (refresh automático) de api-admin.
  */
 import { authFetch, parseResponse } from "@/lib/api-admin"
+import type { OrderType } from "@/lib/pos/api-delivery"
 import type { SedeRef } from "@/lib/pos/api-inventory"
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -105,6 +106,18 @@ export interface Sale {
   total: number
   /** Propina (restaurante): se cobró encima del total. */
   tip?: number
+  /** Cómo salió el pedido. */
+  orderType?: OrderType
+  /** Lo que se cobró por llevarlo. Va encima del total y sin IVA. */
+  deliveryFee?: number
+  delivery?: {
+    zoneId?: string
+    zoneName?: string
+    address: string
+    phone?: string
+    notes?: string
+    courier?: string
+  }
   payment: { method: PaymentMethod; received?: number; change?: number }
   customer?: Customer
   orderId?: string
@@ -132,6 +145,19 @@ export interface SalePaymentInput {
   employeeId?: string
 }
 
+/** A dónde se lleva el pedido. */
+export interface DeliveryInput {
+  address?: string
+  phone?: string
+  notes?: string
+  /** Quién lo lleva. Texto libre: casi siempre es un nombre de pila. */
+  courier?: string
+  /** Zona con tarifa fija. El servidor pone el precio, no esta pantalla. */
+  zoneId?: string
+  /** Valor a mano, para el pedido que no cae en ninguna zona. */
+  fee?: number
+}
+
 export interface CreateSalePayload {
   sedeId: string
   lines: { productId: string; qty: number; discountId?: string }[]
@@ -140,6 +166,16 @@ export interface CreateSalePayload {
   customer?: Customer
   /** Propina voluntaria (restaurante), en pesos. */
   tip?: number
+  /** Cómo sale el pedido. Por omisión, mostrador. */
+  orderType?: OrderType
+  /**
+   * A dónde se lleva. Solo cuenta con `orderType: "domicilio"`.
+   *
+   * El cobro del domicilio NO lleva IVA y se cobra encima del total, igual que
+   * la propina. Con zona elegida, la tarifa la pone el servidor: aquí solo
+   * viaja el id.
+   */
+  delivery?: DeliveryInput
 }
 
 // ─── Cuentas abiertas (comandas / mesas) ─────────────────────────────────────

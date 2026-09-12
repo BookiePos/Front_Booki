@@ -59,6 +59,7 @@ import { ApiError } from "@/lib/api"
 import { PageHeader } from "@/components/erp/page-header"
 import { SedeDialog } from "@/components/erp/sede-dialog"
 import { SedeMap } from "@/components/erp/sede-map"
+import { DeliveryZonesCard } from "@/components/erp/delivery-zones-card"
 import { EmployeeAccessDialog } from "@/components/erp/employee-access-dialog"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -829,6 +830,9 @@ export default function SedeDetailPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* ── Zonas de domicilio ────────────────────────────────────────────── */}
+      <DeliveryZonesCard sedeId={sedeId} canManage={canManage} />
 
       {/* ── Descuentos ────────────────────────────────────────────────────── */}
       <Card className="mt-6">
