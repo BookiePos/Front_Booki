@@ -114,6 +114,12 @@ export const GLOSARIO = {
       "Lo que le cobras al cliente, con el IVA ya incluido. La diferencia con el costo es tu ganancia: si la gaseosa te cuesta $1.500 y la vendes en $2.500, ganas $1.000.",
     alias: ["precio de venta", "pvp"],
   },
+  listaPrecios: {
+    titulo: "Lista de precios",
+    texto:
+      "Un precio distinto para quien compra distinto: la tienda que se lleva cajas paga menos que quien compra una gaseosa. Le asignas la lista al cliente una vez y se le cobra sola en cada compra, sin que nadie tenga que descontar a mano.",
+    alias: ["lista de precios", "mayorista", "detal", "precio mayorista"],
+  },
   costoPromedio: {
     titulo: "Costo promedio",
     texto:
