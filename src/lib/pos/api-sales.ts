@@ -70,6 +70,30 @@ export interface SaleLine {
   discountAmount?: number
   /** Nombre del descuento aplicado (para el recibo). */
   discountName?: string
+  /**
+   * Base gravable de la línea, ya neta del descuento de línea y de la parte
+   * que le tocó del descuento de toda la venta.
+   */
+  taxBase?: number
+  /** IVA de la línea, incluido en lo que pagó el cliente. */
+  taxAmount?: number
+}
+
+/**
+ * Lo que el cliente PAGÓ por una línea: la base más su IVA.
+ *
+ * Es de aquí —y no de `unitPrice × qty`— de donde sale lo que se le devuelve.
+ * El precio de lista no tiene descontado nada, así que devolverlo regalaría el
+ * descuento por segunda vez.
+ *
+ * Las ventas viejas pueden no traer los dos campos; en ese caso se cae al neto
+ * de la línea, que es lo más cercano que hay.
+ */
+export function paidForLine(line: SaleLine): number {
+  if (line.taxBase !== undefined && line.taxAmount !== undefined) {
+    return line.taxBase + line.taxAmount
+  }
+  return line.lineTotal - (line.discountAmount ?? 0)
 }
 
 /** Descuento predefinido de la sede (se aplica por línea en el POS). */
@@ -227,6 +251,85 @@ export async function listSales(
 }
 
 /** Anula una venta y devuelve su consumo al inventario. */
+// ─── Devoluciones parciales ───────────────────────────────────────────────────
+
+export type ReturnReason =
+  | "defectuoso"
+  | "equivocado"
+  | "sobrante"
+  | "garantia"
+  | "otro"
+
+export const RETURN_REASON_LABELS: Record<ReturnReason, string> = {
+  defectuoso: "Vino malo o dañado",
+  equivocado: "No era lo que pidió",
+  sobrante: "Compró de más",
+  garantia: "Garantía",
+  otro: "Otro",
+}
+
+/** Qué se hace con lo devuelto. */
+export type RestockMode = "inventory" | "waste"
+
+/** Cómo se le devuelve la plata. */
+export type RefundMethod = "cash" | "transfer" | "credit_note" | "none"
+
+export const REFUND_METHOD_LABELS: Record<RefundMethod, string> = {
+  cash: "Efectivo de la caja",
+  transfer: "Transferencia",
+  credit_note: "Le queda a favor",
+  none: "Cambio por otro producto",
+}
+
+export interface SaleReturn {
+  _id: string
+  saleId: string
+  saleNumber: string
+  lines: {
+    productId: string
+    sku: string
+    name: string
+    qty: number
+    refund: number
+    refundTax: number
+  }[]
+  reason: ReturnReason
+  restock: RestockMode
+  /** Si la merma alcanzó a registrarse (solo importa cuando restock = waste). */
+  wasteRecorded: boolean
+  refundMethod: RefundMethod
+  refundTotal: number
+  refundTax: number
+  note?: string
+  userEmail: string
+  createdAt: string
+}
+
+export interface CreateSaleReturnPayload {
+  lines: { productId: string; qty: number }[]
+  reason: ReturnReason
+  restock: RestockMode
+  refundMethod: RefundMethod
+  note?: string
+}
+
+/** Devoluciones ya registradas de una venta (para no devolver dos veces). */
+export async function listSaleReturns(saleId: string): Promise<SaleReturn[]> {
+  const res = await authFetch(`/sales/${saleId}/returns`)
+  return parseResponse<SaleReturn[]>(res)
+}
+
+export async function createSaleReturn(
+  saleId: string,
+  payload: CreateSaleReturnPayload,
+): Promise<SaleReturn> {
+  const res = await authFetch(`/sales/${saleId}/returns`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
+  return parseResponse<SaleReturn>(res)
+}
+
 export async function voidSale(id: string): Promise<Sale> {
   const res = await authFetch(`/sales/${id}/void`, { method: "POST" })
   return parseResponse<Sale>(res)
