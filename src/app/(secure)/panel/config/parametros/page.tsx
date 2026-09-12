@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { ShieldOff, SlidersHorizontal, RefreshCw, History, Loader2 } from "lucide-react"
+import { ShieldOff, SlidersHorizontal, RefreshCw, History } from "lucide-react"
 
 import { useAuth } from "@/lib/auth-context"
 import {
@@ -17,15 +17,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "@/components/ui/sheet"
+  FormDialog,
+  FormSection,
+  FormAlert,
+  FormActions,
+} from "@/components/ui/form-dialog"
+import { Field, FieldGrid, NativeSelect } from "@/components/ui/field"
+import { Termino } from "@/components/ui/help-tip"
 
 function formatValue(p: ParameterView): string {
   const v = p.current?.value
@@ -86,7 +86,15 @@ export default function ParametrosPage() {
       <PageHeader
         section="Configuración"
         title="Parámetros"
-        description="Tarifas, recargos y topes versionados por fecha de vigencia."
+        titleHelp={{ term: "parametros" }}
+        description={
+          <>
+            Las tarifas, los recargos y los topes que usa todo el sistema —
+            <Termino>SMMLV</Termino>, <Termino term="auxilioTransporte">auxilio
+            de transporte</Termino>, <Termino>UVT</Termino>—, cada uno con su
+            histórico por fecha.
+          </>
+        }
         actions={
           <Button
             data-tour="parametros-actualizar"
@@ -148,12 +156,12 @@ export default function ParametrosPage() {
         </div>
       )}
 
-      <ParamDetailSheet param={detail} onClose={() => setDetail(null)} onSaved={load} />
+      <ParamDetailDialog param={detail} onClose={() => setDetail(null)} onSaved={load} />
     </>
   )
 }
 
-function ParamDetailSheet({
+function ParamDetailDialog({
   param,
   onClose,
   onSaved,
@@ -197,66 +205,93 @@ function ParamDetailSheet({
   }
 
   return (
-    <Sheet open={!!param} onOpenChange={(o) => !o && onClose()}>
-      <SheetContent className="w-full gap-0 sm:max-w-md">
-        <SheetHeader>
-          <SheetTitle>{param.label}</SheetTitle>
-          <SheetDescription className="font-mono text-xs">{param.key}</SheetDescription>
-        </SheetHeader>
-        <div className="flex flex-col gap-4 px-4 py-2">
-          <div className="rounded-lg border border-border bg-muted/40 p-3">
-            <p className="mb-2 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-              <History className="size-3.5" /> Histórico de vigencias
-            </p>
-            <div className="flex flex-col gap-1.5">
-              {param.history.map((h, i) => (
-                <div key={i} className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">{fmtDate(h.effectiveFrom)}</span>
-                  <span className="tnum font-medium">
-                    {String(h.value)}
-                    {param.unit ? ` ${param.unit}` : ""}
-                    {h.upcoming && <Badge variant="secondary" className="ml-2">Futura</Badge>}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
+    <FormDialog
+      open={!!param}
+      onOpenChange={(o) => !o && onClose()}
+      size="2xl"
+      icon={SlidersHorizontal}
+      title={param.label}
+      description={
+        <span className="font-mono text-xs">{param.key}</span>
+      }
+      footer={
+        <FormActions
+          onCancel={onClose}
+          onSubmit={() => void addVersion()}
+          busy={saving}
+          submitLabel="Publicar vigencia"
+        />
+      }
+    >
+      {err && <FormAlert>{err}</FormAlert>}
 
-          <div className="rounded-lg border border-border p-3">
-            <p className="mb-2 text-xs font-medium text-foreground">Nueva vigencia</p>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="flex flex-col gap-1">
-                <Label className="text-xs">Valor</Label>
-                {param.valueType === "boolean" ? (
-                  <select
-                    className="h-9 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
-                    value={value}
-                    onChange={(e) => setValue(e.target.value)}
-                  >
-                    <option value="true">Sí</option>
-                    <option value="false">No</option>
-                  </select>
-                ) : (
-                  <Input
-                    type={param.valueType === "text" ? "text" : "number"}
-                    value={value}
-                    onChange={(e) => setValue(e.target.value)}
-                  />
-                )}
-              </div>
-              <div className="flex flex-col gap-1">
-                <Label className="text-xs">Desde</Label>
-                <Input type="date" value={effectiveFrom} onChange={(e) => setEffectiveFrom(e.target.value)} />
-              </div>
-            </div>
-            {err && <p className="mt-2 text-sm text-destructive">{err}</p>}
-            <Button className="mt-3 w-full" onClick={() => void addVersion()} disabled={saving}>
-              {saving && <Loader2 className="size-4 animate-spin" />}
-              Publicar vigencia
-            </Button>
-          </div>
-        </div>
-      </SheetContent>
-    </Sheet>
+      <FormSection
+        icon={History}
+        title="Histórico de vigencias"
+        description="Los parámetros no se editan: se publica un valor nuevo con su fecha, y el anterior queda para lo ya calculado."
+        boxed
+      >
+        <ul className="flex flex-col gap-1.5">
+          {param.history.map((h, i) => (
+            <li
+              key={i}
+              className="flex items-center justify-between gap-3 text-sm"
+            >
+              <span className="text-muted-foreground">
+                {fmtDate(h.effectiveFrom)}
+              </span>
+              <span className="flex items-center gap-2">
+                <span className="stat-figure text-sm">
+                  {String(h.value)}
+                  {param.unit ? ` ${param.unit}` : ""}
+                </span>
+                {h.upcoming && <Badge variant="secondary">Futura</Badge>}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </FormSection>
+
+      <FormSection
+        title="Nueva vigencia"
+        description="Desde la fecha que pongas, el sistema usará este valor."
+      >
+        <FieldGrid cols={2}>
+          <Field
+            id="pm-value"
+            label="Valor"
+            hint={param.unit ? `En ${param.unit}.` : undefined}
+          >
+            {param.valueType === "boolean" ? (
+              <NativeSelect
+                id="pm-value"
+                value={value}
+                onChange={setValue}
+                options={[
+                  { value: "true", label: "Sí" },
+                  { value: "false", label: "No" },
+                ]}
+              />
+            ) : (
+              <Input
+                id="pm-value"
+                type={param.valueType === "text" ? "text" : "number"}
+                inputMode={param.valueType === "text" ? undefined : "numeric"}
+                value={value}
+                onChange={(e) => setValue(e.target.value)}
+              />
+            )}
+          </Field>
+          <Field id="pm-from" label="Desde">
+            <Input
+              id="pm-from"
+              type="date"
+              value={effectiveFrom}
+              onChange={(e) => setEffectiveFrom(e.target.value)}
+            />
+          </Field>
+        </FieldGrid>
+      </FormSection>
+    </FormDialog>
   )
 }

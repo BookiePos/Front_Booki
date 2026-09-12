@@ -13,6 +13,7 @@ import {
   ArrowLeftRight,
   HandCoins,
   CheckCircle2,
+  Loader2,
   MapPin,
   PackageX,
   ImageOff,
@@ -34,7 +35,6 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import {
   Select,
   SelectContent,
@@ -42,13 +42,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "@/components/ui/sheet"
+import { FormDialog, FormAlert } from "@/components/ui/form-dialog"
+import { Field } from "@/components/ui/field"
+import { MoneyInput } from "@/components/ui/money-input"
+import { Segmented } from "@/components/ui/segmented"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useConfirm } from "@/components/ui/confirm-dialog"
 import { Separator } from "@/components/ui/separator"
@@ -505,131 +502,117 @@ export default function PosPage() {
         </div>
       )}
 
-      {/* ── Sheet de cobro ── */}
-      <Sheet
+      {/* ── Ficha de cobro ── */}
+      <FormDialog
         open={checkoutOpen}
         onOpenChange={(v) => {
           if (saving) return
           setCheckoutOpen(v)
         }}
-      >
-        <SheetContent side="right" className="sm:max-w-md overflow-y-auto">
-          {completedSale ? (
-            <div className="flex h-full flex-col items-center justify-center gap-4 px-6 text-center">
-              <CheckCircle2 className="size-14 text-success-ink" />
-              <p className="font-display text-2xl">Venta registrada</p>
-              <Badge variant="outline" className="px-3 py-1.5 font-mono text-base">
-                {completedSale.saleNumber}
-              </Badge>
-              <p className="text-sm text-muted-foreground">
-                Total {money.format(completedSale.total)} ·{" "}
-                {PAYMENT_METHOD_LABELS[completedSale.payment.method]}
-                {completedSale.payment.change !== undefined &&
-                completedSale.payment.change > 0
-                  ? ` · Cambio ${money.format(completedSale.payment.change)}`
-                  : ""}
-              </p>
-              <Button
-                size="lg"
-                className="mt-2"
-                onClick={() => setCheckoutOpen(false)}
-              >
-                Nueva venta
-              </Button>
-            </div>
+        size="xl"
+        icon={completedSale ? CheckCircle2 : Banknote}
+        title={completedSale ? "Venta registrada" : "Cobrar"}
+        description={
+          completedSale
+            ? undefined
+            : `${sede ? `${sede.name} · ` : ""}Total a cobrar ${money.format(total)}`
+        }
+        footer={
+          completedSale ? (
+            <Button size="lg" onClick={() => setCheckoutOpen(false)}>
+              Nueva venta
+            </Button>
           ) : (
             <>
-              <SheetHeader>
-                <SheetTitle className="font-display text-lg">Cobrar</SheetTitle>
-                <SheetDescription>
-                  {sede ? `${sede.name} · ` : ""}
-                  Total a cobrar {money.format(total)}
-                </SheetDescription>
-              </SheetHeader>
-
-              <div className="flex flex-col gap-4 px-4 py-2">
-                <div className="flex flex-col gap-1.5">
-                  <Label>Medio de pago</Label>
-                  <div className="grid grid-cols-3 gap-1 rounded-lg border border-border bg-muted p-1">
-                    {ADMIN_PAYMENT_METHODS.map((key) => {
-                      const label = PAYMENT_METHOD_LABELS[key]
-                      const Icon = PAYMENT_ICONS[key]
-                      return (
-                        <button
-                          key={key}
-                          type="button"
-                          onClick={() => setMethod(key)}
-                          className={cn(
-                            "flex flex-col items-center gap-1 rounded-md px-2 py-2 text-xs font-medium transition-colors",
-                            method === key
-                              ? "bg-background text-foreground shadow-xs"
-                              : "text-muted-foreground hover:text-foreground",
-                          )}
-                        >
-                          <Icon className="size-4" />
-                          {label}
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
-
-                {method === "cash" && (
-                  <div className="flex flex-col gap-1.5">
-                    <Label htmlFor="pos-received">Recibido</Label>
-                    <Input
-                      id="pos-received"
-                      type="number"
-                      min="0"
-                      step="any"
-                      value={received}
-                      onChange={(e) => setReceived(e.target.value)}
-                      placeholder={String(total)}
-                    />
-                    <p className="text-sm text-muted-foreground">
-                      {change !== undefined
-                        ? `Cambio: ${money.format(change)}`
-                        : receivedNum !== undefined && receivedNum < total
-                          ? "El monto recibido no alcanza"
-                          : "Ingresa cuánto entrega el cliente (opcional)"}
-                    </p>
-                  </div>
-                )}
-
-                {checkoutError && (
-                  <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                    {checkoutError}
-                  </p>
-                )}
-
-                <div className="flex justify-end gap-2 pt-2">
-                  <Button
-                    variant="outline"
-                    disabled={saving}
-                    onClick={() => setCheckoutOpen(false)}
-                  >
-                    Cancelar
-                  </Button>
-                  <Button
-                    disabled={
-                      saving ||
-                      cart.length === 0 ||
-                      (method === "cash" &&
-                        receivedNum !== undefined &&
-                        receivedNum < total)
-                    }
-                    onClick={() => void handleConfirm()}
-                  >
-                    {saving
-                      ? "Registrando…"
-                      : `Confirmar ${money.format(total)}`}
-                  </Button>
-                </div>
-              </div>
+              <Button
+                variant="outline"
+                disabled={saving}
+                onClick={() => setCheckoutOpen(false)}
+                className="sm:min-w-28"
+              >
+                Cancelar
+              </Button>
+              <Button
+                size="lg"
+                disabled={
+                  saving ||
+                  cart.length === 0 ||
+                  (method === "cash" &&
+                    receivedNum !== undefined &&
+                    receivedNum < total)
+                }
+                onClick={() => void handleConfirm()}
+              >
+                {saving ? <Loader2 className="animate-spin" /> : <Banknote />}
+                {saving ? "Registrando…" : `Confirmar ${money.format(total)}`}
+              </Button>
             </>
-          )}
-        </SheetContent>
-      </Sheet>
+          )
+        }
+      >
+        {completedSale ? (
+          <div className="flex flex-col items-center gap-3 py-6 text-center">
+            <CheckCircle2 className="size-14 text-success-ink" />
+            <Badge
+              variant="outline"
+              className="px-3 py-1.5 font-mono text-base"
+            >
+              {completedSale.saleNumber}
+            </Badge>
+            <p className="text-sm text-muted-foreground">
+              Total {money.format(completedSale.total)} ·{" "}
+              {PAYMENT_METHOD_LABELS[completedSale.payment.method]}
+              {completedSale.payment.change !== undefined &&
+              completedSale.payment.change > 0
+                ? ` · Cambio ${money.format(completedSale.payment.change)}`
+                : ""}
+            </p>
+          </div>
+        ) : (
+          <>
+            {checkoutError && <FormAlert>{checkoutError}</FormAlert>}
+
+            <Field id="pos-method" label="Medio de pago" help={{ term: "nequi" }}>
+              <Segmented
+                fill
+                size="lg"
+                ariaLabel="Medio de pago"
+                value={method}
+                onValueChange={(v) => setMethod(v as typeof method)}
+                options={ADMIN_PAYMENT_METHODS.map((key) => ({
+                  value: key,
+                  label: PAYMENT_METHOD_LABELS[key],
+                  icon: PAYMENT_ICONS[key],
+                }))}
+              />
+            </Field>
+
+            {method === "cash" && (
+              <Field
+                id="pos-received"
+                label="Recibido"
+                hint={
+                  change !== undefined
+                    ? `Cambio: ${money.format(change)}`
+                    : "Cuánto entrega el cliente. Opcional."
+                }
+                error={
+                  receivedNum !== undefined && receivedNum < total
+                    ? "El monto recibido no alcanza."
+                    : null
+                }
+              >
+                <MoneyInput
+                  id="pos-received"
+                  value={received === "" ? null : Number(received)}
+                  onValueChange={(v) => setReceived(v == null ? "" : String(v))}
+                  placeholder={String(total)}
+                />
+              </Field>
+            )}
+          </>
+        )}
+      </FormDialog>
     </>
   )
 }

@@ -31,6 +31,7 @@ import {
 import { ApiError } from "@/lib/api"
 
 import { PageHeader } from "@/components/erp/page-header"
+import { Termino } from "@/components/ui/help-tip"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -181,7 +182,14 @@ export default function TurnosPage() {
       <PageHeader
         section="Personal"
         title="Turnos"
-        description="Horas trabajadas por trabajador y sede (control de horas de nómina)."
+        description={
+          <>
+            Las horas que trabajó cada persona en cada <Termino>sede</Termino>.
+            De aquí salen las <Termino>horas extra</Termino>, los{" "}
+            <Termino term="recargoNocturno">recargos</Termino> y los{" "}
+            <Termino>dominicales</Termino> de la <Termino>nómina</Termino>.
+          </>
+        }
         actions={sedeSelector}
       />
 
@@ -255,7 +263,9 @@ export default function TurnosPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Trabajador</TableHead>
-                  <TableHead>Sede</TableHead>
+                  <TableHead>
+                    <Termino>Sede</Termino>
+                  </TableHead>
                   <TableHead className="text-right">Días</TableHead>
                   <TableHead className="text-right">Horas</TableHead>
                 </TableRow>

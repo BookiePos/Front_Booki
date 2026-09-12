@@ -1,5 +1,6 @@
 import { cn } from "@/lib/utils"
 import { dashboardItem, navSections } from "@/lib/erp/navigation"
+import { HelpTip, type HelpTipProps } from "@/components/ui/help-tip"
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -48,6 +49,7 @@ const ICON_NODES = new Map(
  */
 export function PageHeader({
   title,
+  titleHelp,
   description,
   section,
   icon: Icon,
@@ -55,7 +57,17 @@ export function PageHeader({
   className,
 }: {
   title: string
-  description?: string
+  /**
+   * Interrogación junto al título, para el módulo cuyo propio nombre es el
+   * término raro: "Kárdex", "CxP", "P&L". Es el primer sitio donde alguien se
+   * pregunta qué está mirando.
+   */
+  titleHelp?: HelpTipProps
+  /**
+   * Acepta nodos y no solo texto: es lo que permite envolver el vocabulario
+   * difícil del subtítulo en `<Termino>` sin duplicar la cabecera.
+   */
+  description?: React.ReactNode
   section?: string
   /** Se toma del menú lateral si no se pasa; `null` lo quita del todo. */
   icon?: React.ElementType | null
@@ -93,8 +105,11 @@ export function PageHeader({
               {iconNode}
             </span>
           )}
-          <h1 className="font-display text-[1.75rem] leading-tight tracking-[-0.02em] text-foreground sm:text-[2rem]">
+          <h1 className="flex items-center gap-2 font-display text-[1.75rem] leading-tight tracking-[-0.02em] text-foreground sm:text-[2rem]">
             {title}
+            {titleHelp && (
+              <HelpTip {...titleHelp} side="bottom" className="mt-1 size-4" />
+            )}
           </h1>
         </div>
 

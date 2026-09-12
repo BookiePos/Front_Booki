@@ -7,7 +7,6 @@ import {
   Plus,
   RefreshCw,
   Loader2,
-  Trash2,
   Send,
   Receipt,
   CheckCircle2,
@@ -42,15 +41,16 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "@/components/ui/sheet"
+  FormDialog,
+  FormSection,
+  FormAlert,
+  FormActions,
+} from "@/components/ui/form-dialog"
+import { Field, FieldGrid, FieldSpan } from "@/components/ui/field"
+import { Termino } from "@/components/ui/help-tip"
+import { Checkbox } from "@/components/ui/checkbox"
 
 const tableTone: Record<string, string> = {
   free: "border-border bg-card hover:border-primary",
@@ -264,13 +264,13 @@ export default function RestaurantePage() {
         </div>
       )}
 
-      <OrderSheet
+      <OrderDialog
         orderId={activeOrderId}
         onClose={() => setActiveOrderId(null)}
         onChanged={load}
       />
       {canManageTables && (
-        <NewTableSheet
+        <NewTableDialog
           open={newTableOpen}
           onClose={() => setNewTableOpen(false)}
           sedeId={sedeId}
@@ -281,7 +281,7 @@ export default function RestaurantePage() {
   )
 }
 
-function NewTableSheet({
+function NewTableDialog({
   open,
   onClose,
   sedeId,
@@ -322,37 +322,66 @@ function NewTableSheet({
   }
 
   return (
-    <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
-      <SheetContent className="w-full gap-0 sm:max-w-sm">
-        <SheetHeader>
-          <SheetTitle>Nueva mesa</SheetTitle>
-          <SheetDescription>Agrega una mesa a un salón.</SheetDescription>
-        </SheetHeader>
-        <div className="flex flex-col gap-3 px-4 py-2">
-          <div className="flex flex-col gap-1">
-            <Label className="text-xs">Nombre</Label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Mesa 1" />
-          </div>
-          <div className="flex flex-col gap-1">
-            <Label className="text-xs">Salón / zona</Label>
-            <Input value={zone} onChange={(e) => setZone(e.target.value)} placeholder="Principal" />
-          </div>
-          <div className="flex flex-col gap-1">
-            <Label className="text-xs">Puestos</Label>
-            <Input type="number" value={seats} onChange={(e) => setSeats(e.target.value)} />
-          </div>
-          {err && <p className="text-sm text-destructive">{err}</p>}
-          <Button onClick={() => void save()} disabled={saving || !name.trim()}>
-            {saving && <Loader2 className="size-4 animate-spin" />}
-            Crear mesa
-          </Button>
-        </div>
-      </SheetContent>
-    </Sheet>
+    <FormDialog
+      open={open}
+      onOpenChange={(o) => !o && onClose()}
+      size="lg"
+      icon={UtensilsCrossed}
+      title="Nueva mesa"
+      description="Un puesto del salón al que se le puede abrir una cuenta."
+      footer={
+        <FormActions
+          onCancel={onClose}
+          onSubmit={() => void save()}
+          busy={saving}
+          disabled={!name.trim()}
+          submitLabel="Crear mesa"
+        />
+      }
+    >
+      {err && <FormAlert>{err}</FormAlert>}
+
+      <FormSection title="Datos de la mesa">
+        <FieldGrid cols={2}>
+          <FieldSpan span={2}>
+            <Field id="mesa-name" label="Nombre" required>
+              <Input
+                id="mesa-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Mesa 1"
+              />
+            </Field>
+          </FieldSpan>
+          <Field
+            id="mesa-zone"
+            label="Salón / zona"
+            hint="Para agrupar el mapa del salón."
+          >
+            <Input
+              id="mesa-zone"
+              value={zone}
+              onChange={(e) => setZone(e.target.value)}
+              placeholder="Principal"
+            />
+          </Field>
+          <Field id="mesa-seats" label="Puestos">
+            <Input
+              id="mesa-seats"
+              type="number"
+              inputMode="numeric"
+              min="1"
+              value={seats}
+              onChange={(e) => setSeats(e.target.value)}
+            />
+          </Field>
+        </FieldGrid>
+      </FormSection>
+    </FormDialog>
   )
 }
 
-function OrderSheet({
+function OrderDialog({
   orderId,
   onClose,
   onChanged,
@@ -429,168 +458,210 @@ function OrderSheet({
     !sentToCaja
 
   return (
-    <Sheet open={!!orderId} onOpenChange={(o) => !o && onClose()}>
-      <SheetContent className="w-full gap-0 overflow-y-auto sm:max-w-md">
-        {loading || !order ? (
-          <div className="p-6">
-            <Skeleton className="h-40 w-full" />
-          </div>
-        ) : (
+    <FormDialog
+      open={!!orderId}
+      onOpenChange={(o) => !o && onClose()}
+      size="2xl"
+      icon={UtensilsCrossed}
+      title={order ? `${order.tableName} · ${order.number}` : "Comanda"}
+      description={
+        order
+          ? `${ORDER_STATUS_LABELS[order.status]} · ${order.guests} comensal(es)`
+          : undefined
+      }
+      footer={
+        order && editable ? (
           <>
-            <SheetHeader>
-              <SheetTitle>
-                {order.tableName} · {order.number}
-              </SheetTitle>
-              <SheetDescription>
-                {ORDER_STATUS_LABELS[order.status]} · {order.guests} comensal(es)
-              </SheetDescription>
-            </SheetHeader>
-            <div className="flex flex-col gap-3 px-4 py-2">
-              <div className="rounded-lg border border-border divide-y divide-border">
-                {order.items.length === 0 ? (
-                  <p className="px-3 py-6 text-center text-sm text-muted-foreground">
-                    Sin ítems. Agrega el primer pedido.
-                  </p>
-                ) : (
-                  order.items.map((it, i) => (
-                    <div key={it._id ?? i} className="flex items-center justify-between px-3 py-2">
-                      <div className="min-w-0">
-                        <p className="truncate text-sm">
-                          {it.qty}× {it.name}
-                        </p>
-                        {!it.sentToKitchen && (
-                          <span className="text-[11px] text-warning-ink">Pendiente de cocina</span>
-                        )}
-                      </div>
-                      <span className="tnum text-sm font-medium">
-                        {money.format(it.unitPrice * it.qty)}
-                      </span>
-                    </div>
-                  ))
-                )}
-              </div>
+            {order.items.some((i) => !i.sentToKitchen) && (
+              <Button
+                variant="outline"
+                disabled={busy}
+                onClick={() => void run(() => sendOrderToKitchen(order._id))}
+              >
+                <Send /> A cocina
+              </Button>
+            )}
+            {order.status !== "billed" && order.items.length > 0 && (
+              <Button
+                variant="outline"
+                disabled={busy}
+                onClick={() => void run(() => requestOrderBill(order._id))}
+              >
+                <Receipt /> Pedir cuenta
+              </Button>
+            )}
+            {canVoid && (
+              <Button
+                variant="destructive"
+                disabled={busy}
+                onClick={() =>
+                  void run(
+                    () => cancelOrder(order._id, "Anulada desde el salón"),
+                    true,
+                  )
+                }
+              >
+                <Ban /> Anular
+              </Button>
+            )}
+            {canVoid && (
+              <Button
+                variant="outline"
+                disabled={busy || order.items.length === 0}
+                onClick={() => void run(() => closeOrder(order._id), true)}
+                title="Cierra la comanda sin registrar venta (cortesía / ajuste)"
+              >
+                <CheckCircle2 /> Cerrar sin cobrar
+              </Button>
+            )}
+            <Button
+              disabled={busy || order.items.length === 0}
+              onClick={() => void run(() => sendOrderToCaja(order._id), true)}
+            >
+              {busy ? <Loader2 className="animate-spin" /> : <Banknote />}
+              Enviar a caja
+            </Button>
+          </>
+        ) : (
+          <Button variant="outline" onClick={onClose}>
+            Cerrar
+          </Button>
+        )
+      }
+    >
+      {loading || !order ? (
+        <Skeleton className="h-48 w-full rounded-2xl" />
+      ) : (
+        <>
+          {err && <FormAlert>{err}</FormAlert>}
 
-              {sentToCaja && order.status !== "closed" && (
-                <div className="flex items-start gap-2 rounded-lg border border-border bg-muted/50 p-3 text-sm">
-                  <Banknote className="mt-0.5 size-4 shrink-0 text-success-ink" />
-                  <p className="text-muted-foreground">
-                    Enviada a caja. El cobro (venta + inventario + caja) se hace
-                    desde el <span className="font-medium text-foreground">POS</span>.
-                    Al cobrarla, la mesa se libera sola.
-                  </p>
-                </div>
-              )}
-
-              {editable && (
-                <div className="rounded-lg border border-border p-2">
-                  <Label className="text-xs">Agregar ítem</Label>
-                  <div className="mt-1 flex gap-2">
-                    <Input
-                      className="flex-1"
-                      placeholder="Producto"
-                      value={itemName}
-                      onChange={(e) => setItemName(e.target.value)}
-                    />
-                    <Input
-                      type="number"
-                      className="w-14"
-                      value={itemQty}
-                      onChange={(e) => setItemQty(e.target.value)}
-                    />
-                    <Input
-                      type="number"
-                      className="w-24"
-                      placeholder="$"
-                      value={itemPrice}
-                      onChange={(e) => setItemPrice(e.target.value)}
-                    />
-                    <Button size="icon" onClick={() => void addItem()} disabled={busy || !itemName.trim()}>
-                      <Plus className="size-4" />
-                    </Button>
-                  </div>
-                </div>
-              )}
-
-              {/* Totales */}
-              <div className="flex flex-col gap-1 rounded-lg border border-border p-3 text-sm">
-                <Row label="Subtotal" value={money.format(order.subtotal)} />
-                <Row label={`INC ${order.incRate}%`} value={money.format(order.incAmount)} />
-                <div className="flex items-center justify-between">
-                  <label className="flex items-center gap-1.5 text-muted-foreground">
-                    <input
-                      type="checkbox"
-                      checked={order.tipAccepted}
-                      disabled={!editable || busy}
-                      onChange={(e) =>
-                        void run(() => setOrderTip(order._id, { accepted: e.target.checked }))
-                      }
-                    />
-                    Propina {order.tipRate}%
-                  </label>
-                  <span className="tnum">{money.format(order.tipAmount)}</span>
-                </div>
-                <div className="mt-1 flex items-center justify-between border-t border-border pt-2 text-base font-semibold">
-                  <span>Total</span>
-                  <span className="tnum">{money.format(order.total)}</span>
-                </div>
-              </div>
-
-              {err && <p className="text-sm text-destructive">{err}</p>}
-
-              {editable && (
-                <div className="flex flex-wrap justify-end gap-2 pb-4">
-                  {order.items.some((i) => !i.sentToKitchen) && (
-                    <Button
-                      variant="outline"
-                      disabled={busy}
-                      onClick={() => void run(() => sendOrderToKitchen(order._id))}
-                    >
-                      <Send className="size-4" /> A cocina
-                    </Button>
-                  )}
-                  {order.status !== "billed" && order.items.length > 0 && (
-                    <Button
-                      variant="outline"
-                      disabled={busy}
-                      onClick={() => void run(() => requestOrderBill(order._id))}
-                    >
-                      <Receipt className="size-4" /> Pedir cuenta
-                    </Button>
-                  )}
-                  {canVoid && (
-                    <Button
-                      variant="outline"
-                      className="text-destructive"
-                      disabled={busy}
-                      onClick={() => void run(() => cancelOrder(order._id, "Anulada desde el salón"), true)}
-                    >
-                      <Ban className="size-4" /> Anular
-                    </Button>
-                  )}
-                  {canVoid && (
-                    <Button
-                      variant="outline"
-                      disabled={busy || order.items.length === 0}
-                      onClick={() => void run(() => closeOrder(order._id), true)}
-                      title="Cierra la comanda sin registrar venta (cortesía / ajuste)"
-                    >
-                      <CheckCircle2 className="size-4" /> Cerrar sin cobrar
-                    </Button>
-                  )}
-                  <Button
-                    disabled={busy || order.items.length === 0}
-                    onClick={() => void run(() => sendOrderToCaja(order._id), true)}
+          <FormSection
+            title="Lo pedido"
+            description={
+              order.items.length > 0
+                ? `${order.items.length} línea${order.items.length === 1 ? "" : "s"} en la mesa.`
+                : undefined
+            }
+          >
+            <div className="divide-y divide-border overflow-hidden rounded-2xl border border-border">
+              {order.items.length === 0 ? (
+                <p className="px-4 py-8 text-center text-sm text-muted-foreground">
+                  Sin ítems. Agrega el primer pedido.
+                </p>
+              ) : (
+                order.items.map((it, i) => (
+                  <div
+                    key={it._id ?? i}
+                    className="flex items-center justify-between gap-3 bg-card px-3.5 py-2.5"
                   >
-                    {busy ? <Loader2 className="size-4 animate-spin" /> : <Banknote className="size-4" />}
-                    Enviar a caja
-                  </Button>
-                </div>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm">
+                        {it.qty}× {it.name}
+                      </p>
+                      {!it.sentToKitchen && (
+                        <span className="text-[0.6875rem] font-semibold text-warning-ink">
+                          Pendiente de cocina
+                        </span>
+                      )}
+                    </div>
+                    <span className="shrink-0 text-sm font-semibold tabular-nums">
+                      {money.format(it.unitPrice * it.qty)}
+                    </span>
+                  </div>
+                ))
               )}
             </div>
-          </>
-        )}
-      </SheetContent>
-    </Sheet>
+
+            {sentToCaja && order.status !== "closed" && (
+              <FormAlert tone="success" icon={Banknote}>
+                Enviada a caja. El cobro (venta + inventario + caja) se hace
+                desde el <span className="font-semibold">POS</span>. Al cobrarla,
+                la mesa se libera sola.
+              </FormAlert>
+            )}
+          </FormSection>
+
+          {editable && (
+            <FormSection title="Agregar ítem" boxed>
+              <div className="flex items-end gap-2">
+                <Field id="cmd-item" label="Producto" className="flex-1">
+                  <Input
+                    id="cmd-item"
+                    placeholder="Bandeja paisa"
+                    value={itemName}
+                    onChange={(e) => setItemName(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && void addItem()}
+                  />
+                </Field>
+                <Field id="cmd-qty" label="Cant." className="w-20">
+                  <Input
+                    id="cmd-qty"
+                    type="number"
+                    inputMode="numeric"
+                    value={itemQty}
+                    onChange={(e) => setItemQty(e.target.value)}
+                  />
+                </Field>
+                <Field id="cmd-price" label="Precio" className="w-32">
+                  <Input
+                    id="cmd-price"
+                    type="number"
+                    inputMode="numeric"
+                    placeholder="0"
+                    value={itemPrice}
+                    onChange={(e) => setItemPrice(e.target.value)}
+                  />
+                </Field>
+                <Button
+                  size="icon"
+                  aria-label="Agregar ítem"
+                  className="shrink-0"
+                  onClick={() => void addItem()}
+                  disabled={busy || !itemName.trim()}
+                >
+                  <Plus />
+                </Button>
+              </div>
+            </FormSection>
+          )}
+
+          <FormSection title="Cuenta">
+            <div className="flex flex-col gap-1.5 rounded-2xl border border-border bg-muted/35 p-3.5 text-sm">
+              <Row label="Subtotal" value={money.format(order.subtotal)} />
+              <div className="flex items-center justify-between text-muted-foreground">
+                <span className="flex items-center gap-1">
+                  <Termino term="inc">INC</Termino> {order.incRate}%
+                </span>
+                <span className="tnum">{money.format(order.incAmount)}</span>
+              </div>
+              <label className="flex cursor-pointer items-center justify-between gap-3">
+                <span className="flex items-center gap-2 text-muted-foreground">
+                  <Checkbox
+                    checked={order.tipAccepted}
+                    disabled={!editable || busy}
+                    onCheckedChange={(v) =>
+                      void run(() =>
+                        setOrderTip(order._id, { accepted: Boolean(v) }),
+                      )
+                    }
+                  />
+                  <span className="flex items-center gap-1">
+                    <Termino>Propina</Termino> {order.tipRate}%
+                  </span>
+                </span>
+                <span className="tnum">{money.format(order.tipAmount)}</span>
+              </label>
+              <div className="mt-1 flex items-center justify-between border-t border-border pt-2.5">
+                <span className="font-semibold">Total</span>
+                <span className="stat-figure text-lg">
+                  {money.format(order.total)}
+                </span>
+              </div>
+            </div>
+          </FormSection>
+        </>
+      )}
+    </FormDialog>
   )
 }
 

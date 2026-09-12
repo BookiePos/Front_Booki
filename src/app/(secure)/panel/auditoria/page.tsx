@@ -12,6 +12,7 @@ import {
 import { errorMessage, todayLocal } from "@/lib/erp/finance-format"
 
 import { PageHeader } from "@/components/erp/page-header"
+import { Termino } from "@/components/ui/help-tip"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -117,7 +118,14 @@ export default function AuditoriaPage() {
       <PageHeader
         section="Cumplimiento"
         title="Auditoría"
-        description="Registro inmutable de toda operación de escritura: quién, qué, cuándo y desde dónde."
+        titleHelp={{ term: "auditoria" }}
+        description={
+          <>
+            Quién hizo qué, cuándo y desde dónde. No se puede borrar ni editar:
+            es la <Termino>trazabilidad</Termino> de todo lo que cambia en el
+            sistema.
+          </>
+        }
         actions={
           <Button variant="outline" size="icon" onClick={() => void load()} title="Actualizar">
             <RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />

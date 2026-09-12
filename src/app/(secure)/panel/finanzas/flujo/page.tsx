@@ -21,6 +21,7 @@ import {
 import { money, fmtDate, errorMessage } from "@/lib/erp/finance-format"
 
 import { PageHeader } from "@/components/erp/page-header"
+import { Termino } from "@/components/ui/help-tip"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -204,7 +205,15 @@ export default function FlujoCajaPage() {
       <PageHeader
         section="Finanzas"
         title="Flujo de caja proyectado"
-        description="Proyección semanal de entradas y salidas para estimar cuánto durará el efectivo (runway)."
+        titleHelp={{ term: "flujoCaja" }}
+        description={
+          <>
+            La plata que entra y sale semana a semana, para saber hasta cuándo
+            te alcanza el efectivo. Es distinto de la{" "}
+            <Termino term="utilidadNeta">utilidad</Termino>: se puede tener un
+            buen mes y quedarse sin caja el viernes.
+          </>
+        }
         actions={actions}
       />
 

@@ -28,13 +28,8 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "@/components/ui/sheet"
+import { FormDialog } from "@/components/ui/form-dialog"
+import { Termino } from "@/components/ui/help-tip"
 
 function errorMessage(err: unknown): string {
   if (err instanceof Error) return err.message
@@ -235,51 +230,46 @@ export default function FacturacionPage() {
       </Card>
 
       {/* Representación del documento */}
-      <Sheet open={selected !== null} onOpenChange={(v) => !v && setSelected(null)}>
-        <SheetContent side="right" className="overflow-y-auto sm:max-w-md">
-          {selected && (
-            <div className="flex flex-col gap-4 px-4 py-2">
-              <SheetHeader className="px-0">
-                <SheetTitle className="font-display text-lg">
-                  {selected.fullNumber}
-                </SheetTitle>
-                <SheetDescription>
-                  Representación gráfica de la factura electrónica.
-                </SheetDescription>
-              </SheetHeader>
-
-              <FacturaElectronica doc={selected} />
-
-              <div className="no-print flex flex-wrap gap-2">
-                <Button
-                  variant="outline"
-                  className="flex-1 gap-2"
-                  onClick={() => window.print()}
-                >
-                  <Printer className="size-4" />
-                  Imprimir / PDF
-                </Button>
-                <Button
-                  variant="outline"
-                  className="flex-1 gap-2"
-                  disabled
-                  title="Requiere integración con proveedor (Siigo u otro)"
-                >
-                  <CheckCircle2 className="size-4" />
-                  Enviar a DIAN
-                </Button>
-                <Button className="flex-1" onClick={() => setSelected(null)}>
-                  Cerrar
-                </Button>
-              </div>
-              <p className="no-print text-center text-xs text-muted-foreground">
-                El envío y validación ante la DIAN se habilitan al integrar el
-                proveedor tecnológico.
-              </p>
-            </div>
-          )}
-        </SheetContent>
-      </Sheet>
+      <FormDialog
+        open={selected !== null}
+        onOpenChange={(v) => !v && setSelected(null)}
+        size="2xl"
+        icon={FileText}
+        title={selected?.fullNumber ?? "Factura"}
+        description="Representación gráfica de la factura electrónica."
+        footer={
+          <>
+            <Button
+              variant="outline"
+              className="no-print mr-auto"
+              onClick={() => window.print()}
+            >
+              <Printer />
+              Imprimir / PDF
+            </Button>
+            <Button
+              variant="outline"
+              className="no-print"
+              disabled
+              title="Requiere integración con proveedor (Siigo u otro)"
+            >
+              <CheckCircle2 />
+              Enviar a DIAN
+            </Button>
+            <Button onClick={() => setSelected(null)}>Cerrar</Button>
+          </>
+        }
+      >
+        {selected && (
+          <>
+            <FacturaElectronica doc={selected} />
+            <p className="no-print text-center text-xs text-muted-foreground">
+              El envío y la validación ante la <Termino>DIAN</Termino> se
+              habilitan al integrar el <Termino>proveedor tecnológico</Termino>.
+            </p>
+          </>
+        )}
+      </FormDialog>
     </div>
   )
 }

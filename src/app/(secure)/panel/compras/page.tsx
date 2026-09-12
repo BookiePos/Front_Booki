@@ -35,7 +35,6 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
@@ -46,16 +45,20 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "@/components/ui/sheet"
+  FormDialog,
+  FormSection,
+  FormAlert,
+  FormActions,
+} from "@/components/ui/form-dialog"
+import {
+  Field,
+  FieldGrid,
+  NativeSelect,
+  CheckboxField,
+} from "@/components/ui/field"
+import { Termino } from "@/components/ui/help-tip"
 
 const ALL = "all"
-const inputClass =
-  "h-9 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
 
 const statusVariant: Record<PurchaseOrderStatus, "default" | "secondary" | "outline" | "destructive"> = {
   draft: "secondary",
@@ -156,7 +159,14 @@ export default function ComprasPage() {
       <PageHeader
         section="Comercial"
         title="Compras"
-        description="Órdenes de compra con recepción parcial o total; la mercancía entra al inventario y puede generar CxP."
+        titleHelp={{ term: "ordenCompra" }}
+        description={
+          <>
+            Lo que le pides a cada proveedor. Al registrar la{" "}
+            <Termino>recepción</Termino> la mercancía entra al inventario y, si
+            quieres, queda en <Termino>cuentas por pagar</Termino>.
+          </>
+        }
         actions={
           <div className="flex items-center gap-2">
             <Button variant="outline" size="icon" onClick={() => void load()} title="Actualizar">
@@ -179,28 +189,31 @@ export default function ComprasPage() {
 
       <Card className="mb-4" data-tour="compras-filtros">
         <CardContent className="flex flex-wrap items-end gap-3 py-4">
-          <div className="flex flex-col gap-1">
-            <Label className="text-xs">Sede</Label>
-            <select className={`${inputClass} w-48`} value={sedeId} onChange={(e) => setSedeId(e.target.value)}>
-              <option value={ALL}>Todas las sedes</option>
-              {sedes.map((s) => (
-                <option key={s._id} value={s._id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="flex flex-col gap-1">
-            <Label className="text-xs">Estado</Label>
-            <select className={`${inputClass} w-44`} value={status} onChange={(e) => setStatus(e.target.value)}>
-              <option value={ALL}>Todos</option>
-              {Object.entries(PO_STATUS_LABELS).map(([v, l]) => (
-                <option key={v} value={v}>
-                  {l}
-                </option>
-              ))}
-            </select>
-          </div>
+          <Field id="oc-f-sede" label="Sede" className="w-48">
+            <NativeSelect
+              id="oc-f-sede"
+              value={sedeId}
+              onChange={setSedeId}
+              options={[
+                { value: ALL, label: "Todas las sedes" },
+                ...sedes.map((s) => ({ value: s._id, label: s.name })),
+              ]}
+            />
+          </Field>
+          <Field id="oc-f-estado" label="Estado" className="w-44">
+            <NativeSelect
+              id="oc-f-estado"
+              value={status}
+              onChange={setStatus}
+              options={[
+                { value: ALL, label: "Todos" },
+                ...Object.entries(PO_STATUS_LABELS).map(([v, l]) => ({
+                  value: v,
+                  label: l,
+                })),
+              ]}
+            />
+          </Field>
         </CardContent>
       </Card>
 
@@ -217,7 +230,9 @@ export default function ComprasPage() {
               <TableRow>
                 <TableHead>Orden</TableHead>
                 <TableHead>Proveedor</TableHead>
-                <TableHead className="hidden sm:table-cell">Sede</TableHead>
+                <TableHead className="hidden sm:table-cell">
+                  <Termino>Sede</Termino>
+                </TableHead>
                 <TableHead className="hidden md:table-cell">Emitida</TableHead>
                 <TableHead className="text-right">Total</TableHead>
                 <TableHead className="text-center">Estado</TableHead>
@@ -263,7 +278,7 @@ export default function ComprasPage() {
       </Card>
 
       {canManage && (
-        <NewOrderSheet
+        <NewOrderDialog
           open={newOpen}
           onClose={() => setNewOpen(false)}
           onSaved={load}
@@ -273,7 +288,7 @@ export default function ComprasPage() {
           taxes={taxes}
         />
       )}
-      <OrderDetailSheet
+      <OrderDetailDialog
         po={detail}
         onClose={() => setDetail(null)}
         onSaved={load}
@@ -295,7 +310,7 @@ function Kpi({ label, value, accent }: { label: string; value: string; accent?: 
   )
 }
 
-function NewOrderSheet({
+function NewOrderDialog({
   open,
   onClose,
   onSaved,
@@ -386,156 +401,213 @@ function NewOrderSheet({
   }
 
   return (
-    <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
-      <SheetContent className="w-full gap-0 overflow-y-auto sm:max-w-lg">
-        <SheetHeader>
-          <SheetTitle>Nueva orden de compra</SheetTitle>
-          <SheetDescription>Selecciona proveedor y renglones a pedir.</SheetDescription>
-        </SheetHeader>
-        <div className="flex flex-col gap-3 px-4 py-2">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1">
-              <Label className="text-xs">Sede</Label>
-              <select className={inputClass} value={sedeId} onChange={(e) => setSedeId(e.target.value)}>
-                {sedes.map((s) => (
-                  <option key={s._id} value={s._id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="flex flex-col gap-1">
-              <Label className="text-xs">Proveedor</Label>
-              <select className={inputClass} value={supplierId} onChange={(e) => setSupplierId(e.target.value)}>
-                <option value="">Sin registrar</option>
-                {suppliers.map((s) => (
-                  <option key={s._id} value={s._id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="flex flex-col gap-1">
-              <Label className="text-xs">Emitida</Label>
-              <Input type="date" value={issueDate} onChange={(e) => setIssueDate(e.target.value)} />
-            </div>
-            <div className="flex flex-col gap-1">
-              <Label className="text-xs">Entrega esperada</Label>
-              <Input type="date" value={expectedDate} onChange={(e) => setExpectedDate(e.target.value)} />
-            </div>
-          </div>
+    <FormDialog
+      open={open}
+      onOpenChange={(o) => !o && onClose()}
+      size="4xl"
+      icon={Plus}
+      title="Nueva orden de compra"
+      description="Lo que le vas a pedir al proveedor. Sirve para reclamar si llega menos de lo pedido o te cobran de más."
+      footer={
+        <FormActions
+          onCancel={onClose}
+          onSubmit={() => void save()}
+          busy={saving}
+          disabled={!sedeId}
+          submitLabel="Crear orden"
+          extra={
+            <>
+              Subtotal{" "}
+              <span className="stat-figure text-base text-foreground">
+                {money.format(subtotal)}
+              </span>
+            </>
+          }
+        />
+      }
+    >
+      {err && <FormAlert>{err}</FormAlert>}
 
-          <div className="mt-1">
-            <div className="mb-1 flex items-center justify-between">
-              <Label className="text-xs">Renglones</Label>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setLines((ls) => [...ls, { description: "", qty: "1", unitCost: "0" }])}
-              >
-                <Plus className="size-3.5" /> Agregar
-              </Button>
-            </div>
-            <div className="flex flex-col gap-2">
-              {lines.map((l, i) => (
-                <div key={i} className="rounded-lg border border-border p-2">
-                  <div className="flex gap-2">
-                    <select
-                      className={`${inputClass} flex-1`}
-                      value={l.productId ?? ""}
-                      onChange={(e) => pickProduct(i, e.target.value)}
-                    >
-                      <option value="">— Ítem libre —</option>
-                      {products.map((p) => (
-                        <option key={p._id} value={p._id}>
-                          {p.name} ({p.unit})
-                        </option>
-                      ))}
-                    </select>
-                    {lines.length > 1 && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setLines((ls) => ls.filter((_, idx) => idx !== i))}
-                      >
-                        <Trash2 className="size-4 text-muted-foreground" />
-                      </Button>
-                    )}
-                  </div>
-                  {!l.productId && (
+      <FormSection title="Cabecera del pedido">
+        <FieldGrid cols={4}>
+          <Field id="oc-sede" label="Sede" help={{ term: "sede" }}>
+            <NativeSelect
+              id="oc-sede"
+              value={sedeId}
+              onChange={setSedeId}
+              options={sedes.map((s) => ({ value: s._id, label: s.name }))}
+            />
+          </Field>
+          <Field id="oc-supplier" label="Proveedor">
+            <NativeSelect
+              id="oc-supplier"
+              value={supplierId}
+              onChange={setSupplierId}
+              options={suppliers.map((s) => ({ value: s._id, label: s.name }))}
+              placeholder="Sin registrar"
+            />
+          </Field>
+          <Field id="oc-issue" label="Emitida">
+            <Input
+              id="oc-issue"
+              type="date"
+              value={issueDate}
+              onChange={(e) => setIssueDate(e.target.value)}
+            />
+          </Field>
+          <Field id="oc-expected" label="Entrega esperada">
+            <Input
+              id="oc-expected"
+              type="date"
+              value={expectedDate}
+              onChange={(e) => setExpectedDate(e.target.value)}
+            />
+          </Field>
+        </FieldGrid>
+      </FormSection>
+
+      <FormSection
+        title="Renglones"
+        description="Qué y cuánto le pides. Elige un producto del catálogo o escribe un ítem suelto."
+        boxed
+        action={
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              setLines((ls) => [
+                ...ls,
+                { description: "", qty: "1", unitCost: "0" },
+              ])
+            }
+          >
+            <Plus />
+            Agregar
+          </Button>
+        }
+      >
+        <div className="flex flex-col gap-3">
+          {lines.map((l, i) => (
+            <div
+              key={i}
+              className="rounded-xl border border-border bg-card p-3.5"
+            >
+              <div className="flex items-end gap-2">
+                <Field
+                  id={`oc-prod-${i}`}
+                  label={`Renglón ${i + 1}`}
+                  className="flex-1"
+                >
+                  <NativeSelect
+                    id={`oc-prod-${i}`}
+                    value={l.productId ?? ""}
+                    onChange={(v) => pickProduct(i, v)}
+                    options={products.map((p) => ({
+                      value: p._id,
+                      label: `${p.name} (${p.unit})`,
+                    }))}
+                    placeholder="— Ítem libre —"
+                  />
+                </Field>
+                {lines.length > 1 && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={`Quitar el renglón ${i + 1}`}
+                    className="shrink-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                    onClick={() =>
+                      setLines((ls) => ls.filter((_, idx) => idx !== i))
+                    }
+                  >
+                    <Trash2 />
+                  </Button>
+                )}
+              </div>
+
+              {!l.productId && (
+                <div className="mt-3">
+                  <Field id={`oc-desc-${i}`} label="Descripción del ítem">
                     <Input
-                      className="mt-2"
-                      placeholder="Descripción del ítem"
+                      id={`oc-desc-${i}`}
+                      placeholder="Bolsas plásticas calibre 2"
                       value={l.description}
                       onChange={(e) => setLine(i, { description: e.target.value })}
                     />
-                  )}
-                  <div className="mt-2 grid grid-cols-3 gap-2">
-                    <div>
-                      <Label className="text-[11px] text-muted-foreground">Cantidad</Label>
-                      <Input type="number" value={l.qty} onChange={(e) => setLine(i, { qty: e.target.value })} />
-                    </div>
-                    <div>
-                      <Label className="text-[11px] text-muted-foreground">Costo unit.</Label>
-                      <Input
-                        type="number"
-                        value={l.unitCost}
-                        onChange={(e) => setLine(i, { unitCost: e.target.value })}
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-[11px] text-muted-foreground">Impuesto</Label>
-                      <select
-                        className={inputClass}
-                        value={l.taxCode ?? ""}
-                        onChange={(e) => setLine(i, { taxCode: e.target.value || undefined })}
-                      >
-                        <option value="">Ninguno</option>
-                        {taxes.map((t) => (
-                          <option key={t.code} value={t.code}>
-                            {t.code}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
+                  </Field>
                 </div>
-              ))}
+              )}
+
+              <div className="mt-3">
+                <FieldGrid cols={3}>
+                  <Field id={`oc-qty-${i}`} label="Cantidad">
+                    <Input
+                      id={`oc-qty-${i}`}
+                      type="number"
+                      inputMode="decimal"
+                      value={l.qty}
+                      onChange={(e) => setLine(i, { qty: e.target.value })}
+                    />
+                  </Field>
+                  <Field
+                    id={`oc-cost-${i}`}
+                    label="Costo unitario"
+                    help={{ term: "costo" }}
+                  >
+                    <Input
+                      id={`oc-cost-${i}`}
+                      type="number"
+                      inputMode="decimal"
+                      value={l.unitCost}
+                      onChange={(e) => setLine(i, { unitCost: e.target.value })}
+                    />
+                  </Field>
+                  <Field
+                    id={`oc-tax-${i}`}
+                    label="Impuesto"
+                    help={{ term: "iva" }}
+                  >
+                    <NativeSelect
+                      id={`oc-tax-${i}`}
+                      value={l.taxCode ?? ""}
+                      onChange={(v) => setLine(i, { taxCode: v || undefined })}
+                      options={taxes.map((t) => ({
+                        value: t.code,
+                        label: t.code,
+                      }))}
+                      placeholder="Ninguno"
+                    />
+                  </Field>
+                </FieldGrid>
+              </div>
             </div>
-          </div>
-
-          <div className="flex flex-col gap-1">
-            <Label className="text-xs">Nota</Label>
-            <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Opcional" />
-          </div>
-
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={send} onChange={(e) => setSend(e.target.checked)} />
-            Enviar al proveedor al crear (si no, queda en borrador)
-          </label>
-
-          <div className="flex items-center justify-between border-t border-border pt-3">
-            <span className="text-sm text-muted-foreground">Subtotal</span>
-            <span className="tnum text-lg font-semibold">{money.format(subtotal)}</span>
-          </div>
-
-          {err && <p className="text-sm text-destructive">{err}</p>}
-          <div className="flex justify-end gap-2 pb-4">
-            <Button variant="outline" onClick={onClose} disabled={saving}>
-              Cancelar
-            </Button>
-            <Button onClick={() => void save()} disabled={saving || !sedeId}>
-              {saving && <Loader2 className="size-4 animate-spin" />}
-              Crear orden
-            </Button>
-          </div>
+          ))}
         </div>
-      </SheetContent>
-    </Sheet>
+      </FormSection>
+
+      <FormSection title="Cierre">
+        <Field id="oc-note" label="Nota">
+          <Input
+            id="oc-note"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="Opcional"
+          />
+        </Field>
+        <CheckboxField
+          id="oc-send"
+          label="Enviar al proveedor al crear"
+          hint="Si lo dejas sin marcar, la orden queda en borrador y puedes seguir editándola."
+          checked={send}
+          onCheckedChange={setSend}
+        />
+      </FormSection>
+    </FormDialog>
   )
 }
 
-function OrderDetailSheet({
+function OrderDetailDialog({
   po,
   onClose,
   onSaved,
@@ -613,126 +685,180 @@ function OrderDetailSheet({
   }
 
   return (
-    <Sheet open={!!po} onOpenChange={(o) => !o && onClose()}>
-      <SheetContent className="w-full gap-0 overflow-y-auto sm:max-w-lg">
-        <SheetHeader>
-          <SheetTitle>{po.number}</SheetTitle>
-          <SheetDescription>
-            {po.supplierName} · {PO_STATUS_LABELS[po.status]}
-          </SheetDescription>
-        </SheetHeader>
-        <div className="flex flex-col gap-3 px-4 py-2">
-          <div className="rounded-lg border border-border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Ítem</TableHead>
-                  <TableHead className="text-right">Pedido</TableHead>
-                  <TableHead className="text-right">Recibido</TableHead>
-                  {canReceive && canManage && <TableHead className="text-right">Recibir</TableHead>}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {po.lines.map((l, i) => {
-                  const pending = l.qty - l.qtyReceived
-                  return (
-                    <TableRow key={i}>
-                      <TableCell>
-                        <p className="text-sm">{l.description}</p>
-                        <p className="tnum text-[11px] text-muted-foreground">
-                          {money.format(l.unitCost)} c/u
-                        </p>
-                      </TableCell>
-                      <TableCell className="tnum text-right">{l.qty}</TableCell>
-                      <TableCell className="tnum text-right text-muted-foreground">{l.qtyReceived}</TableCell>
-                      {canReceive && canManage && (
-                        <TableCell className="text-right">
-                          {pending > 0 ? (
-                            <div className="flex flex-col items-end gap-1">
+    <FormDialog
+      open={!!po}
+      onOpenChange={(o) => !o && onClose()}
+      size="3xl"
+      icon={PackageCheck}
+      title={po.number}
+      description={`${po.supplierName} · ${PO_STATUS_LABELS[po.status]}`}
+      footer={
+        canManage ? (
+          <>
+            <div className="mr-auto hidden text-xs text-muted-foreground sm:block">
+              Total{" "}
+              <span className="stat-figure text-base text-foreground">
+                {money.format(po.total)}
+              </span>
+            </div>
+            {po.status === "draft" && (
+              <Button
+                variant="outline"
+                disabled={busy}
+                onClick={() => void act(() => sendPurchaseOrder(po._id))}
+              >
+                <Send /> Enviar
+              </Button>
+            )}
+            {(po.status === "draft" || po.status === "sent") && (
+              <Button
+                variant="destructive"
+                disabled={busy}
+                onClick={() => void act(() => cancelPurchaseOrder(po._id))}
+              >
+                <Ban /> Anular
+              </Button>
+            )}
+            {canReceive && (
+              <Button disabled={busy} onClick={() => void doReceive()}>
+                {busy ? (
+                  <Loader2 className="animate-spin" />
+                ) : (
+                  <PackageCheck />
+                )}
+                Recibir
+              </Button>
+            )}
+          </>
+        ) : (
+          <Button variant="outline" onClick={onClose}>
+            Cerrar
+          </Button>
+        )
+      }
+    >
+      {err && <FormAlert>{err}</FormAlert>}
+
+      <FormSection
+        title="Renglones del pedido"
+        description={
+          canReceive && canManage
+            ? "Escribe cuánto llegó de verdad de cada renglón. Solo lo recibido entra al inventario."
+            : undefined
+        }
+      >
+        <div className="overflow-hidden rounded-2xl border border-border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Ítem</TableHead>
+                <TableHead className="text-right">Pedido</TableHead>
+                <TableHead className="text-right">
+                  <Termino>Recibido</Termino>
+                </TableHead>
+                {canReceive && canManage && (
+                  <TableHead className="text-right">Recibir</TableHead>
+                )}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {po.lines.map((l, i) => {
+                const pending = l.qty - l.qtyReceived
+                return (
+                  <TableRow key={i}>
+                    <TableCell>
+                      <p className="text-sm">{l.description}</p>
+                      <p className="tnum text-[0.6875rem] text-muted-foreground">
+                        {money.format(l.unitCost)} c/u
+                      </p>
+                    </TableCell>
+                    <TableCell className="tnum text-right">{l.qty}</TableCell>
+                    <TableCell className="tnum text-right text-muted-foreground">
+                      {l.qtyReceived}
+                    </TableCell>
+                    {canReceive && canManage && (
+                      <TableCell className="text-right">
+                        {pending > 0 ? (
+                          <div className="flex flex-col items-end gap-1.5">
+                            <Input
+                              type="number"
+                              inputMode="decimal"
+                              aria-label={`Cantidad recibida de ${l.description}`}
+                              className="h-8 w-24 text-right"
+                              value={receiveQty[i] ?? ""}
+                              max={pending}
+                              placeholder={String(pending)}
+                              onChange={(e) =>
+                                setReceiveQty((q) => ({
+                                  ...q,
+                                  [i]: e.target.value,
+                                }))
+                              }
+                            />
+                            {isPerishable(l.productId) && (
                               <Input
-                                type="number"
-                                className="h-8 w-20 text-right"
-                                value={receiveQty[i] ?? ""}
-                                max={pending}
+                                type="date"
+                                aria-label={`Vencimiento del lote de ${l.description}`}
+                                className="h-8 w-36"
+                                title="Vencimiento (perecedero)"
+                                value={expiry[i] ?? ""}
                                 onChange={(e) =>
-                                  setReceiveQty((q) => ({ ...q, [i]: e.target.value }))
+                                  setExpiry((x) => ({ ...x, [i]: e.target.value }))
                                 }
                               />
-                              {isPerishable(l.productId) && (
-                                <Input
-                                  type="date"
-                                  className="h-8 w-32"
-                                  title="Vencimiento (perecedero)"
-                                  value={expiry[i] ?? ""}
-                                  onChange={(e) => setExpiry((x) => ({ ...x, [i]: e.target.value }))}
-                                />
-                              )}
-                            </div>
-                          ) : (
-                            <span className="text-xs text-success-ink">Completo</span>
-                          )}
-                        </TableCell>
-                      )}
-                    </TableRow>
-                  )
-                })}
-              </TableBody>
-            </Table>
-          </div>
-
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">Total</span>
-            <span className="tnum font-semibold">{money.format(po.total)}</span>
-          </div>
-
-          {canReceive && canManage && (
-            <div className="rounded-lg border border-border p-3">
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={generatePayable}
-                  onChange={(e) => setGeneratePayable(e.target.checked)}
-                />
-                Generar cuenta por pagar (CxP)
-              </label>
-              {generatePayable && (
-                <div className="mt-2 flex flex-col gap-1">
-                  <Label className="text-xs">Vence (por defecto +30 días)</Label>
-                  <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
-                </div>
-              )}
-            </div>
-          )}
-
-          {err && <p className="text-sm text-destructive">{err}</p>}
-
-          {canManage && (
-            <div className="flex flex-wrap justify-end gap-2 pb-4">
-              {po.status === "draft" && (
-                <Button variant="outline" disabled={busy} onClick={() => void act(() => sendPurchaseOrder(po._id))}>
-                  <Send className="size-4" /> Enviar
-                </Button>
-              )}
-              {(po.status === "draft" || po.status === "sent") && (
-                <Button
-                  variant="outline"
-                  className="text-destructive"
-                  disabled={busy}
-                  onClick={() => void act(() => cancelPurchaseOrder(po._id))}
-                >
-                  <Ban className="size-4" /> Anular
-                </Button>
-              )}
-              {canReceive && (
-                <Button disabled={busy} onClick={() => void doReceive()}>
-                  {busy ? <Loader2 className="size-4 animate-spin" /> : <PackageCheck className="size-4" />}
-                  Recibir
-                </Button>
-              )}
-            </div>
-          )}
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-xs font-semibold text-success-ink">
+                            Completo
+                          </span>
+                        )}
+                      </TableCell>
+                    )}
+                  </TableRow>
+                )
+              })}
+            </TableBody>
+          </Table>
         </div>
-      </SheetContent>
-    </Sheet>
+
+        <div className="flex items-center justify-between rounded-xl bg-muted/50 px-3.5 py-2.5 text-sm">
+          <span className="text-muted-foreground">Total de la orden</span>
+          <span className="stat-figure text-base">{money.format(po.total)}</span>
+        </div>
+      </FormSection>
+
+      {canReceive && canManage && (
+        <FormSection
+          title="Al recibir"
+          description="Qué pasa con la plata una vez la mercancía entra."
+          boxed
+        >
+          <CheckboxField
+            id="oc-payable"
+            label="Generar cuenta por pagar"
+            help={{ term: "cxp" }}
+            hint="Deja registrado lo que le quedas debiendo al proveedor por esta entrega."
+            checked={generatePayable}
+            onCheckedChange={setGeneratePayable}
+          />
+          {generatePayable && (
+            <Field
+              id="oc-due"
+              label="Vence"
+              help={{ term: "plazoPago" }}
+              hint="Por defecto, 30 días desde hoy."
+            >
+              <Input
+                id="oc-due"
+                type="date"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+              />
+            </Field>
+          )}
+        </FormSection>
+      )}
+    </FormDialog>
   )
 }

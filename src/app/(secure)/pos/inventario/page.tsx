@@ -8,6 +8,9 @@ import {
   AlertTriangle,
   Clock,
   SlidersHorizontal,
+  Plus,
+  Minus,
+  Loader2,
   CalendarClock,
   PackageX,
 } from "lucide-react"
@@ -31,7 +34,6 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
@@ -42,19 +44,21 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "@/components/ui/sheet"
+  FormDialog,
+  FormSection,
+  FormAlert,
+} from "@/components/ui/form-dialog"
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+  Field,
+  FieldGrid,
+  FieldSpan,
+  NativeSelect,
+} from "@/components/ui/field"
+import { Segmented } from "@/components/ui/segmented"
+import { Termino } from "@/components/ui/help-tip"
+
+/** Id del `<form>`: el botón de guardar vive en el pie, fuera del formulario. */
+const ADJUST_FORM_ID = "ajuste-inventario-form"
 
 const nf = new Intl.NumberFormat("es-CO", { maximumFractionDigits: 2 })
 
@@ -401,9 +405,15 @@ export default function InventarioPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Producto</TableHead>
-                  <TableHead>SKU</TableHead>
-                  <TableHead className="text-right">Existencia</TableHead>
-                  <TableHead className="text-right">Mínimo</TableHead>
+                  <TableHead>
+                    <Termino>SKU</Termino>
+                  </TableHead>
+                  <TableHead className="text-right">
+                    <Termino>Existencia</Termino>
+                  </TableHead>
+                  <TableHead className="text-right">
+                    <Termino term="stockMinimo">Mínimo</Termino>
+                  </TableHead>
                   <TableHead className="text-right">Estado</TableHead>
                   {canAdjust && (
                     <TableHead className="text-right">Acción</TableHead>
@@ -461,7 +471,7 @@ export default function InventarioPage() {
       </Card>
 
       {canAdjust && sedeId && (
-        <AdjustSheet
+        <AdjustDialog
           open={adjustOpen}
           onOpenChange={setAdjustOpen}
           sedeId={sedeId}
@@ -479,7 +489,7 @@ export default function InventarioPage() {
 
 // ─── Ajuste de existencias ────────────────────────────────────────────────────
 
-function AdjustSheet({
+function AdjustDialog({
   open,
   onOpenChange,
   sedeId,
@@ -520,11 +530,6 @@ function AdjustSheet({
     setError(null)
   }, [open, presetProductId])
 
-  const productItems = React.useMemo(
-    () =>
-      Object.fromEntries(products.map((p) => [p._id, `${p.name} · ${p.sku}`])),
-    [products],
-  )
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -558,64 +563,78 @@ function AdjustSheet({
   }
 
   return (
-    <Sheet open={open} onOpenChange={(v) => !saving && onOpenChange(v)}>
-      <SheetContent side="right" className="overflow-y-auto sm:max-w-md">
-        <SheetHeader>
-          <SheetTitle className="font-display text-lg">
-            Ajustar existencias
-          </SheetTitle>
-          <SheetDescription>
-            Corrige el inventario por conteo, daño, vencimiento o merma. Las
-            salidas descuentan primero los lotes más próximos a vencer.
-          </SheetDescription>
-        </SheetHeader>
+    <FormDialog
+      open={open}
+      onOpenChange={(v) => !saving && onOpenChange(v)}
+      size="2xl"
+      icon={SlidersHorizontal}
+      title="Ajustar existencias"
+      description="Corrige el inventario por conteo, daño, vencimiento o merma. Las salidas descuentan primero los lotes más próximos a vencer."
+      footer={
+        <>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={saving}
+            onClick={() => onOpenChange(false)}
+            className="sm:min-w-28"
+          >
+            Cancelar
+          </Button>
+          <Button
+            type="submit"
+            form={ADJUST_FORM_ID}
+            disabled={saving}
+            className="sm:min-w-36"
+          >
+            {saving ? <Loader2 className="animate-spin" /> : <SlidersHorizontal />}
+            {saving ? "Guardando…" : "Guardar ajuste"}
+          </Button>
+        </>
+      }
+    >
+      <form
+        id={ADJUST_FORM_ID}
+        onSubmit={handleSubmit}
+        className="flex flex-col gap-5"
+      >
+        {error && <FormAlert>{error}</FormAlert>}
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4 px-4 py-2">
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="adj-product">Producto</Label>
-            <Select
-              value={productId}
-              items={productItems}
-              onValueChange={(v) => {
-                if (v !== null) setProductId(v as string)
-              }}
-            >
-              <SelectTrigger id="adj-product" className="w-full">
-                <SelectValue placeholder="Seleccionar producto" />
-              </SelectTrigger>
-              <SelectContent>
-                {products.map((p) => (
-                  <SelectItem key={p._id} value={p._id}>
-                    {p.name} · {p.sku}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+        <FormSection title="Qué se ajusta">
+          <FieldGrid cols={2}>
+            <FieldSpan span={2}>
+              <Field id="adj-product" label="Producto" required>
+                <NativeSelect
+                  id="adj-product"
+                  value={productId}
+                  onChange={setProductId}
+                  options={products.map((p) => ({
+                    value: p._id,
+                    label: `${p.name} · ${p.sku}`,
+                  }))}
+                  placeholder="Seleccionar producto"
+                />
+              </Field>
+            </FieldSpan>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="adj-dir">Tipo</Label>
-              <Select
+            <Field id="adj-dir" label="Tipo">
+              <Segmented
+                fill
+                ariaLabel="Tipo de ajuste"
                 value={direction}
-                items={{ remove: "Salida (−)", add: "Entrada (+)" }}
-                onValueChange={(v) => {
-                  if (v === "add" || v === "remove") setDirection(v)
-                }}
-              >
-                <SelectTrigger id="adj-dir" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="remove">Salida (−)</SelectItem>
-                  <SelectItem value="add">Entrada (+)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="adj-qty">
-                Cantidad{product ? ` (${product.unit})` : ""}
-              </Label>
+                onValueChange={(v) => setDirection(v as "add" | "remove")}
+                options={[
+                  { value: "remove", label: "Salida (−)", icon: Minus },
+                  { value: "add", label: "Entrada (+)", icon: Plus },
+                ]}
+              />
+            </Field>
+            <Field
+              id="adj-qty"
+              label={`Cantidad${product ? ` (${product.unit})` : ""}`}
+              required
+              help={{ term: "unidad" }}
+            >
               <Input
                 id="adj-qty"
                 type="number"
@@ -626,48 +645,57 @@ function AdjustSheet({
                 onChange={(e) => setQty(e.target.value)}
                 required
               />
-            </div>
-          </div>
+            </Field>
 
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="adj-reason">Razón</Label>
-            <Select
-              value={reason}
-              items={ADJUST_REASON_LABELS}
-              onValueChange={(v) => {
-                if (v !== null) setReason(v as AdjustReason)
-              }}
-            >
-              <SelectTrigger id="adj-reason" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {(
-                  Object.entries(ADJUST_REASON_LABELS) as [AdjustReason, string][]
-                ).map(([key, label]) => (
-                  <SelectItem key={key} value={key}>
-                    {label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+            <FieldSpan span={2}>
+              <Field
+                id="adj-reason"
+                label="Razón"
+                help={{ term: "merma" }}
+                hint="Queda registrada en el kárdex con tu nombre."
+              >
+                <NativeSelect
+                  id="adj-reason"
+                  value={reason}
+                  onChange={(v) => setReason(v as AdjustReason)}
+                  options={(
+                    Object.entries(ADJUST_REASON_LABELS) as [
+                      AdjustReason,
+                      string,
+                    ][]
+                  ).map(([value, label]) => ({ value, label }))}
+                />
+              </Field>
+            </FieldSpan>
+          </FieldGrid>
+        </FormSection>
 
-          {createsLot && (
-            <div className="grid grid-cols-2 gap-3">
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="adj-lot">Código de lote</Label>
+        {createsLot && (
+          <FormSection
+            title="Lote que entra"
+            description="Las unidades que entran forman un lote, para poder sacar primero lo que se vence antes."
+            boxed
+          >
+            <FieldGrid cols={2}>
+              <Field
+                id="adj-lot"
+                label="Código de lote"
+                help={{ term: "lote" }}
+                hint="Se genera solo si lo dejas vacío."
+              >
                 <Input
                   id="adj-lot"
                   value={lotCode}
                   onChange={(e) => setLotCode(e.target.value)}
-                  placeholder="Auto si se deja vacío"
+                  placeholder="Auto"
                 />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="adj-exp">
-                  Vencimiento{product?.perishable ? "" : " (opcional)"}
-                </Label>
+              </Field>
+              <Field
+                id="adj-exp"
+                label="Vencimiento"
+                required={product?.perishable}
+                help={{ term: "fefo" }}
+              >
                 <Input
                   id="adj-exp"
                   type="date"
@@ -675,41 +703,20 @@ function AdjustSheet({
                   onChange={(e) => setExpiresAt(e.target.value)}
                   required={product?.perishable}
                 />
-              </div>
-            </div>
-          )}
+              </Field>
+            </FieldGrid>
+          </FormSection>
+        )}
 
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="adj-note">Nota (opcional)</Label>
-            <Input
-              id="adj-note"
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="Detalle del ajuste"
-            />
-          </div>
-
-          {error && (
-            <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
-              {error}
-            </p>
-          )}
-
-          <div className="flex justify-end gap-2 pt-2">
-            <Button
-              type="button"
-              variant="outline"
-              disabled={saving}
-              onClick={() => onOpenChange(false)}
-            >
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={saving}>
-              {saving ? "Guardando…" : "Guardar ajuste"}
-            </Button>
-          </div>
-        </form>
-      </SheetContent>
-    </Sheet>
+        <Field id="adj-note" label="Nota">
+          <Input
+            id="adj-note"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="Detalle del ajuste (opcional)"
+          />
+        </Field>
+      </form>
+    </FormDialog>
   )
 }

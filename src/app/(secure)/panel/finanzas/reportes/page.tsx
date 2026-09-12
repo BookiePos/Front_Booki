@@ -18,6 +18,7 @@ import {
 import { money, monthStart, todayLocal, fmtDate, errorMessage } from "@/lib/erp/finance-format"
 
 import { PageHeader } from "@/components/erp/page-header"
+import { Termino } from "@/components/ui/help-tip"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -108,7 +109,13 @@ export default function ReportesPage() {
       <PageHeader
         section="Finanzas"
         title="Reportes"
-        description="Estados financieros leídos del ledger de partida doble y ventas de la operación."
+        description={
+          <>
+            Los informes que te pide el contador o el banco, armados con tus
+            ventas, tus <Termino term="gastoFijo">gastos</Termino> y tu{" "}
+            <Termino term="costoDeVentas">costo de ventas</Termino>.
+          </>
+        }
         actions={
           <Button variant="outline" size="icon" onClick={() => void load()} title="Actualizar">
             <RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />

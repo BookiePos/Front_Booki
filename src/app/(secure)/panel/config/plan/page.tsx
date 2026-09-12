@@ -24,6 +24,7 @@ import {
   tokenizeCard,
 } from "@/lib/erp/api-billing"
 import { PageHeader } from "@/components/erp/page-header"
+import { Termino } from "@/components/ui/help-tip"
 import { Card, CardContent } from "@/components/ui/card"
 
 /** Precios mensuales de los complementos recurrentes (catálogo `plans.ts`). */
@@ -103,6 +104,17 @@ export default function PlanBillingPage() {
         } else if (currentPlan) {
           setSelectedPlan(currentPlan)
         }
+      } catch {
+        // Sin este catch la pantalla se quedaba muda: al fallar la carga de la
+        // configuración, `config` seguía en null, el botón de pagar quedaba
+        // deshabilitado para siempre y el dueño llenaba la tarjeta sin que
+        // nada respondiera ni explicara por qué. Justo en la pantalla donde
+        // viene a reactivar la cuenta.
+        if (!active) return
+        setMessage({
+          kind: "error",
+          text: "No pudimos conectar con la pasarela de pagos. Revisa tu conexión y vuelve a cargar la página; si sigue igual, escríbenos y lo reactivamos a mano.",
+        })
       } finally {
         if (active) setLoading(false)
       }
@@ -256,7 +268,13 @@ export default function PlanBillingPage() {
       <PageHeader
         title="Plan y facturación"
         section="Configuración"
-        description="Gestiona tu suscripción, complementos y método de pago."
+        titleHelp={{ term: "plan" }}
+        description={
+          <>
+            Qué módulos tienes contratados y cómo los pagas. Si algo aparece
+            bloqueado, es que tu <Termino>plan</Termino> no lo trae.
+          </>
+        }
       />
 
       {loading ? (
@@ -501,18 +519,35 @@ export default function PlanBillingPage() {
                       </span>
                     </p>
                   </div>
-                  <button
-                    type="submit"
-                    disabled={submitting || !config?.configured}
-                    className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-2.5 text-sm font-semibold text-primary-foreground shadow-[0_10px_30px_-12px_var(--primary)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {submitting ? (
-                      <Loader2 className="size-4 animate-spin" />
-                    ) : (
-                      <ShieldCheck className="size-4" />
+                  {/* Un botón deshabilitado sin motivo es un callejón sin
+                      salida: el dueño llena la tarjeta y no pasa nada. Si no se
+                      puede cobrar, se dice por qué y ahí mismo. */}
+                  <div className="flex flex-col items-end gap-1.5">
+                    <button
+                      type="submit"
+                      disabled={submitting || !config?.configured}
+                      title={
+                        config?.configured
+                          ? undefined
+                          : "El cobro con tarjeta no está disponible en este momento."
+                      }
+                      className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-2.5 text-sm font-semibold text-primary-foreground shadow-[0_10px_30px_-12px_var(--primary)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {submitting ? (
+                        <Loader2 className="size-4 animate-spin" />
+                      ) : (
+                        <ShieldCheck className="size-4" />
+                      )}
+                      {sub ? "Actualizar suscripción" : "Suscribirme y pagar"}
+                    </button>
+                    {!loading && !config?.configured && (
+                      <p className="max-w-xs text-right text-xs text-muted-foreground">
+                        El cobro con tarjeta no está disponible ahora mismo.
+                        Vuelve a cargar la página; si sigue igual, escríbenos y
+                        reactivamos la cuenta a mano.
+                      </p>
                     )}
-                    {sub ? "Actualizar suscripción" : "Suscribirme y pagar"}
-                  </button>
+                  </div>
                 </div>
 
                 {message && (

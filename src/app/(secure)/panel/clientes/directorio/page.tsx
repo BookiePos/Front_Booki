@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { ShieldOff, Users, Plus, RefreshCw, Loader2, Search, Pencil } from "lucide-react"
+import { ShieldOff, Users, Plus, RefreshCw, Search, Pencil } from "lucide-react"
 
 import { useAuth } from "@/lib/auth-context"
 import {
@@ -18,7 +18,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import { MoneyInput } from "@/components/ui/money-input"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
@@ -29,15 +29,19 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "@/components/ui/sheet"
-
-const inputClass =
-  "h-9 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+  FormDialog,
+  FormSection,
+  FormAlert,
+  FormActions,
+} from "@/components/ui/form-dialog"
+import {
+  Field,
+  FieldGrid,
+  FieldSpan,
+  NativeSelect,
+  CheckboxField,
+} from "@/components/ui/field"
+import { Termino } from "@/components/ui/help-tip"
 
 const DOC_TYPES: CustomerDocType[] = ["CC", "NIT", "CE", "PAS"]
 
@@ -91,7 +95,13 @@ export default function DirectorioClientesPage() {
       <PageHeader
         section="Comercial"
         title="Directorio de clientes"
-        description="Base de datos de clientes para facturación y cuentas por cobrar."
+        description={
+          <>
+            Quiénes son tus clientes, con el <Termino>cupo</Termino> que le dejas
+            fiar a cada uno. De aquí salen los datos de la factura y las{" "}
+            <Termino>cuentas por cobrar</Termino>.
+          </>
+        }
         actions={
           <div className="flex items-center gap-2">
             <Button variant="outline" size="icon" onClick={() => void load()} title="Actualizar">
@@ -139,7 +149,9 @@ export default function DirectorioClientesPage() {
                 <TableHead>Documento</TableHead>
                 <TableHead className="hidden sm:table-cell">Teléfono</TableHead>
                 <TableHead className="hidden md:table-cell">Ciudad</TableHead>
-                <TableHead className="text-right">Cupo</TableHead>
+                <TableHead className="text-right">
+                  <Termino>Cupo</Termino>
+                </TableHead>
                 <TableHead className="text-center">Estado</TableHead>
                 {canManage && <TableHead />}
               </TableRow>
@@ -197,7 +209,7 @@ export default function DirectorioClientesPage() {
       </Card>
 
       {canManage && (
-        <CustomerSheet
+        <CustomerDialog
           customer={creating ? "new" : editing}
           onClose={() => {
             setCreating(false)
@@ -210,7 +222,7 @@ export default function DirectorioClientesPage() {
   )
 }
 
-function CustomerSheet({
+function CustomerDialog({
   customer,
   onClose,
   onSaved,
@@ -285,78 +297,138 @@ function CustomerSheet({
   }
 
   return (
-    <Sheet open={!!customer} onOpenChange={(o) => !o && onClose()}>
-      <SheetContent className="w-full gap-0 overflow-y-auto sm:max-w-md">
-        <SheetHeader>
-          <SheetTitle>{isNew ? "Nuevo cliente" : "Editar cliente"}</SheetTitle>
-          <SheetDescription>Datos del cliente para facturación y CxC.</SheetDescription>
-        </SheetHeader>
-        <div className="flex flex-col gap-3 px-4 py-2">
-          <div className="flex flex-col gap-1">
-            <Label className="text-xs">Nombre / razón social</Label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} />
-          </div>
-          <div className="grid grid-cols-3 gap-2">
-            <div className="flex flex-col gap-1">
-              <Label className="text-xs">Tipo doc.</Label>
-              <select
-                className={inputClass}
-                value={docType}
-                onChange={(e) => setDocType(e.target.value as CustomerDocType)}
-                disabled={!isNew}
-              >
-                {DOC_TYPES.map((d) => (
-                  <option key={d} value={d}>
-                    {d}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="col-span-2 flex flex-col gap-1">
-              <Label className="text-xs">Documento</Label>
+    <FormDialog
+      open={!!customer}
+      onOpenChange={(o) => !o && onClose()}
+      size="2xl"
+      icon={isNew ? Plus : Pencil}
+      title={isNew ? "Nuevo cliente" : "Editar cliente"}
+      description="Los datos que salen en su factura y el cupo que le dejas fiar."
+      footer={
+        <FormActions
+          onCancel={onClose}
+          onSubmit={() => void save()}
+          busy={busy}
+          disabled={!name.trim() || (isNew && !docNumber.trim())}
+          submitLabel={isNew ? "Registrar" : "Guardar"}
+        />
+      }
+    >
+      {err && <FormAlert>{err}</FormAlert>}
+
+      <FormSection
+        title="Identificación"
+        description={
+          isNew
+            ? "El documento no se puede cambiar después: es lo que amarra al cliente con sus facturas."
+            : "El documento no se edita para no romper el historial de facturas."
+        }
+      >
+        <FieldGrid cols={3}>
+          <FieldSpan span={3}>
+            <Field id="c-name" label="Nombre o razón social" required>
               <Input
+                id="c-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="María Restrepo / Panadería El Trigal S.A.S."
+              />
+            </Field>
+          </FieldSpan>
+
+          <Field
+            id="c-doctype"
+            label="Tipo de documento"
+            help={{ term: "tipoDocumento" }}
+          >
+            <NativeSelect
+              id="c-doctype"
+              value={docType}
+              onChange={(v) => setDocType(v as CustomerDocType)}
+              options={DOC_TYPES.map((d) => ({ value: d, label: d }))}
+              disabled={!isNew}
+            />
+          </Field>
+          <FieldSpan span={2}>
+            <Field
+              id="c-docnum"
+              label="Número de documento"
+              required={isNew}
+              help={docType === "NIT" ? { term: "nit" } : undefined}
+            >
+              <Input
+                id="c-docnum"
+                inputMode="numeric"
                 value={docNumber}
                 onChange={(e) => setDocNumber(e.target.value)}
                 disabled={!isNew}
+                placeholder="1020304050"
               />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div className="flex flex-col gap-1">
-              <Label className="text-xs">Teléfono</Label>
-              <Input value={phone} onChange={(e) => setPhone(e.target.value)} />
-            </div>
-            <div className="flex flex-col gap-1">
-              <Label className="text-xs">Ciudad</Label>
-              <Input value={city} onChange={(e) => setCity(e.target.value)} />
-            </div>
-          </div>
-          <div className="flex flex-col gap-1">
-            <Label className="text-xs">Correo</Label>
-            <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-          </div>
-          <div className="flex flex-col gap-1">
-            <Label className="text-xs">Cupo de crédito (fiado)</Label>
-            <Input type="number" value={creditLimit} onChange={(e) => setCreditLimit(e.target.value)} />
-          </div>
-          {!isNew && (
-            <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
-              Cliente activo
-            </label>
-          )}
-          {err && <p className="text-sm text-destructive">{err}</p>}
-          <div className="mt-2 flex justify-end gap-2 pb-4">
-            <Button variant="outline" onClick={onClose} disabled={busy}>
-              Cancelar
-            </Button>
-            <Button onClick={() => void save()} disabled={busy || !name.trim() || (isNew && !docNumber.trim())}>
-              {busy && <Loader2 className="size-4 animate-spin" />}
-              {isNew ? "Registrar" : "Guardar"}
-            </Button>
-          </div>
-        </div>
-      </SheetContent>
-    </Sheet>
+            </Field>
+          </FieldSpan>
+        </FieldGrid>
+      </FormSection>
+
+      <FormSection
+        title="Contacto y crédito"
+        description="Cómo lo ubicas y cuánto le dejas fiar."
+      >
+        <FieldGrid cols={3}>
+          <Field id="c-phone" label="Teléfono">
+            <Input
+              id="c-phone"
+              type="tel"
+              inputMode="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="300 123 4567"
+            />
+          </Field>
+          <Field id="c-city" label="Ciudad">
+            <Input
+              id="c-city"
+              value={city}
+              onChange={(e) => setCity(e.target.value)}
+              placeholder="Medellín"
+            />
+          </Field>
+          <Field id="c-email" label="Correo">
+            <Input
+              id="c-email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="cliente@correo.com"
+            />
+          </Field>
+
+          <FieldSpan span={2}>
+            <Field
+              id="c-credit"
+              label="Cupo de crédito"
+              help={{ term: "cupo" }}
+              hint="Lo máximo que le dejas deber. Déjalo en 0 si no le fías."
+            >
+              <MoneyInput
+                id="c-credit"
+                value={Number(creditLimit) || 0}
+                onValueChange={(v) => setCreditLimit(String(v ?? 0))}
+                placeholder="0"
+              />
+            </Field>
+          </FieldSpan>
+        </FieldGrid>
+
+        {!isNew && (
+          <CheckboxField
+            id="c-active"
+            label="Cliente activo"
+            hint="Un cliente inactivo deja de aparecer en el punto de venta, pero conserva su historial y su saldo."
+            checked={active}
+            onCheckedChange={setActive}
+          />
+        )}
+      </FormSection>
+    </FormDialog>
   )
 }

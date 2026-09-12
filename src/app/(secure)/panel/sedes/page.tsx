@@ -18,7 +18,7 @@ import { listSedes, updateSede, type Sede } from "@/lib/erp/api-inventory"
 import { ApiError } from "@/lib/api"
 
 import { PageHeader } from "@/components/erp/page-header"
-import { SedeSheet } from "@/components/erp/sede-sheet"
+import { SedeDialog } from "@/components/erp/sede-dialog"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
@@ -263,7 +263,7 @@ export default function SedesPage() {
         </>
       )}
 
-      <SedeSheet
+      <SedeDialog
         open={sheetOpen}
         onOpenChange={setSheetOpen}
         mode={sheetMode}

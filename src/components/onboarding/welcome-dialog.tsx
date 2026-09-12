@@ -1,5 +1,6 @@
 "use client"
 
+import * as React from "react"
 import {
   X,
   Sparkles,
@@ -58,6 +59,23 @@ function highlightsFor(isRetail: boolean): Highlight[] {
 export function WelcomeDialog() {
   const { welcomeOpen, dismissWelcome, startTour } = useOnboarding()
   const { user, isRetail } = useAuth()
+
+  // Escape cierra la bienvenida.
+  //
+  // Sin esto el velo cubría la pantalla entera a `z-60` y solo se quitaba
+  // haciendo clic: si la tarjeta quedaba fuera de vista —pantalla corta, o el
+  // usuario no la reconoce como un modal— todos los clics de la página se los
+  // comía el velo y la aplicación parecía congelada. Y el sitio donde más
+  // duele es la pantalla de plan, que es a la que llega justo quien tiene la
+  // cuenta vencida y viene a reactivarla.
+  React.useEffect(() => {
+    if (!welcomeOpen) return
+    const alPulsar = (e: KeyboardEvent) => {
+      if (e.key === "Escape") dismissWelcome()
+    }
+    document.addEventListener("keydown", alPulsar)
+    return () => document.removeEventListener("keydown", alPulsar)
+  }, [welcomeOpen, dismissWelcome])
 
   if (!welcomeOpen) return null
 

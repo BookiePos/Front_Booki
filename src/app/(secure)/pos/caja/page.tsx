@@ -38,15 +38,15 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Separator } from "@/components/ui/separator"
 import { MoneyInput } from "@/components/ui/money-input"
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "@/components/ui/sheet"
+  FormDialog,
+  FormSection,
+  FormAlert,
+  FormActions,
+} from "@/components/ui/form-dialog"
+import { Field, FieldGrid } from "@/components/ui/field"
+import { HelpTip, Termino } from "@/components/ui/help-tip"
 import { cn } from "@/lib/utils"
 
 function errorMessage(err: unknown): string {
@@ -461,7 +461,7 @@ function OpenCaja({
         </CardContent>
       </Card>
 
-      <CloseCajaSheet
+      <CloseCajaDialog
         open={closeOpen}
         onOpenChange={setCloseOpen}
         sedeId={session.sedeId}
@@ -569,7 +569,7 @@ function MovementForm({
   )
 }
 
-function CloseCajaSheet({
+function CloseCajaDialog({
   open,
   onOpenChange,
   sedeId,
@@ -621,120 +621,118 @@ function CloseCajaSheet({
   }
 
   return (
-    <Sheet open={open} onOpenChange={(v) => !saving && onOpenChange(v)}>
-      <SheetContent side="right" className="overflow-y-auto sm:max-w-md">
-        <SheetHeader>
-          <SheetTitle className="font-display text-lg">Cerrar caja</SheetTitle>
-          <SheetDescription>
-            Cuenta el efectivo físico para cuadrar el turno.
-          </SheetDescription>
-        </SheetHeader>
+    <FormDialog
+      open={open}
+      onOpenChange={(v) => !saving && onOpenChange(v)}
+      size="xl"
+      icon={Lock}
+      title="Cerrar caja"
+      description="Cuenta el efectivo del cajón y compáralo con lo que el sistema esperaba. La diferencia queda registrada."
+      footer={
+        <FormActions
+          onCancel={() => onOpenChange(false)}
+          onSubmit={() => void handleClose()}
+          busy={saving}
+          disabled={countedNum === undefined}
+          destructive
+          submitLabel={saving ? "Cerrando…" : "Cerrar turno"}
+        />
+      }
+    >
+      {error && <FormAlert>{error}</FormAlert>}
 
-        <div className="flex flex-col gap-4 px-4 py-2">
-          <div className="flex items-center justify-between rounded-xl bg-muted p-4">
-            <span className="text-sm text-muted-foreground">
-              Esperado en caja
-            </span>
-            <span className="stat-figure text-xl">{money(expected)}</span>
-          </div>
+      <div className="flex items-center justify-between rounded-2xl border border-border bg-muted/50 px-4 py-3.5">
+        <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
+          Esperado en caja
+          <HelpTip term="arqueo" />
+        </span>
+        <span className="stat-figure text-xl">{money(expected)}</span>
+      </div>
 
-          <div className="flex flex-col gap-2">
-            <p className="text-sm font-medium text-foreground">
-              Efectivo contado
-            </p>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="caja-counted-billetes" className="gap-1.5">
+      <FormSection
+        title="Efectivo contado"
+        description="Cuenta aparte los billetes y las monedas: es más fácil no equivocarse y luego revisar."
+      >
+        <FieldGrid cols={2}>
+          <Field
+            id="caja-counted-billetes"
+            label={
+              <>
                 <Banknote className="size-4 text-muted-foreground" />
                 Billetes
-              </Label>
-              <MoneyInput
-                id="caja-counted-billetes"
-                value={bills}
-                onValueChange={setBills}
-                placeholder="$0"
-                autoFocus
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="caja-counted-monedas" className="gap-1.5">
+              </>
+            }
+          >
+            <MoneyInput
+              id="caja-counted-billetes"
+              value={bills}
+              onValueChange={setBills}
+              placeholder="$0"
+              autoFocus
+            />
+          </Field>
+          <Field
+            id="caja-counted-monedas"
+            label={
+              <>
                 <Coins className="size-4 text-muted-foreground" />
                 Monedas
-              </Label>
-              <MoneyInput
-                id="caja-counted-monedas"
-                value={coins}
-                onValueChange={setCoins}
-                placeholder="$0"
-              />
-            </div>
-            <div className="flex items-center justify-between rounded-lg bg-muted px-3 py-2">
-              <span className="text-sm text-muted-foreground">
-                Total contado
-              </span>
-              <span className="stat-figure text-base">
-                {money(countedNum ?? 0)}
-              </span>
-            </div>
-          </div>
-
-          {diff !== undefined && (
-            <div
-              className={cn(
-                "flex items-center justify-between rounded-lg px-3 py-2 text-sm",
-                diff === 0
-                  ? "bg-success/10 text-success-ink"
-                  : "bg-destructive/10 text-destructive",
-              )}
-            >
-              <span>
-                {diff === 0
-                  ? "Caja cuadrada"
-                  : diff > 0
-                    ? "Sobrante"
-                    : "Faltante"}
-              </span>
-              <span className="stat-figure text-base">
-                {diff > 0 ? "+" : ""}
-                {money(diff)}
-              </span>
-            </div>
-          )}
-
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="caja-close-note">Nota (opcional)</Label>
-            <Input
-              id="caja-close-note"
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="Observaciones del cierre…"
+              </>
+            }
+          >
+            <MoneyInput
+              id="caja-counted-monedas"
+              value={coins}
+              onValueChange={setCoins}
+              placeholder="$0"
             />
-          </div>
+          </Field>
+        </FieldGrid>
 
-          {error && (
-            <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
-              {error}
-            </p>
-          )}
-
-          <div className="flex justify-end gap-2 pt-2">
-            <Button
-              variant="outline"
-              disabled={saving}
-              onClick={() => onOpenChange(false)}
-            >
-              Cancelar
-            </Button>
-            <Button
-              variant="destructive"
-              disabled={saving || countedNum === undefined}
-              onClick={() => void handleClose()}
-            >
-              {saving ? "Cerrando…" : "Cerrar turno"}
-            </Button>
-          </div>
+        <div className="flex items-center justify-between rounded-xl bg-muted/60 px-3.5 py-2.5">
+          <span className="text-sm text-muted-foreground">Total contado</span>
+          <span className="stat-figure text-base">
+            {money(countedNum ?? 0)}
+          </span>
         </div>
-      </SheetContent>
-    </Sheet>
+
+        {diff !== undefined && (
+          <div
+            className={cn(
+              "flex items-center justify-between rounded-xl border px-3.5 py-2.5 text-sm",
+              diff === 0
+                ? "border-success/25 bg-success/10 text-success-ink"
+                : "border-destructive/25 bg-destructive/10 text-destructive-ink",
+            )}
+          >
+            <span className="flex items-center gap-1.5 font-semibold">
+              {diff === 0 ? (
+                "Caja cuadrada"
+              ) : (
+                <>
+                  <Termino term="descuadre">
+                    {diff > 0 ? "Sobrante" : "Faltante"}
+                  </Termino>
+                </>
+              )}
+            </span>
+            <span className="stat-figure text-base">
+              {diff > 0 ? "+" : ""}
+              {money(diff)}
+            </span>
+          </div>
+        )}
+      </FormSection>
+
+      <Field id="caja-close-note" label="Nota">
+        <Input
+          id="caja-close-note"
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          placeholder="Observaciones del cierre (opcional)"
+        />
+      </Field>
+    </FormDialog>
   )
 }
 

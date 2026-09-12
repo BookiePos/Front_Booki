@@ -125,6 +125,21 @@ export function ProductTour() {
     }
   }, [index, rect])
 
+  // Escape abandona el recorrido.
+  //
+  // El foco del tour no es un fondo: es un `box-shadow` enorme alrededor del
+  // recorte, así que tapa todo menos el elemento resaltado. Si un paso apunta a
+  // algo que ya no está en la página, no queda nada pulsable y la aplicación se
+  // siente bloqueada. Escape es la salida que todo el mundo intenta primero.
+  React.useEffect(() => {
+    if (!tourOpen) return
+    const alPulsar = (e: KeyboardEvent) => {
+      if (e.key === "Escape") finishTour()
+    }
+    document.addEventListener("keydown", alPulsar)
+    return () => document.removeEventListener("keydown", alPulsar)
+  }, [tourOpen, finishTour])
+
   if (!tourOpen || !step) return null
 
   const isFirst = index === 0

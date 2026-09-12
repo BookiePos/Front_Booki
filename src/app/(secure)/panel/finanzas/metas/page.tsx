@@ -41,7 +41,6 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useConfirm } from "@/components/ui/confirm-dialog"
 import {
@@ -53,15 +52,18 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "@/components/ui/sheet"
-
-const inputClass =
-  "h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+  FormDialog,
+  FormSection,
+  FormAlert,
+  FormActions,
+} from "@/components/ui/form-dialog"
+import {
+  Field,
+  FieldGrid,
+  FieldSpan,
+  NativeSelect,
+} from "@/components/ui/field"
+import { Termino } from "@/components/ui/help-tip"
 
 function emptyMonths(): number[] {
   return Array.from({ length: 12 }, () => 0)
@@ -152,17 +154,13 @@ export default function MetasPage() {
 
   const actions = (
     <div className="flex items-center gap-2">
-      <select
-        className={`${inputClass} w-28`}
-        value={year}
-        onChange={(e) => setYear(Number(e.target.value))}
-      >
-        {years.map((y) => (
-          <option key={y} value={y}>
-            {y}
-          </option>
-        ))}
-      </select>
+      <NativeSelect
+        aria-label="Año fiscal"
+        className="w-28"
+        value={String(year)}
+        onChange={(v) => setYear(Number(v))}
+        options={years.map((y) => ({ value: String(y), label: String(y) }))}
+      />
       <Button variant="outline" size="icon" onClick={() => void load()} title="Actualizar">
         <RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />
       </Button>
@@ -184,7 +182,14 @@ export default function MetasPage() {
       <PageHeader
         section="Finanzas"
         title="Metas"
-        description="Metas anuales por categoría y escenario, base del comparativo vs Real."
+        titleHelp={{ term: "meta" }}
+        description={
+          <>
+            Cuánto te propones vender y gastar cada mes, por{" "}
+            <Termino>escenario</Termino>. Es la base para comparar contra lo que
+            de verdad pasó.
+          </>
+        }
         actions={actions}
       />
 
@@ -275,7 +280,7 @@ export default function MetasPage() {
       </Card>
 
       {canManage && (
-        <NewBudgetSheet
+        <NewBudgetDialog
           open={newOpen}
           onOpenChange={setNewOpen}
           sedes={sedes}
@@ -326,7 +331,7 @@ function DeleteBudgetButton({
   )
 }
 
-function NewBudgetSheet({
+function NewBudgetDialog({
   open,
   onOpenChange,
   sedes,
@@ -378,80 +383,81 @@ function NewBudgetSheet({
   const valid = name.trim().length > 0
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-md">
-        <div className="flex flex-col gap-4 px-4 py-2">
-          <SheetHeader className="px-0">
-            <SheetTitle className="font-display text-lg">Nueva meta</SheetTitle>
-            <SheetDescription>
-              Define año, sede y escenario. Las líneas se editan después.
-            </SheetDescription>
-          </SheetHeader>
+    <FormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      size="2xl"
+      icon={Target}
+      title="Nueva meta"
+      description="El objetivo de ventas y gastos del año. Las líneas mes a mes se editan después."
+      footer={
+        <FormActions
+          onCancel={() => onOpenChange(false)}
+          onSubmit={() => void save()}
+          busy={busy}
+          disabled={!valid}
+          submitLabel="Crear y editar"
+        />
+      }
+    >
+      {error && <FormAlert>{error}</FormAlert>}
 
-          <div className="flex flex-col gap-1">
-            <Label className="text-xs">Nombre</Label>
-            <Input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Ej. Metas 2026"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-2">
-            <div className="flex flex-col gap-1">
-              <Label className="text-xs">Año fiscal</Label>
+      <FormSection title="Cabecera de la meta">
+        <FieldGrid cols={2}>
+          <FieldSpan span={2}>
+            <Field id="mt-name" label="Nombre" required>
               <Input
-                type="number"
-                value={fiscalYear}
-                onChange={(e) => setFiscalYear(e.target.value)}
+                id="mt-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Metas 2026"
               />
-            </div>
-            <div className="flex flex-col gap-1">
-              <Label className="text-xs">Escenario</Label>
-              <select
-                className={inputClass}
-                value={scenario}
-                onChange={(e) => setScenario(e.target.value as BudgetScenario)}
-              >
-                {(Object.keys(BUDGET_SCENARIO_LABELS) as BudgetScenario[]).map((k) => (
-                  <option key={k} value={k}>
-                    {BUDGET_SCENARIO_LABELS[k]}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
+            </Field>
+          </FieldSpan>
 
-          <div className="flex flex-col gap-1">
-            <Label className="text-xs">Sede</Label>
-            <select
-              className={inputClass}
-              value={sedeId}
-              onChange={(e) => setSedeId(e.target.value)}
+          <Field id="mt-year" label="Año fiscal">
+            <Input
+              id="mt-year"
+              type="number"
+              inputMode="numeric"
+              value={fiscalYear}
+              onChange={(e) => setFiscalYear(e.target.value)}
+            />
+          </Field>
+          <Field
+            id="mt-scenario"
+            label="Escenario"
+            help={{ term: "escenario" }}
+          >
+            <NativeSelect
+              id="mt-scenario"
+              value={scenario}
+              onChange={(v) => setScenario(v as BudgetScenario)}
+              options={(
+                Object.keys(BUDGET_SCENARIO_LABELS) as BudgetScenario[]
+              ).map((k) => ({ value: k, label: BUDGET_SCENARIO_LABELS[k] }))}
+            />
+          </Field>
+
+          <FieldSpan span={2}>
+            <Field
+              id="mt-sede"
+              label="Sede"
+              help={{ term: "sede" }}
+              hint="«Consolidado» suma todas las sedes en una sola meta."
             >
-              <option value="">Consolidado</option>
-              {sedes.map((s) => (
-                <option key={s._id} value={s._id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {error && <p className="text-sm text-destructive">{error}</p>}
-
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Cancelar
-            </Button>
-            <Button className="gap-2" disabled={busy || !valid} onClick={() => void save()}>
-              {busy && <Loader2 className="size-4 animate-spin" />}
-              Crear y editar
-            </Button>
-          </div>
-        </div>
-      </SheetContent>
-    </Sheet>
+              <NativeSelect
+                id="mt-sede"
+                value={sedeId}
+                onChange={setSedeId}
+                options={sedes.map((s) => ({ value: s._id, label: s.name }))}
+                placeholder="Consolidado"
+              />
+            </Field>
+          </FieldSpan>
+        </FieldGrid>
+      </FormSection>
+    </FormDialog>
   )
 }
 
@@ -621,24 +627,27 @@ function BudgetEditor({
           {canManage && (
             <Card className="mb-4">
               <CardContent className="flex flex-wrap items-end gap-3 py-4">
-                <div className="flex flex-col gap-1">
-                  <Label className="text-xs">Agregar categoría</Label>
-                  <select
-                    className={`${inputClass} w-64`}
+                <Field
+                  id="mt-addcat"
+                  label="Agregar categoría"
+                  className="w-64"
+                >
+                  <NativeSelect
+                    id="mt-addcat"
                     value={addCatId}
-                    onChange={(e) => setAddCatId(e.target.value)}
+                    onChange={setAddCatId}
                     disabled={available.length === 0}
-                  >
-                    <option value="">
-                      {available.length === 0 ? "Sin categorías disponibles" : "Selecciona…"}
-                    </option>
-                    {available.map((c) => (
-                      <option key={c._id} value={c._id}>
-                        {c.name} ({CATEGORY_KIND_LABELS[c.kind]})
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                    options={available.map((c) => ({
+                      value: c._id,
+                      label: `${c.name} (${CATEGORY_KIND_LABELS[c.kind]})`,
+                    }))}
+                    placeholder={
+                      available.length === 0
+                        ? "Sin categorías disponibles"
+                        : "Selecciona…"
+                    }
+                  />
+                </Field>
                 <Button
                   variant="outline"
                   size="sm"
@@ -649,17 +658,17 @@ function BudgetEditor({
                   <Plus className="size-4" />
                   Agregar fila
                 </Button>
-                <div className="flex flex-col gap-1">
-                  <Label className="text-xs">Estado</Label>
-                  <select
-                    className={`${inputClass} w-36`}
+                <Field id="mt-status" label="Estado" className="w-36">
+                  <NativeSelect
+                    id="mt-status"
                     value={status}
-                    onChange={(e) => setStatus(e.target.value as "draft" | "active")}
-                  >
-                    <option value="draft">Borrador</option>
-                    <option value="active">Activo</option>
-                  </select>
-                </div>
+                    onChange={(v) => setStatus(v as "draft" | "active")}
+                    options={[
+                      { value: "draft", label: "Borrador" },
+                      { value: "active", label: "Activo" },
+                    ]}
+                  />
+                </Field>
               </CardContent>
             </Card>
           )}
@@ -796,21 +805,17 @@ function BudgetVsActualView({
     <>
       <Card className="mb-4">
         <CardContent className="flex flex-wrap items-end gap-3 py-4">
-          <div className="flex flex-col gap-1">
-            <Label className="text-xs">Sede</Label>
-            <select
-              className={`${inputClass} w-48`}
+          <Field id="mt-vs-sede" label="Sede" className="w-48">
+            <NativeSelect
+              id="mt-vs-sede"
               value={sedeId}
-              onChange={(e) => setSedeId(e.target.value)}
-            >
-              <option value={ALL}>Consolidado (todas)</option>
-              {sedes.map((s) => (
-                <option key={s._id} value={s._id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-          </div>
+              onChange={setSedeId}
+              options={[
+                { value: ALL, label: "Consolidado (todas)" },
+                ...sedes.map((s) => ({ value: s._id, label: s.name })),
+              ]}
+            />
+          </Field>
           <p className="pb-1.5 text-xs text-muted-foreground">
             El &quot;Real&quot; se calcula de tus ventas, nómina y gastos ya
             registrados. No hay que digitar nada.

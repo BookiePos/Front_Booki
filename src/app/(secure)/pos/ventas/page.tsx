@@ -33,13 +33,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useConfirm } from "@/components/ui/confirm-dialog"
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "@/components/ui/sheet"
+import { FormDialog, FormAlert } from "@/components/ui/form-dialog"
+import { Segmented } from "@/components/ui/segmented"
 import { cn } from "@/lib/utils"
 
 const PAGE_SIZE = 50
@@ -326,103 +321,84 @@ export default function VentasPage() {
       )}
 
       {/* Detalle / comprobante */}
-      <Sheet
+      <FormDialog
         open={selected !== null}
         onOpenChange={(v) => !v && setSelected(null)}
+        size="2xl"
+        icon={ReceiptIcon}
+        title={selected?.saleNumber ?? "Venta"}
+        description="Detalle de la venta y comprobante."
+        footer={
+          <>
+            {canVoid && selected?.status === "completed" && (
+              <Button
+                variant="destructive"
+                className="no-print mr-auto"
+                disabled={voiding}
+                onClick={() => void handleVoid()}
+              >
+                <Ban />
+                {voiding ? "Anulando…" : "Anular venta"}
+              </Button>
+            )}
+            <Button
+              variant="outline"
+              className="no-print"
+              onClick={() => window.print()}
+            >
+              <Printer />
+              {detailView === "factura" ? "Imprimir / PDF" : "Imprimir"}
+            </Button>
+            <Button onClick={() => setSelected(null)}>Cerrar</Button>
+          </>
+        }
       >
-        <SheetContent side="right" className="overflow-y-auto sm:max-w-xl">
-          {selected && (
-            <div className="flex flex-col gap-4 px-4 py-2">
-              <SheetHeader className="px-0">
-                <SheetTitle className="flex items-center gap-2 font-display text-lg">
-                  {selected.saleNumber}
-                  {selected.status === "void" && (
-                    <Badge variant="destructive">Anulada</Badge>
-                  )}
-                </SheetTitle>
-                <SheetDescription>
-                  Detalle de la venta y comprobante.
-                </SheetDescription>
-              </SheetHeader>
+        {selected && (
+          <>
+            {selected.status === "void" && (
+              <FormAlert tone="warning">
+                Esta venta está <strong>anulada</strong>: no cuenta en los
+                reportes ni en la caja.
+              </FormAlert>
+            )}
 
-              {/* Alternar entre factura (carta) y recibo (tirilla) */}
-              <div className="no-print grid grid-cols-2 gap-1 rounded-lg border border-border bg-muted p-1">
-                {(
-                  [
-                    ["factura", "Factura", FileText],
-                    ["receipt", "Recibo", ReceiptIcon],
-                  ] as const
-                ).map(([key, lbl, Icon]) => (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => setDetailView(key)}
-                    className={cn(
-                      "flex items-center justify-center gap-1.5 rounded-md px-2 py-2 text-xs font-medium transition-colors",
-                      detailView === key
-                        ? "bg-background text-foreground shadow-xs"
-                        : "text-muted-foreground hover:text-foreground",
-                    )}
-                  >
-                    <Icon className="size-4" />
-                    {lbl}
-                  </button>
-                ))}
-              </div>
+            {/* Alternar entre factura (carta) y recibo (tirilla) */}
+            <Segmented
+              fill
+              ariaLabel="Tipo de comprobante"
+              className="no-print"
+              value={detailView}
+              onValueChange={(v) => setDetailView(v as typeof detailView)}
+              options={[
+                { value: "factura", label: "Factura", icon: FileText },
+                { value: "receipt", label: "Recibo", icon: ReceiptIcon },
+              ]}
+            />
 
-              {detailView === "factura" ? (
-                <Factura
-                  sale={selected}
-                  business={{
-                    name:
-                      sede?.name ??
-                      (typeof selected.sedeId === "object"
-                        ? selected.sedeId.name
-                        : "Punto de venta"),
-                    address: sede?.address,
-                    nit: sede?.nit,
-                    phone: sede?.phone,
-                  }}
-                />
-              ) : (
-                <Receipt sale={selected} sede={sede} />
-              )}
+            {detailView === "factura" ? (
+              <Factura
+                sale={selected}
+                business={{
+                  name:
+                    sede?.name ??
+                    (typeof selected.sedeId === "object"
+                      ? selected.sedeId.name
+                      : "Punto de venta"),
+                  address: sede?.address,
+                  nit: sede?.nit,
+                  phone: sede?.phone,
+                }}
+              />
+            ) : (
+              <Receipt sale={selected} sede={sede} />
+            )}
 
-              {voidError && (
-                <p className="no-print rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                  {voidError}
-                </p>
-              )}
-
-              <div className="no-print flex gap-2">
-                <Button
-                  variant="outline"
-                  className="flex-1 gap-2"
-                  onClick={() => window.print()}
-                >
-                  <Printer className="size-4" />
-                  {detailView === "factura" ? "Imprimir / PDF" : "Imprimir"}
-                </Button>
-                <Button className="flex-1" onClick={() => setSelected(null)}>
-                  Cerrar
-                </Button>
-              </div>
-
-              {canVoid && selected.status === "completed" && (
-                <Button
-                  variant="destructive"
-                  className="no-print gap-2"
-                  disabled={voiding}
-                  onClick={() => void handleVoid()}
-                >
-                  <Ban className="size-4" />
-                  {voiding ? "Anulando…" : "Anular venta"}
-                </Button>
-              )}
-            </div>
-          )}
-        </SheetContent>
-      </Sheet>
+            {voidError && (
+              <FormAlert className="no-print">{voidError}</FormAlert>
+            )}
+          </>
+        )}
+      </FormDialog>
     </div>
   )
 }

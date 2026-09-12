@@ -8,7 +8,11 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { GLOSARIO, type TerminoGlosario } from "@/lib/glosario"
+import {
+  GLOSARIO,
+  resolverTermino,
+  type TerminoGlosario,
+} from "@/lib/glosario"
 import { cn } from "@/lib/utils"
 
 type LadoHelpTip = "top" | "bottom" | "left" | "right"
@@ -38,25 +42,68 @@ export type HelpTipProps =
     })
 
 /**
- * Interrogación de ayuda junto a una etiqueta técnica (SKU, IVA, lote…).
+ * Contenido de la burbuja: título arriba, explicación debajo.
  *
- * Por qué es un Tooltip *controlado* y no el Tooltip suelto:
- * el Tooltip de Base UI engancha el hover con `mouseOnly: true`, así que en un
+ * Lo comparten `HelpTip` (la interrogación junto a una etiqueta) y `Termino`
+ * (la palabra subrayada dentro de un texto) para que la misma palabra se
+ * explique igual la encuentres donde la encuentres.
+ */
+function FichaGlosario({
+  titulo,
+  texto,
+}: {
+  titulo: string
+  texto: React.ReactNode
+}) {
+  return (
+    <span className="block">
+      <span className="block text-[0.8125rem] leading-tight font-bold tracking-[-0.01em] text-foreground">
+        {titulo}
+      </span>
+      <span className="mt-1.5 block text-xs leading-relaxed text-muted-foreground">
+        {texto}
+      </span>
+    </span>
+  )
+}
+
+/**
+ * Las tres entradas de una ayuda que tiene que funcionar en mostrador.
+ *
+ * El Tooltip de Base UI engancha el hover con `mouseOnly: true`, así que en un
  * celular —donde no hay hover— nunca se abriría; y el comerciante que está de
- * pie en el mostrador con la tablet es justo quien más necesita la explicación.
- * Llevando `open` nosotros conseguimos las tres entradas:
- *   • mouse  → hover, que lo abre el propio Tooltip;
- *   • teclado→ foco visible, que también lo abre el propio Tooltip;
- *   • táctil → `onClick`, que alterna el estado (un tap dispara click).
+ * pie con la tablet es justo quien más necesita la explicación. Llevando `open`
+ * nosotros conseguimos las tres:
+ *   • mouse   → hover, que lo abre el propio Tooltip;
+ *   • teclado → foco visible, que también lo abre el propio Tooltip;
+ *   • táctil  → `onClick`, que alterna el estado (un tap dispara click).
+ *
  * `closeOnClick={false}` es imprescindible: por defecto el Tooltip se cierra al
  * pulsar el disparador, y esa cerrada pelearía con nuestro toggle dejando la
  * burbuja parpadeando en el primer tap. El cierre táctil lo sigue dando el
  * `useDismiss` interno (tocar fuera o pulsar Escape).
+ */
+function useAperturaTactil() {
+  const [abierto, setAbierto] = React.useState(false)
+  return {
+    abierto,
+    setAbierto,
+    props: {
+      closeOnClick: false as const,
+      delay: 120,
+      closeDelay: 0,
+      onClick: () => setAbierto((v) => !v),
+    },
+  }
+}
+
+/**
+ * Interrogación de ayuda junto a una etiqueta técnica (SKU, IVA, lote…).
  *
- * Se prefirió esto a un Popover porque el Popover mueve el foco dentro de la
- * burbuja al abrirse: para un texto de dos frases que no tiene nada pulsable,
- * eso le roba el sitio al teclado y obliga a pulsar Escape para seguir
- * llenando el formulario.
+ * Se prefirió a un Popover porque el Popover mueve el foco dentro de la burbuja
+ * al abrirse: para un texto de dos frases que no tiene nada pulsable, eso le
+ * roba el sitio al teclado y obliga a pulsar Escape para seguir llenando el
+ * formulario.
  */
 export function HelpTip({
   term,
@@ -65,7 +112,7 @@ export function HelpTip({
   side = "top",
   className,
 }: HelpTipProps) {
-  const [abierto, setAbierto] = React.useState(false)
+  const { abierto, setAbierto, props } = useAperturaTactil()
 
   const entrada = term ? GLOSARIO[term] : undefined
   const titulo = entrada ? entrada.titulo : (title as string)
@@ -75,13 +122,8 @@ export function HelpTip({
     <Tooltip open={abierto} onOpenChange={setAbierto}>
       <TooltipTrigger
         type="button"
-        // Sin esto el propio Tooltip cerraría al pulsar y anularía el toggle
-        // táctil de `onClick`. Ver la nota de arriba.
-        closeOnClick={false}
-        delay={120}
-        closeDelay={0}
+        {...props}
         aria-label={`Qué significa ${titulo}`}
-        onClick={() => setAbierto((v) => !v)}
         className={cn(
           // El icono mide 14 px para no competir con la etiqueta, pero el área
           // pulsable se agranda con un ::after invisible hasta ~24 px, que es
@@ -94,10 +136,81 @@ export function HelpTip({
       </TooltipTrigger>
       <TooltipContent
         side={side}
-        className="block max-w-64 px-3 py-2 text-left text-xs"
+        variant="card"
+        className="block max-w-72 px-3.5 py-3 text-left"
       >
-        <span className="block font-semibold">{titulo}</span>
-        <span className="mt-1 block leading-relaxed">{texto}</span>
+        <FichaGlosario titulo={titulo} texto={texto} />
+      </TooltipContent>
+    </Tooltip>
+  )
+}
+
+/**
+ * La palabra rara, explicada donde aparece.
+ *
+ * `HelpTip` resuelve la etiqueta de un campo, pero la mitad del vocabulario
+ * difícil no está en un formulario: está en la cabecera de una tabla («Kárdex»,
+ * «Devengado»), en una insignia («FEFO»), en el título de una pantalla («CxP»).
+ * Ahí no cabe una interrogación al lado de cada palabra sin ensuciar la
+ * pantalla, así que la marca es la palabra misma: subrayado punteado discreto y
+ * la misma ficha al pasar el mouse, enfocar con el teclado o tocarla.
+ *
+ * Uso normal — el término se deduce del propio texto:
+ *   <Termino>Kárdex</Termino>
+ *   <Termino>Devengado</Termino>
+ *
+ * Y si la palabra escrita no coincide con ninguna del glosario, se nombra:
+ *   <Termino term="cxp">Por pagar</Termino>
+ *
+ * Si el término no existe, no falla ni pinta nada raro: devuelve el texto tal
+ * cual. Así se puede envolver vocabulario sin miedo a romper una pantalla.
+ */
+export function Termino({
+  term,
+  children,
+  side = "top",
+  className,
+}: {
+  /** Clave del glosario. Si se omite, se busca por el texto de `children`. */
+  term?: TerminoGlosario
+  children: React.ReactNode
+  side?: LadoHelpTip
+  className?: string
+}) {
+  const { abierto, setAbierto, props } = useAperturaTactil()
+
+  // El texto visible sirve de clave cuando no se pasa `term`: <Termino>Kárdex</Termino>.
+  const literal = typeof children === "string" ? children : undefined
+  const clave = term ?? (literal ? resolverTermino(literal) : undefined)
+
+  if (!clave) return <>{children}</>
+
+  const entrada = GLOSARIO[clave]
+
+  return (
+    <Tooltip open={abierto} onOpenChange={setAbierto}>
+      <TooltipTrigger
+        type="button"
+        {...props}
+        aria-label={`${literal ?? entrada.titulo}: qué significa`}
+        className={cn(
+          // Subrayado punteado en vez de un icono: marca la palabra sin robarle
+          // sitio a la fila de una tabla ni romper el renglón de un párrafo.
+          // `decoration-from-font` lo baja a la línea base de la tipografía, que
+          // es lo que evita que corte las colas de la "p" y la "g".
+          "cursor-help font-[inherit] text-[inherit] underline decoration-primary/40 decoration-dotted decoration-from-font underline-offset-[0.22em] outline-none transition-colors",
+          "hover:decoration-primary focus-visible:rounded-sm focus-visible:ring-2 focus-visible:ring-ring/50",
+          className,
+        )}
+      >
+        {children}
+      </TooltipTrigger>
+      <TooltipContent
+        side={side}
+        variant="card"
+        className="block max-w-72 px-3.5 py-3 text-left"
+      >
+        <FichaGlosario titulo={entrada.titulo} texto={entrada.texto} />
       </TooltipContent>
     </Tooltip>
   )
