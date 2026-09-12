@@ -187,6 +187,12 @@ function ProductDialog({
   const [recipe, setRecipe] = React.useState<RecipeRow[]>([
     { productId: "", qty: "" },
   ])
+  /**
+   * Empaque que gasta cada unidad vendida: la bolsa, el vaso, la cuchara.
+   * Va aparte de la receta porque aplica a los dos orígenes: la galleta que se
+   * compra ya hecha también sale en bolsa, y no tiene receta donde meterla.
+   */
+  const [packaging, setPackaging] = React.useState<RecipeRow[]>([])
   const [active, setActive] = React.useState(true)
   /** Foto elegida y pendiente de subir (se sube al guardar). */
   const [imageFile, setImageFile] = React.useState<File | Blob | null>(null)
@@ -254,6 +260,13 @@ function ProductDialog({
               }))
             : [{ productId: "", qty: "" }],
         )
+        setPackaging(
+          (product.packaging ?? []).map((l) => ({
+            productId:
+              typeof l.productId === "object" ? l.productId._id : l.productId,
+            qty: String(l.qty),
+          })),
+        )
         setActive(product.active)
       } else {
         setSku("")
@@ -267,6 +280,7 @@ function ProductDialog({
         setInvQuery("")
         setQtyPerUnit("1")
         setRecipe([{ productId: "", qty: "" }])
+        setPackaging([])
         setActive(true)
       }
       setImageFile(null)
@@ -293,6 +307,18 @@ function ProductDialog({
     )
   }
 
+  function updatePackagingRow(i: number, patch: Partial<RecipeRow>) {
+    setPackaging((rows) =>
+      rows.map((row, idx) => (idx === i ? { ...row, ...patch } : row)),
+    )
+  }
+
+  // A diferencia de la receta, el empaque sí puede quedar vacío: la mayoría
+  // de productos no lo necesita.
+  function removePackagingRow(i: number) {
+    setPackaging((rows) => rows.filter((_, idx) => idx !== i))
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     // Validaciones específicas de la fuente (antes de llamar al backend).
@@ -310,6 +336,15 @@ function ProductDialog({
         return
       }
     }
+    // Una fila con empaque elegido y sin cantidad casi siempre es un olvido:
+    // guardarla en silencio dejaría la bolsa sin descontarse nunca.
+    if (packaging.some((r) => r.productId && !(Number(r.qty) > 0))) {
+      setError("Escribe cuánto empaque gasta cada unidad vendida")
+      return
+    }
+    const cleanPackaging = packaging
+      .filter((r) => r.productId && Number(r.qty) > 0)
+      .map((r) => ({ productId: r.productId, qty: Number(r.qty) }))
 
     setSaving(true)
     setError(null)
@@ -334,6 +369,9 @@ function ProductDialog({
               : 1
             : undefined,
         recipe: sourceType === "recipe" ? cleanRecipe : undefined,
+        // Siempre viaja, aunque vaya vacío: así quitar la última bolsa de la
+        // ficha de verdad la quita.
+        packaging: cleanPackaging,
       }
       // La foto va en una petición aparte (multipart) y DESPUÉS de guardar la
       // ficha: al crear, el id del producto solo existe a partir de aquí.
@@ -693,6 +731,83 @@ function ProductDialog({
             })}
           </FormSection>
         )}
+
+        {/* Empaque: sale del inventario y entra al costo, pero no se le cobra
+            al cliente. Nunca bloquea una venta: si el sistema cree que no hay
+            bolsas, se gasta lo que haya y se cobra igual. */}
+        <FormSection
+          title="Empaque"
+          description="Lo que se gasta al entregar una unidad: la bolsa, el vaso, la cuchara. Se descuenta solo al vender y suma al costo; al cliente no se le cobra."
+          boxed
+          action={
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                setPackaging((rows) => [...rows, { productId: "", qty: "1" }])
+              }
+            >
+              <Plus />
+              Agregar empaque
+            </Button>
+          }
+        >
+          {packaging.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Sin empaque. Si este producto sale en bolsa, caja o vaso, agrégalo
+              aquí y dejará de bajar solo con ajustes a mano.
+            </p>
+          ) : (
+            packaging.map((row, i) => {
+              const item = invProducts.find((p) => p._id === row.productId)
+              return (
+                <div key={i} className="flex items-center gap-2">
+                  <NativeSelect
+                    className="flex-1"
+                    aria-label={`Empaque ${i + 1}`}
+                    placeholder="Bolsa, caja, vaso…"
+                    value={row.productId}
+                    onChange={(v) => updatePackagingRow(i, { productId: v })}
+                    options={invProducts.map((p) => ({
+                      value: p._id,
+                      label: `${p.name} · ${p.sku}`,
+                    }))}
+                  />
+                  <div className="relative w-28 shrink-0">
+                    <Input
+                      type="number"
+                      min="0"
+                      step="any"
+                      value={row.qty}
+                      onChange={(e) =>
+                        updatePackagingRow(i, { qty: e.target.value })
+                      }
+                      placeholder="Cant."
+                      aria-label={`Cantidad del empaque ${i + 1}`}
+                      className={item ? "pr-10" : undefined}
+                    />
+                    {item && (
+                      <span className="pointer-events-none absolute top-1/2 right-2.5 -translate-y-1/2 text-xs text-muted-foreground">
+                        {item.unit}
+                      </span>
+                    )}
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label={`Quitar el empaque ${i + 1}`}
+                    className="shrink-0"
+                    onClick={() => removePackagingRow(i)}
+                  >
+                    <X />
+                  </Button>
+                </div>
+              )
+            })
+          )}
+        </FormSection>
       </form>
     </FormDialog>
   )
@@ -966,6 +1081,18 @@ export default function ProductosPage() {
                               .map((l) =>
                                 typeof l.productId === "object"
                                   ? l.productId.name
+                                  : "—",
+                              )
+                              .join(", ")}
+                          </span>
+                        )}
+                        {(p.packaging?.length ?? 0) > 0 && (
+                          <span className="mt-0.5 block text-xs">
+                            Empaque:{" "}
+                            {p.packaging!
+                              .map((l) =>
+                                typeof l.productId === "object"
+                                  ? `${l.productId.name} × ${nf.format(l.qty)}`
                                   : "—",
                               )
                               .join(", ")}
