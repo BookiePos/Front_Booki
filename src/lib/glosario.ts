@@ -55,8 +55,19 @@ export const GLOSARIO = {
   unidad: {
     titulo: "Unidad de medida",
     texto:
-      "Cómo cuentas ese producto: unidades, kilos, litros o cajas. Usa siempre la unidad con la que lo vendes — si compras la gaseosa por caja de 24 pero la vendes suelta, mide en unidades y no en cajas.",
+      "Cómo cuentas ese producto al usarlo o venderlo: unidades, gramos, kilos o litros. La harina que tus recetas piden en gramos va en gramos, aunque te llegue en bultos — para eso está la presentación de compra.",
     alias: ["unidad de medida", "und", "medida"],
+  },
+  presentacionCompra: {
+    titulo: "Presentación de compra",
+    texto:
+      "Cómo te llega del proveedor, cuando no es como lo usas: consumes la harina en gramos pero la compras en bultos de 25 kg. Escríbelo una sola vez y ya podrás registrar «3 bultos» y poner el precio del bulto — el costo por gramo que necesitan tus recetas lo saca el sistema.",
+    alias: [
+      "presentacion de compra",
+      "unidad de compra",
+      "bulto",
+      "presentacion",
+    ],
   },
   variantes: {
     titulo: "Variantes",

@@ -35,6 +35,13 @@ export interface InvProduct {
   categoryId?: InvCategory | null
   unit: string
   weight?: number
+  /**
+   * Presentación en la que se COMPRA, cuando no es la misma en la que se
+   * consume: "bulto" con factor 25000 = un bulto trae 25.000 g. Van juntas o
+   * no van; sin ellas el insumo se compra por su propia `unit`.
+   */
+  purchaseUnit?: string
+  purchaseFactor?: number
   barcode?: string
   perishable: boolean
   trackLots: boolean
@@ -314,6 +321,9 @@ export interface ProductPayload {
   categoryId?: string
   unit?: string
   weight?: number
+  /** Cadena vacía = quitar la presentación de compra. */
+  purchaseUnit?: string
+  purchaseFactor?: number
   barcode?: string
   perishable?: boolean
   trackLots?: boolean
@@ -376,6 +386,8 @@ export interface ImportProductRow {
   unit?: string
   barcode?: string
   weight?: number
+  purchaseUnit?: string
+  purchaseFactor?: number
   perishable?: boolean
   trackLots?: boolean
   shelfLifeDays?: number
@@ -572,6 +584,12 @@ export interface EntryPayload {
   sedeId: string
   qty: number
   unitCost?: number
+  /**
+   * `qty` y `unitCost` van en PRESENTACIONES de compra (3 bultos a $95.000 el
+   * bulto) y el backend los convierte con el factor del producto. Solo se
+   * manda cuando el insumo tiene presentación definida.
+   */
+  inPurchaseUnits?: boolean
   lotCode?: string
   supplier?: string
   supplierId?: string
