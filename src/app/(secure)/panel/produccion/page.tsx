@@ -44,8 +44,15 @@ import {
   type ProductionOutput,
 } from "@/lib/erp/api-production"
 import { money, todayLocal, fmtDate, errorMessage, numOr } from "@/lib/erp/finance-format"
+import { calcularMargenPct, nivelMargen } from "@/lib/erp/margen"
 
 import { PageHeader } from "@/components/erp/page-header"
+import {
+  MargenBadge,
+  MargenMinimoControl,
+  ResumenMargen,
+  useMargenMinimo,
+} from "@/components/erp/margen"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -100,6 +107,7 @@ export default function ProduccionPage() {
   const [sedeId, setSedeId] = React.useState(ALL)
 
   const [outputs, setOutputs] = React.useState<ProductionOutput[]>([])
+  const [margenMinimo, setMargenMinimo] = useMargenMinimo()
   const [orders, setOrders] = React.useState<ProductionOrder[]>([])
   const [boms, setBoms] = React.useState<Bom[]>([])
   const [status, setStatus] = React.useState(ALL)
@@ -172,6 +180,17 @@ export default function ProduccionPage() {
     (o) => o.status === "draft" || o.status === "in_progress",
   ).length
   const sinVender = outputs.filter((o) => !o.sellable).length
+
+  // Al semáforo solo entran los terminados que ya se venden: sin precio de
+  // venta no hay contra qué comparar el costo y pintarlos sería inventar.
+  const nivelesMargen = outputs
+    .filter((o) => o.sellable)
+    .map((o) =>
+      nivelMargen(
+        o.marginPct ?? calcularMargenPct(o.sellable?.salePrice, o.unitCost),
+        margenMinimo,
+      ),
+    )
 
   return (
     <>
@@ -317,12 +336,23 @@ export default function ProduccionPage() {
       )}
 
       {tab === "terminados" && (
-        <OutputsTable
-          rows={outputs}
-          loading={loading}
-          canManage={canManage}
-          onPublish={setPublishing}
-        />
+        <>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <ResumenMargen niveles={nivelesMargen} />
+            <MargenMinimoControl
+              minimo={margenMinimo}
+              onChange={setMargenMinimo}
+              className="ml-auto"
+            />
+          </div>
+          <OutputsTable
+            rows={outputs}
+            loading={loading}
+            canManage={canManage}
+            onPublish={setPublishing}
+            margenMinimo={margenMinimo}
+          />
+        </>
       )}
 
       {tab === "ordenes" && (
@@ -413,11 +443,14 @@ function OutputsTable({
   loading,
   canManage,
   onPublish,
+  margenMinimo,
 }: {
   rows: ProductionOutput[]
   loading: boolean
   canManage: boolean
   onPublish: (output: ProductionOutput) => void
+  /** Margen objetivo del negocio, para pintar el semáforo. */
+  margenMinimo: number
 }) {
   return (
     <Card>
@@ -428,10 +461,10 @@ function OutputsTable({
               <TableHead>Terminado</TableHead>
               <TableHead className="text-right">En bodega</TableHead>
               <TableHead className="text-right">Costo unitario</TableHead>
-              <TableHead className="hidden text-right md:table-cell">
+              <TableHead className="hidden text-right lg:table-cell">
                 Precio de venta
               </TableHead>
-              <TableHead className="hidden text-right lg:table-cell">
+              <TableHead className="hidden text-right md:table-cell">
                 Margen
               </TableHead>
               <TableHead className="text-right">Productos</TableHead>
@@ -447,7 +480,21 @@ function OutputsTable({
                 </TableRow>
               ))}
             {!loading &&
-              rows.map((row) => (
+              rows.map((row) => {
+                // Desglose por unidad. Estaba enterrado dentro de la receta, y
+                // es justo lo que hay que mirar cuando sube un insumo: cuánto
+                // del costo es materia prima y cuánto es trabajo.
+                const porUnidad = (total: number) =>
+                  row.outputQty > 0 ? Math.round(total / row.outputQty) : 0
+                const materialesUnit = porUnidad(
+                  row.lines.reduce((suma, l) => suma + l.subtotal, 0),
+                )
+                const manoUnit = porUnidad(row.extraCost)
+                const pct =
+                  row.marginPct ??
+                  calcularMargenPct(row.sellable?.salePrice, row.unitCost)
+
+                return (
                 <TableRow key={row.bomId}>
                   <TableCell>
                     <Link
@@ -476,30 +523,36 @@ function OutputsTable({
                         ? `real · ${row.lastOrder.number}`
                         : "estimado"}
                     </p>
+                    <p
+                      className="mt-1 text-[11px] leading-tight text-muted-foreground"
+                      title="Desglose por unidad según la receta"
+                    >
+                      Materiales {money.format(materialesUnit)}
+                      <span className="mx-1 opacity-60">·</span>
+                      Mano de obra {money.format(manoUnit)}
+                    </p>
                   </TableCell>
-                  <TableCell className="tnum hidden text-right md:table-cell">
+                  <TableCell className="tnum hidden text-right lg:table-cell">
                     {row.sellable ? (
                       money.format(row.sellable.salePrice)
                     ) : (
                       <span className="text-muted-foreground">—</span>
                     )}
                   </TableCell>
-                  <TableCell className="tnum hidden text-right lg:table-cell">
+                  <TableCell className="tnum hidden text-right md:table-cell">
                     {row.margin !== undefined ? (
-                      <span
-                        className={
-                          row.margin >= 0
-                            ? "font-medium text-foreground"
-                            : "font-medium text-destructive"
-                        }
-                      >
-                        {money.format(row.margin)}
-                        {row.marginPct !== undefined && (
-                          <span className="ml-1 text-xs text-muted-foreground">
-                            ({row.marginPct}%)
-                          </span>
-                        )}
-                      </span>
+                      <div className="flex flex-col items-end gap-1">
+                        <span
+                          className={
+                            row.margin >= 0
+                              ? "font-medium text-foreground"
+                              : "font-medium text-destructive"
+                          }
+                        >
+                          {money.format(row.margin)}
+                        </span>
+                        <MargenBadge pct={pct} minimo={margenMinimo} />
+                      </div>
                     ) : (
                       <span className="text-muted-foreground">—</span>
                     )}
@@ -523,7 +576,8 @@ function OutputsTable({
                     )}
                   </TableCell>
                 </TableRow>
-              ))}
+                )
+              })}
             {!loading && rows.length === 0 && (
               <TableRow>
                 <TableCell
@@ -797,6 +851,12 @@ function NewBomSheet({
     rendimiento > 0
       ? Math.round((materials + numOr(extraCost)) / rendimiento)
       : 0
+  // El dueño escribe la mano de obra POR LOTE, pero lo que se compara contra el
+  // precio de venta es lo que cuesta UNA unidad. Sin esta división a la vista
+  // hay que hacerla de cabeza cada vez que se toca la receta.
+  const materialsUnit = rendimiento > 0 ? Math.round(materials / rendimiento) : 0
+  const extraUnit =
+    rendimiento > 0 ? Math.round(numOr(extraCost) / rendimiento) : 0
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -890,7 +950,12 @@ function NewBomSheet({
               />
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="bom-extra">Mano de obra e indirectos</Label>
+              <Label htmlFor="bom-extra">
+                Mano de obra e indirectos
+                <span className="ml-1 font-normal text-muted-foreground">
+                  (por lote)
+                </span>
+              </Label>
               <Input
                 id="bom-extra"
                 type="number"
@@ -898,6 +963,11 @@ function NewBomSheet({
                 value={extraCost}
                 onChange={(e) => setExtraCost(e.target.value)}
               />
+              <p className="text-xs text-muted-foreground">
+                {rendimiento > 0
+                  ? `${money.format(extraUnit)} por ${output?.unit ?? "unidad"}`
+                  : "Pon cuánto rinde el lote para verlo por unidad."}
+              </p>
             </div>
           </div>
 
@@ -968,14 +1038,27 @@ function NewBomSheet({
             </Button>
           </div>
 
+          {/* Desglose y no solo el total: cuando sube la harina hay que poder
+              ver de un vistazo cuánto del costo es materia prima —que se
+              negocia con el proveedor— y cuánto es trabajo. */}
           <Card className="bg-muted/40">
-            <CardContent className="flex items-center justify-between py-3 text-sm">
-              <span className="text-muted-foreground">
-                Costo estimado por {output?.unit ?? "unidad"}
-              </span>
-              <span className="tnum font-semibold">
-                {money.format(unitCost)}
-              </span>
+            <CardContent className="flex flex-col gap-1.5 py-3 text-sm">
+              <div className="flex items-center justify-between text-muted-foreground">
+                <span>Materiales</span>
+                <span className="tnum">{money.format(materialsUnit)}</span>
+              </div>
+              <div className="flex items-center justify-between text-muted-foreground">
+                <span>Mano de obra e indirectos</span>
+                <span className="tnum">{money.format(extraUnit)}</span>
+              </div>
+              <div className="mt-1 flex items-center justify-between border-t border-border/70 pt-2">
+                <span className="font-medium">
+                  Costo estimado por {output?.unit ?? "unidad"}
+                </span>
+                <span className="tnum font-semibold">
+                  {money.format(unitCost)}
+                </span>
+              </div>
             </CardContent>
           </Card>
 

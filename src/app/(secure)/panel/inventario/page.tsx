@@ -31,6 +31,8 @@ import {
   FolderTree,
   Boxes as BoxesIcon,
   Package,
+  TrendingUp,
+  TrendingDown,
 } from "lucide-react"
 
 import { useAuth } from "@/lib/auth-context"
@@ -3009,6 +3011,367 @@ function slugPreview(value: string): string {
     .replace(/[^A-Z0-9]+/g, "")
 }
 
+// ─── Actualizar precios de compra ─────────────────────────────────────────────
+
+/** Unidad en la que de verdad se compra el insumo: g→kg, ml→l. */
+function unidadDeCompra(unit: string): string {
+  return unit === "g" ? "kg" : unit === "ml" ? "l" : unit
+}
+
+/**
+ * Factor entre el costo guardado (por unidad de stock) y el precio que cotiza
+ * el proveedor.
+ *
+ * La harina se guarda en gramos pero se compra por kilo. Si el dueño escribe
+ * 4200 pensando en el bulto y lo guardáramos tal cual, el insumo pasaría a
+ * costar $4.200 el GRAMO y todas las recetas quedarían mil veces infladas.
+ */
+function factorDeCompra(unit: string): number {
+  const compra = unidadDeCompra(unit)
+  if (compra === unit) return 1
+  return UNIT_FACTORS[compra].factor / UNIT_FACTORS[unit].factor
+}
+
+/** Cuántas filas se pintan de golpe: más allá, la lista se vuelve lenta. */
+const LIMITE_FILAS = 120
+
+/**
+ * Una fila de la lista de precios. Va memorizada porque al escribir en una
+ * casilla se re-renderiza el diálogo entero, y con cien insumos cada tecla se
+ * sentiría pegajosa.
+ */
+const FilaPrecio = React.memo(function FilaPrecio({
+  p,
+  valor,
+  onChange,
+}: {
+  p: InvProduct
+  valor: string
+  onChange: (id: string, valor: string) => void
+}) {
+  const factor = factorDeCompra(p.unit)
+  const actual = p.cost * factor
+  const unidad = unidadDeCompra(p.unit)
+
+  const n = Number(valor)
+  const valido = valor.trim() !== "" && Number.isFinite(n) && n >= 0
+  const delta = valido && actual > 0 ? ((n - actual) / actual) * 100 : null
+  const cambia = valido && Math.abs(n - actual) >= 0.005
+
+  return (
+    <TableRow className={cambia ? "bg-brand-50/60 dark:bg-brand-950/30" : ""}>
+      <TableCell className="py-2">
+        <p className="font-medium leading-tight">{p.name}</p>
+        <p className="font-mono text-xs text-muted-foreground">
+          {p.sku} · por {unidad}
+        </p>
+      </TableCell>
+      <TableCell className="tnum py-2 text-right text-muted-foreground">
+        {moneyUnit.format(actual)}
+      </TableCell>
+      <TableCell className="py-2">
+        <Input
+          type="number"
+          min="0"
+          step="any"
+          inputMode="decimal"
+          className="h-9 w-32 text-right tnum"
+          aria-label={`Nuevo precio de ${p.name}`}
+          placeholder={String(Math.round(actual))}
+          value={valor}
+          onChange={(e) => onChange(p._id, e.target.value)}
+        />
+      </TableCell>
+      <TableCell className="tnum py-2 text-right">
+        {delta === null || !cambia ? (
+          <span className="text-muted-foreground">—</span>
+        ) : (
+          <span
+            className={cn(
+              "inline-flex items-center gap-1 text-xs font-medium",
+              delta > 0 ? "text-destructive" : "text-success-ink",
+            )}
+          >
+            {delta > 0 ? (
+              <TrendingUp className="size-3.5" />
+            ) : (
+              <TrendingDown className="size-3.5" />
+            )}
+            {delta > 0 ? "+" : ""}
+            {delta.toFixed(1)} %
+          </span>
+        )}
+      </TableCell>
+    </TableRow>
+  )
+})
+
+/**
+ * Actualización masiva de precios de compra.
+ *
+ * Es la pantalla que más se pide en un negocio que transforma: los insumos
+ * suben cada semana y hasta ahora la única vía era abrir la ficha de cada
+ * producto, una por una, o pasar por el Excel. Guarda con el mismo endpoint de
+ * importación (upsert por SKU, campos parciales), así que no necesita nada
+ * nuevo del backend.
+ */
+function ActualizarPreciosDialog({
+  open,
+  onOpenChange,
+  products,
+  onSaved,
+  onExportar,
+  onImportar,
+}: {
+  open: boolean
+  onOpenChange: (v: boolean) => void
+  products: InvProduct[]
+  onSaved: () => void
+  onExportar: () => void
+  onImportar: () => void
+}) {
+  const [search, setSearch] = React.useState("")
+  const [nuevos, setNuevos] = React.useState<Record<string, string>>({})
+  const [saving, setSaving] = React.useState(false)
+  const [error, setError] = React.useState<string | null>(null)
+  const [result, setResult] = React.useState<{
+    actualizados: number
+    subieron: number
+    bajaron: number
+    errores: ImportResult["errors"]
+  } | null>(null)
+
+  // Se limpia al cerrar y no con un efecto sobre `open`: así no queda un
+  // render intermedio con los datos de la sesión anterior ya visibles.
+  function reiniciar() {
+    setSearch("")
+    setNuevos({})
+    setError(null)
+    setResult(null)
+  }
+
+  function cerrar() {
+    onOpenChange(false)
+    reiniciar()
+  }
+
+  const onChangeFila = React.useCallback((id: string, valor: string) => {
+    setNuevos((prev) => ({ ...prev, [id]: valor }))
+  }, [])
+
+  const activos = React.useMemo(
+    () =>
+      products
+        .filter((p) => p.active)
+        .sort((a, b) => a.name.localeCompare(b.name, "es")),
+    [products],
+  )
+
+  const visibles = React.useMemo(() => {
+    const q = normalizeName(search)
+    if (!q) return activos
+    return activos.filter(
+      (p) =>
+        normalizeName(p.name).includes(q) || normalizeName(p.sku).includes(q),
+    )
+  }, [activos, search])
+
+  // Solo viaja lo que cambió de verdad. Reenviar el mismo precio ensuciaría el
+  // historial del producto sin que nada haya pasado.
+  const cambios = React.useMemo(() => {
+    const out: { p: InvProduct; actual: number; nuevo: number }[] = []
+    for (const p of activos) {
+      const texto = nuevos[p._id]
+      if (texto === undefined || texto.trim() === "") continue
+      const n = Number(texto)
+      if (!Number.isFinite(n) || n < 0) continue
+      const actual = p.cost * factorDeCompra(p.unit)
+      if (Math.abs(n - actual) < 0.005) continue
+      out.push({ p, actual, nuevo: n })
+    }
+    return out
+  }, [activos, nuevos])
+
+  async function guardar() {
+    if (cambios.length === 0) return
+    setSaving(true)
+    setError(null)
+    try {
+      const res = await importProducts(
+        cambios.map(({ p, nuevo }) => ({
+          sku: p.sku,
+          // El nombre viaja porque el endpoint es un upsert: si un SKU se
+          // hubiera borrado mientras el diálogo estaba abierto, sin nombre el
+          // producto recreado quedaría sin identificar.
+          name: p.name,
+          cost: nuevo / factorDeCompra(p.unit),
+        })),
+      )
+      setResult({
+        actualizados: res.updated,
+        subieron: cambios.filter((c) => c.nuevo > c.actual).length,
+        bajaron: cambios.filter((c) => c.nuevo < c.actual).length,
+        errores: res.errors,
+      })
+      setNuevos({})
+      onSaved()
+    } catch (err) {
+      setError(errorMessage(err))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const mostradas = visibles.slice(0, LIMITE_FILAS)
+
+  return (
+    <FormDialog
+      open={open}
+      onOpenChange={(v) => {
+        onOpenChange(v)
+        if (!v) reiniciar()
+      }}
+      size="3xl"
+      icon={TrendingUp}
+      title="Actualizar precios de compra"
+      description="Escribe el precio nuevo solo en lo que cambió y guarda todo de una. Lo que no toques se queda igual."
+      footer={
+        <>
+          <Button variant="outline" onClick={cerrar}>
+            {result ? "Cerrar" : "Cancelar"}
+          </Button>
+          <Button
+            onClick={guardar}
+            disabled={cambios.length === 0 || saving}
+            className="sm:min-w-44"
+          >
+            {saving ? <Loader2 className="animate-spin" /> : <CheckCircle2 />}
+            {saving
+              ? "Guardando…"
+              : cambios.length === 0
+                ? "Guardar precios"
+                : `Guardar ${cambios.length} cambio${cambios.length === 1 ? "" : "s"}`}
+          </Button>
+        </>
+      }
+    >
+      {error && <FormAlert>{error}</FormAlert>}
+
+      {result && (
+        <FormAlert tone="success" icon={CheckCircle2}>
+          Listo: <strong>{result.actualizados}</strong> precio(s) actualizados
+          {result.subieron > 0 && <> · subieron {result.subieron}</>}
+          {result.bajaron > 0 && <> · bajaron {result.bajaron}</>}.
+          {result.subieron > 0 && (
+            <span className="mt-1 block">
+              Como subió algún insumo, revisa el semáforo de márgenes en{" "}
+              <strong>Producción → Terminados</strong>: ahí se ve de un vistazo
+              si algún producto se te salió del objetivo.
+            </span>
+          )}
+          {result.errores.length > 0 && (
+            <span className="mt-1 block">
+              No se pudieron actualizar {result.errores.length}:{" "}
+              {result.errores
+                .slice(0, 3)
+                .map((e) => e.sku)
+                .join(", ")}
+              .
+            </span>
+          )}
+        </FormAlert>
+      )}
+
+      <FormAlert tone="info" icon={Package}>
+        Si registras la compra con la <strong>foto de la factura</strong>, el
+        precio se actualiza solo al entrar la mercancía. Esta pantalla es para
+        cuando el proveedor te avisa un precio nuevo antes de que llegue el
+        pedido.
+      </FormAlert>
+
+      <FormSection
+        title="Precios"
+        description="Los precios se muestran en la unidad en la que compras: el kilo, el litro o la unidad."
+      >
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            className="pl-9"
+            placeholder="Buscar por nombre o SKU…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+
+        <div className="max-h-[46vh] overflow-y-auto rounded-lg border border-border">
+          <Table>
+            <TableHeader className="sticky top-0 z-10 bg-card">
+              <TableRow>
+                <TableHead>Insumo</TableHead>
+                <TableHead className="text-right">Precio actual</TableHead>
+                <TableHead>Precio nuevo</TableHead>
+                <TableHead className="text-right">Cambio</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {mostradas.map((p) => (
+                <FilaPrecio
+                  key={p._id}
+                  p={p}
+                  valor={nuevos[p._id] ?? ""}
+                  onChange={onChangeFila}
+                />
+              ))}
+              {mostradas.length === 0 && (
+                <TableRow>
+                  <TableCell
+                    colSpan={4}
+                    className="py-8 text-center text-muted-foreground"
+                  >
+                    No hay productos que coincidan con la búsqueda.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
+
+        {visibles.length > LIMITE_FILAS && (
+          <p className="text-xs text-muted-foreground">
+            Se muestran {LIMITE_FILAS} de {visibles.length}. Busca por nombre o
+            SKU para llegar al resto; lo que ya escribiste se guarda igual
+            aunque deje de verse.
+          </p>
+        )}
+      </FormSection>
+
+      <FormDivider />
+
+      <FormSection
+        title="¿Te cambiaron la lista entera?"
+        description="Para muchos productos a la vez sale más rápido por Excel: descargas el catálogo, cambias la columna de costo y lo vuelves a subir."
+      >
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={onExportar}>
+            <Download />
+            Descargar el catálogo
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => {
+              reiniciar()
+              onImportar()
+            }}
+          >
+            <Upload />
+            Subir el archivo corregido
+          </Button>
+        </div>
+      </FormSection>
+    </FormDialog>
+  )
+}
+
 // ─── Sheet de importación CSV ─────────────────────────────────────────────────
 
 function ImportProductsSheet({
@@ -3393,6 +3756,8 @@ export default function InventarioPage() {
   // Importar / exportar CSV (catálogo de productos)
   const [importOpen, setImportOpen] = React.useState(false)
   const [exporting, setExporting] = React.useState(false)
+  // Actualización masiva de precios de compra
+  const [pricesOpen, setPricesOpen] = React.useState(false)
   // Importar / exportar CSV (existencias)
   const [stockImportOpen, setStockImportOpen] = React.useState(false)
   /** Se incrementa tras cada operación de stock: recarga la pestaña de lotes. */
@@ -3614,6 +3979,16 @@ export default function InventarioPage() {
                 >
                   <PackageMinus />
                   Ajuste
+                </Button>
+                {/* Con rótulo siempre visible: los insumos suben cada semana y
+                    esta es la acción que más se busca. En icono no se encuentra. */}
+                <Button
+                  variant="soft"
+                  aria-label="Actualizar los precios de compra del inventario"
+                  onClick={() => setPricesOpen(true)}
+                >
+                  <TrendingUp />
+                  Actualizar precios
                 </Button>
               </>
             )}
@@ -4401,6 +4776,17 @@ export default function InventarioPage() {
           fetchAllStock()
         }}
         onRegisterEntry={() => openOperation(setEntryOpen)}
+      />
+      <ActualizarPreciosDialog
+        open={pricesOpen}
+        onOpenChange={setPricesOpen}
+        products={products}
+        onSaved={refreshAfterOperation}
+        onExportar={() => void handleExport()}
+        onImportar={() => {
+          setPricesOpen(false)
+          setImportOpen(true)
+        }}
       />
       <ImportProductsSheet
         open={importOpen}
