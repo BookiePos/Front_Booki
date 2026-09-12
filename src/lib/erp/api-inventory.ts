@@ -591,6 +591,52 @@ export async function listLots(query: {
   return parseResponse<LotsPage>(res)
 }
 
+// ─── Reporte de merma ─────────────────────────────────────────────────────────
+
+/** Lo botado de un producto en el periodo, con el desglose por razón. */
+export interface WasteRow {
+  productId: string
+  sku: string
+  name: string
+  unit: string
+  qty: number
+  /** Al costo del lote que salió, no al de hoy. */
+  value: number
+  byReason: Record<string, { qty: number; value: number }>
+}
+
+export interface WasteReport {
+  from: string | null
+  to: string | null
+  totalQty: number
+  totalValue: number
+  byReason: Record<string, { qty: number; value: number }>
+  /** De mayor a menor plata perdida. */
+  rows: WasteRow[]
+  movements: number
+}
+
+/**
+ * Qué se botó, por qué y cuánto costó.
+ *
+ * Solo cuenta las BAJAS (daño, vencimiento, merma de proceso). Un ajuste por
+ * conteo no es merma: es una corrección de lo que el sistema creía, y mezclarlo
+ * escondería el problema de verdad detrás del ruido del inventario.
+ */
+export async function getWasteReport(query: {
+  sedeId?: string
+  from?: string
+  to?: string
+}): Promise<WasteReport> {
+  const params = new URLSearchParams()
+  if (query.sedeId) params.set("sedeId", query.sedeId)
+  if (query.from) params.set("from", query.from)
+  if (query.to) params.set("to", query.to)
+  const qs = params.toString()
+  const res = await authFetch(`/inventory/waste-report${qs ? `?${qs}` : ""}`)
+  return parseResponse<WasteReport>(res)
+}
+
 export async function getAlerts(sedeId?: string, days?: number): Promise<InvAlerts> {
   const params = new URLSearchParams()
   if (sedeId) params.set("sedeId", sedeId)
