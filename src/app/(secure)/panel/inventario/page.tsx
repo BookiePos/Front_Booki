@@ -33,6 +33,7 @@ import {
   Package,
   TrendingUp,
   TrendingDown,
+  ScanSearch,
 } from "lucide-react"
 
 import { useAuth } from "@/lib/auth-context"
@@ -78,6 +79,7 @@ import {
   type AdjustReason,
   type MovementType,
 } from "@/lib/erp/api-inventory"
+import { TrazabilidadDialog } from "@/components/erp/trazabilidad-dialog"
 import { listSuppliers, type Supplier } from "@/lib/erp/api-suppliers"
 import { serializeCsv, parseCsv, downloadCsv } from "@/lib/erp/csv"
 
@@ -3758,6 +3760,8 @@ export default function InventarioPage() {
   const [exporting, setExporting] = React.useState(false)
   // Actualización masiva de precios de compra
   const [pricesOpen, setPricesOpen] = React.useState(false)
+  // Rastrear a dónde se fue un lote (lo que pregunta el INVIMA)
+  const [traceOpen, setTraceOpen] = React.useState(false)
   // Importar / exportar CSV (existencias)
   const [stockImportOpen, setStockImportOpen] = React.useState(false)
   /** Se incrementa tras cada operación de stock: recarga la pestaña de lotes. */
@@ -3992,6 +3996,16 @@ export default function InventarioPage() {
                 </Button>
               </>
             )}
+            {/* Solo lee: cualquiera que vea el inventario puede rastrear, y
+                cuando hace falta suele ser urgente. */}
+            <Button
+              variant="outline"
+              aria-label="Rastrear a dónde se fue un lote"
+              onClick={() => setTraceOpen(true)}
+            >
+              <ScanSearch />
+              <ButtonLabel from="md">Rastrear lote</ButtonLabel>
+            </Button>
             {canTransfer && sedes.length > 1 && (
               <Button
                 variant="outline"
@@ -4788,6 +4802,7 @@ export default function InventarioPage() {
           setImportOpen(true)
         }}
       />
+      <TrazabilidadDialog open={traceOpen} onOpenChange={setTraceOpen} />
       <ImportProductsSheet
         open={importOpen}
         onOpenChange={setImportOpen}
