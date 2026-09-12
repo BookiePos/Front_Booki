@@ -78,6 +78,7 @@ import {
   type AdjustReason,
   type MovementType,
 } from "@/lib/erp/api-inventory"
+import { ReporteMermaDialog } from "@/components/erp/reporte-merma-dialog"
 import { listSuppliers, type Supplier } from "@/lib/erp/api-suppliers"
 import { serializeCsv, parseCsv, downloadCsv } from "@/lib/erp/csv"
 
@@ -3758,6 +3759,8 @@ export default function InventarioPage() {
   const [exporting, setExporting] = React.useState(false)
   // Actualización masiva de precios de compra
   const [pricesOpen, setPricesOpen] = React.useState(false)
+  // Reporte de merma: qué se botó, por qué y cuánto costó
+  const [wasteOpen, setWasteOpen] = React.useState(false)
   // Importar / exportar CSV (existencias)
   const [stockImportOpen, setStockImportOpen] = React.useState(false)
   /** Se incrementa tras cada operación de stock: recarga la pestaña de lotes. */
@@ -3992,6 +3995,16 @@ export default function InventarioPage() {
                 </Button>
               </>
             )}
+            {/* Solo lee. Se mira una vez al mes, así que se repliega a icono
+                antes que las acciones del día a día. */}
+            <Button
+              variant="outline"
+              aria-label="Ver el reporte de merma"
+              onClick={() => setWasteOpen(true)}
+            >
+              <Trash2 />
+              <ButtonLabel from="lg">Merma</ButtonLabel>
+            </Button>
             {canTransfer && sedes.length > 1 && (
               <Button
                 variant="outline"
@@ -4787,6 +4800,11 @@ export default function InventarioPage() {
           setPricesOpen(false)
           setImportOpen(true)
         }}
+      />
+      <ReporteMermaDialog
+        open={wasteOpen}
+        onOpenChange={setWasteOpen}
+        sedes={sedes}
       />
       <ImportProductsSheet
         open={importOpen}
