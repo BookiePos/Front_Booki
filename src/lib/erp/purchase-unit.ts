@@ -21,6 +21,10 @@ export const UNIT_FACTORS: Record<string, { base: string; factor: number }> = {
   g: { base: "g", factor: 1 },
   kg: { base: "g", factor: 1000 },
   lb: { base: "g", factor: 453.592 },
+  // La arroba castellana que se usa en Colombia: 12,5 kg exactos. Es medida,
+  // no empaque —a diferencia del bulto, que trae lo que traiga— así que sí
+  // puede ser la unidad en que se lleva un insumo. Ver `lib/erp/unidades.ts`.
+  arroba: { base: "g", factor: 12_500 },
   ml: { base: "ml", factor: 1 },
   l: { base: "ml", factor: 1000 },
   und: { base: "und", factor: 1 },
