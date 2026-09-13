@@ -27,6 +27,7 @@ import {
   apiRegister,
 } from "@/lib/api"
 import { OPERATION_PERMISSIONS } from "@/lib/access"
+import { pedirNovedadesAlEntrar } from "@/lib/novedades"
 
 const STORAGE_KEY = "sistemapos.auth"
 
@@ -165,6 +166,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const res = await apiLogin(email, password)
     // El refresh token queda en la cookie HttpOnly; solo persistimos el access.
     writeStored({ tokens: { accessToken: res.tokens.accessToken }, user: res.user })
+    // Cada inicio de sesión vuelve a mostrar las novedades al entrar.
+    pedirNovedadesAlEntrar()
     setUser(res.user)
     setStatus("authenticated")
   }, [])

@@ -6,8 +6,8 @@ import { Sparkles, X } from "lucide-react"
 import {
   NOVEDADES,
   debeMostrarse,
-  guardarVisto,
-  leerVisto,
+  leerVistaEnSesion,
+  marcarVistaEnSesion,
 } from "@/lib/novedades"
 import { Button } from "@/components/ui/button"
 
@@ -18,9 +18,8 @@ import { Button } from "@/components/ui/button"
  * un mostrador. Una función nueva que no se anuncia dentro de la aplicación,
  * sencillamente no existe.
  *
- * Cuándo sale está en `debeMostrarse`: con cada versión nueva, y después una vez
- * al día hasta que la persona la cierra con el botón. Cerrarla es decir "ya la
- * leí" y no vuelve a aparecer para esa versión.
+ * Cuándo sale está en `debeMostrarse`: cada vez que se inicia sesión (o se
+ * abre el navegador de nuevo), una sola vez por sesión.
  *
  * NO bloquea nada: se puede cerrar con Escape, con el botón, o tocando fuera. Si
  * alguien llega corriendo a cobrar, la tarjeta se quita de en medio sin pelear.
@@ -36,15 +35,11 @@ export function NovedadesCard() {
     async function decidir() {
       await Promise.resolve()
       if (!vivo) return
-      if (!debeMostrarse(leerVisto(), NOVEDADES.version, Date.now())) return
+      if (!debeMostrarse(leerVistaEnSesion(), NOVEDADES.version)) return
       setAbierta(true)
-      // Se marca como vista al mostrarla, no al cerrarla: si alguien recarga
-      // tres veces seguidas, no tiene por qué verla tres veces.
-      guardarVisto({
-        version: NOVEDADES.version,
-        vistaEn: Date.now(),
-        cerrada: false,
-      })
+      // Se marca al mostrarla, no al cerrarla: navegar entre pantallas no tiene
+      // por qué volver a sacarla.
+      marcarVistaEnSesion(NOVEDADES.version)
     }
     void decidir()
     return () => {
@@ -52,22 +47,13 @@ export function NovedadesCard() {
     }
   }, [])
 
-  const cerrar = React.useCallback((definitiva: boolean) => {
-    setAbierta(false)
-    if (definitiva) {
-      guardarVisto({
-        version: NOVEDADES.version,
-        vistaEn: Date.now(),
-        cerrada: true,
-      })
-    }
-  }, [])
+  const cerrar = React.useCallback(() => setAbierta(false), [])
 
   // Escape la quita, como cualquier capa del sistema.
   React.useEffect(() => {
     if (!abierta) return
     function alTeclear(e: KeyboardEvent) {
-      if (e.key === "Escape") cerrar(false)
+      if (e.key === "Escape") cerrar()
     }
     window.addEventListener("keydown", alTeclear)
     return () => window.removeEventListener("keydown", alTeclear)
@@ -87,7 +73,7 @@ export function NovedadesCard() {
       <button
         type="button"
         aria-label="Cerrar novedades"
-        onClick={() => cerrar(false)}
+        onClick={cerrar}
         className="absolute inset-0 cursor-default bg-brand-950/50 supports-backdrop-filter:backdrop-blur-md supports-backdrop-filter:backdrop-saturate-150"
       />
 
@@ -111,7 +97,7 @@ export function NovedadesCard() {
           <button
             type="button"
             aria-label="Cerrar"
-            onClick={() => cerrar(false)}
+            onClick={cerrar}
             className="-mr-2 -mt-2 rounded-lg p-2 text-brand-200 transition-colors hover:bg-white/10 hover:text-white"
           >
             <X className="size-4" aria-hidden />
@@ -120,12 +106,14 @@ export function NovedadesCard() {
 
         <p className="px-6 text-sm text-brand-100">{NOVEDADES.resumen}</p>
 
-        {/* La lista se desplaza sola: son diez y no caben en una pantalla de
-            celular sin dejar el botón fuera de alcance. */}
+        {/* La lista se desplaza sola: con varios puntos no cabe en una pantalla
+            de celular sin dejar el botón fuera de alcance. */}
         <ul className="mt-4 flex flex-col gap-2 overflow-y-auto px-6 pb-2">
           {NOVEDADES.puntos.map((p) => (
             <li
-              key={p.donde}
+              // Por el texto y no por `donde`: dos puntos pueden estar en la
+              // misma pantalla.
+              key={p.texto}
               className="rounded-xl bg-white/10 p-3 text-sm text-white"
             >
               <p className="font-medium text-brand-100">{p.donde}</p>
@@ -136,12 +124,12 @@ export function NovedadesCard() {
 
         <div className="flex items-center justify-between gap-3 border-t border-white/10 px-6 py-4">
           <span className="text-xs text-brand-200">
-            Se lo puedes mostrar a tu equipo.
+            Sale cada vez que inicias sesión.
           </span>
           <Button
             variant="soft"
             className="bg-white text-brand-900 hover:bg-brand-50"
-            onClick={() => cerrar(true)}
+            onClick={cerrar}
           >
             Entendido
           </Button>
