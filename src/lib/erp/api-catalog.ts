@@ -63,6 +63,12 @@ export interface CatalogProduct {
   inventoryProductId?: InvProductRef | null
   qtyPerUnit?: number
   recipe: RecipeLine[]
+  /**
+   * Empaque que se gasta al vender una unidad: la bolsa, el vaso, la cuchara.
+   * Aplica a los dos orígenes —la galleta comprada hecha también sale en
+   * bolsa— y por eso va aparte de la receta. Puede faltar en productos viejos.
+   */
+  packaging?: RecipeLine[]
   /** Foto del producto (Vercel Blob). Ausente si nunca se subió una. */
   imageUrl?: string | null
   active: boolean
@@ -86,6 +92,8 @@ export interface CatalogProductPayload {
   inventoryProductId?: string
   qtyPerUnit?: number
   recipe?: RecipeLinePayload[]
+  /** Una lista vacía quita el empaque; no mandarla lo deja como estaba. */
+  packaging?: RecipeLinePayload[]
   active?: boolean
 }
 
