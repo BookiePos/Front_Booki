@@ -20,6 +20,61 @@ es decidir "esto ya es lo que va a usar el negocio".
 
 ---
 
+## 1.2.0 — 12 de septiembre de 2026
+
+Lo que salió de usar la 1.1.0 detrás del mostrador. Sin variables de entorno
+nuevas, sin migraciones y sin permisos nuevos.
+
+> **Se despliega DESPUÉS del backend 1.2.0, no antes.** El cobro manda dos
+> campos nuevos (`seller` y `packaging`) y la ficha del producto manda
+> `packaging`. El backend viejo valida con `forbidNonWhitelisted`, así que los
+> rechazaría: con el frontend nuevo y el backend viejo **no se podría cobrar**.
+
+### Punto de venta — al cobrar
+
+- **Devuelta exacta.** "¿Con cuánto paga?" va justo debajo del medio de pago,
+  en pesos con puntos de miles, y la devuelta sale en grande; si no alcanza,
+  dice cuánto falta. Enter confirma el cobro. Antes era una casilla numérica
+  del navegador, donde "75.400" se podía leer como 75,4 pesos, y el botón
+  "Exacto" no contaba la propina ni el domicilio. La pantalla de "venta
+  registrada" repite la devuelta en grande, y el recibo dice "Devuelta".
+- **Cliente.** Consumidor final o cliente registrado, con "Agregar cliente"
+  sin salir del cobro. Consumidor final viaja como la DIAN lo nombra
+  (`222222222222`), así que puede llevar factura electrónica. Elegir un cliente
+  registrado ahora copia su nombre y documento a la venta: antes la venta
+  quedaba sin nombre.
+- **Vendedor.** Quien cobra, o cualquier empleado de la lista. Queda en el
+  recibo y en Ventas. No se reinicia entre ventas: suele ser la misma persona
+  todo el turno.
+- **Empaque extra.** La bolsa de más de este cobro. Sale del inventario y suma
+  al costo; no se le cobra al cliente.
+- **Cada venta empieza limpia.** Cliente, lista de precios, factura electrónica
+  y empaque extra ya no se heredan de la venta anterior.
+
+### Punto de venta — buscador
+
+Barra de arriba, o Ctrl K. Busca a la vez en pantallas, productos para vender,
+existencias, cuentas abiertas, ventas (por número, cliente, vendedor o producto)
+y clientes. Tocar un resultado lleva a esa pantalla ya filtrada (`lib/pos/busqueda.ts`).
+
+Busca por palabras y sin tildes. Los filtros de Venta, Ventas e Inventario
+también: con la frase entera, "galleta chocolate" no encontraba "Galleta de
+chocolate", que es por lo que el buscador parecía no servir.
+
+### Productos
+
+- **Empaque.** Sección nueva en la ficha del producto: qué bolsa, caja o vaso
+  gasta cada unidad vendida. Sirve para los productos del inventario y los de
+  receta. El listado lo muestra debajo de lo que descuenta cada producto.
+
+### Novedades
+
+La tarjeta sale **cada vez que se inicia sesión** (y al abrir el navegador de
+nuevo), una sola vez por sesión. Antes, cerrada con "Entendido", no volvía a
+salir para esa versión. La marca pasó de `localStorage` a `sessionStorage`.
+
+---
+
 ## 1.1.1 — 12 de septiembre de 2026
 
 **Tarjeta de novedades.** Al entrar al panel o al terminal aparece una tarjeta

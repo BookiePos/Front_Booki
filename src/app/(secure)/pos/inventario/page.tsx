@@ -29,6 +29,7 @@ import {
   type AdjustReason,
 } from "@/lib/pos/api-inventory"
 
+import { coincide, useBusquedaPendiente } from "@/lib/pos/busqueda"
 import { cn } from "@/lib/utils"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -204,19 +205,22 @@ export default function InventarioPage() {
   }, [alerts])
 
   const filtered = React.useMemo(() => {
-    const q = search.trim().toLowerCase()
     return rows.filter((r) => {
       if (filtro === "bajo" && !(r.minStock > 0 && r.qty <= r.minStock)) {
         return false
       }
       if (filtro === "vence" && !idsEnRiesgo.has(r.product._id)) return false
-      if (!q) return true
-      return (
-        r.product.name.toLowerCase().includes(q) ||
-        r.product.sku.toLowerCase().includes(q)
-      )
+      // Por palabras y sin tildes: "bolsa kraft" encuentra "Bolsa de papel kraft".
+      return coincide(search, r.product.name, r.product.sku, r.product.barcode)
     })
   }, [rows, search, filtro, idsEnRiesgo])
+
+  // Lo que se buscó en la barra de arriba llega aquí ya escrito, sobre toda la
+  // bodega: un filtro de "stock bajo" olvidado escondería justo lo buscado.
+  useBusquedaPendiente("/pos/inventario", (pedido) => {
+    setFiltro("todo")
+    setSearch(pedido.termino)
+  })
 
   function openAdjust(productId?: string) {
     setPresetProductId(productId ?? null)

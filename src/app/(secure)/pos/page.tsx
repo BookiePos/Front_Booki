@@ -32,6 +32,8 @@ import {
   CalendarClock,
   ImageOff,
   Layers,
+  UserPlus,
+  Package,
 } from "lucide-react"
 
 import { useAuth } from "@/lib/auth-context"
@@ -78,6 +80,11 @@ import {
 import { createInvoiceFromSale } from "@/lib/pos/api-einvoicing"
 import { money, qty as fmtQty } from "@/lib/pos/format"
 import { Receipt } from "@/components/pos/receipt"
+import { coincide, useBusquedaPendiente } from "@/lib/pos/busqueda"
+import {
+  listProducts as listInvItems,
+  type InvProduct,
+} from "@/lib/pos/api-inventory"
 
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -220,8 +227,21 @@ function cashSuggestions(total: number): number[] {
   return [...set].sort((a, b) => a - b).slice(0, 4)
 }
 
+/**
+ * "Consumidor final" es como la DIAN llama a quien compra sin dar sus datos, y
+ * 222222222222 el documento que se usa para él. Con esto una venta de mostrador
+ * puede salir con factura electrónica sin inventarse una cédula.
+ */
+const CONSUMIDOR_FINAL: Customer = {
+  name: "Consumidor final",
+  idNumber: "222222222222",
+}
+
+/** Valor del selector de vendedor cuando vende el mismo que cobra. */
+const QUIEN_COBRA = "__quien_cobra__"
+
 export default function VentaPage() {
-  const { hasPermission, isRetail, isRestaurant } = useAuth()
+  const { user, hasPermission, isRetail, isRestaurant } = useAuth()
   const canSell = hasPermission("pos.sell")
   // Elegir lista de precios a mano es decidir cobrar menos: mismo permiso que
   // aplicar un descuento. El backend lo vuelve a comprobar.
@@ -305,7 +325,13 @@ export default function VentaPage() {
   // Cobro
   const [checkoutOpen, setCheckoutOpen] = React.useState(false)
   const [method, setMethod] = React.useState<PaymentMethod>("cash")
-  const [received, setReceived] = React.useState("")
+  /**
+   * Con cuánto paga el cliente, en pesos. Número y no texto: en una casilla
+   * numérica del navegador, "75.400" escrito con el punto de miles se puede
+   * leer como 75,4 pesos, y entonces el sistema decía que no alcanzaba en vez
+   * de dar la devuelta.
+   */
+  const [received, setReceived] = React.useState<number | null>(null)
   /** Vencimiento del fiado (YYYY-MM-DD). Vacío = vence hoy. */
   const [creditDue, setCreditDue] = React.useState("")
   const [saving, setSaving] = React.useState(false)
@@ -317,6 +343,25 @@ export default function VentaPage() {
   // Datos del cliente (factura)
   const [showCustomer, setShowCustomer] = React.useState(false)
   const [customer, setCustomer] = React.useState<Customer>({})
+  /**
+   * A quién se le vende: al consumidor final (el cliente de paso, el caso de
+   * casi siempre) o a un cliente registrado. Consumidor final es el punto de
+   * partida de cada venta.
+   */
+  const [clienteModo, setClienteModo] = React.useState<"final" | "registrado">(
+    "final",
+  )
+  /**
+   * Quién vendió. No se reinicia entre ventas a propósito: durante el turno
+   * suele ser la misma persona, y elegirla en cada cobro cansa.
+   */
+  const [sellerKey, setSellerKey] = React.useState(QUIEN_COBRA)
+  // Empaque extra de este cobro: la bolsa grande, la caja de más.
+  const [empaqueAbierto, setEmpaqueAbierto] = React.useState(false)
+  const [invItems, setInvItems] = React.useState<InvProduct[]>([])
+  const [extraPack, setExtraPack] = React.useState<
+    { productId: string; qty: string }[]
+  >([])
   /**
    * Factura electrónica DIAN. Es un interruptor explícito en el cobro, no un
    * trámite aparte: si el cliente la pide, se marca aquí y sale con la venta.
@@ -351,14 +396,57 @@ export default function VentaPage() {
   // Carga clientes/empleados/listas al abrir el cobro. Los clientes ya no se
   // piden solo en el fiado: la tienda que compra por cajas paga de contado, y
   // sin elegirla su lista no se aplicaría.
+  // Los empleados se piden siempre y no solo en el fiado: son también la lista
+  // de vendedores.
   React.useEffect(() => {
     if (!checkoutOpen) return
     void listCustomers().then(setRegCustomers).catch(() => setRegCustomers([]))
     void listPriceLists().then(setPriceLists).catch(() => setPriceLists([]))
-    if (method === "credit") {
-      void lookupEmployees().then(setEmpList).catch(() => setEmpList([]))
+    void lookupEmployees().then(setEmpList).catch(() => setEmpList([]))
+  }, [checkoutOpen])
+
+  // Los ítems de inventario solo hacen falta si se abre "Empaque extra", que es
+  // la excepción: no se piden en cada cobro.
+  React.useEffect(() => {
+    if (!empaqueAbierto || invItems.length > 0) return
+    let vivo = true
+    async function cargar() {
+      await Promise.resolve()
+      try {
+        const items = await listInvItems()
+        if (!vivo) return
+        setInvItems(
+          items
+            .filter((i) => i.active)
+            .sort((a, b) => a.name.localeCompare(b.name)),
+        )
+      } catch {
+        // Sin la lista no se puede anotar empaque extra; la venta sigue igual.
+      }
     }
-  }, [checkoutOpen, method])
+    void cargar()
+    return () => {
+      vivo = false
+    }
+  }, [empaqueAbierto, invItems.length])
+
+  /**
+   * Elige (o suelta, con "") el cliente registrado. Sus datos pasan a la venta
+   * para que el recibo y la factura digan a quién se le vendió: antes se
+   * escogía de la lista y la venta quedaba sin nombre.
+   */
+  function elegirCliente(id: string, lista: RegCustomer[] = regCustomers) {
+    setCustId(id)
+    if (!id) {
+      setCustomer({})
+      return
+    }
+    // Al elegir cliente manda su lista de precios: la de a mano dejaría de
+    // tener sentido y confundiría.
+    setManualListId("")
+    const c = lista.find((x) => x._id === id)
+    if (c) setCustomer({ name: c.name, idNumber: c.docNumber, phone: c.phone })
+  }
 
   async function quickAddCustomer() {
     if (!ncName.trim() || !ncDoc.trim()) return
@@ -371,7 +459,7 @@ export default function VentaPage() {
         phone: ncPhone.trim() || undefined,
       })
       setRegCustomers((prev) => [created, ...prev])
-      setCustId(created._id)
+      elegirCliente(created._id, [created])
       setNcOpen(false)
       setNcName("")
       setNcDoc("")
@@ -883,17 +971,20 @@ export default function VentaPage() {
   const suggestedTip = Math.round(total * 0.1)
 
   const filtered = React.useMemo(() => {
-    const q = search.trim().toLowerCase()
     return products.filter((p) => {
       const inCat =
         category === ALL ||
         (category === UNCAT ? !p.categoryId : p.categoryId === category)
       if (!inCat) return false
-      if (!q) return true
-      return (
-        p.name.toLowerCase().includes(q) ||
-        p.sku.toLowerCase().includes(q) ||
-        (p.barcode ?? "").toLowerCase().includes(q)
+      // Por palabras y sin tildes: "galleta chocolate" tiene que encontrar
+      // "Galleta de chocolate". Con la frase entera no aparecía nada.
+      return coincide(
+        search,
+        p.name,
+        p.sku,
+        p.barcode,
+        p.categoryName,
+        p.variantGroupName,
       )
     })
   }, [products, search, category])
@@ -930,10 +1021,19 @@ export default function VentaPage() {
 
   function openCheckout() {
     setMethod("cash")
-    setReceived("")
+    setReceived(null)
     setCreditDue("")
     setShowCustomer(false)
-    setCustomer({})
+    // El cliente elegido se conserva —ya decide los precios del carrito— y
+    // sus datos se vuelven a copiar, para que no quede elegido y sin nombre.
+    const elegido = regCustomers.find((c) => c._id === custId)
+    setCustomer(
+      elegido
+        ? { name: elegido.name, idNumber: elegido.docNumber, phone: elegido.phone }
+        : {},
+    )
+    setClienteModo(custId ? "registrado" : "final")
+    setNcOpen(false)
     setCheckoutError(null)
     setCompletedSale(null)
     // Cada cobro arranca limpio: si la venta anterior se facturó, esta no
@@ -1048,7 +1148,8 @@ export default function VentaPage() {
   // (restaurante) y el domicilio se cobran ENCIMA del total y sin IVA.
   const netTotal = chargeTotal + tipAmount + deliveryFee
 
-  const receivedNum = received ? Number(received) : undefined
+  const receivedNum = received ?? undefined
+  /** La devuelta: lo que se le entrega al cliente. Exacta, en pesos. */
   const change =
     method === "cash" && receivedNum !== undefined && receivedNum >= netTotal
       ? receivedNum - netTotal
@@ -1058,14 +1159,6 @@ export default function VentaPage() {
     [netTotal],
   )
 
-  /**
-   * `true` si se pidió factura electrónica pero faltan los datos mínimos que
-   * la DIAN exige del adquiriente (nombre e identificación).
-   */
-  const invoiceDataMissing =
-    emitInvoice &&
-    (!customer.name?.trim() || !customer.idNumber?.trim())
-
   /** Limpia el cliente: descarta campos vacíos. */
   function cleanCustomer(): Customer | undefined {
     const entries = (["name", "idNumber", "phone", "email"] as const)
@@ -1073,6 +1166,50 @@ export default function VentaPage() {
       .filter(([, v]) => v)
     return entries.length > 0 ? Object.fromEntries(entries) : undefined
   }
+
+  /**
+   * El cliente que viaja con la venta. Si no se escribió nada y es consumidor
+   * final, la venta queda a nombre de "Consumidor final": así lo dice el
+   * recibo y así puede salir la factura electrónica.
+   */
+  const customerToSend =
+    cleanCustomer() ??
+    (method !== "credit" && clienteModo === "final"
+      ? CONSUMIDOR_FINAL
+      : undefined)
+
+  /**
+   * `true` si se pidió factura electrónica pero faltan los datos mínimos que
+   * la DIAN exige del adquiriente (nombre e identificación).
+   */
+  const invoiceDataMissing =
+    emitInvoice && (!customerToSend?.name || !customerToSend?.idNumber)
+
+  const vendedor = empList.find((e) => e._id === sellerKey)
+  const sellerPayload = vendedor
+    ? {
+        employeeId: vendedor._id,
+        name: `${vendedor.firstName} ${vendedor.lastName}`.trim(),
+      }
+    : undefined
+
+  const packagingRows = extraPack
+    .filter((r) => r.productId && Number(r.qty) > 0)
+    .map((r) => ({ productId: r.productId, qty: Number(r.qty) }))
+  const packagingPayload = packagingRows.length > 0 ? packagingRows : undefined
+
+  /** Por qué no se puede confirmar todavía (o `false` si se puede). */
+  const confirmBlocked =
+    saving ||
+    cart.length === 0 ||
+    invoiceDataMissing ||
+    (method === "cash" && receivedNum !== undefined && receivedNum < netTotal) ||
+    (method === "credit" &&
+      ((debtorType === "customer" && !custId) ||
+        (debtorType === "employee" && !empId))) ||
+    // Un domicilio sin dirección se cobraría igual y nadie sabría a dónde
+    // llevarlo. El servidor también lo rechaza; aquí se evita el viaje.
+    (orderType === "domicilio" && !address.trim())
 
   async function handleConfirm() {
     if (!sedeId) return
@@ -1088,7 +1225,7 @@ export default function VentaPage() {
       employeeId:
         method === "credit" && debtorType === "employee" ? empId : undefined,
     }
-    const customerData = cleanCustomer()
+    const customerData = customerToSend
     /** Si tras este cobro la cuenta sigue con algo pendiente. */
     let quedaAbierta = false
     try {
@@ -1106,6 +1243,8 @@ export default function VentaPage() {
           tip: tipAmount || undefined,
           // Sin líneas se cobra todo lo que falte, que es el cobro de siempre.
           lines: splitLines,
+          seller: sellerPayload,
+          packaging: packagingPayload,
         })
         // Con un cobro parcial la cuenta puede seguir abierta con el resto, así
         // que hay que volver a preguntarle al servidor en vez de darla por
@@ -1139,6 +1278,8 @@ export default function VentaPage() {
           })),
           payment,
           customer: customerData,
+          seller: sellerPayload,
+          packaging: packagingPayload,
           tip: tipAmount || undefined,
           // El cliente registrado viaja aparte del deudor del fiado: su lista
           // de precios tiene que aplicarse pague como pague.
@@ -1181,6 +1322,19 @@ export default function VentaPage() {
       setDeliveryPhone("")
       setDeliveryNotes("")
       setCourier("")
+      // El pago, el cliente, la factura y el empaque extra también son de ESTE
+      // cobro: antes el siguiente cliente heredaba el nombre y la lista de
+      // precios del anterior. El vendedor no se toca (ver `sellerKey`).
+      setReceived(null)
+      setClienteModo("final")
+      setCustId("")
+      setManualListId("")
+      setCustomer({})
+      setShowCustomer(false)
+      setEmitInvoice(false)
+      setSaveCustomer(false)
+      setExtraPack([])
+      setEmpaqueAbierto(false)
       void fetchProducts()
 
       // La venta ya está registrada. Lo que sigue (factura DIAN y alta del
@@ -1221,6 +1375,33 @@ export default function VentaPage() {
       setSaving(false)
     }
   }
+
+  // Lo que pidió el buscador de arriba: filtrar la rejilla, abrir una cuenta o
+  // ir a la lista de cuentas abiertas.
+  useBusquedaPendiente("/pos", (pedido) => {
+    if (pedido.verCuentas) {
+      void backToList()
+      return
+    }
+    if (pedido.cuentaId) {
+      const id = pedido.cuentaId
+      void (async () => {
+        // Recién llegado a la pantalla, las cuentas pueden no haber cargado.
+        const cuenta =
+          orders.find((o) => o._id === id) ??
+          (sedeId
+            ? (await listOrders(sedeId, "open").catch(() => [])).find(
+                (o) => o._id === id,
+              )
+            : undefined)
+        if (cuenta) void selectOrder(cuenta)
+      })()
+      return
+    }
+    setCategory(ALL)
+    setScreen("sell")
+    setSearch(pedido.termino)
+  })
 
   // ── Sin permiso ──
   if (!canSell) {
@@ -2015,6 +2196,25 @@ export default function VentaPage() {
                 </p>
               </div>
 
+              {/* La devuelta, grande: es lo que el cajero tiene que contar y
+                  entregar ya, con el cliente esperando. */}
+              {completedSale.payment.method === "cash" &&
+                completedSale.payment.change !== undefined && (
+                  <div className="flex items-center justify-between rounded-xl bg-success/10 px-4 py-3 text-success-ink">
+                    <span className="text-sm font-medium">
+                      Devuelta
+                      {completedSale.payment.received !== undefined && (
+                        <span className="block text-xs font-normal opacity-80">
+                          Pagó con {money(completedSale.payment.received)}
+                        </span>
+                      )}
+                    </span>
+                    <span className="stat-figure text-3xl">
+                      {money(completedSale.payment.change)}
+                    </span>
+                  </div>
+                )}
+
               {/* Estado de la factura electrónica. Se muestra aparte del éxito
                   de la venta a propósito: la venta está hecha aunque la DIAN
                   falle, y mezclarlo haría dudar al cajero de si cobró o no. */}
@@ -2159,30 +2359,188 @@ export default function VentaPage() {
                   </div>
                 </div>
 
+                {/* ¿Con cuánto paga? Justo debajo del medio de pago y con la
+                    devuelta en grande: es la cuenta que el cajero hace con el
+                    cliente esperando, y antes quedaba al fondo del formulario. */}
+                {method === "cash" && (
+                  <div className="flex flex-col gap-2 rounded-xl border border-border p-3">
+                    <Label htmlFor="pos-received">¿Con cuánto paga?</Label>
+                    <MoneyInput
+                      id="pos-received"
+                      value={received}
+                      onValueChange={setReceived}
+                      placeholder={new Intl.NumberFormat("es-CO").format(netTotal)}
+                      className="h-12 text-lg"
+                      autoFocus
+                      onKeyDown={(e) => {
+                        // Escribir el billete y Enter: cobro sin tocar el mouse.
+                        if (e.key === "Enter" && !confirmBlocked) {
+                          e.preventDefault()
+                          void handleConfirm()
+                        }
+                      }}
+                    />
+                    <div className="flex flex-wrap gap-1.5">
+                      <Button
+                        type="button"
+                        variant={receivedNum === netTotal ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setReceived(netTotal)}
+                      >
+                        Exacto
+                      </Button>
+                      {suggestions.map((s) => (
+                        <Button
+                          key={s}
+                          type="button"
+                          variant={receivedNum === s ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => setReceived(s)}
+                        >
+                          {money(s)}
+                        </Button>
+                      ))}
+                    </div>
+                    <div
+                      role="status"
+                      className={cn(
+                        "flex items-center justify-between gap-3 rounded-lg px-4 py-3",
+                        change !== undefined
+                          ? "bg-success/10 text-success-ink"
+                          : receivedNum !== undefined && receivedNum < netTotal
+                            ? "bg-destructive/10 text-destructive"
+                            : "bg-muted text-muted-foreground",
+                      )}
+                    >
+                      {change !== undefined ? (
+                        <>
+                          <span className="text-sm font-medium">Devuelta</span>
+                          <span className="stat-figure text-3xl">
+                            {money(change)}
+                          </span>
+                        </>
+                      ) : receivedNum !== undefined && receivedNum < netTotal ? (
+                        <>
+                          <span className="text-sm font-medium">Faltan</span>
+                          <span className="stat-figure text-2xl">
+                            {money(netTotal - receivedNum)}
+                          </span>
+                        </>
+                      ) : (
+                        <span className="text-sm">
+                          Escribe con cuánto paga y aquí sale la devuelta.
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 {/* A quién se le vende. Para el fiado esto ya se elige abajo,
                     con su propio bloque, así que aquí solo aparece en las
                     demás formas de pago — que es como paga casi siempre la
                     tienda que compra por cajas. */}
                 {method !== "credit" && (
                   <div className="flex flex-col gap-1.5">
-                    <Label>Cliente registrado (opcional)</Label>
-                    <select
-                      className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm"
-                      value={custId}
-                      onChange={(e) => {
-                        setCustId(e.target.value)
-                        // Al elegir cliente manda su lista: la de a mano
-                        // dejaría de tener sentido y confundiría.
-                        if (e.target.value) setManualListId("")
-                      }}
-                    >
-                      <option value="">Mostrador (sin cliente)</option>
-                      {regCustomers.map((c) => (
-                        <option key={c._id} value={c._id}>
-                          {c.name} · {c.docType} {c.docNumber}
-                        </option>
+                    <div className="flex items-center justify-between gap-2">
+                      <Label>Cliente</Label>
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                        onClick={() => {
+                          setClienteModo("registrado")
+                          setNcOpen((v) => !v)
+                        }}
+                      >
+                        {ncOpen ? (
+                          "Cancelar"
+                        ) : (
+                          <>
+                            <UserPlus className="size-3.5" />
+                            Agregar cliente
+                          </>
+                        )}
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1 rounded-lg border border-border bg-muted p-1">
+                      {(
+                        [
+                          ["final", "Consumidor final"],
+                          ["registrado", "Cliente registrado"],
+                        ] as const
+                      ).map(([key, lbl]) => (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => {
+                            setClienteModo(key)
+                            if (key === "final") {
+                              setNcOpen(false)
+                              elegirCliente("")
+                            }
+                          }}
+                          className={cn(
+                            "rounded-md px-2 py-1.5 text-xs font-medium transition-colors",
+                            clienteModo === key
+                              ? "bg-background text-foreground shadow-xs"
+                              : "text-muted-foreground hover:text-foreground",
+                          )}
+                        >
+                          {lbl}
+                        </button>
                       ))}
-                    </select>
+                    </div>
+
+                    {ncOpen ? (
+                      <div className="flex flex-col gap-1.5 rounded-lg border border-border bg-muted/40 p-2">
+                        <Input
+                          placeholder="Nombre"
+                          aria-label="Nombre del cliente nuevo"
+                          value={ncName}
+                          onChange={(e) => setNcName(e.target.value)}
+                        />
+                        <div className="grid grid-cols-2 gap-1.5">
+                          <Input
+                            placeholder="Cédula / NIT"
+                            aria-label="Documento del cliente nuevo"
+                            value={ncDoc}
+                            onChange={(e) => setNcDoc(e.target.value)}
+                          />
+                          <Input
+                            placeholder="Teléfono"
+                            aria-label="Teléfono del cliente nuevo"
+                            inputMode="tel"
+                            value={ncPhone}
+                            onChange={(e) => setNcPhone(e.target.value)}
+                          />
+                        </div>
+                        <Button
+                          size="sm"
+                          disabled={ncBusy || !ncName.trim() || !ncDoc.trim()}
+                          onClick={() => void quickAddCustomer()}
+                        >
+                          {ncBusy ? "Guardando…" : "Guardar y usar en esta venta"}
+                        </Button>
+                      </div>
+                    ) : clienteModo === "registrado" ? (
+                      <select
+                        className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm"
+                        aria-label="Cliente registrado"
+                        value={custId}
+                        onChange={(e) => elegirCliente(e.target.value)}
+                      >
+                        <option value="">Selecciona un cliente…</option>
+                        {regCustomers.map((c) => (
+                          <option key={c._id} value={c._id}>
+                            {c.name} · {c.docType} {c.docNumber}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <p className="text-[11px] text-muted-foreground">
+                        Venta sin datos del cliente. El recibo y la factura
+                        salen a nombre de consumidor final.
+                      </p>
+                    )}
 
                     {/* Sin cliente registrado, el cajero puede elegir la lista
                         a mano. Es decidir cobrar menos, así que va con el
@@ -2211,6 +2569,33 @@ export default function VentaPage() {
                     )}
                   </div>
                 )}
+
+                {/* Quién vendió. Por omisión, quien cobra; si atendió otra
+                    persona se escoge aquí y la venta queda a su nombre. */}
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="pos-seller">Vendedor</Label>
+                  <select
+                    id="pos-seller"
+                    className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm"
+                    value={vendedor ? sellerKey : QUIEN_COBRA}
+                    onChange={(e) => setSellerKey(e.target.value)}
+                  >
+                    <option value={QUIEN_COBRA}>
+                      {user?.name ? `${user.name} (quien cobra)` : "Quien cobra"}
+                    </option>
+                    {empList.map((e) => (
+                      <option key={e._id} value={e._id}>
+                        {e.firstName} {e.lastName}
+                      </option>
+                    ))}
+                  </select>
+                  {empList.length === 0 && (
+                    <p className="text-[11px] text-muted-foreground">
+                      Para escoger a otra persona, regístrala primero como
+                      empleado.
+                    </p>
+                  )}
+                </div>
 
                 {/* Dividir la cuenta de una mesa. Solo aparece con una cuenta
                     abierta: una venta directa se cobra completa siempre. */}
@@ -2495,7 +2880,7 @@ export default function VentaPage() {
                           <select
                             className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm"
                             value={custId}
-                            onChange={(e) => setCustId(e.target.value)}
+                            onChange={(e) => elegirCliente(e.target.value)}
                           >
                             <option value="">Selecciona un cliente…</option>
                             {regCustomers.map((c) => (
@@ -2553,67 +2938,6 @@ export default function VentaPage() {
                         onChange={(e) => setCreditDue(e.target.value)}
                         className="bg-background"
                       />
-                    </div>
-                  </div>
-                )}
-
-                {method === "cash" && (
-                  <div className="flex flex-col gap-2">
-                    <Label htmlFor="pos-received">Recibido</Label>
-                    <div className="flex flex-wrap gap-1.5">
-                      <Button
-                        type="button"
-                        variant={
-                          receivedNum === total ? "default" : "outline"
-                        }
-                        size="sm"
-                        onClick={() => setReceived(String(total))}
-                      >
-                        Exacto
-                      </Button>
-                      {suggestions.map((s) => (
-                        <Button
-                          key={s}
-                          type="button"
-                          variant={receivedNum === s ? "default" : "outline"}
-                          size="sm"
-                          onClick={() => setReceived(String(s))}
-                        >
-                          {money(s)}
-                        </Button>
-                      ))}
-                    </div>
-                    <Input
-                      id="pos-received"
-                      type="number"
-                      min="0"
-                      step="any"
-                      value={received}
-                      onChange={(e) => setReceived(e.target.value)}
-                      placeholder={String(netTotal)}
-                    />
-                    <div
-                      className={cn(
-                        "flex items-center justify-between rounded-lg px-3 py-2 text-sm",
-                        change !== undefined
-                          ? "bg-success/10 text-success-ink"
-                          : receivedNum !== undefined && receivedNum < netTotal
-                            ? "bg-destructive/10 text-destructive"
-                            : "text-muted-foreground",
-                      )}
-                    >
-                      {change !== undefined ? (
-                        <>
-                          <span>Cambio</span>
-                          <span className="stat-figure text-base">
-                            {money(change)}
-                          </span>
-                        </>
-                      ) : receivedNum !== undefined && receivedNum < netTotal ? (
-                        <span>El monto recibido no alcanza</span>
-                      ) : (
-                        <span>Ingresa cuánto entrega el cliente (opcional)</span>
-                      )}
                     </div>
                   </div>
                 )}
@@ -2742,6 +3066,112 @@ export default function VentaPage() {
                   </p>
                 )}
 
+                {/* Empaque extra: la bolsa grande porque se llevó todo junto,
+                    la caja de más. Lo que cada producto ya gasta por su ficha
+                    se descuenta solo y no hace falta anotarlo aquí. */}
+                <div className="flex flex-col gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setEmpaqueAbierto((v) => !v)}
+                    className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground"
+                  >
+                    <Package className="size-4" />
+                    Empaque extra
+                    {packagingRows.length > 0 && (
+                      <span className="text-xs font-normal text-primary">
+                        ({packagingRows.length})
+                      </span>
+                    )}
+                    <ChevronDown
+                      className={cn(
+                        "size-4 transition-transform",
+                        empaqueAbierto && "rotate-180",
+                      )}
+                    />
+                  </button>
+                  {empaqueAbierto && (
+                    <div className="flex flex-col gap-2 rounded-lg border border-border bg-muted/40 p-3">
+                      <p className="text-[11px] text-muted-foreground">
+                        Sale del inventario y suma al costo de la venta; al
+                        cliente no se le cobra.
+                      </p>
+                      {extraPack.map((row, i) => (
+                        <div key={i} className="flex items-center gap-2">
+                          <select
+                            className="h-9 min-w-0 flex-1 rounded-lg border border-input bg-background px-2.5 text-sm"
+                            aria-label={`Empaque extra ${i + 1}`}
+                            value={row.productId}
+                            onChange={(e) =>
+                              setExtraPack((rows) =>
+                                rows.map((r, idx) =>
+                                  idx === i
+                                    ? { ...r, productId: e.target.value }
+                                    : r,
+                                ),
+                              )
+                            }
+                          >
+                            <option value="">
+                              {invItems.length === 0
+                                ? "Cargando…"
+                                : "Bolsa, caja, vaso…"}
+                            </option>
+                            {invItems.map((p) => (
+                              <option key={p._id} value={p._id}>
+                                {p.name}
+                              </option>
+                            ))}
+                          </select>
+                          <Input
+                            type="number"
+                            min="1"
+                            step="1"
+                            inputMode="numeric"
+                            className="h-9 w-20 text-right tnum"
+                            aria-label={`Cantidad del empaque extra ${i + 1}`}
+                            value={row.qty}
+                            onChange={(e) =>
+                              setExtraPack((rows) =>
+                                rows.map((r, idx) =>
+                                  idx === i ? { ...r, qty: e.target.value } : r,
+                                ),
+                              )
+                            }
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            aria-label={`Quitar el empaque extra ${i + 1}`}
+                            onClick={() =>
+                              setExtraPack((rows) =>
+                                rows.filter((_, idx) => idx !== i),
+                              )
+                            }
+                          >
+                            <X className="size-4" />
+                          </Button>
+                        </div>
+                      ))}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="self-start"
+                        onClick={() =>
+                          setExtraPack((rows) => [
+                            ...rows,
+                            { productId: "", qty: "1" },
+                          ])
+                        }
+                      >
+                        <Plus className="size-4" />
+                        Agregar empaque
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
                 {checkoutError && (
                   <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
                     {checkoutError}
@@ -2758,21 +3188,7 @@ export default function VentaPage() {
                   </Button>
                   <Button
                     className="h-12 px-6 text-base font-semibold"
-                    disabled={
-                      saving ||
-                      cart.length === 0 ||
-                      invoiceDataMissing ||
-                      (method === "cash" &&
-                        receivedNum !== undefined &&
-                        receivedNum < netTotal) ||
-                      (method === "credit" &&
-                        ((debtorType === "customer" && !custId) ||
-                          (debtorType === "employee" && !empId))) ||
-                      // Un domicilio sin dirección se cobraría igual y nadie
-                      // sabría a dónde llevarlo. El servidor también lo
-                      // rechaza; aquí se evita el viaje.
-                      (orderType === "domicilio" && !address.trim())
-                    }
+                    disabled={confirmBlocked}
                     onClick={() => void handleConfirm()}
                   >
                     {saving
