@@ -1256,7 +1256,16 @@ export default function VentaPage() {
    * Enter solo cobra desde el campo del efectivo o con el foco fuera de todo
    * control: si cobrara desde cualquier campo, teclear el nombre de un cliente
    * nuevo y pulsar Enter registraría la venta a media faena.
+   *
+   * El cobro se llama a través de una referencia y no directamente: como
+   * `handleConfirm` se vuelve a crear en cada render, ponerla en las
+   * dependencias volvería a colgar y descolgar el escucha del teclado con cada
+   * tecla que se escribe en el formulario. La referencia siempre apunta a la
+   * última versión, y el efecto depende solo de las banderas que de verdad
+   * deciden si el atajo está activo.
    */
+  const confirmarRef = React.useRef<() => Promise<void>>(undefined)
+
   React.useEffect(() => {
     if (!checkoutOpen || completedSale) return
     function alPulsar(e: KeyboardEvent) {
@@ -1276,11 +1285,11 @@ export default function VentaPage() {
         el?.isContentEditable === true
       if (enControl && el?.id !== "pos-received") return
       e.preventDefault()
-      void handleConfirm()
+      void confirmarRef.current?.()
     }
     document.addEventListener("keydown", alPulsar)
     return () => document.removeEventListener("keydown", alPulsar)
-  }, [checkoutOpen, completedSale, saving, confirmBlocked, handleConfirm])
+  }, [checkoutOpen, completedSale, saving, confirmBlocked])
 
   async function handleConfirm() {
     if (!sedeId) return
@@ -1446,6 +1455,13 @@ export default function VentaPage() {
       setSaving(false)
     }
   }
+
+  // Aquí y no junto al efecto del teclado: la referencia tiene que asignarse
+  // DESPUÉS de que `handleConfirm` esté declarada, o el atajo se quedaría
+  // agarrado a una versión vieja del cobro.
+  React.useEffect(() => {
+    confirmarRef.current = handleConfirm
+  })
 
   // Lo que pidió el buscador de arriba: filtrar la rejilla, abrir una cuenta o
   // ir a la lista de cuentas abiertas.
