@@ -20,6 +20,119 @@ es decidir "esto ya es lo que va a usar el negocio".
 
 ---
 
+## 1.3.0 — 13 de septiembre de 2026
+
+Solo frontend. **El backend se queda en 1.2.0** y no hay que desplegarlo: esta
+entrega no manda ni un campo nuevo, no pide variables de entorno, no migra nada
+y no añade permisos. Se puede mezclar sola.
+
+Sale de lo que el dueño echó de menos al usar la 1.2.0: que el orden de las
+pantallas no se entendía, que las cifras largas se leían mal, que la tarjeta de
+novedades era ilegible y que el cobro desperdiciaba media pantalla.
+
+### Inventario y Productos — el orden, por fin escrito
+
+El sistema siempre dio por supuesto un orden —primero registras lo que compras,
+después armas lo que vendes— que no estaba dicho en ninguna pantalla. Quien
+entraba a **Productos → Nuevo** y escogía "Del inventario" se encontraba un
+desplegable vacío y ninguna pista de por qué: parecía que el programa estaba
+roto.
+
+- **Tira de tres pasos** en Productos: Inventario → Productos → Punto de venta,
+  con una frase de qué se hace en cada uno y enlace a los tres. Se puede cerrar
+  y se queda cerrada.
+- **Estado vacío** cuando no hay nada en inventario: en vez de una tabla vacía,
+  la explicación de por qué hace falta —sin eso el sistema no puede descontar
+  existencias ni calcular la ganancia— y el botón para ir a crearlo.
+- **Dentro de la ficha del producto**, si el inventario está vacío el buscador
+  se sustituye por el aviso y el camino de salida. Si hay ítems, cada opción
+  muestra en qué se mide y cuántas existencias tiene: quien pone el precio
+  necesita saber si está cobrando por gramo o por unidad.
+- **La pestaña "Productos" del inventario pasa a llamarse "Insumos y
+  mercancía".** Se llamaba igual que la pantalla Productos del menú y eran cosas
+  distintas.
+- **Cada pestaña del inventario dice qué se ve en ella** en una frase.
+- **Los botones sueltos de la cabecera** (conteo, merma, importar, exportar,
+  actualizar precios) se agruparon en un menú **Herramientas**, cada uno con su
+  frase de qué hace. "Conteo" o "Merma" no le dicen nada a quien nunca los ha
+  usado, y probarlos para averiguarlo da miedo en una pantalla que toca el
+  inventario.
+
+### Unidades de medida
+
+- **Se leen completas y agrupadas**: "se cuenta de a uno" (unidad), "se pesa"
+  (gramo, kilogramo, libra, arroba) y "se mide líquido" (mililitro, litro).
+  Antes era una lista de seis abreviaturas —`g`, `kg`, `lb`, `l`, `ml`— y no
+  había forma de saber si `lb` era libra o litro.
+- **La arroba, que no existía**: 12,5 kg exactos. Es como se compra media
+  Colombia —panela, papa, queso, café— y no estaba por ningún lado.
+- **El bulto va en la presentación de compra, no entre las unidades.** Un bulto
+  no es una medida, es un empaque: el de harina trae 25 kg, el de papa 50 y el
+  de arroz 12,5. Guardado como unidad, el sistema sabría "tres bultos" y no
+  cuánta harina hay. La presentación ahora sugiere bulto, arroba, kilo, libra,
+  saco, garrafa, litro, botella, caja, paquete, canasta y docena, y rellena el
+  contenido de las que tienen uno fijo.
+
+### Las cifras, con el punto de los miles
+
+`45000` y `450000` se ven casi iguales en una casilla numérica del navegador, y
+un cero de más en un precio no lo ve nadie hasta que se cobró mal. Ahora se
+escribe **$45.000** mientras se teclea, en Inventario, Productos, Producción,
+listas de precios, comandas de restaurante, órdenes de compra y descuentos de
+sede. Las cantidades también (**25.000 g**), con la unidad dentro del campo.
+
+El costo por unidad de consumo admite decimales, que es donde hacen falta: un
+bulto de $95.000 con 25.000 g da $3,80 el gramo, y redondear a $4 inflaría cada
+receta. El costo de una orden de compra **no** los admite, porque río abajo se
+guarda redondeado a peso entero y dejar escribirlos sería guardar otra cosa sin
+avisar.
+
+### Punto de venta — el cobro usa el monitor entero
+
+El modal de cobro era una columna de 512 px con catorce bloques apilados —medio
+de pago, devuelta, cliente, vendedor, dividir la cuenta, domicilio, fiado y
+factura electrónica— mientras el resto del monitor quedaba en gris. Y el scroll
+movía el velo entero, no el cuerpo: al bajar a buscar la devuelta se iban de la
+pantalla el título y el botón de cobrar, y el detalle de lo que se estaba
+cobrando quedaba tapado por el velo. El cajero confirmaba a ciegas.
+
+- **Tres columnas en PC**, apiladas en móvil: *qué estás cobrando* (el ticket,
+  con el total fijo abajo), *cómo paga* (medio de pago, con cuánto paga y la
+  devuelta en grande) y *de quién es la venta* (cliente, vendedor, tipo de
+  pedido, dividir la cuenta, factura electrónica).
+- **Cabecera y pie no se mueven.** El total y el botón de cobrar están siempre a
+  la vista, por largo que sea el formulario.
+- **Lo que casi nunca se toca va plegado**, con un resumen de una línea que dice
+  cómo quedó ("Consumidor final", "Mostrador"). Es la respuesta al "tenemos
+  demasiadas opciones": siguen todas, pero no gritando a la vez. Si un bloque
+  pide un dato sin el que no se puede cobrar, el plegado desaparece.
+- **Enter sigue cobrando y Escape sigue cerrando.** Enter solo cobra desde el
+  campo del efectivo o con el foco fuera de todo control: si cobrara desde
+  cualquier campo, teclear el nombre de un cliente y pulsar Enter registraría la
+  venta a media faena.
+- **Menos huecos vacíos en el terminal**: la rejilla sube a cuatro columnas en
+  monitores anchos y el catálogo llega a seis, en vez de dejar filas de tres
+  productos con medio monitor en blanco.
+
+### Formularios que scrollean donde deben
+
+El mismo fallo estaba en varios sitios: el velo hacía de contenedor con scroll y
+la tarjeta crecía sin límite, así que en una pantalla corta el título se iba por
+arriba y los botones por abajo a la vez. Arreglado en el cobro del POS, la
+nómina del POS, la bienvenida, el buscador (Ctrl K) y la tarjeta de novedades:
+cabecera y pie fijos, scroll solo en el cuerpo y alto medido en `svh` —con `vh`
+el modal se sale por abajo justo cuando aparece el teclado del celular.
+
+### Novedades
+
+La tarjeta de novedades era una lista de cinco párrafos en letra pequeña, sin
+una sola imagen y sin forma de llegar a lo que anunciaba. Ahora son **tres
+páginas**, una idea por página, con letra grande, un esquema dibujado por página
+y **un botón por novedad que cierra la tarjeta y abre esa pantalla**. Se pasa de
+página con los botones, con los puntos de abajo o con las flechas del teclado.
+
+---
+
 ## 1.2.0 — 12 de septiembre de 2026
 
 Lo que salió de usar la 1.1.0 detrás del mostrador. Sin variables de entorno
