@@ -150,7 +150,7 @@ export const NOVEDADES: Novedad = {
         {
           donde: "Inventario → unidad de medida",
           texto:
-            "Se leen completas: Gramo, Kilogramo, Litro, Mililitro, Libra y Arroba. La arroba son 12,5 kilos y antes no estaba.",
+            "Se leen completas: Gramo, Kilogramo, Litro, Mililitro, Libra y Arroba. La libra ya son 500 gramos y la arroba, 12,5 kilos.",
           ruta: "/panel/inventario",
           etiquetaRuta: "Ir a Inventario",
         },

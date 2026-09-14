@@ -66,6 +66,14 @@ roto.
   había forma de saber si `lb` era libra o litro.
 - **La arroba, que no existía**: 12,5 kg exactos. Es como se compra media
   Colombia —panela, papa, queso, café— y no estaba por ningún lado.
+- **La libra pasa de 453,592 g a 500 g.** Es un cambio de comportamiento, no una
+  función nueva: el sistema traía la libra internacional y aquí nadie compra con
+  esa. Al pedir "una libra de mantequilla" llegan 500 gramos, así que registrar
+  453,592 metía a la bodega un 9 % menos de lo que de verdad entró. Con 500
+  cuadra además el resto del sistema: una arroba son 25 libras y 12,5 kg, cuenta
+  que no sale con la libra internacional. **Solo afecta a las entradas de
+  mercancía que se escriban en libras a partir de ahora**; lo ya guardado no se
+  toca, porque lo que se guarda son las unidades de consumo, no las libras.
 - **El bulto va en la presentación de compra, no entre las unidades.** Un bulto
   no es una medida, es un empaque: el de harina trae 25 kg, el de papa 50 y el
   de arroz 12,5. Guardado como unidad, el sistema sabría "tres bultos" y no

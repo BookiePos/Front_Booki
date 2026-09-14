@@ -85,7 +85,7 @@ export const UNIDADES: Unidad[] = [
     plural: "libras",
     label: "Libra (lb)",
     familia: "masa",
-    ejemplo: "1 libra = 453,6 gramos (la libra internacional).",
+    ejemplo: "1 libra = 500 gramos, como se pide en la plaza.",
   },
   {
     value: "arroba",
@@ -195,8 +195,8 @@ export const PRESENTACIONES_SUGERIDAS: PresentacionSugerida[] = [
   {
     nombre: "libra",
     familias: ["masa"],
-    contenido: 453.592,
-    nota: "Una libra son 453,6 gramos.",
+    contenido: 500,
+    nota: "Una libra son 500 gramos. Una arroba son 25 libras.",
   },
   {
     nombre: "saco",
