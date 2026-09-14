@@ -92,6 +92,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 import { useConfirm } from "@/components/ui/confirm-dialog"
 import { toast } from "sonner"
+import { cn } from "@/lib/utils"
 
 import { ApplyExpenseDialog } from "./apply-expense-dialog"
 
@@ -148,13 +149,55 @@ interface NewProductDialogProps {
   onSave: (draft: NewProductDraft) => void
 }
 
+/** Datos que llegan prellenados desde la factura y hay que confirmar. */
+type DatoLeido = "sku" | "name" | "unit" | "cost" | "barcode"
+
+const DATO_LEIDO_LABELS: Record<DatoLeido, string> = {
+  sku: "SKU",
+  name: "nombre",
+  unit: "unidad",
+  cost: "costo",
+  barcode: "código de barras",
+}
+
+/**
+ * Aviso bajo un campo que vino de la factura y nadie ha revisado todavía.
+ *
+ * Tocarlo es decir "lo comparé con el papel y está bien"; corregir el campo
+ * también cuenta. No hay un "confirmar todo": justamente es lo que se quiere
+ * evitar, que un SKU inventado o un costo mal leído pase sin que nadie lo mire.
+ */
+function LeidoDeLaFactura({
+  pendiente,
+  onConfirmar,
+}: {
+  pendiente: boolean
+  onConfirmar: () => void
+}) {
+  if (!pendiente) return null
+  return (
+    <button
+      type="button"
+      onClick={onConfirmar}
+      className="inline-flex items-center gap-1.5 self-start rounded-md bg-warning/10 px-2 py-1 text-left text-xs text-warning-ink hover:bg-warning/20"
+    >
+      <TriangleAlert className="size-3.5 shrink-0" aria-hidden />
+      Leído de la factura: compáralo con el papel y toca aquí si está bien
+    </button>
+  )
+}
+
 /**
  * Ficha para crear el producto que la factura trae y el inventario no tiene.
  *
- * Prellena todo lo que la factura ya sabe (nombre, unidad, costo, código de
- * barras) y pide lo que no puede saber: el SKU cuando no venía impreso, la
- * categoría y el precio de venta. Se guarda en el borrador de la factura, no en
- * el inventario: el producto se crea al aplicar, junto con todo lo demás.
+ * Nada se crea con datos a medias: tipo, SKU, nombre, unidad, categoría, costo,
+ * stock mínimo y precio de venta (o "no se vende en el POS") son obligatorios.
+ * Y lo que la foto leyó —SKU propuesto, nombre, unidad, costo, código de
+ * barras— viene marcado hasta que la persona lo confirma o lo corrige, uno por
+ * uno. El servidor vuelve a verificarlo al aplicar.
+ *
+ * El padre la monta con `key` por renglón: cada apertura parte de la ficha
+ * guardada o de la factura, sin rehidratar estado en un efecto.
  */
 function NewProductDialog({
   open,
@@ -164,43 +207,84 @@ function NewProductDialog({
   categories,
   onSave,
 }: NewProductDialogProps) {
-  const [sku, setSku] = React.useState("")
-  const [name, setName] = React.useState("")
-  const [unit, setUnit] = React.useState("und")
-  const [categoryId, setCategoryId] = React.useState("none")
-  const [cost, setCost] = React.useState<number | null>(null)
-  const [salePrice, setSalePrice] = React.useState<number | null>(null)
-  const [barcode, setBarcode] = React.useState("")
-  const [minStock, setMinStock] = React.useState("")
   const [itemType, setItemType] = React.useState<
     NewProductDraft["itemType"] | ""
-  >("")
+  >(value?.itemType ?? "")
+  const [sku, setSku] = React.useState(
+    value?.sku ?? (line ? suggestSku(line) : ""),
+  )
+  const [name, setName] = React.useState(value?.name ?? line?.description ?? "")
+  const [unit, setUnit] = React.useState(value?.unit ?? line?.unit ?? "")
+  const [categoryId, setCategoryId] = React.useState(value?.categoryId ?? "")
+  const [cost, setCost] = React.useState<number | null>(
+    value?.cost ?? line?.unitCost ?? null,
+  )
+  const [notSold, setNotSold] = React.useState(Boolean(value?.notSold))
+  const [salePrice, setSalePrice] = React.useState<number | null>(
+    value?.salePrice ?? null,
+  )
+  const [barcode, setBarcode] = React.useState(
+    value?.barcode ?? line?.barcode ?? "",
+  )
+  const [minStock, setMinStock] = React.useState(
+    value?.minStock != null ? String(value.minStock) : "",
+  )
 
-  // Al abrir se rehidrata con lo ya completado o con lo que dijo la factura.
-  React.useEffect(() => {
-    if (!open || !line) return
-    setSku(value?.sku ?? suggestSku(line))
-    setName(value?.name ?? line.description)
-    setUnit(value?.unit ?? line.unit ?? "und")
-    setCategoryId(value?.categoryId ?? "none")
-    setCost(value?.cost ?? line.unitCost ?? null)
-    setSalePrice(value?.salePrice ?? null)
-    setBarcode(value?.barcode ?? line.barcode ?? "")
-    setMinStock(value?.minStock != null ? String(value.minStock) : "")
-    setItemType(value?.itemType ?? "")
-  }, [open, line, value])
+  // Todo lo que llega prellenado, y no viene de una ficha ya revisada, queda
+  // pendiente de confirmar.
+  const [pendientes, setPendientes] = React.useState<Set<DatoLeido>>(() => {
+    if (value?.reviewed) return new Set()
+    const prellenados: [DatoLeido, boolean][] = [
+      ["sku", sku.trim() !== ""],
+      ["name", name.trim() !== ""],
+      ["unit", unit.trim() !== ""],
+      ["cost", cost != null],
+      ["barcode", barcode.trim() !== ""],
+    ]
+    return new Set(
+      prellenados.filter(([, lleno]) => lleno).map(([dato]) => dato),
+    )
+  })
+
+  function revisado(dato: DatoLeido) {
+    setPendientes((actual) => {
+      if (!actual.has(dato)) return actual
+      const siguiente = new Set(actual)
+      siguiente.delete(dato)
+      return siguiente
+    })
+  }
+
+  const faltan: string[] = []
+  if (!itemType) faltan.push("tipo")
+  if (!sku.trim()) faltan.push("SKU")
+  if (!name.trim()) faltan.push("nombre")
+  if (!unit.trim()) faltan.push("unidad")
+  if (!categoryId) faltan.push("categoría")
+  if (!(cost != null && cost > 0)) faltan.push("costo de compra")
+  if (minStock.trim() === "" || !Number.isFinite(Number(minStock))) {
+    faltan.push("stock mínimo")
+  }
+  if (!notSold && !(salePrice != null && salePrice > 0)) {
+    faltan.push("precio de venta")
+  }
+  const porRevisar = [...pendientes].map((dato) => DATO_LEIDO_LABELS[dato])
+  const lista = faltan.length === 0 && porRevisar.length === 0
 
   function handleSave() {
+    if (!lista) return
     onSave({
       sku: sku.trim().toUpperCase(),
       name: name.trim(),
-      unit: unit.trim() || "und",
-      categoryId: categoryId === "none" ? null : categoryId,
+      unit: unit.trim(),
+      categoryId,
       cost: cost ?? undefined,
-      salePrice: salePrice ?? undefined,
+      salePrice: notSold ? undefined : (salePrice ?? undefined),
+      notSold,
       barcode: barcode.trim() || undefined,
-      minStock: minStock ? Number(minStock) : undefined,
+      minStock: Number(minStock),
       itemType: itemType || undefined,
+      reviewed: true,
     })
     onOpenChange(false)
   }
@@ -212,9 +296,16 @@ function NewProductDialog({
       size="2xl"
       icon={PackagePlus}
       title="Producto nuevo"
-      description="No existe en tu inventario. Lo que la factura ya dice viene completado; revisa lo demás. Se creará al aplicar la factura."
+      description="No existe en tu inventario. Completa lo que falta y revisa uno por uno los datos que se leyeron de la factura: el producto se crea exactamente así al aplicar."
       footer={
         <>
+          {!lista && (
+            <p className="text-xs text-muted-foreground sm:mr-auto">
+              {faltan.length > 0 && `Falta: ${faltan.join(", ")}.`}{" "}
+              {porRevisar.length > 0 &&
+                `Por revisar: ${porRevisar.join(", ")}.`}
+            </p>
+          )}
           <Button
             variant="outline"
             onClick={() => onOpenChange(false)}
@@ -222,13 +313,9 @@ function NewProductDialog({
           >
             Cancelar
           </Button>
-          <Button
-            onClick={handleSave}
-            disabled={!sku.trim() || !name.trim() || !itemType}
-            className="sm:min-w-36"
-          >
-            <PackagePlus />
-            Guardar ficha
+          <Button onClick={handleSave} disabled={!lista} className="sm:min-w-44">
+            <CheckCircle2 />
+            Guardar ficha revisada
           </Button>
         </>
       }
@@ -236,51 +323,6 @@ function NewProductDialog({
       <FormSection
         title="Identificación"
         description="Con qué lo reconoces tú y con qué lo reconoce la caja."
-      >
-        <FieldGrid cols={3}>
-          <Field
-            id="np-sku"
-            label="SKU"
-            required
-            help={{ term: "sku" }}
-            hint="Si la factura traía el del proveedor se usa ese, para que la próxima empareje sola."
-          >
-            <Input
-              id="np-sku"
-              value={sku}
-              onChange={(e) => setSku(e.target.value.toUpperCase())}
-              placeholder="p. ej. ARROZ-500"
-            />
-          </Field>
-          <FieldSpan span={2}>
-            <Field id="np-name" label="Nombre" required>
-              <Input
-                id="np-name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-              />
-            </Field>
-          </FieldSpan>
-          <FieldSpan span={3}>
-            <Field
-              id="np-barcode"
-              label="Código de barras"
-              help={{ term: "codigoBarras" }}
-            >
-              <Input
-                id="np-barcode"
-                value={barcode}
-                onChange={(e) => setBarcode(e.target.value)}
-                placeholder="Opcional"
-              />
-            </Field>
-          </FieldSpan>
-        </FieldGrid>
-      </FormSection>
-
-      <FormSection
-        title="Clasificación y existencias"
-        description="Cómo se mide y cuándo te avisamos de que se está acabando."
       >
         <FieldGrid cols={3}>
           <Field
@@ -300,19 +342,100 @@ function NewProductDialog({
               ]}
             />
           </Field>
-          <Field id="np-unit" label="Unidad" help={{ term: "unidad" }}>
+          <FieldSpan span={2}>
+            <Field
+              id="np-sku"
+              label="SKU"
+              required
+              help={{ term: "sku" }}
+              hint="Si la factura traía el código del proveedor se propone ese, para que la próxima factura empareje sola."
+            >
+              <Input
+                id="np-sku"
+                value={sku}
+                className={cn(pendientes.has("sku") && "border-warning")}
+                onChange={(e) => {
+                  setSku(e.target.value.toUpperCase())
+                  revisado("sku")
+                }}
+                placeholder="p. ej. ARROZ-500"
+              />
+              <LeidoDeLaFactura
+                pendiente={pendientes.has("sku")}
+                onConfirmar={() => revisado("sku")}
+              />
+            </Field>
+          </FieldSpan>
+          <FieldSpan span={3}>
+            <Field id="np-name" label="Nombre" required>
+              <Input
+                id="np-name"
+                value={name}
+                className={cn(pendientes.has("name") && "border-warning")}
+                onChange={(e) => {
+                  setName(e.target.value)
+                  revisado("name")
+                }}
+              />
+              <LeidoDeLaFactura
+                pendiente={pendientes.has("name")}
+                onConfirmar={() => revisado("name")}
+              />
+            </Field>
+          </FieldSpan>
+          <FieldSpan span={3}>
+            <Field
+              id="np-barcode"
+              label="Código de barras"
+              help={{ term: "codigoBarras" }}
+              hint="Opcional. Si la factura lo trae, confírmalo contra el empaque."
+            >
+              <Input
+                id="np-barcode"
+                value={barcode}
+                className={cn(pendientes.has("barcode") && "border-warning")}
+                onChange={(e) => {
+                  setBarcode(e.target.value)
+                  revisado("barcode")
+                }}
+                placeholder="Opcional"
+              />
+              <LeidoDeLaFactura
+                pendiente={pendientes.has("barcode")}
+                onConfirmar={() => revisado("barcode")}
+              />
+            </Field>
+          </FieldSpan>
+        </FieldGrid>
+      </FormSection>
+
+      <FormSection
+        title="Clasificación y existencias"
+        description="Cómo se mide y cuándo te avisamos de que se está acabando."
+      >
+        <FieldGrid cols={3}>
+          <Field id="np-unit" label="Unidad" required help={{ term: "unidad" }}>
             <Input
               id="np-unit"
               value={unit}
-              onChange={(e) => setUnit(e.target.value)}
-              placeholder="und"
+              className={cn(pendientes.has("unit") && "border-warning")}
+              onChange={(e) => {
+                setUnit(e.target.value)
+                revisado("unit")
+              }}
+              placeholder="und, kg, g, l…"
+            />
+            <LeidoDeLaFactura
+              pendiente={pendientes.has("unit")}
+              onConfirmar={() => revisado("unit")}
             />
           </Field>
           <Field
             id="np-min"
             label="Stock mínimo"
+            required
             help={{ term: "stockMinimo" }}
-            hint="Te avisamos al llegar aquí."
+            hint="Te avisamos al llegar aquí. Pon 0 si no quieres aviso."
           >
             <Input
               id="np-min"
@@ -322,15 +445,23 @@ function NewProductDialog({
               placeholder="0"
             />
           </Field>
-          <Field id="np-cat" label="Categoría" help={{ term: "categoria" }}>
+          <Field
+            id="np-cat"
+            label="Categoría"
+            required
+            help={{ term: "categoria" }}
+            hint={
+              categories.length === 0
+                ? "No hay categorías: créalas en Inventario → Categorías."
+                : undefined
+            }
+          >
             <NativeSelect
               id="np-cat"
               value={categoryId}
               onChange={setCategoryId}
-              options={[
-                { value: "none", label: "Sin categoría" },
-                ...categories.map((c) => ({ value: c._id, label: c.name })),
-              ]}
+              placeholder="Elige la categoría"
+              options={categories.map((c) => ({ value: c._id, label: c.name }))}
             />
           </Field>
         </FieldGrid>
@@ -338,24 +469,56 @@ function NewProductDialog({
 
       <FormSection
         title="Precios"
-        description="El costo viene de la factura; el de venta lo pones tú."
+        description="El costo viene de la factura: revísalo. El de venta lo pones tú."
       >
         <FieldGrid cols={2}>
-          <Field id="np-cost" label="Costo de compra" help={{ term: "costo" }}>
-            <MoneyInput id="np-cost" value={cost} onValueChange={setCost} />
+          <Field
+            id="np-cost"
+            label="Costo de compra"
+            required
+            help={{ term: "costo" }}
+          >
+            <MoneyInput
+              id="np-cost"
+              value={cost}
+              className={cn(pendientes.has("cost") && "border-warning")}
+              onValueChange={(v) => {
+                setCost(v)
+                revisado("cost")
+              }}
+            />
+            <LeidoDeLaFactura
+              pendiente={pendientes.has("cost")}
+              onConfirmar={() => revisado("cost")}
+            />
           </Field>
           <Field
             id="np-price"
             label="Precio de venta"
+            required={!notSold}
             help={{ term: "precioVenta" }}
-            hint="Sin él, el producto entra al inventario pero no aparece en el POS. Puedes ponerlo después."
+            hint={
+              notSold
+                ? "No aparecerá en el POS."
+                : "Con precio, el producto aparece en el POS para venderlo."
+            }
           >
             <MoneyInput
               id="np-price"
-              value={salePrice}
+              value={notSold ? null : salePrice}
+              disabled={notSold}
               onValueChange={setSalePrice}
             />
           </Field>
+          <FieldSpan span={2}>
+            <label className="flex cursor-pointer items-center gap-2 text-sm">
+              <Checkbox
+                checked={notSold}
+                onCheckedChange={(v) => setNotSold(v === true)}
+              />
+              No se vende en el POS (se compra para usarlo, no para venderlo)
+            </label>
+          </FieldSpan>
         </FieldGrid>
       </FormSection>
     </FormDialog>
@@ -1143,8 +1306,7 @@ export default function RevisarFacturaPage() {
                                 <Button
                                   size="sm"
                                   variant={
-                                    decision.newProduct?.sku &&
-                                    decision.newProduct?.itemType
+                                    decision.newProduct?.reviewed
                                       ? "ghost"
                                       : "outline"
                                   }
@@ -1152,10 +1314,9 @@ export default function RevisarFacturaPage() {
                                   onClick={() => setNewProductLine(index)}
                                 >
                                   <PackagePlus className="size-4" aria-hidden />
-                                  {decision.newProduct?.sku &&
-                                  decision.newProduct?.itemType
-                                    ? `Ficha lista · ${decision.newProduct.sku}`
-                                    : "Completar ficha (tipo y SKU)"}
+                                  {decision.newProduct?.reviewed
+                                    ? `Ficha revisada · ${decision.newProduct.sku}`
+                                    : "Completar y revisar ficha"}
                                 </Button>
                               )}
                               {/* La factura casi siempre viene en lo que el
@@ -1438,6 +1599,7 @@ export default function RevisarFacturaPage() {
       />
 
       <NewProductDialog
+        key={newProductLine ?? "cerrado"}
         open={newProductLine !== null}
         onOpenChange={(v) => setNewProductLine(v ? newProductLine : null)}
         line={newProductLine !== null ? (draft.lines[newProductLine] ?? null) : null}
@@ -1454,7 +1616,7 @@ export default function RevisarFacturaPage() {
             createProduct: true,
             productId: null,
           })
-          toast.success("Ficha guardada. Se creará al aplicar la factura.")
+          toast.success("Ficha revisada. El producto se creará al aplicar la factura.")
         }}
       />
     </>
