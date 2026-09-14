@@ -37,6 +37,7 @@ import {
   ClipboardList,
   ScanSearch,
   Wrench,
+  GitMerge,
 } from "lucide-react"
 
 import { useAuth } from "@/lib/auth-context"
@@ -99,6 +100,7 @@ import {
 } from "@/components/erp/unidad-fields"
 import { TrazabilidadDialog } from "@/components/erp/trazabilidad-dialog"
 import { ReporteMermaDialog } from "@/components/erp/reporte-merma-dialog"
+import { MergeProductDialog } from "./merge-product-dialog"
 import { listSuppliers, type Supplier } from "@/lib/erp/api-suppliers"
 import { serializeCsv, parseCsv, downloadCsv } from "@/lib/erp/csv"
 
@@ -4530,6 +4532,8 @@ export default function InventarioPage() {
   const [wasteOpen, setWasteOpen] = React.useState(false)
   // Importar / exportar CSV (existencias)
   const [stockImportOpen, setStockImportOpen] = React.useState(false)
+  /** Producto que se queda al fusionar duplicados (null = diálogo cerrado). */
+  const [mergeTarget, setMergeTarget] = React.useState<InvProduct | null>(null)
   /** Se incrementa tras cada operación de stock: recarga la pestaña de lotes. */
   const [lotsRefresh, setLotsRefresh] = React.useState(0)
 
@@ -5168,6 +5172,15 @@ export default function InventarioPage() {
                               <Button
                                 variant="ghost"
                                 size="icon-sm"
+                                aria-label={`Fusionar otros productos en ${p.name}`}
+                                title="Fusionar duplicados en este producto"
+                                onClick={() => setMergeTarget(p)}
+                              >
+                                <GitMerge />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
                                 aria-label={`Eliminar ${p.name}`}
                                 onClick={() => void handleDelete(p)}
                               >
@@ -5701,6 +5714,19 @@ export default function InventarioPage() {
         products={products}
         sedes={sedes}
         onSaved={refreshAfterOperation}
+      />
+      <MergeProductDialog
+        key={mergeTarget?._id ?? "cerrado"}
+        target={mergeTarget}
+        products={products}
+        stock={allStock}
+        onOpenChange={(open) => {
+          if (!open) setMergeTarget(null)
+        }}
+        onMerged={() => {
+          setMergeTarget(null)
+          refreshAfterOperation()
+        }}
       />
       <TrazabilidadDialog open={traceOpen} onOpenChange={setTraceOpen} />
       <ReporteMermaDialog

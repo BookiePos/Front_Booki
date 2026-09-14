@@ -58,6 +58,8 @@ export interface InvProduct {
   variantAttrs?: Record<string, string>
   /** Ejes de variación (solo en el padre): Talla, Color… */
   variantAxes?: { name: string; values: string[] }[]
+  /** Si se fusionó en otro producto, cuál. Queda inactivo. */
+  mergedInto?: string
 }
 
 export interface SedeRef {
@@ -139,6 +141,8 @@ export type MovementType =
   | "sale_void"
   | "production_out"
   | "production_in"
+  | "merge_out"
+  | "merge_in"
 
 export interface InvMovement {
   _id: string
@@ -190,6 +194,8 @@ export const MOVEMENT_TYPE_LABELS: Record<MovementType, string> = {
   sale_void: "Anulación de venta",
   production_out: "Consumo de producción",
   production_in: "Producción",
+  merge_out: "Fusión (salida)",
+  merge_in: "Fusión (entrada)",
 }
 
 // ─── Sedes ───────────────────────────────────────────────────────────────────
@@ -458,6 +464,45 @@ export async function updateProduct(
 }
 
 /** Elimina el producto definitivamente, con sus existencias, lotes y kardex. */
+/** Producto parecido a otro, candidato a duplicado. `score` va de 0 a 1. */
+export interface SimilarProduct {
+  product: InvProduct
+  score: number
+}
+
+export async function getSimilarProducts(id: string): Promise<SimilarProduct[]> {
+  const res = await authFetch(`/inventory/products/${id}/similar`)
+  return parseResponse<SimilarProduct[]>(res)
+}
+
+export interface MergeProductsResult {
+  targetId: string
+  mergedIds: string[]
+  stockMoved: number
+  lots: number
+  catalog: number
+  recipes: number
+  purchaseOrders: number
+  productionOrders: number
+  aliases: number
+  scans: number
+}
+
+/**
+ * Fusiona `sourceIds` en `targetId`: existencias, lotes, recetas, documentos
+ * abiertos y alias pasan al que se queda, y los fusionados quedan inactivos.
+ */
+export async function mergeProducts(
+  targetId: string,
+  sourceIds: string[],
+): Promise<MergeProductsResult> {
+  const res = await authFetch(`/inventory/products/${targetId}/merge`, {
+    method: "POST",
+    body: JSON.stringify({ sourceIds }),
+  })
+  return parseResponse<MergeProductsResult>(res)
+}
+
 export async function deleteProduct(id: string): Promise<{ ok: boolean }> {
   const res = await authFetch(`/inventory/products/${id}`, { method: "DELETE" })
   return parseResponse<{ ok: boolean }>(res)
