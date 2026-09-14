@@ -7,6 +7,7 @@
  * solo ocurre cuando una persona lo aprueba.
  */
 import { authFetch, parseResponse } from "@/lib/api-admin"
+import type { ExpenseStatus, PaymentMethod } from "@/lib/erp/api-finance"
 
 export type InvoiceScanStatus =
   | "uploaded"
@@ -138,6 +139,8 @@ export interface InvoiceScan {
     purchaseOrderId?: string
     expenseIds: string[]
     createdProductIds: string[]
+    /** Cuenta por pagar, si se aplicó como gasto a crédito. */
+    payableId?: string
   }
   history: ScanHistoryEntry[]
   error?: string
@@ -233,6 +236,43 @@ export async function splitInvoiceScan(
 /** Aplica la factura: inventario, gastos, cuenta por pagar y proveedor. */
 export async function applyInvoiceScan(id: string): Promise<InvoiceScan> {
   const res = await authFetch(`/invoice-scans/${id}/apply`, { method: "POST" })
+  return parseResponse<InvoiceScan>(res)
+}
+
+/**
+ * Datos para registrar la factura COMPLETA como un gasto.
+ *
+ * Base, IVA y retenciones van por separado porque terminan en cuentas
+ * distintas: el IVA es descontable y lo retenido se le debe a la DIAN.
+ */
+export interface ApplyAsExpensePayload {
+  sedeId: string
+  categoryId: string
+  concept: string
+  /** YYYY-MM-DD. */
+  date: string
+  /** Base gravable, antes de IVA. */
+  amount: number
+  taxAmount?: number
+  /** ReteFuente + ReteIVA + ReteICA. */
+  withholdingAmount?: number
+  status: ExpenseStatus
+  /** Obligatorio si `status = paid`. */
+  paymentMethod?: PaymentMethod
+  /** Vencimiento de la cuenta por pagar, si es a crédito. */
+  dueDate?: string
+  note?: string
+}
+
+/** Aplica la factura entera como gasto. A crédito deja la cuenta por pagar. */
+export async function applyInvoiceScanAsExpense(
+  id: string,
+  payload: ApplyAsExpensePayload,
+): Promise<InvoiceScan> {
+  const res = await authFetch(`/invoice-scans/${id}/apply-expense`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
   return parseResponse<InvoiceScan>(res)
 }
 
