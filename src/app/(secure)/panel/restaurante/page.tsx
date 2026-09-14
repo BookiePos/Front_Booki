@@ -41,6 +41,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { MoneyInput } from "@/components/ui/money-input"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   FormDialog,
@@ -603,13 +604,14 @@ function OrderDialog({
                   />
                 </Field>
                 <Field id="cmd-price" label="Precio" className="w-32">
-                  <Input
+                  {/* El estado de esta ficha es texto, así que se traduce aquí
+                      mismo: lo que se guarda no cambia y el mesero ve el punto
+                      de los miles igual que en el resto del sistema. */}
+                  <MoneyInput
                     id="cmd-price"
-                    type="number"
-                    inputMode="numeric"
                     placeholder="0"
-                    value={itemPrice}
-                    onChange={(e) => setItemPrice(e.target.value)}
+                    value={itemPrice === "" ? null : Number(itemPrice)}
+                    onValueChange={(v) => setItemPrice(v === null ? "" : String(v))}
                   />
                 </Field>
                 <Button
