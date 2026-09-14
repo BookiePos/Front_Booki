@@ -9,6 +9,7 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 import {
+  calcularMargenPct,
   ESTILOS_MARGEN,
   guardarMargenMinimo,
   leerMargenMinimo,
@@ -18,7 +19,7 @@ import {
   type NivelMargen,
 } from "@/lib/erp/margen"
 import { HelpTip } from "@/components/ui/help-tip"
-import { Input } from "@/components/ui/input"
+import { QuantityInput } from "@/components/ui/money-input"
 
 /**
  * Umbral de margen del dispositivo.
@@ -69,9 +70,10 @@ export function MargenBadge({
 /**
  * Casilla para fijar el objetivo de margen.
  *
- * Se edita como texto y no como número a secas para dejar borrar el campo
- * mientras se escribe: con `value={numero}` el input rebota al valor anterior
- * en cuanto queda vacío y es imposible pasar de 35 a 5 sin pelear con él.
+ * El valor del campo puede quedar vacío (`null`) mientras se escribe, y esa es
+ * toda la gracia: con un número a secas el input rebota al valor anterior en
+ * cuanto se borra, y pasar de 35 a 5 es imposible sin pelear con él. Lo que
+ * se guarda solo se guarda cuando el número tiene sentido.
  */
 export function MargenMinimoControl({
   minimo,
@@ -82,7 +84,7 @@ export function MargenMinimoControl({
   onChange: (valor: number) => void
   className?: string
 }) {
-  const [texto, setTexto] = React.useState(String(minimo))
+  const [valor, setValor] = React.useState<number | null>(minimo)
 
   // Ajuste durante el render, no en un efecto: si el umbral cambia por fuera
   // (otra pestaña, o el valor guardado que llega tras la hidratación) la
@@ -90,7 +92,7 @@ export function MargenMinimoControl({
   const [ultimo, setUltimo] = React.useState(minimo)
   if (minimo !== ultimo) {
     setUltimo(minimo)
-    setTexto(String(minimo))
+    setValor(minimo)
   }
 
   return (
@@ -103,32 +105,80 @@ export function MargenMinimoControl({
       <label htmlFor="margen-minimo" className="whitespace-nowrap">
         Mi margen objetivo
       </label>
-      <div className="relative">
-        <Input
-          id="margen-minimo"
-          type="number"
-          min="1"
-          max="99"
-          inputMode="numeric"
-          className="h-9 w-20 pr-7 text-right tnum"
-          value={texto}
-          onChange={(e) => {
-            setTexto(e.target.value)
-            const n = Number(e.target.value)
-            if (Number.isFinite(n) && n >= 1 && n <= 99) onChange(Math.round(n))
-          }}
-          onBlur={() => setTexto(String(minimo))}
-        />
-        <span className="pointer-events-none absolute inset-y-0 right-2.5 flex items-center text-xs text-muted-foreground">
-          %
-        </span>
-      </div>
+      <QuantityInput
+        id="margen-minimo"
+        className="h-9 w-24 text-right"
+        value={valor}
+        decimales={0}
+        sufijo="%"
+        onValueChange={(n) => {
+          setValor(n)
+          if (n !== null && n >= 1 && n <= 99) onChange(Math.round(n))
+        }}
+        onBlur={() => setValor(minimo)}
+      />
       <HelpTip title="¿Para qué sirve?">
         Es cuánto quieres ganarle a cada producto. Lo que esté por debajo se
         pinta en ámbar y lo que te dé pérdida, en rojo. Solo cambia los colores:
         no toca ningún precio.
       </HelpTip>
     </div>
+  )
+}
+
+const pesos = new Intl.NumberFormat("es-CO", {
+  style: "currency",
+  currency: "COP",
+  maximumFractionDigits: 0,
+})
+
+/**
+ * La cuenta de la ganancia en una línea, bajo el precio de venta.
+ *
+ * "Te cuesta $1.500 · Ganas $1.000 (40 %)". Es la única frase que responde de
+ * verdad la pregunta que se hace quien pone un precio —"¿me está quedando
+ * algo?"— y hasta ahora había que sacarla con la calculadora del celular. El
+ * color lo pone el mismo semáforo de las demás pantallas, así que un precio
+ * puesto por debajo del objetivo se ve ámbar aquí y ámbar allá.
+ */
+export function LineaGanancia({
+  precio,
+  costo,
+  unidad,
+  className,
+}: {
+  precio: number | null | undefined
+  /** Lo que cuesta producir o comprar UNA unidad de lo que se vende. */
+  costo: number | null | undefined
+  /** Cómo se llama la unidad de venta: "unidad", "porción", "bolsa". */
+  unidad?: string
+  className?: string
+}) {
+  const [minimo] = useMargenMinimo()
+  if (!precio || precio <= 0 || costo == null) return null
+
+  const pct = calcularMargenPct(precio, costo)
+  const ganancia = precio - costo
+  const estilo = ESTILOS_MARGEN[nivelMargen(pct, minimo)]
+
+  return (
+    <p
+      className={cn(
+        "flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs",
+        className,
+      )}
+    >
+      <span className="text-muted-foreground">
+        Te cuesta {pesos.format(costo)} por {unidad ?? "unidad"}
+      </span>
+      <span aria-hidden className="text-muted-foreground">
+        ·
+      </span>
+      <span className={cn("font-medium", estilo.texto)}>
+        {ganancia >= 0 ? "Ganas" : "Pierdes"} {pesos.format(Math.abs(ganancia))}
+        {pct !== undefined ? ` (${pct} %)` : ""}
+      </span>
+    </p>
   )
 }
 

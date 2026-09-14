@@ -30,9 +30,11 @@ import {
 } from "@/lib/pos/api-inventory"
 
 import { coincide, useBusquedaPendiente } from "@/lib/pos/busqueda"
+import { unidadCorta } from "@/lib/erp/unidades"
 import { cn } from "@/lib/utils"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { QuantityInput } from "@/components/ui/money-input"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -324,7 +326,8 @@ export default function InventarioPage() {
                         {lot.lotCode}
                       </span>
                       <span className="text-xs text-muted-foreground">
-                        {nf.format(lot.qty)} {lot.productId?.unit ?? ""}
+                        {nf.format(lot.qty)}{" "}
+                        {lot.productId ? unidadCorta(lot.productId.unit) : ""}
                       </span>
                       <Badge
                         className={cn(
@@ -436,7 +439,7 @@ export default function InventarioPage() {
                         {r.product.sku}
                       </TableCell>
                       <TableCell className="text-right">
-                        {nf.format(r.qty)} {r.product.unit}
+                        {nf.format(r.qty)} {unidadCorta(r.product.unit)}
                       </TableCell>
                       <TableCell className="text-right text-muted-foreground">
                         {r.minStock > 0 ? nf.format(r.minStock) : "—"}
@@ -510,7 +513,7 @@ function AdjustDialog({
 }) {
   const [productId, setProductId] = React.useState("")
   const [direction, setDirection] = React.useState<"add" | "remove">("remove")
-  const [qty, setQty] = React.useState("")
+  const [qty, setQty] = React.useState<number | null>(null)
   const [reason, setReason] = React.useState<AdjustReason>("conteo")
   const [lotCode, setLotCode] = React.useState("")
   const [expiresAt, setExpiresAt] = React.useState("")
@@ -526,7 +529,7 @@ function AdjustDialog({
     if (!open) return
     setProductId(presetProductId ?? "")
     setDirection("remove")
-    setQty("")
+    setQty(null)
     setReason("conteo")
     setLotCode("")
     setExpiresAt("")
@@ -541,7 +544,7 @@ function AdjustDialog({
       setError("Selecciona un producto")
       return
     }
-    const n = Number(qty)
+    const n = qty ?? 0
     if (!(n > 0)) {
       setError("Ingresa una cantidad válida")
       return
@@ -635,19 +638,15 @@ function AdjustDialog({
             </Field>
             <Field
               id="adj-qty"
-              label={`Cantidad${product ? ` (${product.unit})` : ""}`}
+              label={`Cantidad${product ? ` (${unidadCorta(product.unit)})` : ""}`}
               required
               help={{ term: "unidad" }}
             >
-              <Input
+              <QuantityInput
                 id="adj-qty"
-                type="number"
-                min="0"
-                step="any"
-                inputMode="decimal"
                 value={qty}
-                onChange={(e) => setQty(e.target.value)}
-                required
+                onValueChange={setQty}
+                sufijo={product ? unidadCorta(product.unit) : undefined}
               />
             </Field>
 
