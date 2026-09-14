@@ -12,7 +12,6 @@ import {
   CalendarClock,
   Lock,
   Pencil,
-  X,
 } from "lucide-react"
 
 import { useAuth } from "@/lib/auth-context"
@@ -33,6 +32,12 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Field, FieldGrid } from "@/components/ui/field"
+import {
+  FormDialog,
+  FormActions,
+  FormAlert,
+} from "@/components/ui/form-dialog"
 
 function todayLocal(): string {
   return new Date().toLocaleDateString("en-CA") // YYYY-MM-DD (zona local)
@@ -604,104 +609,72 @@ export default function NominaPage() {
         </CardContent>
       </Card>
 
-      {/* Modal: solicitar edición de horas bloqueadas */}
-      {reqWorker && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-brand-950/45 dark:bg-navy-950/70 p-4 backdrop-blur-sm"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Solicitar edición de horas"
-          onClick={() => !reqBusy && setReqWorker(null)}
+      {/* Modal: solicitar edición de horas bloqueadas.
+
+          Era un velo a mano con `items-center` y sin scroll interno: en un
+          portátil corto —o con el teclado del celular abierto— la ficha se
+          cortaba por arriba y por abajo a la vez y no había forma de alcanzar
+          ni el motivo ni el botón de enviar. `FormDialog` ya trae la cabecera y
+          el pie fijos, el cuerpo con scroll propio y el alto medido en `svh`. */}
+      <FormDialog
+        open={reqWorker !== null}
+        onOpenChange={(abierto) => {
+          if (!abierto && reqBusy) return
+          if (!abierto) setReqWorker(null)
+        }}
+        title="Solicitar edición"
+        description={
+          reqWorker ? `${reqWorker.name} · ${date}` : undefined
+        }
+        icon={Pencil}
+        size="md"
+        footer={
+          <FormActions
+            onCancel={() => setReqWorker(null)}
+            onSubmit={() => void submitEditRequest()}
+            submitLabel="Enviar solicitud"
+            busy={reqBusy}
+          />
+        }
+      >
+        <FormAlert tone="info" icon={Lock}>
+          Las horas registradas están bloqueadas. Tu solicitud queda pendiente
+          hasta que Operación la apruebe.
+        </FormAlert>
+
+        <FieldGrid cols={2}>
+          <Field id="req-in" label="Entrada">
+            <Input
+              id="req-in"
+              type="time"
+              value={reqIn}
+              onChange={(e) => setReqIn(e.target.value)}
+            />
+          </Field>
+          <Field id="req-out" label="Salida">
+            <Input
+              id="req-out"
+              type="time"
+              value={reqOut}
+              onChange={(e) => setReqOut(e.target.value)}
+            />
+          </Field>
+        </FieldGrid>
+
+        <Field
+          id="req-reason"
+          label="Motivo del cambio"
+          required
+          error={reqError}
         >
-          <div
-            className="w-full max-w-sm rounded-2xl bg-card p-5 shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-start justify-between gap-2">
-              <div>
-                <p className="font-display text-lg">Solicitar edición</p>
-                <p className="text-sm text-muted-foreground">
-                  {reqWorker.name} · {date}
-                </p>
-              </div>
-              <button
-                type="button"
-                aria-label="Cerrar"
-                onClick={() => !reqBusy && setReqWorker(null)}
-                className="-mr-1 -mt-1 inline-flex size-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground"
-              >
-                <X className="size-4" />
-              </button>
-            </div>
-
-            <p className="mt-2 rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
-              Las horas registradas están bloqueadas. Tu solicitud queda
-              pendiente hasta que Operación la apruebe.
-            </p>
-
-            <div className="mt-3 grid grid-cols-2 gap-3">
-              <div className="flex flex-col gap-1">
-                <Label htmlFor="req-in" className="text-xs">
-                  Entrada
-                </Label>
-                <Input
-                  id="req-in"
-                  type="time"
-                  value={reqIn}
-                  onChange={(e) => setReqIn(e.target.value)}
-                />
-              </div>
-              <div className="flex flex-col gap-1">
-                <Label htmlFor="req-out" className="text-xs">
-                  Salida
-                </Label>
-                <Input
-                  id="req-out"
-                  type="time"
-                  value={reqOut}
-                  onChange={(e) => setReqOut(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className="mt-3 flex flex-col gap-1">
-              <Label htmlFor="req-reason" className="text-xs">
-                Motivo del cambio
-              </Label>
-              <Input
-                id="req-reason"
-                value={reqReason}
-                onChange={(e) => setReqReason(e.target.value)}
-                placeholder="Ej. marqué mal la salida"
-              />
-            </div>
-
-            {reqError && (
-              <p className="mt-2 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                {reqError}
-              </p>
-            )}
-
-            <div className="mt-4 flex justify-end gap-2">
-              <Button
-                variant="outline"
-                disabled={reqBusy}
-                onClick={() => setReqWorker(null)}
-              >
-                Cancelar
-              </Button>
-              <Button
-                className="gap-2"
-                disabled={reqBusy}
-                onClick={() => void submitEditRequest()}
-              >
-                {reqBusy && <Loader2 className="size-4 animate-spin" />}
-                Enviar solicitud
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+          <Input
+            id="req-reason"
+            value={reqReason}
+            onChange={(e) => setReqReason(e.target.value)}
+            placeholder="Ej. marqué mal la salida"
+          />
+        </Field>
+      </FormDialog>
     </div>
   )
 }

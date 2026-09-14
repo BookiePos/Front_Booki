@@ -402,14 +402,18 @@ export function PosSearch() {
           role="dialog"
           aria-modal="true"
           aria-label="Buscar en el punto de venta"
-          className="fixed inset-0 z-[55] flex items-start justify-center bg-brand-950/45 p-4 pt-[8vh] backdrop-blur-sm dark:bg-navy-950/70"
+          className="fixed inset-0 z-[55] flex items-start justify-center bg-brand-950/45 p-4 pt-[8svh] backdrop-blur-sm dark:bg-navy-950/70"
           onClick={cerrar}
         >
+          {/* `svh` y no `vh`: con `vh` el buscador se sale por abajo justo
+              cuando aparece el teclado del celular, que es el momento en que se
+              está escribiendo. La casilla no encoge nunca y la lista es la que
+              scrollea. */}
           <div
-            className="flex max-h-[80vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl"
+            className="flex max-h-[80svh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center gap-2 border-b border-border px-4">
+            <div className="flex shrink-0 items-center gap-2 border-b border-border px-4">
               <Search className="size-5 shrink-0 text-muted-foreground" />
               <input
                 ref={inputRef}
@@ -436,7 +440,10 @@ export function PosSearch() {
               </button>
             </div>
 
-            <div ref={listaRef} className="overflow-y-auto p-2">
+            <div
+              ref={listaRef}
+              className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-2"
+            >
               {!consulta.trim() ? (
                 <p className="px-3 py-8 text-center text-sm text-muted-foreground">
                   Busca en todo el punto de venta a la vez: productos,

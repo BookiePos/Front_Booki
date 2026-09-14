@@ -22,7 +22,7 @@ import {
   Loader2,
   X,
   UserRound,
-  ChevronDown,
+  Users,
   ChevronLeft,
   Lock,
   Coins,
@@ -34,6 +34,9 @@ import {
   Layers,
   UserPlus,
   Package,
+  Split,
+  Truck,
+  ReceiptText,
 } from "lucide-react"
 
 import { useAuth } from "@/lib/auth-context"
@@ -94,8 +97,16 @@ import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useConfirm } from "@/components/ui/confirm-dialog"
 import { Separator } from "@/components/ui/separator"
-import { MoneyInput } from "@/components/ui/money-input"
+import { MoneyInput, QuantityInput } from "@/components/ui/money-input"
+import { Field, NativeSelect } from "@/components/ui/field"
+import { FormDialog, FormActions } from "@/components/ui/form-dialog"
 import { Termino } from "@/components/ui/help-tip"
+import {
+  CheckoutColumn,
+  CheckoutGroup,
+  OptionGroup,
+  SummaryRow,
+} from "@/components/pos/checkout-layout"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -1211,6 +1222,66 @@ export default function VentaPage() {
     // llevarlo. El servidor también lo rechaza; aquí se evita el viaje.
     (orderType === "domicilio" && !address.trim())
 
+  /**
+   * Lo mismo, pero dicho en una frase para el pie del cobro.
+   *
+   * El botón apagado y sin explicación obligaba al cajero a repasar las tres
+   * columnas buscando cuál era el campo que faltaba, con el cliente delante.
+   * El orden es el de lo que más se olvida.
+   */
+  const motivoBloqueo =
+    saving || cart.length === 0
+      ? null
+      : orderType === "domicilio" && !address.trim()
+        ? "Escribe la dirección del domicilio para poder cobrar."
+        : method === "credit" &&
+            ((debtorType === "customer" && !custId) ||
+              (debtorType === "employee" && !empId))
+          ? "Elige a quién se le fía para poder cobrar."
+          : invoiceDataMissing
+            ? "Para la factura electrónica hace falta el nombre y la cédula o NIT del cliente."
+            : method === "cash" &&
+                receivedNum !== undefined &&
+                receivedNum < netTotal
+              ? `Con ${money(receivedNum)} no alcanza: faltan ${money(netTotal - receivedNum)}.`
+              : null
+
+  /**
+   * Teclado del cobro: Escape cierra, Enter cobra.
+   *
+   * El modal está hecho a mano y no con el `Dialog` de Base UI porque necesita
+   * tres columnas que scrollean por separado, así que los atajos hay que
+   * ponerlos aquí. Antes Escape no hacía nada y salir del cobro pedía ratón.
+   *
+   * Enter solo cobra desde el campo del efectivo o con el foco fuera de todo
+   * control: si cobrara desde cualquier campo, teclear el nombre de un cliente
+   * nuevo y pulsar Enter registraría la venta a media faena.
+   */
+  React.useEffect(() => {
+    if (!checkoutOpen || completedSale) return
+    function alPulsar(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        if (!saving) setCheckoutOpen(false)
+        return
+      }
+      if (e.key !== "Enter" || e.repeat || confirmBlocked) return
+      const el = e.target as HTMLElement | null
+      const tag = el?.tagName
+      const enControl =
+        tag === "INPUT" ||
+        tag === "SELECT" ||
+        tag === "TEXTAREA" ||
+        tag === "BUTTON" ||
+        tag === "A" ||
+        el?.isContentEditable === true
+      if (enControl && el?.id !== "pos-received") return
+      e.preventDefault()
+      void handleConfirm()
+    }
+    document.addEventListener("keydown", alPulsar)
+    return () => document.removeEventListener("keydown", alPulsar)
+  }, [checkoutOpen, completedSale, saving, confirmBlocked, handleConfirm])
+
   async function handleConfirm() {
     if (!sedeId) return
     setSaving(true)
@@ -1676,9 +1747,13 @@ export default function VentaPage() {
       )}
 
       {screen === "sell" && (
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+      // En un monitor ancho el carrito no necesita un tercio de la pantalla:
+      // a partir de `2xl` se queda en un cuarto y el catálogo se lleva el resto,
+      // que es donde de verdad hace falta el sitio. Con `lg:grid-cols-3` a secas
+      // quedaban filas de tres productos y medio monitor en blanco.
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 2xl:grid-cols-4">
         {/* ── Catálogo ── */}
-        <div className="flex flex-col gap-3 lg:col-span-2">
+        <div className="flex flex-col gap-3 lg:col-span-2 2xl:col-span-3">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -1706,26 +1781,34 @@ export default function VentaPage() {
             )}
           </div>
 
-          {/* Filtro por categoría */}
-          {categories.length > 0 && (
-            <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
-              <CategoryChip
-                active={category === ALL}
-                onClick={() => setCategory(ALL)}
-              >
-                Todos
-              </CategoryChip>
-              {categories.map((c) => (
+          {/* Filtro por categoría, y a su derecha —donde antes solo había aire
+              en un monitor ancho— los dos atajos que ya existen y que casi
+              nadie descubre solo. */}
+          <div className="flex items-center gap-3">
+            {categories.length > 0 && (
+              <div className="-mx-1 flex min-w-0 flex-1 gap-1.5 overflow-x-auto px-1 pb-1">
                 <CategoryChip
-                  key={c.id}
-                  active={category === c.id}
-                  onClick={() => setCategory(c.id)}
+                  active={category === ALL}
+                  onClick={() => setCategory(ALL)}
                 >
-                  {c.name}
+                  Todos
                 </CategoryChip>
-              ))}
-            </div>
-          )}
+                {categories.map((c) => (
+                  <CategoryChip
+                    key={c.id}
+                    active={category === c.id}
+                    onClick={() => setCategory(c.id)}
+                  >
+                    {c.name}
+                  </CategoryChip>
+                ))}
+              </div>
+            )}
+            <p className="ml-auto hidden shrink-0 items-center gap-2 text-[11px] text-muted-foreground xl:flex">
+              <Atajo tecla="Enter">agrega lo escaneado</Atajo>
+              <Atajo tecla="Ctrl K">busca en todo el terminal</Atajo>
+            </p>
+          </div>
 
           {/* Aviso de existencias (agotados / pocas unidades) */}
           {!loading && !error && (stockSummary.out > 0 || stockSummary.low > 0) && (
@@ -1742,8 +1825,8 @@ export default function VentaPage() {
           )}
 
           {loading ? (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-              {Array.from({ length: 6 }).map((_, i) => (
+            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 min-[1800px]:grid-cols-6">
+              {Array.from({ length: 12 }).map((_, i) => (
                 <Skeleton key={i} className="h-28 rounded-xl" />
               ))}
             </div>
@@ -1765,7 +1848,7 @@ export default function VentaPage() {
               </CardContent>
             </Card>
           ) : (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 min-[1800px]:grid-cols-6">
               {gridEntries.map((entry) => {
                 // Un grupo de variantes ocupa UNA casilla y abre el selector de
                 // talla; el resto de productos se pintan como siempre.
@@ -1796,7 +1879,7 @@ export default function VentaPage() {
                     disabled={out}
                     onClick={() => addToCart(p)}
                     className={cn(
-                      "group relative flex flex-col items-start gap-1 rounded-xl border border-border bg-card p-3 text-left shadow-xs transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-sm active:translate-y-0",
+                      "group relative flex flex-col items-start gap-0.5 rounded-xl border border-border bg-card p-2.5 text-left shadow-xs transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-sm active:translate-y-0",
                       out &&
                         "cursor-not-allowed opacity-50 hover:translate-y-0 hover:border-border hover:shadow-xs",
                     )}
@@ -1820,13 +1903,23 @@ export default function VentaPage() {
                           <ImageOff className="size-6" aria-hidden />
                         </span>
                       ))}
-                    <span className="line-clamp-2 pr-6 font-medium leading-snug">
+                    {/* `text-balance` reparte el nombre entre los dos renglones
+                        en vez de dejar la primera palabra sola arriba, que es
+                        lo que pasaba con las tarjetas anchas. */}
+                    <span className="line-clamp-2 w-full pr-5 text-[0.8125rem] font-medium leading-snug text-balance">
                       {p.name}
                     </span>
-                    <span className="font-mono text-xs text-muted-foreground">
-                      {p.sku}
+                    <span className="flex w-full min-w-0 items-baseline gap-1.5 font-mono text-[11px] text-muted-foreground">
+                      <span className="truncate">{p.sku}</span>
+                      {/* Las existencias que no son aviso solo caben en pantalla
+                          ancha; ahí es dato útil, en móvil sería ruido. */}
+                      {p.stock >= LOW_STOCK && (
+                        <span className="ml-auto hidden shrink-0 tabular-nums xl:inline">
+                          {fmtQty(p.stock)} {p.unit}
+                        </span>
+                      )}
                     </span>
-                    <span className="mt-1 flex w-full items-center justify-between">
+                    <span className="mt-1 flex w-full flex-wrap items-center justify-between gap-1">
                       <span className="font-display text-lg">
                         {money(p.salePrice)}
                       </span>
@@ -1846,10 +1939,17 @@ export default function VentaPage() {
           )}
         </div>
 
-        {/* ── Cuenta ── */}
-        <Card data-tour="pos-carrito" className="h-fit lg:sticky lg:top-20">
-          <CardContent className="flex flex-col gap-3 p-4">
-            <div className="flex items-center gap-2">
+        {/* ── Cuenta ──
+            En PC ocupa todo el alto libre y es la LISTA la que scrollea: el
+            total y el botón de cobrar quedan pegados abajo y siempre a la
+            vista. Antes la tarjeta crecía con los ítems y a la décima línea
+            había que bajar la página entera para encontrar el botón. */}
+        <Card
+          data-tour="pos-carrito"
+          className="h-fit lg:sticky lg:top-20 lg:max-h-[calc(100svh-6rem)]"
+        >
+          <CardContent className="flex flex-col gap-3 p-4 lg:min-h-0 lg:flex-1 lg:overflow-hidden">
+            <div className="flex shrink-0 items-center gap-2">
               <ShoppingCart className="size-5 text-muted-foreground" />
               <p className="font-display text-lg">
                 {isOrder ? "Cuenta" : "Venta"}
@@ -1879,7 +1979,7 @@ export default function VentaPage() {
 
             {/* Cabecera de la cuenta abierta: etiqueta editable + estado */}
             {isOrder && (
-              <div className="flex flex-col gap-2">
+              <div className="flex shrink-0 flex-col gap-2">
                 <Input
                   value={label}
                   onChange={(e) => setLabel(e.target.value)}
@@ -1904,7 +2004,7 @@ export default function VentaPage() {
             )}
 
             {cart.length === 0 ? (
-              <div className="flex flex-col items-center gap-2 py-10 text-center">
+              <div className="flex flex-col items-center gap-2 py-10 text-center lg:min-h-0 lg:flex-1 lg:justify-center">
                 <ShoppingCart className="size-8 text-muted-foreground/50" />
                 <p className="text-sm text-muted-foreground">
                   {isOrder
@@ -1913,7 +2013,9 @@ export default function VentaPage() {
                 </p>
               </div>
             ) : (
-              <ul className="flex flex-col gap-2">
+              // El `-mr-1 pr-1` deja la barra de scroll fuera de las tarjetas,
+              // que si no se comía el borde derecho de cada línea.
+              <ul className="flex flex-col gap-2 lg:-mr-1 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:overscroll-contain lg:pr-1">
                 {cart.map((i) => {
                   const unit = unitPrice(i)
                   const gross = i.qty * unit
@@ -1927,42 +2029,81 @@ export default function VentaPage() {
                   return (
                   <li
                     key={i.product._id}
-                    className="flex items-center gap-2 rounded-lg border border-border p-2"
+                    className="rounded-lg border border-border p-2"
                   >
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">
-                        {i.product.name}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {conLista && (
-                          <span className="mr-1 line-through">
-                            {money(i.product.salePrice)}
-                          </span>
-                        )}
-                        {money(unit)} ·{" "}
-                        {lineDisc > 0 ? (
-                          <>
-                            <span className="text-muted-foreground line-through">
-                              {money(gross)}
-                            </span>{" "}
-                            <span className="font-medium text-foreground">
-                              {money(gross - lineDisc)}
-                            </span>
-                          </>
-                        ) : (
-                          <span className="font-medium text-foreground">
-                            {money(gross)}
-                          </span>
-                        )}
-                      </p>
-                      {applied && (
-                        <p className="mt-0.5 inline-flex items-center gap-1 text-[11px] font-medium text-success-ink">
-                          <Tag className="size-3" />
-                          {applied.name} (−{money(lineDisc)})
+                    {/* Dos renglones y no uno: con el nombre, el botón de
+                        descuento y el contador peleando por la misma fila, la
+                        columna del carrito se desbordaba en un portátil de
+                        1366 px y el "+" se salía de la tarjeta. */}
+                    <div className="flex items-start gap-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="line-clamp-2 text-[0.8125rem] font-medium leading-snug">
+                          {i.product.name}
                         </p>
-                      )}
+                        <p className="text-xs text-muted-foreground">
+                          {conLista && (
+                            <span className="mr-1 line-through">
+                              {money(i.product.salePrice)}
+                            </span>
+                          )}
+                          {money(unit)} ·{" "}
+                          {lineDisc > 0 ? (
+                            <>
+                              <span className="text-muted-foreground line-through">
+                                {money(gross)}
+                              </span>{" "}
+                              <span className="font-medium text-foreground">
+                                {money(gross - lineDisc)}
+                              </span>
+                            </>
+                          ) : (
+                            <span className="font-medium text-foreground">
+                              {money(gross)}
+                            </span>
+                          )}
+                        </p>
+                        {applied && (
+                          <p className="mt-0.5 inline-flex items-center gap-1 text-[11px] font-medium text-success-ink">
+                            <Tag className="size-3" />
+                            {applied.name} (−{money(lineDisc)})
+                          </p>
+                        )}
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        className="shrink-0 text-muted-foreground hover:text-destructive"
+                        aria-label={`Quitar ${i.product.name}`}
+                        onClick={() => removeFromCart(i.product._id)}
+                      >
+                        <Trash2 />
+                      </Button>
                     </div>
-                    <div className="flex items-center gap-1">
+
+                    <div className="mt-1.5 flex items-center gap-1">
+                      <Button
+                        variant="outline"
+                        size="icon-sm"
+                        aria-label="Restar uno"
+                        onClick={() => changeQty(i.product._id, -1)}
+                      >
+                        <Minus />
+                      </Button>
+                      <QuantityInput
+                        value={i.qty}
+                        onValueChange={(v) => setQty(i.product._id, v ?? 0)}
+                        aria-label={`Cantidad de ${i.product.name}`}
+                        className="h-8 w-14 px-1 text-center text-sm"
+                      />
+                      <Button
+                        variant="outline"
+                        size="icon-sm"
+                        aria-label="Sumar uno"
+                        disabled={i.qty >= i.product.stock}
+                        onClick={() => changeQty(i.product._id, 1)}
+                      >
+                        <Plus />
+                      </Button>
                       {discounts.length > 0 && (
                         <DropdownMenu>
                           <DropdownMenuTrigger
@@ -1970,7 +2111,7 @@ export default function VentaPage() {
                               <Button
                                 variant={applied ? "default" : "outline"}
                                 size="sm"
-                                className="gap-1"
+                                className="ml-auto gap-1"
                                 aria-label={`Descuento para ${i.product.name}`}
                               />
                             }
@@ -2008,44 +2149,6 @@ export default function VentaPage() {
                           </DropdownMenuContent>
                         </DropdownMenu>
                       )}
-                      <Button
-                        variant="outline"
-                        size="icon-sm"
-                        aria-label="Restar uno"
-                        onClick={() => changeQty(i.product._id, -1)}
-                      >
-                        <Minus />
-                      </Button>
-                      <Input
-                        type="number"
-                        inputMode="decimal"
-                        min={0}
-                        max={i.product.stock}
-                        value={i.qty}
-                        onChange={(e) => {
-                          const v = Number(e.target.value)
-                          setQty(i.product._id, Number.isFinite(v) ? v : 0)
-                        }}
-                        aria-label={`Cantidad de ${i.product.name}`}
-                        className="h-8 w-12 px-1 text-center text-sm [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
-                      />
-                      <Button
-                        variant="outline"
-                        size="icon-sm"
-                        aria-label="Sumar uno"
-                        disabled={i.qty >= i.product.stock}
-                        onClick={() => changeQty(i.product._id, 1)}
-                      >
-                        <Plus />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        aria-label={`Quitar ${i.product.name}`}
-                        onClick={() => removeFromCart(i.product._id)}
-                      >
-                        <Trash2 />
-                      </Button>
                     </div>
                   </li>
                   )
@@ -2053,128 +2156,143 @@ export default function VentaPage() {
               </ul>
             )}
 
-            <Separator />
+            {/* Pie de la cuenta: propina, total y cobrar. Va aparte y sin
+                encoger para que la lista de arriba sea la única que se mueve:
+                el botón de cobrar no puede salirse de la pantalla nunca. */}
+            <div className="flex shrink-0 flex-col gap-3">
+              <Separator />
 
-            {/* Propina (restaurante): voluntaria, se cobra encima del total. Se
-                pone/quita con el 10% sugerido o un monto libre. Va arriba del
-                total para que el cliente decida antes de ver el total a pagar. */}
-            {isRestaurant && cart.length > 0 && (
-              <div className="rounded-xl border border-dashed border-border p-3">
-                <div className="flex items-center justify-between">
-                  <span className="flex items-center gap-1.5 text-sm font-medium text-foreground">
-                    <HandCoins className="size-4 text-muted-foreground" />
-                    <Termino>Propina</Termino>
-                    <span className="text-xs font-normal text-muted-foreground">
-                      (opcional)
+              {/* Propina (restaurante): voluntaria, se cobra encima del total. Se
+                  pone/quita con el 10% sugerido o un monto libre. Va arriba del
+                  total para que el cliente decida antes de ver el total a pagar. */}
+              {isRestaurant && cart.length > 0 && (
+                <div className="rounded-xl border border-dashed border-border p-3">
+                  <div className="flex items-center justify-between">
+                    <span className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+                      <HandCoins className="size-4 text-muted-foreground" />
+                      <Termino>Propina</Termino>
+                      <span className="text-xs font-normal text-muted-foreground">
+                        (opcional)
+                      </span>
                     </span>
-                  </span>
-                  {tip !== null && (
-                    <button
-                      type="button"
-                      onClick={() => setTip(null)}
-                      className="text-xs font-medium text-muted-foreground transition-colors hover:text-destructive"
-                    >
-                      Quitar
-                    </button>
+                    {tip !== null && (
+                      <button
+                        type="button"
+                        onClick={() => setTip(null)}
+                        className="text-xs font-medium text-muted-foreground transition-colors hover:text-destructive"
+                      >
+                        Quitar
+                      </button>
+                    )}
+                  </div>
+                  {tip === null ? (
+                    <div className="mt-2 flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1"
+                        disabled={total <= 0}
+                        onClick={() => setTip(suggestedTip)}
+                      >
+                        10% · {money(suggestedTip)}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1"
+                        onClick={() => setTip(0)}
+                      >
+                        Otro monto
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="mt-2 flex items-center gap-2">
+                      <MoneyInput
+                        value={tip}
+                        onValueChange={(v) => setTip(v ?? 0)}
+                        placeholder="$0"
+                        className="flex-1"
+                      />
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={total <= 0}
+                        onClick={() => setTip(suggestedTip)}
+                      >
+                        10%
+                      </Button>
+                    </div>
                   )}
                 </div>
-                {tip === null ? (
-                  <div className="mt-2 flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="flex-1"
-                      disabled={total <= 0}
-                      onClick={() => setTip(suggestedTip)}
-                    >
-                      10% · {money(suggestedTip)}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="flex-1"
-                      onClick={() => setTip(0)}
-                    >
-                      Otro monto
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="mt-2 flex items-center gap-2">
-                    <MoneyInput
-                      value={tip}
-                      onValueChange={(v) => setTip(v ?? 0)}
-                      placeholder="$0"
-                      className="flex-1"
-                    />
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      disabled={total <= 0}
-                      onClick={() => setTip(suggestedTip)}
-                    >
-                      10%
-                    </Button>
-                  </div>
-                )}
-              </div>
-            )}
+              )}
 
-            {/* El total es la cifra que el cajero canta en voz alta y que el
-                cliente mira: va en panel violeta y grande, no como una fila
-                más de la lista. Con propina, el grande es el total a pagar. */}
-            <div className="flex items-baseline justify-between rounded-xl bg-accent px-4 py-3">
-              <div className="flex flex-col">
-                <span className="font-display text-lg text-accent-foreground">
-                  {tipAmount > 0 ? "Total a pagar" : "Total"}
-                </span>
-                {tipAmount > 0 && (
-                  <span className="text-xs text-accent-foreground/70">
-                    Bienes {money(total)} · Propina {money(tipAmount)}
+              {/* El total es la cifra que el cajero canta en voz alta y que el
+                  cliente mira: va en panel violeta y grande, no como una fila
+                  más de la lista. Con propina, el grande es el total a pagar. */}
+              <div className="flex items-baseline justify-between rounded-xl bg-accent px-4 py-3">
+                <div className="flex flex-col">
+                  <span className="font-display text-lg text-accent-foreground">
+                    {tipAmount > 0 ? "Total a pagar" : "Total"}
                   </span>
-                )}
+                  {tipAmount > 0 && (
+                    <span className="text-xs text-accent-foreground/70">
+                      Bienes {money(total)} · Propina {money(tipAmount)}
+                    </span>
+                  )}
+                </div>
+                <span className="stat-figure text-[1.75rem] leading-none text-primary">
+                  {money(netTotal)}
+                </span>
               </div>
-              <span className="stat-figure text-[1.75rem] leading-none text-primary">
-                {money(netTotal)}
-              </span>
-            </div>
 
-            {/* 56px de alto: es el objetivo táctil que fija nuestro sistema de
-                diseño para la acción principal del POS, y se pulsa con prisa. */}
-            <Button
-              data-tour="pos-cobrar"
-              size="lg"
-              className="h-14 text-base font-semibold shadow-[0_10px_26px_-12px_var(--primary)]"
-              disabled={cart.length === 0 || !sedeId}
-              onClick={openCheckout}
-            >
-              Cobrar {netTotal > 0 ? money(netTotal) : ""}
-            </Button>
-
-            {/* En venta directa se puede aparcar el carrito como cuenta. */}
-            {!isOrder && cart.length > 0 && (
+              {/* 56px de alto: es el objetivo táctil que fija nuestro sistema de
+                  diseño para la acción principal del POS, y se pulsa con prisa. */}
               <Button
-                variant="outline"
-                className="gap-2"
-                disabled={orderBusy}
-                onClick={() => void saveAsOrder()}
+                data-tour="pos-cobrar"
+                size="lg"
+                className="h-14 text-base font-semibold shadow-[0_10px_26px_-12px_var(--primary)]"
+                disabled={cart.length === 0 || !sedeId}
+                onClick={openCheckout}
               >
-                <ClipboardList className="size-4" />
-                Guardar como cuenta
+                Cobrar {netTotal > 0 ? money(netTotal) : ""}
               </Button>
-            )}
+
+              {/* En venta directa se puede aparcar el carrito como cuenta. */}
+              {!isOrder && cart.length > 0 && (
+                <Button
+                  variant="outline"
+                  className="gap-2"
+                  disabled={orderBusy}
+                  onClick={() => void saveAsOrder()}
+                >
+                  <ClipboardList className="size-4" />
+                  Guardar como cuenta
+                </Button>
+              )}
+            </div>
           </CardContent>
         </Card>
       </div>
       )}
 
       {/* ── Cobro ──
-          Modal centrado, no panel pegado al borde derecho. Cobrar es el
-          momento en que cajero y cliente miran la misma cifra: un cajón
-          lateral estrecho lo empuja a una esquina y deja media pantalla
-          muerta. Centrado, la atención va donde debe. */}
+          Tres columnas en PC, una sola apilada en móvil.
+
+          Antes esto era una tarjeta de 512 px con catorce bloques puestos uno
+          debajo de otro dentro de un velo que scrolleaba entero: al bajar a
+          buscar la devuelta se iban de la pantalla el título y el botón de
+          cobrar, y el detalle de lo que se estaba cobrando quedaba tapado por
+          el velo — el cajero confirmaba a ciegas. Y como el terminal se usa en
+          PC el 90 % del tiempo, había medio monitor en blanco a cada lado.
+
+          Ahora cada columna responde a una pregunta distinta: qué estoy
+          cobrando (izquierda), cómo paga (centro) y de quién es esta venta
+          (derecha). Las dos de los lados scrollean solas, la del centro es la
+          única que se mira con el cliente enfrente, y cabecera y pie no se
+          mueven pase lo que pase con el scroll. */}
       {checkoutOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-brand-950/45 dark:bg-navy-950/70 p-4 backdrop-blur-sm sm:items-center sm:p-6"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-brand-950/45 p-3 backdrop-blur-sm sm:p-6 dark:bg-navy-950/70"
           role="dialog"
           aria-modal="true"
           aria-label="Cobrar"
@@ -2183,94 +2301,134 @@ export default function VentaPage() {
           }}
         >
           <div
-            className="my-auto w-full max-w-lg overflow-hidden rounded-2xl bg-card shadow-xl"
+            className={cn(
+              "flex w-full flex-col overflow-hidden rounded-2xl bg-card shadow-xl print:overflow-visible",
+              // `svh` y no `vh`: con `vh` el modal se sale por abajo justo
+              // cuando aparece el teclado del celular.
+              "max-h-[calc(100svh-1.5rem)] sm:max-h-[calc(100svh-3rem)]",
+              completedSale ? "max-w-4xl" : "max-w-6xl",
+            )}
             onClick={(e) => e.stopPropagation()}
           >
           {completedSale ? (
-            <div className="flex flex-col gap-4 px-4 py-2">
-              <div className="flex flex-col items-center gap-2 pt-4 text-center">
-                <CheckCircle2 className="size-12 text-success-ink" />
-                <p className="font-display text-2xl">Venta registrada</p>
-                <p className="text-sm text-muted-foreground">
-                  {completedSale.saleNumber}
-                </p>
+            <>
+              <header className="no-print flex shrink-0 items-center gap-3 border-b border-border bg-success/10 px-5 py-4">
+                <CheckCircle2 className="size-9 shrink-0 text-success-ink" />
+                <div className="min-w-0 flex-1">
+                  <p className="font-display text-xl leading-tight">
+                    Venta registrada
+                  </p>
+                  <p className="font-mono text-xs text-muted-foreground">
+                    {completedSale.saleNumber}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  aria-label="Cerrar"
+                  onClick={() => {
+                    setCheckoutOpen(false)
+                    void backToList()
+                  }}
+                  className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-foreground/6 hover:text-foreground"
+                >
+                  <X className="size-5" />
+                </button>
+              </header>
+
+              {/* Recibo a un lado, lo que hay que hacer ya al otro. La devuelta
+                  es lo urgente —el cliente está esperando su vuelto—, así que
+                  va primero y en grande; el recibo se consulta, no se cuenta. */}
+              <div className="grid min-h-0 flex-1 grid-cols-1 overflow-y-auto overscroll-contain lg:grid-cols-2 lg:overflow-hidden print:overflow-visible">
+                <div className="flex flex-col gap-3 px-5 py-4 lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain print:hidden">
+                  {/* La devuelta, grande: es lo que el cajero tiene que contar
+                      y entregar ya, con el cliente esperando. */}
+                  {completedSale.payment.method === "cash" &&
+                    completedSale.payment.change !== undefined && (
+                      <div className="flex flex-col items-center gap-1 rounded-2xl bg-success/10 px-4 py-5 text-center text-success-ink">
+                        <span className="text-xs font-semibold uppercase tracking-wide">
+                          Devuelta
+                        </span>
+                        <span className="stat-figure text-4xl leading-none sm:text-5xl">
+                          {money(completedSale.payment.change)}
+                        </span>
+                        {completedSale.payment.received !== undefined && (
+                          <span className="text-xs opacity-80">
+                            Pagó con {money(completedSale.payment.received)}
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                  {/* Estado de la factura electrónica. Se muestra aparte del
+                      éxito de la venta a propósito: la venta está hecha aunque
+                      la DIAN falle, y mezclarlo haría dudar al cajero de si
+                      cobró o no. */}
+                  {invoiceState !== "idle" && (
+                    <div
+                      className={cn(
+                        "flex items-start gap-2 rounded-xl px-4 py-3 text-sm",
+                        invoiceState === "done" && "bg-success/10 text-success-ink",
+                        invoiceState === "emitting" && "bg-accent text-accent-foreground",
+                        invoiceState === "error" &&
+                          "bg-destructive/10 text-destructive",
+                      )}
+                    >
+                      {invoiceState === "emitting" && (
+                        <Loader2 className="mt-0.5 size-4 shrink-0 animate-spin" />
+                      )}
+                      {invoiceState === "done" && (
+                        <FileText className="mt-0.5 size-4 shrink-0" />
+                      )}
+                      {invoiceState === "error" && (
+                        <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+                      )}
+                      <span>
+                        {invoiceState === "emitting" && "Emitiendo factura electrónica…"}
+                        {invoiceState === "done" &&
+                          `Factura electrónica emitida${invoiceNumber ? ` · ${invoiceNumber}` : ""}`}
+                        {invoiceState === "error" && (
+                          <>
+                            La venta quedó registrada, pero la factura no se pudo
+                            emitir: {invoiceError}. Puedes emitirla desde{" "}
+                            <strong>Factura electrónica</strong>.
+                          </>
+                        )}
+                      </span>
+                    </div>
+                  )}
+
+                  {!printConfigured && (
+                    <div className="rounded-xl border border-dashed border-primary/40 bg-primary/5 p-3 text-xs">
+                      <p className="mb-1 flex items-center gap-1.5 font-medium text-foreground">
+                        <Info className="size-3.5 text-primary" />
+                        Configura la impresión (solo esta vez)
+                      </p>
+                      <p className="text-muted-foreground">
+                        Al pulsar <span className="font-medium">Imprimir</span>,
+                        elige tu impresora de recibos y márcala como
+                        predeterminada. Para que las próximas ventas salgan sin
+                        diálogo, activa la impresión automática (modo kiosco) del
+                        navegador. Esta ayuda no volverá a aparecer.
+                      </p>
+                    </div>
+                  )}
+
+                  {completedSale.customer?.name && (
+                    <p className="text-sm text-muted-foreground">
+                      A nombre de{" "}
+                      <span className="font-medium text-foreground">
+                        {completedSale.customer.name}
+                      </span>
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex flex-col border-t border-border bg-muted/25 px-5 py-4 lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain lg:border-l lg:border-t-0 print:overflow-visible print:border-0 print:bg-transparent print:p-0">
+                  <Receipt sale={completedSale} sede={sede} />
+                </div>
               </div>
 
-              {/* La devuelta, grande: es lo que el cajero tiene que contar y
-                  entregar ya, con el cliente esperando. */}
-              {completedSale.payment.method === "cash" &&
-                completedSale.payment.change !== undefined && (
-                  <div className="flex items-center justify-between rounded-xl bg-success/10 px-4 py-3 text-success-ink">
-                    <span className="text-sm font-medium">
-                      Devuelta
-                      {completedSale.payment.received !== undefined && (
-                        <span className="block text-xs font-normal opacity-80">
-                          Pagó con {money(completedSale.payment.received)}
-                        </span>
-                      )}
-                    </span>
-                    <span className="stat-figure text-3xl">
-                      {money(completedSale.payment.change)}
-                    </span>
-                  </div>
-                )}
-
-              {/* Estado de la factura electrónica. Se muestra aparte del éxito
-                  de la venta a propósito: la venta está hecha aunque la DIAN
-                  falle, y mezclarlo haría dudar al cajero de si cobró o no. */}
-              {invoiceState !== "idle" && (
-                <div
-                  className={cn(
-                    "flex items-start gap-2 rounded-xl px-4 py-3 text-sm",
-                    invoiceState === "done" && "bg-success/10 text-success-ink",
-                    invoiceState === "emitting" && "bg-accent text-accent-foreground",
-                    invoiceState === "error" &&
-                      "bg-destructive/10 text-destructive",
-                  )}
-                >
-                  {invoiceState === "emitting" && (
-                    <Loader2 className="mt-0.5 size-4 shrink-0 animate-spin" />
-                  )}
-                  {invoiceState === "done" && (
-                    <FileText className="mt-0.5 size-4 shrink-0" />
-                  )}
-                  {invoiceState === "error" && (
-                    <AlertTriangle className="mt-0.5 size-4 shrink-0" />
-                  )}
-                  <span>
-                    {invoiceState === "emitting" && "Emitiendo factura electrónica…"}
-                    {invoiceState === "done" &&
-                      `Factura electrónica emitida${invoiceNumber ? ` · ${invoiceNumber}` : ""}`}
-                    {invoiceState === "error" && (
-                      <>
-                        La venta quedó registrada, pero la factura no se pudo
-                        emitir: {invoiceError}. Puedes emitirla desde{" "}
-                        <strong>Factura electrónica</strong>.
-                      </>
-                    )}
-                  </span>
-                </div>
-              )}
-
-              {!printConfigured && (
-                <div className="no-print rounded-lg border border-dashed border-primary/40 bg-primary/5 p-3 text-xs">
-                  <p className="mb-1 flex items-center gap-1.5 font-medium text-foreground">
-                    <Info className="size-3.5 text-primary" />
-                    Configura la impresión (solo esta vez)
-                  </p>
-                  <p className="text-muted-foreground">
-                    Al pulsar <span className="font-medium">Imprimir</span>,
-                    elige tu impresora de recibos y márcala como predeterminada.
-                    Para que las próximas ventas salgan sin diálogo, activa la
-                    impresión automática (modo kiosco) del navegador. Esta ayuda
-                    no volverá a aparecer.
-                  </p>
-                </div>
-              )}
-
-              <Receipt sale={completedSale} sede={sede} />
-
-              <div className="no-print flex gap-2">
+              <footer className="no-print flex shrink-0 gap-2 border-t border-border bg-muted/40 px-5 py-3">
                 <Button
                   variant="outline"
                   className="flex-1 gap-2"
@@ -2280,7 +2438,7 @@ export default function VentaPage() {
                   Imprimir
                 </Button>
                 <Button
-                  className="flex-1"
+                  className="h-12 flex-1 text-base font-semibold"
                   onClick={() => {
                     setCheckoutOpen(false)
                     void backToList()
@@ -2288,733 +2446,854 @@ export default function VentaPage() {
                 >
                   Listo
                 </Button>
-              </div>
-            </div>
+              </footer>
+            </>
           ) : (
             <>
-              {/* Cabecera violeta con la cifra grande: es el dato que se lee
-                  en voz alta y el que el cliente comprueba. */}
-              <div className="gradient-brand px-6 py-5 text-primary-foreground">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="font-display text-lg">Cobrar</p>
+              {/* Cabecera fija: el título y la cifra que se lee en voz alta y
+                  que el cliente comprueba. No se mueve con el scroll. */}
+              <header className="shrink-0 gradient-brand px-4 py-3.5 text-primary-foreground sm:px-5 sm:py-4">
+                <div className="flex items-center gap-3 sm:gap-4">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-display text-lg leading-tight">Cobrar</p>
+                    <p className="truncate text-xs text-primary-foreground/80 sm:text-sm">
+                      {sede ? `${sede.name} · ` : ""}
+                      {itemCount} ítem(s)
+                      {lineDiscountTotal > 0 && (
+                        <> · −{money(lineDiscountTotal)} de descuento</>
+                      )}
+                      {tipAmount > 0 && <> · Propina {money(tipAmount)}</>}
+                      {deliveryFee > 0 && <> · Domicilio {money(deliveryFee)}</>}
+                    </p>
+                  </div>
+                  <p className="stat-figure shrink-0 text-3xl leading-none sm:text-4xl">
+                    {money(netTotal)}
+                  </p>
                   <button
                     type="button"
                     aria-label="Cerrar"
                     disabled={saving}
                     onClick={() => setCheckoutOpen(false)}
-                    className="inline-flex size-9 items-center justify-center rounded-lg text-primary-foreground/80 transition-colors hover:bg-primary-foreground/15 hover:text-primary-foreground disabled:opacity-40"
+                    className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg text-primary-foreground/80 transition-colors hover:bg-primary-foreground/15 hover:text-primary-foreground disabled:opacity-40"
                   >
                     <X className="size-5" />
                   </button>
                 </div>
-                <p className="stat-figure mt-2 text-4xl leading-none">
-                  {money(netTotal)}
-                </p>
-                <p className="mt-2 text-sm text-primary-foreground/80">
-                  {sede ? `${sede.name} · ` : ""}
-                  {itemCount} ítem(s)
-                  {lineDiscountTotal > 0 && (
-                    <>
-                      {" · "}
-                      <span className="line-through opacity-70">
-                        {money(total + lineDiscountTotal)}
-                      </span>{" "}
-                      −{money(lineDiscountTotal)}
-                    </>
-                  )}
-                  {tipAmount > 0 && (
-                    <> · Bienes {money(total)} + Propina {money(tipAmount)}</>
-                  )}
-                </p>
-              </div>
+              </header>
 
-              <div className="flex flex-col gap-4 px-6 py-5">
-                <div className="flex flex-col gap-1.5">
-                  <Label>Medio de pago</Label>
-                  <div className="grid grid-cols-2 gap-1 rounded-lg border border-border bg-muted p-1">
-                    {(
+              {/* En móvil el cuerpo entero scrollea y las columnas se apilan con
+                  "Cómo paga" arriba; en PC no scrollea nada aquí, scrollea cada
+                  columna por su cuenta. El orden del DOM es izquierda → centro →
+                  derecha para que el Tab recorra la pantalla como se lee. */}
+              <div className="grid min-h-0 flex-1 grid-cols-1 overflow-y-auto overscroll-contain lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.1fr)_minmax(0,0.95fr)] lg:divide-x lg:divide-border lg:overflow-hidden">
+                {/* ── Columna 1: qué se está cobrando ── */}
+                <CheckoutColumn
+                  title="Qué estás cobrando"
+                  icon={ShoppingCart}
+                  hint={`${itemCount} ítem(s)`}
+                  className="max-lg:order-2 max-lg:border-t max-lg:border-border"
+                  footer={
+                    <div className="flex flex-col gap-1.5">
+                      {activeOrder ? (
+                        <>
+                          <SummaryRow
+                            label="Consumo de la cuenta"
+                            value={money(total)}
+                          />
+                          {pagadoAntes > 0 && (
+                            <SummaryRow
+                              label="Ya pagaron"
+                              value={`−${money(pagadoAntes)}`}
+                              tone="positive"
+                            />
+                          )}
+                          {splitLines && (
+                            <SummaryRow
+                              label="Falta por cobrar"
+                              value={money(pendingTotal(activeOrder))}
+                            />
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          <SummaryRow
+                            label="Productos"
+                            value={money(total + lineDiscountTotal)}
+                          />
+                          {lineDiscountTotal > 0 && (
+                            <SummaryRow
+                              label="Descuentos"
+                              value={`−${money(lineDiscountTotal)}`}
+                              tone="positive"
+                            />
+                          )}
+                        </>
+                      )}
+                      {tipAmount > 0 && (
+                        <SummaryRow label="Propina" value={money(tipAmount)} />
+                      )}
+                      {deliveryFee > 0 && (
+                        <SummaryRow label="Domicilio" value={money(deliveryFee)} />
+                      )}
+                      <div className="mt-1 flex items-baseline justify-between gap-3 rounded-xl bg-accent px-3 py-2.5">
+                        <span className="font-display text-[0.9375rem] text-accent-foreground">
+                          Total a cobrar
+                        </span>
+                        <span className="stat-figure text-2xl leading-none text-primary">
+                          {money(netTotal)}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">
+                        Los precios ya incluyen impuestos.
+                      </p>
+                    </div>
+                  }
+                >
+                  {cart.length === 0 ? (
+                    <p className="py-8 text-center text-sm text-muted-foreground">
+                      No hay nada en la cuenta.
+                    </p>
+                  ) : (
+                    <ul className="flex flex-col gap-2">
+                      {cart.map((i) => {
+                        const unit = unitPrice(i)
+                        const gross = i.qty * unit
+                        const lineDisc = lineDiscount(i)
+                        const applied = i.discountId
+                          ? discountById.get(i.discountId)
+                          : undefined
+                        return (
+                          <li
+                            key={i.product._id}
+                            className="flex items-start justify-between gap-3 border-b border-border/60 pb-2 last:border-b-0 last:pb-0"
+                          >
+                            <span className="min-w-0 flex-1">
+                              <span className="block text-[0.8125rem] font-medium leading-snug text-foreground">
+                                {i.product.name}
+                              </span>
+                              <span className="block text-xs tabular-nums text-muted-foreground">
+                                {fmtQty(i.qty)} {i.product.unit} × {money(unit)}
+                              </span>
+                              {applied && (
+                                <span className="mt-0.5 inline-flex items-center gap-1 text-[11px] font-medium text-success-ink">
+                                  <Tag className="size-3" />
+                                  {applied.name} −{money(lineDisc)}
+                                </span>
+                              )}
+                            </span>
+                            <span className="shrink-0 text-[0.8125rem] font-medium tabular-nums text-foreground">
+                              {money(gross - lineDisc)}
+                            </span>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  )}
+                </CheckoutColumn>
+
+                {/* ── Columna 2: cómo paga (lo único que se mira con el cliente
+                    enfrente, así que es la más ancha y la más grande) ── */}
+                <CheckoutColumn
+                  title="Cómo paga"
+                  icon={Banknote}
+                  className="max-lg:order-1 lg:bg-muted/20"
+                >
+                  <OptionGroup
+                    ariaLabel="Medio de pago"
+                    value={method}
+                    onChange={setMethod}
+                    size="lg"
+                    columns={2}
+                    options={(
                       Object.entries(PAYMENT_METHOD_LABELS) as [
                         PaymentMethod,
                         string,
                       ][]
-                    ).map(([key, lbl]) => {
-                      const Icon = PAYMENT_ICONS[key]
-                      return (
-                        <button
-                          key={key}
-                          type="button"
-                          onClick={() => setMethod(key)}
-                          className={cn(
-                            "flex flex-col items-center gap-1 rounded-md px-2 py-2 text-xs font-medium transition-colors",
-                            method === key
-                              ? "bg-background text-foreground shadow-xs"
-                              : "text-muted-foreground hover:text-foreground",
-                          )}
-                        >
-                          <Icon className="size-4" />
-                          {lbl}
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
+                    ).map(([key, lbl]) => ({
+                      value: key,
+                      label: lbl,
+                      icon: PAYMENT_ICONS[key],
+                    }))}
+                  />
 
-                {/* ¿Con cuánto paga? Justo debajo del medio de pago y con la
-                    devuelta en grande: es la cuenta que el cajero hace con el
-                    cliente esperando, y antes quedaba al fondo del formulario. */}
-                {method === "cash" && (
-                  <div className="flex flex-col gap-2 rounded-xl border border-border p-3">
-                    <Label htmlFor="pos-received">¿Con cuánto paga?</Label>
-                    <MoneyInput
-                      id="pos-received"
-                      value={received}
-                      onValueChange={setReceived}
-                      placeholder={new Intl.NumberFormat("es-CO").format(netTotal)}
-                      className="h-12 text-lg"
-                      autoFocus
-                      onKeyDown={(e) => {
-                        // Escribir el billete y Enter: cobro sin tocar el mouse.
-                        if (e.key === "Enter" && !confirmBlocked) {
-                          e.preventDefault()
-                          void handleConfirm()
-                        }
-                      }}
-                    />
-                    <div className="flex flex-wrap gap-1.5">
-                      <Button
-                        type="button"
-                        variant={receivedNum === netTotal ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => setReceived(netTotal)}
-                      >
-                        Exacto
-                      </Button>
-                      {suggestions.map((s) => (
+                  {/* ¿Con cuánto paga? Con la devuelta enorme: es la cuenta que
+                      el cajero hace de cabeza con el cliente esperando, y antes
+                      quedaba al fondo de un formulario de catorce bloques. */}
+                  {method === "cash" && (
+                    <div className="flex flex-col gap-2.5 rounded-2xl border border-border bg-card p-3">
+                      <Label htmlFor="pos-received" className="text-[0.8125rem]">
+                        ¿Con cuánto paga?
+                      </Label>
+                      <MoneyInput
+                        id="pos-received"
+                        value={received}
+                        onValueChange={setReceived}
+                        placeholder={new Intl.NumberFormat("es-CO").format(netTotal)}
+                        className="h-14 text-xl"
+                        autoFocus
+                      />
+                      <div className="flex flex-wrap gap-1.5">
                         <Button
-                          key={s}
                           type="button"
-                          variant={receivedNum === s ? "default" : "outline"}
+                          variant={receivedNum === netTotal ? "default" : "outline"}
                           size="sm"
-                          onClick={() => setReceived(s)}
+                          onClick={() => setReceived(netTotal)}
                         >
-                          {money(s)}
+                          Exacto
                         </Button>
-                      ))}
-                    </div>
-                    <div
-                      role="status"
-                      className={cn(
-                        "flex items-center justify-between gap-3 rounded-lg px-4 py-3",
-                        change !== undefined
-                          ? "bg-success/10 text-success-ink"
-                          : receivedNum !== undefined && receivedNum < netTotal
-                            ? "bg-destructive/10 text-destructive"
-                            : "bg-muted text-muted-foreground",
-                      )}
-                    >
-                      {change !== undefined ? (
-                        <>
-                          <span className="text-sm font-medium">Devuelta</span>
-                          <span className="stat-figure text-3xl">
-                            {money(change)}
-                          </span>
-                        </>
-                      ) : receivedNum !== undefined && receivedNum < netTotal ? (
-                        <>
-                          <span className="text-sm font-medium">Faltan</span>
-                          <span className="stat-figure text-2xl">
-                            {money(netTotal - receivedNum)}
-                          </span>
-                        </>
-                      ) : (
-                        <span className="text-sm">
-                          Escribe con cuánto paga y aquí sale la devuelta.
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* A quién se le vende. Para el fiado esto ya se elige abajo,
-                    con su propio bloque, así que aquí solo aparece en las
-                    demás formas de pago — que es como paga casi siempre la
-                    tienda que compra por cajas. */}
-                {method !== "credit" && (
-                  <div className="flex flex-col gap-1.5">
-                    <div className="flex items-center justify-between gap-2">
-                      <Label>Cliente</Label>
-                      <button
-                        type="button"
-                        className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
-                        onClick={() => {
-                          setClienteModo("registrado")
-                          setNcOpen((v) => !v)
-                        }}
-                      >
-                        {ncOpen ? (
-                          "Cancelar"
-                        ) : (
-                          <>
-                            <UserPlus className="size-3.5" />
-                            Agregar cliente
-                          </>
-                        )}
-                      </button>
-                    </div>
-                    <div className="grid grid-cols-2 gap-1 rounded-lg border border-border bg-muted p-1">
-                      {(
-                        [
-                          ["final", "Consumidor final"],
-                          ["registrado", "Cliente registrado"],
-                        ] as const
-                      ).map(([key, lbl]) => (
-                        <button
-                          key={key}
-                          type="button"
-                          onClick={() => {
-                            setClienteModo(key)
-                            if (key === "final") {
-                              setNcOpen(false)
-                              elegirCliente("")
-                            }
-                          }}
-                          className={cn(
-                            "rounded-md px-2 py-1.5 text-xs font-medium transition-colors",
-                            clienteModo === key
-                              ? "bg-background text-foreground shadow-xs"
-                              : "text-muted-foreground hover:text-foreground",
-                          )}
-                        >
-                          {lbl}
-                        </button>
-                      ))}
-                    </div>
-
-                    {ncOpen ? (
-                      <div className="flex flex-col gap-1.5 rounded-lg border border-border bg-muted/40 p-2">
-                        <Input
-                          placeholder="Nombre"
-                          aria-label="Nombre del cliente nuevo"
-                          value={ncName}
-                          onChange={(e) => setNcName(e.target.value)}
-                        />
-                        <div className="grid grid-cols-2 gap-1.5">
-                          <Input
-                            placeholder="Cédula / NIT"
-                            aria-label="Documento del cliente nuevo"
-                            value={ncDoc}
-                            onChange={(e) => setNcDoc(e.target.value)}
-                          />
-                          <Input
-                            placeholder="Teléfono"
-                            aria-label="Teléfono del cliente nuevo"
-                            inputMode="tel"
-                            value={ncPhone}
-                            onChange={(e) => setNcPhone(e.target.value)}
-                          />
-                        </div>
-                        <Button
-                          size="sm"
-                          disabled={ncBusy || !ncName.trim() || !ncDoc.trim()}
-                          onClick={() => void quickAddCustomer()}
-                        >
-                          {ncBusy ? "Guardando…" : "Guardar y usar en esta venta"}
-                        </Button>
+                        {suggestions.map((s) => (
+                          <Button
+                            key={s}
+                            type="button"
+                            variant={receivedNum === s ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => setReceived(s)}
+                          >
+                            {money(s)}
+                          </Button>
+                        ))}
                       </div>
-                    ) : clienteModo === "registrado" ? (
-                      <select
-                        className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm"
-                        aria-label="Cliente registrado"
-                        value={custId}
-                        onChange={(e) => elegirCliente(e.target.value)}
+                      <div
+                        role="status"
+                        className={cn(
+                          "flex flex-col items-center justify-center gap-1 rounded-xl px-4 py-5 text-center",
+                          change !== undefined
+                            ? "bg-success/10 text-success-ink"
+                            : receivedNum !== undefined && receivedNum < netTotal
+                              ? "bg-destructive/10 text-destructive"
+                              : "bg-muted text-muted-foreground",
+                        )}
                       >
-                        <option value="">Selecciona un cliente…</option>
-                        {regCustomers.map((c) => (
-                          <option key={c._id} value={c._id}>
-                            {c.name} · {c.docType} {c.docNumber}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <p className="text-[11px] text-muted-foreground">
-                        Venta sin datos del cliente. El recibo y la factura
-                        salen a nombre de consumidor final.
-                      </p>
-                    )}
+                        {change !== undefined ? (
+                          <>
+                            <span className="text-xs font-semibold uppercase tracking-wide">
+                              Devuelta
+                            </span>
+                            <span className="stat-figure text-4xl leading-none sm:text-5xl">
+                              {money(change)}
+                            </span>
+                          </>
+                        ) : receivedNum !== undefined && receivedNum < netTotal ? (
+                          <>
+                            <span className="text-xs font-semibold uppercase tracking-wide">
+                              Faltan
+                            </span>
+                            <span className="stat-figure text-3xl leading-none">
+                              {money(netTotal - receivedNum)}
+                            </span>
+                          </>
+                        ) : (
+                          <span className="text-sm">
+                            Escribe con cuánto paga y aquí sale la devuelta.
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
-                    {/* Sin cliente registrado, el cajero puede elegir la lista
-                        a mano. Es decidir cobrar menos, así que va con el
-                        mismo permiso que un descuento. */}
-                    {!custId && canDiscount && priceLists.length > 0 && (
-                      <select
-                        className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm"
-                        value={manualListId}
-                        onChange={(e) => setManualListId(e.target.value)}
-                        aria-label="Lista de precios"
-                      >
-                        <option value="">Precio de mostrador</option>
-                        {priceLists.map((l) => (
-                          <option key={l._id} value={l._id}>
-                            Lista: {l.name}
-                          </option>
-                        ))}
-                      </select>
-                    )}
-
-                    {listaActiva && (
-                      <p className="inline-flex items-center gap-1 text-[11px] font-medium text-success-ink">
-                        <Tag className="size-3" />
-                        Se cobra con la lista {listaActiva.name}.
-                      </p>
-                    )}
-                  </div>
-                )}
-
-                {/* Quién vendió. Por omisión, quien cobra; si atendió otra
-                    persona se escoge aquí y la venta queda a su nombre. */}
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="pos-seller">Vendedor</Label>
-                  <select
-                    id="pos-seller"
-                    className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm"
-                    value={vendedor ? sellerKey : QUIEN_COBRA}
-                    onChange={(e) => setSellerKey(e.target.value)}
-                  >
-                    <option value={QUIEN_COBRA}>
-                      {user?.name ? `${user.name} (quien cobra)` : "Quien cobra"}
-                    </option>
-                    {empList.map((e) => (
-                      <option key={e._id} value={e._id}>
-                        {e.firstName} {e.lastName}
-                      </option>
-                    ))}
-                  </select>
-                  {empList.length === 0 && (
-                    <p className="text-[11px] text-muted-foreground">
-                      Para escoger a otra persona, regístrala primero como
-                      empleado.
+                  {(method === "card" || method === "transfer") && (
+                    <p className="flex items-start gap-2 rounded-xl border border-border bg-card px-3 py-2.5 text-[0.8125rem] text-muted-foreground">
+                      <Info className="mt-0.5 size-4 shrink-0 text-primary" />
+                      <span>
+                        {method === "card"
+                          ? "Pasa la tarjeta por el datáfono y confirma aquí cuando la transacción quede aprobada."
+                          : "Confirma aquí cuando veas la transferencia recibida. No hay devuelta que entregar."}
+                      </span>
                     </p>
                   )}
-                </div>
 
-                {/* Dividir la cuenta de una mesa. Solo aparece con una cuenta
-                    abierta: una venta directa se cobra completa siempre. */}
-                {activeOrder && (
-                  <div className="flex flex-col gap-2 rounded-lg border border-border bg-muted/40 p-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <Label className="text-xs">Cómo se paga la cuenta</Label>
-                      {pagadoAntes > 0 && (
-                        <span className="text-[11px] text-muted-foreground">
-                          ya pagaron {money(pagadoAntes)}
-                        </span>
-                      )}
-                    </div>
-                    <div className="grid grid-cols-3 gap-1 rounded-lg border border-border bg-muted p-1">
-                      {(
-                        [
-                          ["todo", "Completa"],
-                          ["items", "Por ítem"],
-                          ["partes", "Partes iguales"],
-                        ] as const
-                      ).map(([key, lbl]) => (
-                        <button
-                          key={key}
-                          type="button"
-                          onClick={() => setSplitMode(key)}
-                          className={cn(
-                            "rounded-md px-2 py-1.5 text-xs font-medium transition-colors",
-                            splitMode === key
-                              ? "bg-background text-foreground shadow-xs"
-                              : "text-muted-foreground hover:text-foreground",
-                          )}
-                        >
-                          {lbl}
-                        </button>
-                      ))}
-                    </div>
+                  {/* Fiado: quién queda debiendo. Va en esta columna y no en la
+                      de al lado porque es parte de CÓMO se paga, no un dato de
+                      la venta: sin deudor no hay cobro. */}
+                  {method === "credit" && (
+                    <div className="flex flex-col gap-2.5 rounded-2xl border border-warning/30 bg-warning/10 p-3">
+                      <p className="flex items-center gap-1.5 text-[0.8125rem] font-medium text-warning-ink">
+                        <HandCoins className="size-4" />
+                        <Termino term="credito">Venta a crédito (fiado)</Termino>
+                      </p>
 
-                    {splitMode === "partes" && (
-                      <div className="flex flex-col gap-1.5">
-                        <Label className="text-xs">
-                          ¿Entre cuántos se divide lo que falta?
-                        </Label>
-                        <Input
-                          type="number"
-                          min="1"
-                          step="1"
-                          inputMode="numeric"
-                          className="h-9 w-24 text-right tnum"
-                          value={splitParts}
-                          onChange={(e) => setSplitParts(e.target.value)}
-                        />
-                        <p className="text-[11px] text-muted-foreground">
-                          {Number(splitParts) > 1
-                            ? "Se cobra una parte y la cuenta queda abierta con el resto. Al último ponle 1: se lleva lo que sobre."
-                            : "Con 1 se cobra todo lo que falta."}
-                        </p>
-                      </div>
-                    )}
+                      <OptionGroup
+                        ariaLabel="Quién queda debiendo"
+                        value={debtorType}
+                        onChange={setDebtorType}
+                        columns={2}
+                        className="bg-warning/15"
+                        options={[
+                          { value: "customer" as const, label: "Cliente" },
+                          { value: "employee" as const, label: "Empleado (nómina)" },
+                        ]}
+                      />
 
-                    {splitMode === "items" && (
-                      <div className="flex flex-col gap-1.5">
-                        <Label className="text-xs">Qué paga esta persona</Label>
-                        {[...pendiente.entries()]
-                          .filter(([, falta]) => falta > 0.0005)
-                          .map(([productId, falta]) => {
-                            const l = activeOrder.lines.find(
-                              (x) => x.productId === productId,
-                            )
-                            return (
-                              <div
-                                key={productId}
-                                className="flex items-center gap-2"
-                              >
-                                <span className="min-w-0 flex-1 truncate text-xs">
-                                  {l?.name ?? productId}
-                                  <span className="text-muted-foreground">
-                                    {" "}
-                                    · faltan {nfCantidad.format(falta)}
-                                  </span>
-                                </span>
+                      {debtorType === "customer" ? (
+                        <div className="flex flex-col gap-1.5">
+                          <div className="flex items-center justify-between gap-2">
+                            <Label className="text-xs text-warning-ink">
+                              Cliente registrado
+                            </Label>
+                            <button
+                              type="button"
+                              className="text-xs font-medium text-warning-ink underline"
+                              onClick={() => setNcOpen((v) => !v)}
+                            >
+                              {ncOpen ? "Cancelar" : "+ Registrar"}
+                            </button>
+                          </div>
+                          {!ncOpen ? (
+                            <NativeSelect
+                              value={custId}
+                              onChange={(v) => elegirCliente(v)}
+                              placeholder="Selecciona un cliente…"
+                              aria-label="Cliente al que se le fía"
+                              options={regCustomers.map((c) => ({
+                                value: c._id,
+                                label: `${c.name} · ${c.docType} ${c.docNumber}`,
+                              }))}
+                            />
+                          ) : (
+                            <div className="flex flex-col gap-1.5 rounded-xl border border-warning/30 bg-background p-2">
+                              <Input
+                                placeholder="Nombre"
+                                aria-label="Nombre del cliente nuevo"
+                                value={ncName}
+                                onChange={(e) => setNcName(e.target.value)}
+                              />
+                              <div className="grid grid-cols-2 gap-1.5">
                                 <Input
-                                  type="number"
-                                  min="0"
-                                  max={falta}
-                                  step="any"
-                                  inputMode="decimal"
-                                  className="h-8 w-20 text-right tnum"
-                                  aria-label={`Cuánto paga de ${l?.name ?? ""}`}
-                                  placeholder="—"
-                                  value={splitQty[productId] ?? ""}
-                                  onChange={(e) =>
-                                    setSplitQty((prev) => ({
-                                      ...prev,
-                                      [productId]: e.target.value,
-                                    }))
-                                  }
+                                  placeholder="Cédula / NIT"
+                                  aria-label="Documento del cliente nuevo"
+                                  value={ncDoc}
+                                  onChange={(e) => setNcDoc(e.target.value)}
+                                />
+                                <Input
+                                  placeholder="Teléfono"
+                                  aria-label="Teléfono del cliente nuevo"
+                                  inputMode="tel"
+                                  value={ncPhone}
+                                  onChange={(e) => setNcPhone(e.target.value)}
                                 />
                               </div>
-                            )
-                          })}
-                        <p className="text-[11px] text-muted-foreground">
-                          Lo que dejes en blanco se queda pendiente para el
-                          siguiente.
-                        </p>
-                      </div>
-                    )}
+                              <Button
+                                size="sm"
+                                disabled={ncBusy || !ncName.trim() || !ncDoc.trim()}
+                                onClick={() => void quickAddCustomer()}
+                              >
+                                {ncBusy ? "Guardando…" : "Registrar y usar"}
+                              </Button>
+                            </div>
+                          )}
+                          <p className="text-[11px] text-warning-ink">
+                            Queda como cuenta por cobrar (CxC) del cliente.
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col gap-1.5">
+                          <Label className="text-xs text-warning-ink">Empleado</Label>
+                          <NativeSelect
+                            value={empId}
+                            onChange={setEmpId}
+                            placeholder="Selecciona un empleado…"
+                            aria-label="Empleado al que se le fía"
+                            options={empList.map((e) => ({
+                              value: e._id,
+                              label: `${e.firstName} ${e.lastName} · ${e.docNumber}`,
+                            }))}
+                          />
+                          <p className="text-[11px] text-warning-ink">
+                            Se descuenta por nómina (pendiente de aprobación) y
+                            aparece en la colilla.
+                          </p>
+                        </div>
+                      )}
 
-                    {splitLines && (
-                      <p className="text-[11px] font-medium text-success-ink">
-                        Este pago cubre {money(chargeTotal)} de{" "}
-                        {money(pendingTotal(activeOrder))} que faltan. La cuenta
-                        queda abierta.
+                      <div className="flex flex-col gap-1.5">
+                        <Label
+                          htmlFor="pos-credit-due"
+                          className="gap-1.5 text-xs text-warning-ink"
+                        >
+                          <CalendarClock className="size-3.5" />
+                          Vence (opcional)
+                        </Label>
+                        <Input
+                          id="pos-credit-due"
+                          type="date"
+                          value={creditDue}
+                          onChange={(e) => setCreditDue(e.target.value)}
+                          className="bg-background"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </CheckoutColumn>
+
+                {/* ── Columna 3: lo que no se toca en cada venta ──
+                    Plegado por defecto y con el estado resumido en un renglón:
+                    las opciones siguen estando todas, pero solo grita la que
+                    esta venta necesita. */}
+                <CheckoutColumn
+                  title="De la venta"
+                  icon={ClipboardList}
+                  className="max-lg:order-3 max-lg:border-t max-lg:border-border"
+                >
+                  {method !== "credit" ? (
+                    <CheckoutGroup
+                      title="Cliente"
+                      icon={UserRound}
+                      defaultOpen={clienteModo === "registrado"}
+                      summary={
+                        clienteModo === "final"
+                          ? "Consumidor final"
+                          : customer.name
+                            ? listaActiva
+                              ? `${customer.name} · lista ${listaActiva.name}`
+                              : customer.name
+                            : "Sin elegir"
+                      }
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <Label className="text-xs">A quién se le vende</Label>
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                          onClick={() => {
+                            setClienteModo("registrado")
+                            setNcOpen((v) => !v)
+                          }}
+                        >
+                          {ncOpen ? (
+                            "Cancelar"
+                          ) : (
+                            <>
+                              <UserPlus className="size-3.5" />
+                              Agregar cliente
+                            </>
+                          )}
+                        </button>
+                      </div>
+                      <OptionGroup
+                        ariaLabel="A quién se le vende"
+                        value={clienteModo}
+                        onChange={(v) => {
+                          setClienteModo(v)
+                          if (v === "final") {
+                            setNcOpen(false)
+                            elegirCliente("")
+                          }
+                        }}
+                        columns={2}
+                        options={[
+                          { value: "final" as const, label: "Consumidor final" },
+                          { value: "registrado" as const, label: "Cliente registrado" },
+                        ]}
+                      />
+
+                      {ncOpen ? (
+                        <div className="flex flex-col gap-1.5 rounded-xl border border-border bg-muted/40 p-2">
+                          <Input
+                            placeholder="Nombre"
+                            aria-label="Nombre del cliente nuevo"
+                            value={ncName}
+                            onChange={(e) => setNcName(e.target.value)}
+                          />
+                          <div className="grid grid-cols-2 gap-1.5">
+                            <Input
+                              placeholder="Cédula / NIT"
+                              aria-label="Documento del cliente nuevo"
+                              value={ncDoc}
+                              onChange={(e) => setNcDoc(e.target.value)}
+                            />
+                            <Input
+                              placeholder="Teléfono"
+                              aria-label="Teléfono del cliente nuevo"
+                              inputMode="tel"
+                              value={ncPhone}
+                              onChange={(e) => setNcPhone(e.target.value)}
+                            />
+                          </div>
+                          <Button
+                            size="sm"
+                            disabled={ncBusy || !ncName.trim() || !ncDoc.trim()}
+                            onClick={() => void quickAddCustomer()}
+                          >
+                            {ncBusy ? "Guardando…" : "Guardar y usar en esta venta"}
+                          </Button>
+                        </div>
+                      ) : clienteModo === "registrado" ? (
+                        <NativeSelect
+                          value={custId}
+                          onChange={(v) => elegirCliente(v)}
+                          placeholder="Selecciona un cliente…"
+                          aria-label="Cliente registrado"
+                          options={regCustomers.map((c) => ({
+                            value: c._id,
+                            label: `${c.name} · ${c.docType} ${c.docNumber}`,
+                          }))}
+                        />
+                      ) : (
+                        <p className="text-[11px] text-muted-foreground">
+                          Venta sin datos del cliente. El recibo y la factura
+                          salen a nombre de consumidor final.
+                        </p>
+                      )}
+
+                      {/* Sin cliente registrado, el cajero puede elegir la lista
+                          a mano. Es decidir cobrar menos, así que va con el
+                          mismo permiso que un descuento. */}
+                      {!custId && canDiscount && priceLists.length > 0 && (
+                        <NativeSelect
+                          value={manualListId}
+                          onChange={setManualListId}
+                          placeholder="Precio de mostrador"
+                          aria-label="Lista de precios"
+                          options={priceLists.map((l) => ({
+                            value: l._id,
+                            label: `Lista: ${l.name}`,
+                          }))}
+                        />
+                      )}
+
+                      {listaActiva && (
+                        <p className="inline-flex items-center gap-1 text-[11px] font-medium text-success-ink">
+                          <Tag className="size-3" />
+                          Se cobra con la lista {listaActiva.name}.
+                        </p>
+                      )}
+                    </CheckoutGroup>
+                  ) : (
+                    <p className="rounded-xl border border-dashed border-border px-3 py-2.5 text-xs text-muted-foreground">
+                      En el fiado el cliente se elige junto al medio de pago: es
+                      quien queda debiendo.
+                    </p>
+                  )}
+
+                  {/* Quién vendió. Por omisión, quien cobra; si atendió otra
+                      persona se escoge aquí y la venta queda a su nombre. */}
+                  <CheckoutGroup
+                    title="Vendedor"
+                    icon={Users}
+                    summary={
+                      vendedor
+                        ? `${vendedor.firstName} ${vendedor.lastName}`
+                        : user?.name
+                          ? `${user.name} (quien cobra)`
+                          : "Quien cobra"
+                    }
+                  >
+                    <NativeSelect
+                      id="pos-seller"
+                      value={vendedor ? sellerKey : QUIEN_COBRA}
+                      onChange={setSellerKey}
+                      aria-label="Vendedor"
+                      options={[
+                        {
+                          value: QUIEN_COBRA,
+                          label: user?.name
+                            ? `${user.name} (quien cobra)`
+                            : "Quien cobra",
+                        },
+                        ...empList.map((e) => ({
+                          value: e._id,
+                          label: `${e.firstName} ${e.lastName}`,
+                        })),
+                      ]}
+                    />
+                    {empList.length === 0 && (
+                      <p className="text-[11px] text-muted-foreground">
+                        Para escoger a otra persona, regístrala primero como
+                        empleado.
                       </p>
                     )}
-                  </div>
-                )}
+                  </CheckoutGroup>
 
-                {/* Cómo sale el pedido. Con domicilio aparece a dónde va y
-                    cuánto se cobra por llevarlo, que se suma ENCIMA del total y
-                    sin IVA — igual que la propina. */}
-                <div className="flex flex-col gap-1.5">
-                  <Label>Tipo de pedido</Label>
-                  <div className="grid grid-cols-4 gap-1 rounded-lg border border-border bg-muted p-1">
-                    {(
-                      Object.entries(ORDER_TYPE_LABELS) as [OrderType, string][]
-                    ).map(([key, lbl]) => (
-                      <button
-                        key={key}
-                        type="button"
-                        onClick={() => setOrderType(key)}
-                        className={cn(
-                          "rounded-md px-1 py-1.5 text-[11px] font-medium transition-colors",
-                          orderType === key
-                            ? "bg-background text-foreground shadow-xs"
-                            : "text-muted-foreground hover:text-foreground",
-                        )}
-                      >
-                        {lbl}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                  {/* Cómo sale el pedido. Con domicilio aparece a dónde va y
+                      cuánto se cobra por llevarlo, que se suma ENCIMA del total
+                      y sin IVA — igual que la propina. El bloque deja de
+                      plegarse mientras falte la dirección: esconder el campo que
+                      bloquea el botón de cobrar deja al cajero adivinando. */}
+                  <CheckoutGroup
+                    title="Tipo de pedido"
+                    icon={Truck}
+                    forceOpen={orderType === "domicilio" && !address.trim()}
+                    requiredHint="Falta la dirección"
+                    summary={
+                      orderType === "domicilio"
+                        ? `Domicilio · ${address.trim() || "sin dirección"}`
+                        : ORDER_TYPE_LABELS[orderType]
+                    }
+                  >
+                    <OptionGroup
+                      ariaLabel="Tipo de pedido"
+                      value={orderType}
+                      onChange={setOrderType}
+                      columns={4}
+                      options={(
+                        Object.entries(ORDER_TYPE_LABELS) as [OrderType, string][]
+                      ).map(([key, lbl]) => ({ value: key, label: lbl }))}
+                    />
 
-                {orderType === "domicilio" && (
-                  <div className="flex flex-col gap-2 rounded-lg border border-border bg-muted/40 p-3">
-                    <div className="flex flex-col gap-1.5">
-                      <Label className="text-xs">Dirección de entrega</Label>
-                      <Input
-                        value={address}
-                        onChange={(e) => setAddress(e.target.value)}
-                        placeholder="Calle 33 #70-20, apto 302"
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="flex flex-col gap-1.5">
-                        <Label className="text-xs">Teléfono</Label>
-                        <Input
-                          value={deliveryPhone}
-                          onChange={(e) => setDeliveryPhone(e.target.value)}
-                          placeholder="300 123 4567"
-                          inputMode="tel"
-                        />
-                      </div>
-                      <div className="flex flex-col gap-1.5">
-                        <Label className="text-xs">Quién lo lleva</Label>
-                        <Input
-                          value={courier}
-                          onChange={(e) => setCourier(e.target.value)}
-                          placeholder="Nombre del repartidor"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="flex flex-col gap-1.5">
-                      <Label className="text-xs">Indicaciones</Label>
-                      <Input
-                        value={deliveryNotes}
-                        onChange={(e) => setDeliveryNotes(e.target.value)}
-                        placeholder="Timbre dañado, llamar al llegar"
-                      />
-                    </div>
-
-                    <div className="flex flex-col gap-1.5">
-                      <Label className="text-xs">Zona</Label>
-                      <select
-                        className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm"
-                        value={zoneId}
-                        onChange={(e) => setZoneId(e.target.value)}
-                      >
-                        <option value="">
-                          {zones.length === 0
-                            ? "No hay zonas configuradas"
-                            : "Otra zona (escribo el valor)"}
-                        </option>
-                        {zones.map((z) => (
-                          <option key={z._id} value={z._id}>
-                            {z.name} · {money(z.fee)}
-                          </option>
-                        ))}
-                      </select>
-                      {/* El valor a mano es para el pedido que no cae en
-                          ninguna zona: es lo que se acordó en vez de calcular
-                          por kilómetros. */}
-                      {!zoneId && (
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-muted-foreground">
-                            Cobro del domicilio
-                          </span>
+                    {orderType === "domicilio" && (
+                      <div className="flex flex-col gap-2 rounded-xl border border-border bg-muted/40 p-2.5">
+                        <div className="flex flex-col gap-1.5">
+                          <Label className="text-xs">Dirección de entrega</Label>
                           <Input
-                            type="number"
-                            min="0"
-                            step="any"
-                            inputMode="decimal"
-                            className="h-9 w-32 text-right tnum"
-                            aria-label="Valor del domicilio"
-                            placeholder="0"
-                            value={manualFee}
-                            onChange={(e) => setManualFee(e.target.value)}
+                            value={address}
+                            onChange={(e) => setAddress(e.target.value)}
+                            placeholder="Calle 33 #70-20, apto 302"
                           />
                         </div>
-                      )}
-                    </div>
 
-                    <p className="text-[11px] text-muted-foreground">
-                      {deliveryFee > 0
-                        ? `Se cobran ${money(deliveryFee)} encima del total. El domicilio no lleva IVA.`
-                        : "Domicilio sin costo para el cliente."}
-                    </p>
-                  </div>
-                )}
-
-                {/* Fiado (crédito): deudor obligatorio (cliente o empleado) */}
-                {method === "credit" && (
-                  <div className="flex flex-col gap-2 rounded-lg border border-warning/30 bg-warning/10 p-3">
-                    <p className="flex items-center gap-1.5 text-xs font-medium text-warning-ink">
-                      <HandCoins className="size-4" />
-                      <Termino term="credito">Venta a crédito (fiado)</Termino>
-                    </p>
-
-                    {/* Segmento cliente / empleado */}
-                    <div className="grid grid-cols-2 gap-1 rounded-lg bg-warning/15 p-1">
-                      <button
-                        type="button"
-                        onClick={() => setDebtorType("customer")}
-                        className={cn(
-                          "rounded-md py-1.5 text-xs font-medium transition-colors",
-                          debtorType === "customer"
-                            ? "bg-background text-foreground shadow-sm"
-                            : "text-warning-ink",
-                        )}
-                      >
-                        Cliente
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setDebtorType("employee")}
-                        className={cn(
-                          "rounded-md py-1.5 text-xs font-medium transition-colors",
-                          debtorType === "employee"
-                            ? "bg-background text-foreground shadow-sm"
-                            : "text-warning-ink",
-                        )}
-                      >
-                        Empleado (nómina)
-                      </button>
-                    </div>
-
-                    {debtorType === "customer" ? (
-                      <div className="flex flex-col gap-1.5">
-                        <div className="flex items-center justify-between">
-                          <Label className="text-xs text-warning-ink">Cliente registrado</Label>
-                          <button
-                            type="button"
-                            className="text-xs font-medium text-warning-ink underline"
-                            onClick={() => setNcOpen((v) => !v)}
-                          >
-                            {ncOpen ? "Cancelar" : "+ Registrar"}
-                          </button>
-                        </div>
-                        {!ncOpen ? (
-                          <select
-                            className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm"
-                            value={custId}
-                            onChange={(e) => elegirCliente(e.target.value)}
-                          >
-                            <option value="">Selecciona un cliente…</option>
-                            {regCustomers.map((c) => (
-                              <option key={c._id} value={c._id}>
-                                {c.name} · {c.docType} {c.docNumber}
-                              </option>
-                            ))}
-                          </select>
-                        ) : (
-                          <div className="flex flex-col gap-1.5 rounded-lg border border-warning/30 bg-background p-2">
-                            <Input placeholder="Nombre" value={ncName} onChange={(e) => setNcName(e.target.value)} />
-                            <div className="grid grid-cols-2 gap-1.5">
-                              <Input placeholder="Cédula / NIT" value={ncDoc} onChange={(e) => setNcDoc(e.target.value)} />
-                              <Input placeholder="Teléfono" value={ncPhone} onChange={(e) => setNcPhone(e.target.value)} />
-                            </div>
-                            <Button size="sm" disabled={ncBusy || !ncName.trim() || !ncDoc.trim()} onClick={() => void quickAddCustomer()}>
-                              {ncBusy ? "Guardando…" : "Registrar y usar"}
-                            </Button>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="flex flex-col gap-1.5">
+                            <Label className="text-xs">Teléfono</Label>
+                            <Input
+                              value={deliveryPhone}
+                              onChange={(e) => setDeliveryPhone(e.target.value)}
+                              placeholder="300 123 4567"
+                              inputMode="tel"
+                            />
                           </div>
-                        )}
-                        <p className="text-[11px] text-warning-ink">
-                          Queda como cuenta por cobrar (CxC) del cliente.
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="flex flex-col gap-1.5">
-                        <Label className="text-xs text-warning-ink">Empleado</Label>
-                        <select
-                          className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm"
-                          value={empId}
-                          onChange={(e) => setEmpId(e.target.value)}
-                        >
-                          <option value="">Selecciona un empleado…</option>
-                          {empList.map((e) => (
-                            <option key={e._id} value={e._id}>
-                              {e.firstName} {e.lastName} · {e.docNumber}
-                            </option>
-                          ))}
-                        </select>
-                        <p className="text-[11px] text-warning-ink">
-                          Se descuenta por nómina (pendiente de aprobación) y aparece en la colilla.
+                          <div className="flex flex-col gap-1.5">
+                            <Label className="text-xs">Quién lo lleva</Label>
+                            <Input
+                              value={courier}
+                              onChange={(e) => setCourier(e.target.value)}
+                              placeholder="Nombre del repartidor"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="flex flex-col gap-1.5">
+                          <Label className="text-xs">Indicaciones</Label>
+                          <Input
+                            value={deliveryNotes}
+                            onChange={(e) => setDeliveryNotes(e.target.value)}
+                            placeholder="Timbre dañado, llamar al llegar"
+                          />
+                        </div>
+
+                        <div className="flex flex-col gap-1.5">
+                          <Label className="text-xs">Zona</Label>
+                          <NativeSelect
+                            value={zoneId}
+                            onChange={setZoneId}
+                            aria-label="Zona del domicilio"
+                            placeholder={
+                              zones.length === 0
+                                ? "No hay zonas configuradas"
+                                : "Otra zona (escribo el valor)"
+                            }
+                            options={zones.map((z) => ({
+                              value: z._id,
+                              label: `${z.name} · ${money(z.fee)}`,
+                            }))}
+                          />
+                          {/* El valor a mano es para el pedido que no cae en
+                              ninguna zona: es lo que se acordó en vez de
+                              calcular por kilómetros. */}
+                          {!zoneId && (
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-muted-foreground">
+                                Cobro del domicilio
+                              </span>
+                              <MoneyInput
+                                value={manualFee === "" ? null : Number(manualFee)}
+                                onValueChange={(v) =>
+                                  setManualFee(v === null ? "" : String(v))
+                                }
+                                aria-label="Valor del domicilio"
+                                placeholder="0"
+                                className="h-9 w-32 text-right"
+                              />
+                            </div>
+                          )}
+                        </div>
+
+                        <p className="text-[11px] text-muted-foreground">
+                          {deliveryFee > 0
+                            ? `Se cobran ${money(deliveryFee)} encima del total. El domicilio no lleva IVA.`
+                            : "Domicilio sin costo para el cliente."}
                         </p>
                       </div>
                     )}
+                  </CheckoutGroup>
 
-                    <div className="flex flex-col gap-1">
-                      <Label htmlFor="pos-credit-due" className="gap-1.5 text-xs text-warning-ink">
-                        <CalendarClock className="size-3.5" />
-                        Vence (opcional)
-                      </Label>
-                      <Input
-                        id="pos-credit-due"
-                        type="date"
-                        value={creditDue}
-                        onChange={(e) => setCreditDue(e.target.value)}
-                        className="bg-background"
+                  {/* Dividir la cuenta de una mesa. Solo aparece con una cuenta
+                      abierta: una venta directa se cobra completa siempre. */}
+                  {activeOrder && (
+                    <CheckoutGroup
+                      title="Dividir la cuenta"
+                      icon={Split}
+                      summary={
+                        splitMode === "todo"
+                          ? pagadoAntes > 0
+                            ? `Completa · ya pagaron ${money(pagadoAntes)}`
+                            : "Completa"
+                          : splitMode === "items"
+                            ? "Por ítem"
+                            : `Entre ${splitParts || "?"} partes`
+                      }
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <Label className="text-xs">Cómo se paga la cuenta</Label>
+                        {pagadoAntes > 0 && (
+                          <span className="text-[11px] text-muted-foreground">
+                            ya pagaron {money(pagadoAntes)}
+                          </span>
+                        )}
+                      </div>
+                      <OptionGroup
+                        ariaLabel="Cómo se paga la cuenta"
+                        value={splitMode}
+                        onChange={setSplitMode}
+                        columns={3}
+                        options={[
+                          { value: "todo" as const, label: "Completa" },
+                          { value: "items" as const, label: "Por ítem" },
+                          { value: "partes" as const, label: "Partes iguales" },
+                        ]}
                       />
-                    </div>
-                  </div>
-                )}
 
-                {/* ── Factura electrónica ──
-                    Interruptor grande y explícito. Antes los datos del cliente
-                    estaban en un desplegable gris llamado "Datos del cliente
-                    (factura)" que no decía si se emitía factura ni cómo; con
-                    esto el cajero solo tiene que preguntar "¿con factura?". */}
-                <div
-                  className={cn(
-                    "flex flex-col gap-3 rounded-xl border p-4 transition-colors",
-                    emitInvoice
-                      ? "border-primary/40 bg-accent/60"
-                      : "border-border",
+                      {splitMode === "partes" && (
+                        <div className="flex flex-col gap-1.5">
+                          <Label className="text-xs">
+                            ¿Entre cuántos se divide lo que falta?
+                          </Label>
+                          <QuantityInput
+                            value={splitParts === "" ? null : Number(splitParts)}
+                            onValueChange={(v) =>
+                              setSplitParts(v === null ? "" : String(v))
+                            }
+                            decimales={0}
+                            aria-label="Entre cuántos se divide la cuenta"
+                            className="h-9 w-24 text-right"
+                          />
+                          <p className="text-[11px] text-muted-foreground">
+                            {Number(splitParts) > 1
+                              ? "Se cobra una parte y la cuenta queda abierta con el resto. Al último ponle 1: se lleva lo que sobre."
+                              : "Con 1 se cobra todo lo que falta."}
+                          </p>
+                        </div>
+                      )}
+
+                      {splitMode === "items" && (
+                        <div className="flex flex-col gap-1.5">
+                          <Label className="text-xs">Qué paga esta persona</Label>
+                          {[...pendiente.entries()]
+                            .filter(([, falta]) => falta > 0.0005)
+                            .map(([productId, falta]) => {
+                              const l = activeOrder.lines.find(
+                                (x) => x.productId === productId,
+                              )
+                              const texto = splitQty[productId] ?? ""
+                              return (
+                                <div
+                                  key={productId}
+                                  className="flex items-center gap-2"
+                                >
+                                  <span className="min-w-0 flex-1 truncate text-xs">
+                                    {l?.name ?? productId}
+                                    <span className="text-muted-foreground">
+                                      {" "}
+                                      · faltan {nfCantidad.format(falta)}
+                                    </span>
+                                  </span>
+                                  <QuantityInput
+                                    value={texto === "" ? null : Number(texto)}
+                                    onValueChange={(v) =>
+                                      setSplitQty((prev) => ({
+                                        ...prev,
+                                        [productId]: v === null ? "" : String(v),
+                                      }))
+                                    }
+                                    aria-label={`Cuánto paga de ${l?.name ?? ""}`}
+                                    placeholder="—"
+                                    className="h-8 w-20 text-right"
+                                  />
+                                </div>
+                              )
+                            })}
+                          <p className="text-[11px] text-muted-foreground">
+                            Lo que dejes en blanco se queda pendiente para el
+                            siguiente.
+                          </p>
+                        </div>
+                      )}
+
+                      {splitLines && (
+                        <p className="text-[11px] font-medium text-success-ink">
+                          Este pago cubre {money(chargeTotal)} de{" "}
+                          {money(pendingTotal(activeOrder))} que faltan. La cuenta
+                          queda abierta.
+                        </p>
+                      )}
+                    </CheckoutGroup>
                   )}
-                >
-                  <label className="flex cursor-pointer items-start gap-3">
-                    <input
-                      type="checkbox"
-                      checked={emitInvoice}
-                      onChange={(e) => {
-                        setEmitInvoice(e.target.checked)
-                        if (e.target.checked) setShowCustomer(true)
-                      }}
-                      className="mt-0.5 size-5 shrink-0 accent-[var(--primary)]"
-                    />
-                    <span className="min-w-0">
-                      <span className="flex items-center gap-2 font-medium text-foreground">
-                        <FileText className="size-4 text-primary" />
-                        Factura electrónica DIAN
-                      </span>
-                      <span className="mt-0.5 block text-sm text-muted-foreground">
-                        {emitInvoice
-                          ? "Se emite al confirmar. Necesitamos nombre y documento del cliente."
-                          : "Márcala si el cliente pide factura."}
-                      </span>
-                    </span>
-                  </label>
 
-                  {emitInvoice && (
-                    <label className="flex cursor-pointer items-center gap-3 border-t border-primary/20 pt-3">
+                  {/* ── Factura electrónica ──
+                      Interruptor explícito, no un trámite aparte: si el cliente
+                      la pide, se marca aquí y sale con la venta. */}
+                  <CheckoutGroup
+                    title="Factura electrónica DIAN"
+                    icon={FileText}
+                    defaultOpen={emitInvoice}
+                    summary={
+                      emitInvoice
+                        ? "Se emite al confirmar"
+                        : "Sin factura electrónica"
+                    }
+                  >
+                    <label className="flex cursor-pointer items-start gap-3">
                       <input
                         type="checkbox"
-                        checked={saveCustomer}
-                        onChange={(e) => setSaveCustomer(e.target.checked)}
-                        className="size-5 shrink-0 accent-[var(--primary)]"
+                        checked={emitInvoice}
+                        onChange={(e) => {
+                          setEmitInvoice(e.target.checked)
+                          if (e.target.checked) setShowCustomer(true)
+                        }}
+                        className="mt-0.5 size-5 shrink-0 accent-[var(--primary)]"
                       />
-                      <span className="text-sm text-foreground">
-                        Guardar el cliente para próximas facturas
+                      <span className="min-w-0 text-[0.8125rem]">
+                        <span className="block font-medium text-foreground">
+                          Emitir factura electrónica
+                        </span>
+                        <span className="mt-0.5 block text-muted-foreground">
+                          {emitInvoice
+                            ? "Se emite al confirmar. Necesitamos nombre y documento del cliente."
+                            : "Márcala si el cliente pide factura."}
+                        </span>
                       </span>
                     </label>
-                  )}
-                </div>
 
-                {/* Datos del cliente. Se despliegan solos al pedir factura. */}
-                <div className="flex flex-col gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowCustomer((v) => !v)}
-                    className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground"
-                  >
-                    <UserRound className="size-4" />
-                    Datos del cliente
                     {emitInvoice && (
-                      <span className="text-xs font-normal text-primary">
-                        (obligatorios)
-                      </span>
+                      <label className="flex cursor-pointer items-center gap-3 border-t border-border pt-2.5">
+                        <input
+                          type="checkbox"
+                          checked={saveCustomer}
+                          onChange={(e) => setSaveCustomer(e.target.checked)}
+                          className="size-5 shrink-0 accent-[var(--primary)]"
+                        />
+                        <span className="text-[0.8125rem] text-foreground">
+                          Guardar el cliente para próximas facturas
+                        </span>
+                      </label>
                     )}
-                    <ChevronDown
-                      className={cn(
-                        "size-4 transition-transform",
-                        showCustomer && "rotate-180",
-                      )}
-                    />
-                  </button>
-                  {showCustomer && (
+                  </CheckoutGroup>
+
+                  {/* Datos del cliente para el papel. Se abren solos al pedir
+                      factura y dejan de plegarse mientras falten: descubrirlo
+                      después de cobrar obligaría a anular la venta. */}
+                  <CheckoutGroup
+                    title="Datos para la factura"
+                    icon={ReceiptText}
+                    open={showCustomer}
+                    onOpenChange={setShowCustomer}
+                    forceOpen={invoiceDataMissing}
+                    requiredHint="Faltan datos"
+                    summary={
+                      customer.name
+                        ? `${customer.name}${customer.idNumber ? ` · ${customer.idNumber}` : ""}`
+                        : "Sin datos del cliente"
+                    }
+                  >
                     <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                       <Input
                         value={customer.name ?? ""}
@@ -3052,142 +3331,139 @@ export default function VentaPage() {
                         aria-label="Correo del cliente"
                       />
                     </div>
-                  )}
-                </div>
-
-                {/* Falta de datos para la factura: se avisa ANTES de cobrar.
-                    Descubrirlo después de registrar la venta obligaría a
-                    anularla o a emitir la factura a mano. */}
-                {invoiceDataMissing && (
-                  <p className="flex items-start gap-2 rounded-lg bg-accent px-3 py-2 text-sm text-accent-foreground">
-                    <Info className="mt-0.5 size-4 shrink-0" />
-                    Para la factura electrónica hace falta el nombre y la cédula
-                    o NIT del cliente.
-                  </p>
-                )}
-
-                {/* Empaque extra: la bolsa grande porque se llevó todo junto,
-                    la caja de más. Lo que cada producto ya gasta por su ficha
-                    se descuenta solo y no hace falta anotarlo aquí. */}
-                <div className="flex flex-col gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setEmpaqueAbierto((v) => !v)}
-                    className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground"
-                  >
-                    <Package className="size-4" />
-                    Empaque extra
-                    {packagingRows.length > 0 && (
-                      <span className="text-xs font-normal text-primary">
-                        ({packagingRows.length})
-                      </span>
-                    )}
-                    <ChevronDown
-                      className={cn(
-                        "size-4 transition-transform",
-                        empaqueAbierto && "rotate-180",
-                      )}
-                    />
-                  </button>
-                  {empaqueAbierto && (
-                    <div className="flex flex-col gap-2 rounded-lg border border-border bg-muted/40 p-3">
-                      <p className="text-[11px] text-muted-foreground">
-                        Sale del inventario y suma al costo de la venta; al
-                        cliente no se le cobra.
+                    {invoiceDataMissing && (
+                      <p className="flex items-start gap-2 rounded-xl bg-accent px-3 py-2 text-xs text-accent-foreground">
+                        <Info className="mt-0.5 size-4 shrink-0" />
+                        Para la factura electrónica hace falta el nombre y la
+                        cédula o NIT del cliente.
                       </p>
-                      {extraPack.map((row, i) => (
-                        <div key={i} className="flex items-center gap-2">
-                          <select
-                            className="h-9 min-w-0 flex-1 rounded-lg border border-input bg-background px-2.5 text-sm"
-                            aria-label={`Empaque extra ${i + 1}`}
-                            value={row.productId}
-                            onChange={(e) =>
-                              setExtraPack((rows) =>
-                                rows.map((r, idx) =>
-                                  idx === i
-                                    ? { ...r, productId: e.target.value }
-                                    : r,
-                                ),
-                              )
-                            }
-                          >
-                            <option value="">
-                              {invItems.length === 0
-                                ? "Cargando…"
-                                : "Bolsa, caja, vaso…"}
-                            </option>
-                            {invItems.map((p) => (
-                              <option key={p._id} value={p._id}>
-                                {p.name}
-                              </option>
-                            ))}
-                          </select>
-                          <Input
-                            type="number"
-                            min="1"
-                            step="1"
-                            inputMode="numeric"
-                            className="h-9 w-20 text-right tnum"
-                            aria-label={`Cantidad del empaque extra ${i + 1}`}
-                            value={row.qty}
-                            onChange={(e) =>
-                              setExtraPack((rows) =>
-                                rows.map((r, idx) =>
-                                  idx === i ? { ...r, qty: e.target.value } : r,
-                                ),
-                              )
-                            }
-                          />
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            aria-label={`Quitar el empaque extra ${i + 1}`}
-                            onClick={() =>
-                              setExtraPack((rows) =>
-                                rows.filter((_, idx) => idx !== i),
-                              )
-                            }
-                          >
-                            <X className="size-4" />
-                          </Button>
-                        </div>
-                      ))}
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="self-start"
-                        onClick={() =>
-                          setExtraPack((rows) => [
-                            ...rows,
-                            { productId: "", qty: "1" },
-                          ])
-                        }
-                      >
-                        <Plus className="size-4" />
-                        Agregar empaque
-                      </Button>
-                    </div>
+                    )}
+                  </CheckoutGroup>
+
+                  {/* Empaque extra: la bolsa grande porque se llevó todo junto,
+                      la caja de más. Lo que cada producto ya gasta por su ficha
+                      se descuenta solo y no hace falta anotarlo aquí. */}
+                  <CheckoutGroup
+                    title="Empaque extra"
+                    icon={Package}
+                    open={empaqueAbierto}
+                    onOpenChange={setEmpaqueAbierto}
+                    summary={
+                      packagingRows.length > 0
+                        ? `${packagingRows.length} ítem(s) anotados`
+                        : "Nada anotado"
+                    }
+                  >
+                    <p className="text-[11px] text-muted-foreground">
+                      Sale del inventario y suma al costo de la venta; al cliente
+                      no se le cobra.
+                    </p>
+                    {extraPack.map((row, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <NativeSelect
+                          className="flex-1"
+                          value={row.productId}
+                          aria-label={`Empaque extra ${i + 1}`}
+                          placeholder={
+                            invItems.length === 0 ? "Cargando…" : "Bolsa, caja, vaso…"
+                          }
+                          onChange={(v) =>
+                            setExtraPack((rows) =>
+                              rows.map((r, idx) =>
+                                idx === i ? { ...r, productId: v } : r,
+                              ),
+                            )
+                          }
+                          options={invItems.map((p) => ({
+                            value: p._id,
+                            label: p.name,
+                          }))}
+                        />
+                        <QuantityInput
+                          value={row.qty === "" ? null : Number(row.qty)}
+                          onValueChange={(v) =>
+                            setExtraPack((rows) =>
+                              rows.map((r, idx) =>
+                                idx === i
+                                  ? { ...r, qty: v === null ? "" : String(v) }
+                                  : r,
+                              ),
+                            )
+                          }
+                          decimales={0}
+                          aria-label={`Cantidad del empaque extra ${i + 1}`}
+                          className="h-9 w-20 text-right"
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label={`Quitar el empaque extra ${i + 1}`}
+                          onClick={() =>
+                            setExtraPack((rows) =>
+                              rows.filter((_, idx) => idx !== i),
+                            )
+                          }
+                        >
+                          <X className="size-4" />
+                        </Button>
+                      </div>
+                    ))}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="self-start"
+                      onClick={() =>
+                        setExtraPack((rows) => [
+                          ...rows,
+                          { productId: "", qty: "1" },
+                        ])
+                      }
+                    >
+                      <Plus className="size-4" />
+                      Agregar empaque
+                    </Button>
+                  </CheckoutGroup>
+                </CheckoutColumn>
+              </div>
+
+              {/* Pie fijo. Además de los botones, dice por qué NO se puede
+                  cobrar todavía: el botón apagado sin explicación era el motivo
+                  número uno de llamada al soporte. */}
+              <footer className="flex shrink-0 flex-col gap-2 border-t border-border bg-muted/40 px-4 py-3 sm:flex-row sm:items-center sm:px-5">
+                <div className="min-w-0 flex-1 text-xs sm:text-[0.8125rem]">
+                  {checkoutError ? (
+                    <p className="flex items-start gap-1.5 font-medium text-destructive">
+                      <AlertTriangle className="mt-px size-4 shrink-0" />
+                      {checkoutError}
+                    </p>
+                  ) : (
+                    <p className="flex items-start gap-1.5 text-muted-foreground">
+                      {motivoBloqueo ? (
+                        <>
+                          <Info className="mt-px size-4 shrink-0 text-primary" />
+                          {motivoBloqueo}
+                        </>
+                      ) : (
+                        <span className="hidden sm:inline">
+                          Enter cobra · Esc cierra
+                        </span>
+                      )}
+                    </p>
                   )}
                 </div>
-
-                {checkoutError && (
-                  <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                    {checkoutError}
-                  </p>
-                )}
-
-                <div className="flex justify-end gap-2 pt-2">
+                <div className="flex shrink-0 gap-2">
                   <Button
                     variant="outline"
                     disabled={saving}
+                    className="flex-1 sm:min-w-28 sm:flex-none"
                     onClick={() => setCheckoutOpen(false)}
                   >
                     Cancelar
                   </Button>
                   <Button
-                    className="h-12 px-6 text-base font-semibold"
+                    className="h-12 flex-1 px-6 text-base font-semibold sm:flex-none"
                     disabled={confirmBlocked}
                     onClick={() => void handleConfirm()}
                   >
@@ -3198,7 +3474,7 @@ export default function VentaPage() {
                         : `Confirmar ${money(netTotal)}`}
                   </Button>
                 </div>
-              </div>
+              </footer>
             </>
           )}
           </div>
@@ -3218,64 +3494,50 @@ export default function VentaPage() {
         onPick={(p) => addToCart(p)}
       />
 
-      {/* ── Diálogo "Nueva cuenta" (nombre personalizado) ── */}
-      {newOrderOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 dark:bg-black/65 p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Nueva cuenta"
-          onClick={() => {
-            if (!orderBusy) setNewOrderOpen(false)
-          }}
+      {/* ── Diálogo "Nueva cuenta" (nombre personalizado) ──
+          Antes era un velo a mano con una `Card` dentro: sin scroll propio, sin
+          Escape y sin atrapar el Tab. Al ser una ficha corriente de un solo
+          campo, `FormDialog` lo resuelve entero y además deja el pie fijo. */}
+      <FormDialog
+        open={newOrderOpen}
+        onOpenChange={(abierto) => {
+          if (!abierto && orderBusy) return
+          setNewOrderOpen(abierto)
+        }}
+        title="Nueva cuenta"
+        description="Para dejar el consumo de una mesa o un cliente pendiente de cobrar."
+        icon={ClipboardList}
+        size="md"
+        footer={
+          <FormActions
+            onCancel={() => setNewOrderOpen(false)}
+            onSubmit={() => void newOrder(newOrderName)}
+            submitLabel="Crear cuenta"
+            busy={orderBusy}
+            disabled={!sedeId}
+          />
+        }
+      >
+        <Field
+          id="new-order-name"
+          label="Nombre de la cuenta"
+          hint="Puedes dejarlo en blanco y usar el número consecutivo."
         >
-          <Card
-            className="w-full max-w-sm"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <CardContent className="flex flex-col gap-4 p-5">
-              <div className="flex items-center gap-2">
-                <ClipboardList className="size-5 text-muted-foreground" />
-                <p className="font-display text-lg">Nueva cuenta</p>
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="new-order-name">Nombre de la cuenta</Label>
-                <Input
-                  id="new-order-name"
-                  ref={newOrderRef}
-                  value={newOrderName}
-                  onChange={(e) => setNewOrderName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault()
-                      void newOrder(newOrderName)
-                    }
-                  }}
-                  placeholder="Mesa 5, Juan, Terraza…"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Puedes dejarlo en blanco y usar el número consecutivo.
-                </p>
-              </div>
-              <div className="flex justify-end gap-2">
-                <Button
-                  variant="outline"
-                  disabled={orderBusy}
-                  onClick={() => setNewOrderOpen(false)}
-                >
-                  Cancelar
-                </Button>
-                <Button
-                  disabled={orderBusy || !sedeId}
-                  onClick={() => void newOrder(newOrderName)}
-                >
-                  {orderBusy ? "Creando…" : "Crear cuenta"}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
+          <Input
+            id="new-order-name"
+            ref={newOrderRef}
+            value={newOrderName}
+            onChange={(e) => setNewOrderName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault()
+                void newOrder(newOrderName)
+              }
+            }}
+            placeholder="Mesa 5, Juan, Terraza…"
+          />
+        </Field>
+      </FormDialog>
     </>
   )
 }
@@ -3306,6 +3568,31 @@ function SaveIndicator({ state }: { state: SaveState }) {
     )
   }
   return null
+}
+
+/**
+ * Atajo de teclado, escrito donde se usa.
+ *
+ * Los dos que hay —Enter para agregar lo escaneado y Ctrl K para buscar en todo
+ * el terminal— ya existían y no los descubría nadie. En un monitor ancho sobra
+ * sitio a la derecha del filtro de categorías, así que se dicen ahí en vez de
+ * dejar el hueco en blanco.
+ */
+function Atajo({
+  tecla,
+  children,
+}: {
+  tecla: string
+  children: React.ReactNode
+}) {
+  return (
+    <span className="inline-flex items-center gap-1">
+      <kbd className="rounded-md border border-border bg-card px-1.5 py-0.5 font-mono text-[10px] text-foreground">
+        {tecla}
+      </kbd>
+      {children}
+    </span>
+  )
 }
 
 function CategoryChip({
@@ -3373,7 +3660,7 @@ function VariantGroupCard({
       onClick={onOpen}
       aria-label={`${group.name}: elegir ${eje.toLowerCase()}`}
       className={cn(
-        "group relative flex flex-col items-start gap-1 rounded-xl border border-primary/30 bg-card p-3 text-left shadow-xs transition-all hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-sm active:translate-y-0",
+        "group relative flex flex-col items-start gap-0.5 rounded-xl border border-primary/30 bg-card p-2.5 text-left shadow-xs transition-all hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-sm active:translate-y-0",
         agotado &&
           "cursor-not-allowed opacity-50 hover:translate-y-0 hover:border-border hover:shadow-xs",
       )}
@@ -3401,15 +3688,15 @@ function VariantGroupCard({
         <Layers className="size-3" aria-hidden />
         {group.variants.length} {axisLabel(eje, group.variants.length)}
       </span>
-      <span className="line-clamp-2 pr-6 font-medium leading-snug">
+      <span className="line-clamp-2 w-full pr-5 text-[0.8125rem] font-medium leading-snug text-balance">
         {group.name}
       </span>
-      <span className="line-clamp-1 text-xs text-muted-foreground">
+      <span className="line-clamp-1 w-full text-[11px] text-muted-foreground">
         {disponibles.length > 0
           ? disponibles.slice(0, 6).map(variantLabel).join(" · ")
           : "Sin existencias"}
       </span>
-      <span className="mt-1 flex w-full items-center justify-between">
+      <span className="mt-1 flex w-full flex-wrap items-center justify-between gap-1">
         <span className="font-display text-lg">
           {variosPrecios ? `desde ${money(desde)}` : money(desde)}
         </span>

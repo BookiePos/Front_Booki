@@ -20,6 +20,7 @@ import { FormDialog, FormSection, FormAlert } from "@/components/ui/form-dialog"
 import { Field, FieldGrid, NativeSelect } from "@/components/ui/field"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { QuantityInput } from "@/components/ui/money-input"
 import {
   Table,
   TableBody,
@@ -301,21 +302,19 @@ export function DevolucionDialog({
                           )}
                         </TableCell>
                         <TableCell className="py-2">
-                          <Input
-                            type="number"
-                            min="0"
-                            max={f.disponible}
-                            step="any"
-                            inputMode="decimal"
-                            className="h-9 w-24 text-right tnum"
+                          {/* Cantidad, no número pelado: con `type="number"`
+                              un "1500" de gramos se leía como una fila de
+                              dígitos que hay que contar con el dedo. */}
+                          <QuantityInput
+                            className="h-9 w-24 text-right"
                             aria-label={`Cantidad devuelta de ${f.line.name}`}
                             placeholder="—"
                             disabled={f.disponible <= 0}
-                            value={f.texto}
-                            onChange={(e) =>
+                            value={f.texto === "" ? null : Number(f.texto)}
+                            onValueChange={(v) =>
                               setCantidades((prev) => ({
                                 ...prev,
-                                [f.line.productId]: e.target.value,
+                                [f.line.productId]: v === null ? "" : String(v),
                               }))
                             }
                           />
