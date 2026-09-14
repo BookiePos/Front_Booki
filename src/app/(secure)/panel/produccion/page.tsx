@@ -43,7 +43,7 @@ import {
   type ProductionOrderStatus,
   type ProductionOutput,
 } from "@/lib/erp/api-production"
-import { money, todayLocal, fmtDate, errorMessage, numOr } from "@/lib/erp/finance-format"
+import { money, todayLocal, fmtDate, errorMessage } from "@/lib/erp/finance-format"
 import { calcularMargenPct, nivelMargen } from "@/lib/erp/margen"
 import { unidadCorta, unidadNombre } from "@/lib/erp/unidades"
 import { MoneyInput, QuantityInput } from "@/components/ui/money-input"
@@ -1136,7 +1136,7 @@ function NewOrderDialog({
   const [sedeId, setSedeId] = React.useState("")
   const [productId, setProductId] = React.useState("")
   const [date, setDate] = React.useState(todayLocal())
-  const [plannedQty, setPlannedQty] = React.useState("")
+  const [plannedQty, setPlannedQty] = React.useState<number | null>(null)
   const [note, setNote] = React.useState("")
   const [saving, setSaving] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
@@ -1146,7 +1146,7 @@ function NewOrderDialog({
     setSedeId(sedes.length === 1 ? (sedes[0]?._id ?? "") : "")
     setProductId("")
     setDate(todayLocal())
-    setPlannedQty("")
+    setPlannedQty(null)
     setNote("")
     setError(null)
   }, [open, sedes])
@@ -1160,8 +1160,8 @@ function NewOrderDialog({
 
   const selected = producibles.find((p) => p.product?._id === productId)
   const lotes =
-    selected && Number(plannedQty) > 0
-      ? Number(plannedQty) / selected.bom.outputQty
+    selected && plannedQty && plannedQty > 0
+      ? plannedQty / selected.bom.outputQty
       : 0
 
   async function save(start: boolean) {
@@ -1172,7 +1172,7 @@ function NewOrderDialog({
         sedeId,
         productId,
         date,
-        plannedQty: Number(plannedQty),
+        plannedQty: plannedQty ?? 0,
         note: note.trim() || undefined,
         start,
       })
@@ -1287,17 +1287,14 @@ function NewOrderDialog({
           <FieldGrid cols={2}>
             <Field
               id="op-qty"
-              label={`Cantidad (${selected?.product?.unit ?? "und"})`}
+              label={`Cantidad (${unidadCorta(selected?.product?.unit)})`}
               required
             >
-              <Input
+              <QuantityInput
                 id="op-qty"
-                type="number"
-                min="0"
-                step="any"
                 value={plannedQty}
-                onChange={(e) => setPlannedQty(e.target.value)}
-                required
+                onValueChange={setPlannedQty}
+                sufijo={unidadCorta(selected?.product?.unit)}
               />
             </Field>
             <Field id="op-date" label="Fecha" required>
@@ -1354,14 +1351,14 @@ function OrderDetailDialog({
   canManage: boolean
   products: InvProduct[]
 }) {
-  const [producedQty, setProducedQty] = React.useState("")
+  const [producedQty, setProducedQty] = React.useState<number | null>(null)
   const [expiresAt, setExpiresAt] = React.useState("")
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
   React.useEffect(() => {
     if (!order) return
-    setProducedQty(String(order.plannedQty))
+    setProducedQty(order.plannedQty)
     setExpiresAt(order.expiresAt ?? "")
     setError(null)
   }, [order])
@@ -1433,7 +1430,7 @@ function OrderDetailDialog({
               onClick={() =>
                 void run(() =>
                   completeProductionOrder(order._id, {
-                    producedQty: Number(producedQty),
+                    producedQty: producedQty ?? 0,
                     expiresAt: expiresAt || undefined,
                   }),
                 )
@@ -1526,16 +1523,14 @@ function OrderDetailDialog({
           <FieldGrid cols={2}>
             <Field
               id="op-produced"
-              label={`Salida real (${order.unit})`}
+              label={`Salida real (${unidadCorta(order.unit)})`}
               required
             >
-              <Input
+              <QuantityInput
                 id="op-produced"
-                type="number"
-                min="0"
-                step="any"
                 value={producedQty}
-                onChange={(e) => setProducedQty(e.target.value)}
+                onValueChange={setProducedQty}
+                sufijo={unidadCorta(order.unit)}
               />
             </Field>
             {output?.perishable && (
@@ -1599,7 +1594,7 @@ function PublishDialog({
   onClose: () => void
   onSaved: () => void
 }) {
-  const [salePrice, setSalePrice] = React.useState("")
+  const [salePrice, setSalePrice] = React.useState<number | null>(null)
   const [ivaRate, setIvaRate] = React.useState<"0" | "5" | "19">("19")
   const [margenMinimo] = useMargenMinimo()
   const [saving, setSaving] = React.useState(false)
@@ -1608,14 +1603,14 @@ function PublishDialog({
   React.useEffect(() => {
     if (!output) return
     // Sugerencia de arranque: costo con un margen del 40%, redondeado a peso.
-    setSalePrice(String(Math.round(output.unitCost * 1.4)))
+    setSalePrice(Math.round(output.unitCost * 1.4))
     setIvaRate("19")
     setError(null)
   }, [output])
 
   if (!output) return null
 
-  const price = numOr(salePrice)
+  const price = salePrice ?? 0
   const margin = price - output.unitCost
   const marginPct = price > 0 ? Math.round((margin / price) * 100) : 0
 
@@ -1698,13 +1693,10 @@ function PublishDialog({
               required
               help={{ term: "precioVenta" }}
             >
-              <Input
+              <MoneyInput
                 id="pub-price"
-                type="number"
-                min="0"
                 value={salePrice}
-                onChange={(e) => setSalePrice(e.target.value)}
-                required
+                onValueChange={setSalePrice}
               />
             </Field>
             <Field id="pub-iva" label="IVA" help={{ term: "iva" }}>
