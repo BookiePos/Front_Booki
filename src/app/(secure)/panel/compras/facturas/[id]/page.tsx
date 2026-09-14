@@ -9,6 +9,7 @@ import {
   History,
   Loader2,
   PackagePlus,
+  Receipt,
   Save,
   ScanLine,
   ShieldOff,
@@ -19,10 +20,12 @@ import {
 import { useAuth } from "@/lib/auth-context"
 import {
   applyInvoiceScan,
+  applyInvoiceScanAsExpense,
   getInvoiceScan,
   splitInvoiceScan,
   updateInvoiceScan,
   LINE_TARGET_LABELS,
+  type ApplyAsExpensePayload,
   type ExtractedInvoice,
   type InvoiceScan,
   type ExtractedLine,
@@ -85,6 +88,8 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 import { useConfirm } from "@/components/ui/confirm-dialog"
 import { toast } from "sonner"
+
+import { ApplyExpenseDialog } from "./apply-expense-dialog"
 
 /** Diferencia aceptable entre la suma de las líneas y el total impreso. */
 const TOLERANCIA = 100
@@ -349,6 +354,7 @@ export default function RevisarFacturaPage() {
   const [loading, setLoading] = React.useState(true)
   const [saving, setSaving] = React.useState(false)
   const [applying, setApplying] = React.useState(false)
+  const [expenseOpen, setExpenseOpen] = React.useState(false)
 
   const load = React.useCallback(async () => {
     if (!id) return
@@ -474,6 +480,30 @@ export default function RevisarFacturaPage() {
     }
   }
 
+  /**
+   * "Aplicar en gastos". Como en Aplicar, primero se guarda: el proveedor y
+   * los datos corregidos que valen son los del servidor, no los de pantalla.
+   */
+  async function handleApplyAsExpense(payload: ApplyAsExpensePayload) {
+    if (!scan) return
+    setApplying(true)
+    try {
+      if (!(await handleSave())) return
+      await applyInvoiceScanAsExpense(scan._id, payload)
+      toast.success(
+        payload.status === "payable"
+          ? "Factura registrada como gasto y en cuentas por pagar"
+          : "Factura registrada como gasto",
+      )
+      setExpenseOpen(false)
+      router.push("/panel/compras/facturas")
+    } catch (err) {
+      toast.error(errorMessage(err))
+    } finally {
+      setApplying(false)
+    }
+  }
+
   async function handleSplit(pageIndex: number) {
     if (!scan) return
     try {
@@ -569,6 +599,14 @@ export default function RevisarFacturaPage() {
                     <Save className="size-4" aria-hidden />
                   )}
                   Guardar
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setExpenseOpen(true)}
+                  disabled={applying}
+                >
+                  <Receipt className="size-4" aria-hidden />
+                  Aplicar en gastos
                 </Button>
                 <Button onClick={handleApply} disabled={applying}>
                   {applying ? (
@@ -1079,18 +1117,21 @@ export default function RevisarFacturaPage() {
             </CardContent>
           </Card>
 
-          {scan.appliedTo?.purchaseOrderId && (
+          {(scan.appliedTo?.purchaseOrderId ||
+            (scan.appliedTo?.expenseIds?.length ?? 0) > 0) && (
             <Card>
               <CardContent className="flex flex-col gap-2 py-4 text-sm">
                 <Badge variant="outline" className="w-fit">
                   Resultado
                 </Badge>
-                <Link
-                  href="/panel/compras"
-                  className="text-primary underline underline-offset-4"
-                >
-                  Ver la orden de compra generada
-                </Link>
+                {scan.appliedTo.purchaseOrderId && (
+                  <Link
+                    href="/panel/compras"
+                    className="text-primary underline underline-offset-4"
+                  >
+                    Ver la orden de compra generada
+                  </Link>
+                )}
                 {scan.appliedTo.expenseIds?.length > 0 && (
                   <Link
                     href="/panel/finanzas/gastos"
@@ -1100,11 +1141,31 @@ export default function RevisarFacturaPage() {
                     registrados
                   </Link>
                 )}
+                {scan.appliedTo.payableId && (
+                  <Link
+                    href="/panel/finanzas/cxp"
+                    className="text-primary underline underline-offset-4"
+                  >
+                    Ver la cuenta por pagar
+                  </Link>
+                )}
               </CardContent>
             </Card>
           )}
         </div>
       </div>
+
+      <ApplyExpenseDialog
+        open={expenseOpen}
+        onOpenChange={setExpenseOpen}
+        draft={draft}
+        sedes={sedes}
+        categories={categories}
+        defaultSedeId={sedeId}
+        sumaLineas={sumaLineas}
+        submitting={applying}
+        onSubmit={handleApplyAsExpense}
+      />
 
       <NewProductDialog
         open={newProductLine !== null}
