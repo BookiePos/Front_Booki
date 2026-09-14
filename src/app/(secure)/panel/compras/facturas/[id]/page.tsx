@@ -9,11 +9,13 @@ import {
   History,
   Loader2,
   PackagePlus,
+  Plus,
   Receipt,
   Save,
   ScanLine,
   ShieldOff,
   Split,
+  Trash2,
   TriangleAlert,
 } from "lucide-react"
 
@@ -95,6 +97,14 @@ import { ApplyExpenseDialog } from "./apply-expense-dialog"
 const TOLERANCIA = 100
 
 const TARGETS: LineTarget[] = ["inventory", "expense", "ignore"]
+
+/** Tarifas de IVA que acepta un renglón de compra. */
+const IVA_OPCIONES = [
+  { value: "", label: "—" },
+  { value: "0", label: "0%" },
+  { value: "5", label: "5%" },
+  { value: "19", label: "19%" },
+]
 
 /** Etiqueta de cómo se emparejó la línea, para que se vea de dónde sale. */
 const MATCH_LABELS: Record<string, string> = {
@@ -407,6 +417,61 @@ export default function RevisarFacturaPage() {
       )
       return { ...current, lines }
     })
+  }
+
+  function patchSupplier(patch: Partial<ExtractedInvoice["supplier"]>) {
+    setDraft((current) =>
+      current
+        ? { ...current, supplier: { ...current.supplier, ...patch } }
+        : current,
+    )
+  }
+
+  function patchInvoice(patch: Partial<ExtractedInvoice["invoice"]>) {
+    setDraft((current) =>
+      current
+        ? { ...current, invoice: { ...current.invoice, ...patch } }
+        : current,
+    )
+  }
+
+  function patchTotals(patch: Partial<ExtractedInvoice["totals"]>) {
+    setDraft((current) =>
+      current ? { ...current, totals: { ...current.totals, ...patch } } : current,
+    )
+  }
+
+  /**
+   * Renglón escrito a mano, para lo que el modelo no leyó. Nace omitido: no
+   * entra a inventario ni a gastos hasta que se le elija destino, igual que un
+   * renglón leído que no se pudo emparejar.
+   */
+  function addLine() {
+    setDraft((current) =>
+      current
+        ? { ...current, lines: [...current.lines, { description: "", qty: 1 }] }
+        : current,
+    )
+  }
+
+  /**
+   * Quita un renglón. Las decisiones van por índice, así que las de los
+   * renglones de abajo se corren uno hacia arriba: sin eso, el destino y el
+   * producto de un renglón quedarían pegados al de al lado.
+   */
+  function removeLine(index: number) {
+    setDraft((current) =>
+      current
+        ? { ...current, lines: current.lines.filter((_, i) => i !== index) }
+        : current,
+    )
+    setDecisions((current) =>
+      current
+        .filter((d) => d.lineIndex !== index)
+        .map((d) =>
+          d.lineIndex > index ? { ...d, lineIndex: d.lineIndex - 1 } : d,
+        ),
+    )
   }
 
   function patchDecision(lineIndex: number, patch: Partial<LineDecision>) {
@@ -734,6 +799,53 @@ export default function RevisarFacturaPage() {
                   }
                 />
               </div>
+
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="f-doctype">Tipo de documento</Label>
+                <NativeSelect
+                  id="f-doctype"
+                  value={draft.supplier?.docType ?? "NIT"}
+                  disabled={!editable}
+                  onChange={(v) =>
+                    patchSupplier({ docType: v as "NIT" | "CC" | "CE" })
+                  }
+                  options={[
+                    { value: "NIT", label: "NIT" },
+                    { value: "CC", label: "Cédula (CC)" },
+                    { value: "CE", label: "Cédula de extranjería (CE)" },
+                  ]}
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="f-phone">Teléfono</Label>
+                <Input
+                  id="f-phone"
+                  value={draft.supplier?.phone ?? ""}
+                  disabled={!editable}
+                  onChange={(e) => patchSupplier({ phone: e.target.value })}
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="f-address">Dirección</Label>
+                <Input
+                  id="f-address"
+                  value={draft.supplier?.address ?? ""}
+                  disabled={!editable}
+                  onChange={(e) => patchSupplier({ address: e.target.value })}
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="f-city">Ciudad</Label>
+                <Input
+                  id="f-city"
+                  value={draft.supplier?.city ?? ""}
+                  disabled={!editable}
+                  onChange={(e) => patchSupplier({ city: e.target.value })}
+                />
+              </div>
             </CardContent>
           </Card>
 
@@ -744,7 +856,7 @@ export default function RevisarFacturaPage() {
                 Datos de la factura
               </CardTitle>
             </CardHeader>
-            <CardContent className="grid gap-3 sm:grid-cols-3">
+            <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="f-number">Número</Label>
                 <Input
@@ -771,6 +883,19 @@ export default function RevisarFacturaPage() {
                       ...draft,
                       invoice: { ...draft.invoice, issueDate: e.target.value },
                     })
+                  }
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="f-due">Vence</Label>
+                <Input
+                  id="f-due"
+                  type="date"
+                  value={draft.invoice?.dueDate ?? ""}
+                  min={draft.invoice?.issueDate || undefined}
+                  disabled={!editable}
+                  onChange={(e) =>
+                    patchInvoice({ dueDate: e.target.value || undefined })
                   }
                 />
               </div>
@@ -829,7 +954,13 @@ export default function RevisarFacturaPage() {
                       <TableHead className="min-w-56">
                         Producto / categoría
                       </TableHead>
-                      <TableHead className="w-28 text-right">Total</TableHead>
+                      <TableHead className="w-24">IVA</TableHead>
+                      <TableHead className="w-36 text-right">Total</TableHead>
+                      {editable && (
+                        <TableHead className="w-12">
+                          <span className="sr-only">Quitar</span>
+                        </TableHead>
+                      )}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -842,11 +973,39 @@ export default function RevisarFacturaPage() {
                           <TableCell>
                             <Input
                               value={line.description}
+                              placeholder="Descripción"
+                              aria-label="Descripción"
                               disabled={!editable}
                               onChange={(e) =>
                                 patchLine(index, { description: e.target.value })
                               }
                             />
+                            <div className="mt-1.5 grid grid-cols-2 gap-1.5">
+                              <Input
+                                value={line.code ?? ""}
+                                placeholder="Código"
+                                aria-label="Código del proveedor"
+                                disabled={!editable}
+                                className="h-8 text-xs"
+                                onChange={(e) =>
+                                  patchLine(index, {
+                                    code: e.target.value || undefined,
+                                  })
+                                }
+                              />
+                              <Input
+                                value={line.unit ?? ""}
+                                placeholder="Unidad"
+                                aria-label="Unidad"
+                                disabled={!editable}
+                                className="h-8 text-xs"
+                                onChange={(e) =>
+                                  patchLine(index, {
+                                    unit: e.target.value || undefined,
+                                  })
+                                }
+                              />
+                            </div>
                             {decision.matchedBy && (
                               <p className="mt-1 text-xs text-muted-foreground">
                                 {MATCH_LABELS[decision.matchedBy] ??
@@ -1014,21 +1173,92 @@ export default function RevisarFacturaPage() {
                               </span>
                             )}
                           </TableCell>
-                          <TableCell className="text-right font-medium">
-                            {money.format(total)}
+                          <TableCell>
+                            <NativeSelect
+                              value={
+                                line.ivaRate != null ? String(line.ivaRate) : ""
+                              }
+                              options={IVA_OPCIONES}
+                              disabled={!editable}
+                              aria-label="Tarifa de IVA"
+                              onChange={(v) =>
+                                patchLine(index, {
+                                  ivaRate: v === "" ? undefined : Number(v),
+                                })
+                              }
+                            />
                           </TableCell>
+                          <TableCell className="text-right font-medium">
+                            {editable ? (
+                              <MoneyInput
+                                value={line.lineTotal ?? null}
+                                placeholder={money.format(total)}
+                                aria-label="Total del renglón"
+                                onValueChange={(v) =>
+                                  patchLine(index, { lineTotal: v ?? undefined })
+                                }
+                              />
+                            ) : (
+                              money.format(total)
+                            )}
+                          </TableCell>
+                          {editable && (
+                            <TableCell>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                aria-label={"Quitar el renglón " + (index + 1)}
+                                onClick={() => removeLine(index)}
+                              >
+                                <Trash2 className="size-4" aria-hidden />
+                              </Button>
+                            </TableCell>
+                          )}
                         </TableRow>
                       )
                     })}
                   </TableBody>
                 </Table>
               </div>
+              {editable && (
+                <div className="border-t border-border p-3">
+                  <Button variant="outline" size="sm" onClick={addLine}>
+                    <Plus className="size-4" aria-hidden />
+                    Agregar renglón
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
 
           {/* ── Cuadre ── */}
           <Card>
             <CardContent className="flex flex-col gap-2 py-4">
+              {/* Los totales del pie también se corrigen a mano: contra ellos se
+                  compara la suma de renglones y con ellos se prellena
+                  "Aplicar en gastos". */}
+              <div className="grid gap-3 pb-2 sm:grid-cols-2 lg:grid-cols-4">
+                {(
+                  [
+                    ["subtotal", "Subtotal"],
+                    ["iva", "IVA"],
+                    ["retentions", "Retenciones"],
+                    ["total", "Total impreso"],
+                  ] as const
+                ).map(([key, label]) => (
+                  <div key={key} className="flex flex-col gap-1.5">
+                    <Label htmlFor={"f-tot-" + key}>{label}</Label>
+                    <MoneyInput
+                      id={"f-tot-" + key}
+                      value={draft.totals?.[key] ?? null}
+                      disabled={!editable}
+                      onValueChange={(v) =>
+                        patchTotals({ [key]: v ?? undefined })
+                      }
+                    />
+                  </div>
+                ))}
+              </div>
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">Suma de renglones</span>
                 <span className="font-medium">{money.format(sumaLineas)}</span>
