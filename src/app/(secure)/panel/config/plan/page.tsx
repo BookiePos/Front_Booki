@@ -21,8 +21,8 @@ import {
   getBillingStatus,
   purchaseDocs,
   subscribe,
-  tokenizeCard,
 } from "@/lib/erp/api-billing"
+import { openCardTokenizer, type WompiPaymentSource } from "@/lib/erp/wompi-widget"
 import { PageHeader } from "@/components/erp/page-header"
 import { Termino } from "@/components/ui/help-tip"
 import { Card, CardContent } from "@/components/ui/card"
@@ -45,6 +45,17 @@ const STATUS_LABEL: Record<string, { label: string; className: string }> = {
   canceled: { label: "Cancelada", className: "bg-muted text-muted-foreground" },
 }
 
+/**
+ * Acota un campo numérico al rango que acepta el backend. `min`/`max` en el
+ * input no impiden escribir 999999: el valor llegaba así al cobro, inflaba el
+ * total mostrado y el backend lo rechazaba con un error genérico.
+ */
+function clampInt(raw: string, min: number, max: number): number {
+  const n = Math.trunc(Number(raw))
+  if (!Number.isFinite(n)) return min
+  return Math.min(max, Math.max(min, n))
+}
+
 export default function PlanBillingPage() {
   const { hasPermission, plan: currentPlan, entitlements } = useAuth()
   const authorized = hasPermission("params.manage")
@@ -59,11 +70,11 @@ export default function PlanBillingPage() {
   const [extraSedes, setExtraSedes] = useState(0)
   const [extraEmployees, setExtraEmployees] = useState(0)
 
-  const [holder, setHolder] = useState("")
-  const [number, setNumber] = useState("")
-  const [expMonth, setExpMonth] = useState("")
-  const [expYear, setExpYear] = useState("")
-  const [cvc, setCvc] = useState("")
+  // La tarjeta se captura en el widget de Wompi; aquí solo queda su token.
+  const [cardSource, setCardSource] = useState<WompiPaymentSource | null>(null)
+  const [openingWidget, setOpeningWidget] = useState(false)
+  const [acceptedTerms, setAcceptedTerms] = useState(false)
+  const [acceptedPersonalData, setAcceptedPersonalData] = useState(false)
 
   const [docPacks, setDocPacks] = useState(1)
 
@@ -157,24 +168,28 @@ export default function PlanBillingPage() {
       setMessage({ kind: "error", text: "La pasarela de pagos no está configurada." })
       return
     }
-    if (!holder.trim() || number.replace(/\s/g, "").length < 13 || !expMonth || !expYear || cvc.length < 3) {
-      setMessage({ kind: "error", text: "Revisa los datos de la tarjeta." })
+    if (!cardSource) {
+      setMessage({ kind: "error", text: "Agrega tu tarjeta en el formulario seguro de Wompi." })
+      return
+    }
+    // Un backend anterior no publica la autorización de datos: en ese caso no
+    // se pide la casilla ni se envía el campo (lo rechazaría por no declarado).
+    const needsPersonalData = Boolean(config.personalDataAuthToken)
+    if (!acceptedTerms || (needsPersonalData && !acceptedPersonalData)) {
+      setMessage({
+        kind: "error",
+        text: "Para registrar la tarjeta debes aceptar los términos de Wompi y autorizar el tratamiento de tus datos.",
+      })
       return
     }
     setSubmitting(true)
     try {
-      const cardToken = await tokenizeCard(config.publicKey, config.environment, {
-        number: number.replace(/\s/g, ""),
-        cvc,
-        exp_month: expMonth.padStart(2, "0"),
-        exp_year: expYear.slice(-2),
-        card_holder: holder.trim(),
-      })
       const result = await subscribe({
         plan: selectedPlan,
         billingCycle: cycle,
-        cardToken,
+        cardToken: cardSource.token,
         acceptanceToken: config.acceptanceToken,
+        acceptPersonalAuth: needsPersonalData ? config.personalDataAuthToken : undefined,
         addOns: {
           payroll: payroll || undefined,
           extraSedes: extraSedes || undefined,
@@ -199,12 +214,34 @@ export default function PlanBillingPage() {
         })
       }
     } catch (err) {
+      // El token de Wompi es de un solo uso: si el backend alcanzó a usarlo,
+      // reintentar con el mismo fallaría. Se pide registrar la tarjeta de nuevo.
+      setCardSource(null)
       setMessage({
         kind: "error",
         text: err instanceof Error ? err.message : "No se pudo procesar el pago.",
       })
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  async function onAddCard() {
+    if (!config?.configured) return
+    setMessage(null)
+    setOpeningWidget(true)
+    try {
+      await openCardTokenizer(config.publicKey, (source) => {
+        setCardSource(source)
+        setMessage(null)
+      })
+    } catch (err) {
+      setMessage({
+        kind: "error",
+        text: err instanceof Error ? err.message : "No se pudo abrir el formulario de Wompi.",
+      })
+    } finally {
+      setOpeningWidget(false)
     }
   }
 
@@ -430,8 +467,10 @@ export default function PlanBillingPage() {
                         type="number"
                         min={0}
                         max={50}
+                        step={1}
+                        inputMode="numeric"
                         value={extraSedes}
-                        onChange={(e) => setExtraSedes(Math.max(0, Number(e.target.value)))}
+                        onChange={(e) => setExtraSedes(clampInt(e.target.value, 0, 50))}
                         className="w-16 rounded-lg border border-border bg-background px-2 py-1"
                       />
                     </label>
@@ -446,8 +485,10 @@ export default function PlanBillingPage() {
                         type="number"
                         min={0}
                         max={500}
+                        step={1}
+                        inputMode="numeric"
                         value={extraEmployees}
-                        onChange={(e) => setExtraEmployees(Math.max(0, Number(e.target.value)))}
+                        onChange={(e) => setExtraEmployees(clampInt(e.target.value, 0, 500))}
                         className="w-16 rounded-lg border border-border bg-background px-2 py-1"
                       />
                     </label>
@@ -459,52 +500,82 @@ export default function PlanBillingPage() {
                   <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
                     <CreditCard className="size-4" /> Tarjeta
                   </h3>
-                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                    <input
-                      value={holder}
-                      onChange={(e) => setHolder(e.target.value)}
-                      placeholder="Nombre en la tarjeta"
-                      autoComplete="cc-name"
-                      className="rounded-lg border border-border bg-background px-3 py-2 text-sm sm:col-span-2"
-                    />
-                    <input
-                      value={number}
-                      onChange={(e) => setNumber(e.target.value)}
-                      placeholder="Número de tarjeta"
-                      inputMode="numeric"
-                      autoComplete="cc-number"
-                      className="rounded-lg border border-border bg-background px-3 py-2 text-sm sm:col-span-2"
-                    />
-                    <div className="flex gap-2">
-                      <input
-                        value={expMonth}
-                        onChange={(e) => setExpMonth(e.target.value)}
-                        placeholder="MM"
-                        inputMode="numeric"
-                        className="w-16 rounded-lg border border-border bg-background px-3 py-2 text-sm"
-                      />
-                      <input
-                        value={expYear}
-                        onChange={(e) => setExpYear(e.target.value)}
-                        placeholder="AA"
-                        inputMode="numeric"
-                        className="w-16 rounded-lg border border-border bg-background px-3 py-2 text-sm"
-                      />
-                    </div>
-                    <input
-                      value={cvc}
-                      onChange={(e) => setCvc(e.target.value)}
-                      placeholder="CVC"
-                      inputMode="numeric"
-                      autoComplete="cc-csc"
-                      className="w-24 rounded-lg border border-border bg-background px-3 py-2 text-sm"
-                    />
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Los datos de la tarjeta se escriben en el formulario seguro de
+                    Wompi: BookiPos nunca los ve ni los guarda.
+                  </p>
+                  <div className="mt-3 flex flex-wrap items-center gap-3">
+                    {cardSource && (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-success/15 px-3 py-1 text-xs font-semibold text-success-ink">
+                        <CheckCircle2 className="size-4" aria-hidden="true" />
+                        Tarjeta registrada con Wompi
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={onAddCard}
+                      disabled={submitting || openingWidget || !config?.configured}
+                      className="inline-flex items-center gap-2 rounded-full border border-border px-4 py-1.5 text-sm font-medium hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {openingWidget ? (
+                        <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                      ) : (
+                        <CreditCard className="size-4" aria-hidden="true" />
+                      )}
+                      {cardSource ? "Cambiar tarjeta" : "Agregar tarjeta"}
+                    </button>
                   </div>
                   {config?.environment === "sandbox" && (
                     <p className="mt-2 text-xs text-muted-foreground">
                       Sandbox: usa la tarjeta de prueba 4242 4242 4242 4242, cualquier
                       fecha futura y CVC 123.
                     </p>
+                  )}
+                  {config?.configured && (
+                    <div className="mt-4 grid gap-2 text-sm text-muted-foreground">
+                      <label className="flex items-start gap-2">
+                        <input
+                          type="checkbox"
+                          checked={acceptedTerms}
+                          onChange={(e) => setAcceptedTerms(e.target.checked)}
+                          className="mt-0.5 size-4 shrink-0"
+                        />
+                        <span>
+                          Acepto los{" "}
+                          <a
+                            href={config.permalink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="font-medium text-primary underline-offset-4 hover:underline"
+                          >
+                            términos y condiciones de Wompi
+                          </a>{" "}
+                          para registrar mi tarjeta.
+                        </span>
+                      </label>
+                      {config.personalDataAuthToken && (
+                        <label className="flex items-start gap-2">
+                          <input
+                            type="checkbox"
+                            checked={acceptedPersonalData}
+                            onChange={(e) => setAcceptedPersonalData(e.target.checked)}
+                            className="mt-0.5 size-4 shrink-0"
+                          />
+                          <span>
+                            Autorizo el{" "}
+                            <a
+                              href={config.personalDataPermalink}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="font-medium text-primary underline-offset-4 hover:underline"
+                            >
+                              tratamiento de mis datos personales
+                            </a>{" "}
+                            por parte de Wompi.
+                          </span>
+                        </label>
+                      )}
+                    </div>
                   )}
                 </div>
 
@@ -583,8 +654,10 @@ export default function PlanBillingPage() {
                     type="number"
                     min={1}
                     max={100}
+                    step={1}
+                    inputMode="numeric"
                     value={docPacks}
-                    onChange={(e) => setDocPacks(Math.max(1, Number(e.target.value)))}
+                    onChange={(e) => setDocPacks(clampInt(e.target.value, 1, 100))}
                     className="w-16 rounded-lg border border-border bg-background px-2 py-1 text-sm"
                   />
                   <span className="text-xs text-muted-foreground">

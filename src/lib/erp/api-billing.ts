@@ -7,6 +7,9 @@ export interface BillingConfig {
   environment: string
   acceptanceToken: string
   permalink: string
+  /** Autorización de tratamiento de datos personales (Wompi la exige aparte). */
+  personalDataAuthToken?: string
+  personalDataPermalink?: string
   configured: boolean
 }
 
@@ -60,6 +63,7 @@ export interface SubscribePayload {
   billingCycle?: "monthly" | "annual"
   cardToken: string
   acceptanceToken: string
+  acceptPersonalAuth?: string
   customerEmail?: string
   addOns?: {
     payroll?: boolean
@@ -98,46 +102,4 @@ export async function cancelSubscription(): Promise<SubscriptionView> {
   return parseResponse<SubscriptionView>(
     await authFetch("/billing/cancel", { method: "POST" }),
   )
-}
-
-/**
- * Tokeniza una tarjeta directamente contra Wompi con la llave PÚBLICA (el PAN
- * nunca pasa por nuestro backend). Devuelve el `tok_...` para enviar a
- * `/billing/subscribe`. En sandbox usa la tarjeta de prueba 4242 4242 4242 4242.
- */
-export async function tokenizeCard(
-  publicKey: string,
-  environment: string,
-  card: {
-    number: string
-    cvc: string
-    exp_month: string
-    exp_year: string
-    card_holder: string
-  },
-): Promise<string> {
-  const base =
-    environment === "production"
-      ? "https://production.wompi.co/v1"
-      : "https://sandbox.wompi.co/v1"
-  const res = await fetch(`${base}/tokens/cards`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${publicKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(card),
-  })
-  const json = (await res.json().catch(() => null)) as {
-    data?: { id?: string }
-    error?: { messages?: Record<string, string[]> }
-  } | null
-  if (!res.ok || !json?.data?.id) {
-    const messages = json?.error?.messages
-    const detail = messages
-      ? Object.values(messages).flat().join(", ")
-      : `Error ${res.status}`
-    throw new Error(`No se pudo validar la tarjeta: ${detail}`)
-  }
-  return json.data.id
 }
