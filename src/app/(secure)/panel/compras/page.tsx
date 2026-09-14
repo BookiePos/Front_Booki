@@ -35,6 +35,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { MoneyInput } from "@/components/ui/money-input"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
@@ -555,12 +556,20 @@ function NewOrderDialog({
                     label="Costo unitario"
                     help={{ term: "costo" }}
                   >
-                    <Input
+                    {/* La línea de la orden guarda texto, así que se traduce
+                        aquí: el costo de un bulto son seis cifras y sin el
+                        punto de los miles nadie ve si sobra un cero.
+
+                        Sin decimales a propósito: la orden se guarda con
+                        `numOr`, que redondea a peso entero. Admitirlos aquí
+                        dejaría escribir $3,80 para acabar guardando $4 sin
+                        avisar, que es peor que no poder escribirlos. */}
+                    <MoneyInput
                       id={`oc-cost-${i}`}
-                      type="number"
-                      inputMode="decimal"
-                      value={l.unitCost}
-                      onChange={(e) => setLine(i, { unitCost: e.target.value })}
+                      value={l.unitCost === "" ? null : Number(l.unitCost)}
+                      onValueChange={(v) =>
+                        setLine(i, { unitCost: v === null ? "" : String(v) })
+                      }
                     />
                   </Field>
                   <Field

@@ -26,6 +26,7 @@ import { Field, FieldGrid, NativeSelect } from "@/components/ui/field"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
+import { MoneyInput, QuantityInput } from "@/components/ui/money-input"
 import {
   Table,
   TableBody,
@@ -48,11 +49,11 @@ function errorMessage(err: unknown): string {
   return "Error desconocido"
 }
 
-/** Una fila del editor: el precio pactado se escribe como texto mientras se teclea. */
+/** Una fila del editor. `null` = casilla vacía, que no es lo mismo que cero. */
 interface FilaPrecio {
   catalogProductId: string
-  price: string
-  minQty: string
+  price: number | null
+  minQty: number | null
 }
 
 /**
@@ -87,7 +88,9 @@ export function PriceListsDialog({
   const [selId, setSelId] = React.useState<string>("")
   const [name, setName] = React.useState("")
   const [description, setDescription] = React.useState("")
-  const [discountPercent, setDiscountPercent] = React.useState("")
+  const [discountPercent, setDiscountPercent] = React.useState<number | null>(
+    null,
+  )
   const [filas, setFilas] = React.useState<FilaPrecio[]>([])
 
   const vendibles = React.useMemo(
@@ -132,7 +135,7 @@ export function PriceListsDialog({
   function limpiarFormulario() {
     setName("")
     setDescription("")
-    setDiscountPercent("")
+    setDiscountPercent(null)
     setFilas([])
   }
 
@@ -149,12 +152,12 @@ export function PriceListsDialog({
     setError(null)
     setName(l.name)
     setDescription(l.description ?? "")
-    setDiscountPercent(l.discountPercent ? String(l.discountPercent) : "")
+    setDiscountPercent(l.discountPercent || null)
     setFilas(
       l.items.map((i) => ({
         catalogProductId: i.catalogProductId,
-        price: String(i.price),
-        minQty: i.minQty != null ? String(i.minQty) : "",
+        price: i.price,
+        minQty: i.minQty ?? null,
       })),
     )
   }
@@ -172,22 +175,19 @@ export function PriceListsDialog({
     const out: PriceListItem[] = []
     for (const f of filas) {
       if (!f.catalogProductId) continue
-      const price = Number(f.price)
-      if (!Number.isFinite(price) || price < 0 || f.price.trim() === "") continue
-      const min = Number(f.minQty)
+      if (f.price === null || f.price < 0) continue
       out.push({
         catalogProductId: f.catalogProductId,
-        price,
-        minQty: f.minQty.trim() !== "" && Number.isFinite(min) && min > 0 ? min : undefined,
+        price: f.price,
+        minQty: f.minQty !== null && f.minQty > 0 ? f.minQty : undefined,
       })
     }
     return out
   }, [filas])
 
-  const pctNum = Number(discountPercent)
+  const pctNum = discountPercent ?? 0
   const pctValido =
-    discountPercent.trim() === "" ||
-    (Number.isFinite(pctNum) && pctNum >= 0 && pctNum <= 100)
+    discountPercent === null || (pctNum >= 0 && pctNum <= 100)
 
   /** Dos precios del mismo producto con la misma mínima: el backend lo rechaza. */
   const duplicado = React.useMemo(() => {
@@ -209,7 +209,7 @@ export function PriceListsDialog({
       const payload = {
         name: name.trim(),
         description: description.trim() || undefined,
-        discountPercent: discountPercent.trim() === "" ? 0 : pctNum,
+        discountPercent: pctNum,
         items,
       }
       if (selId === "nueva") {
@@ -346,22 +346,18 @@ export function PriceListsDialog({
                 error={pctValido ? null : "Tiene que estar entre 0 y 100."}
                 hint="Sobre el precio de mostrador, para todo el catálogo. Déjalo vacío si vas a pactar precio por producto."
               >
-                <div className="flex items-center gap-2">
-                  <Input
-                    id="pl-pct"
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="any"
-                    inputMode="decimal"
-                    className="w-28"
-                    value={discountPercent}
-                    onChange={(e) => setDiscountPercent(e.target.value)}
-                    placeholder="12"
-                    disabled={!canManage}
-                  />
-                  <span className="text-sm text-muted-foreground">%</span>
-                </div>
+                {/* Es un porcentaje, no plata: va sin el símbolo de peso y
+                    con el % dentro del campo. */}
+                <QuantityInput
+                  id="pl-pct"
+                  className="w-32"
+                  value={discountPercent}
+                  onValueChange={setDiscountPercent}
+                  decimales={1}
+                  sufijo="%"
+                  placeholder="12"
+                  disabled={!canManage}
+                />
               </Field>
               <Field id="pl-desc" label="Nota" hint="Para acordarte de a quién es.">
                 <Input
@@ -425,18 +421,14 @@ export function PriceListsDialog({
                           {p ? money.format(p.salePrice) : "—"}
                         </TableCell>
                         <TableCell className="py-2">
-                          <Input
-                            type="number"
-                            min="0"
-                            step="any"
-                            inputMode="decimal"
-                            className="w-32 text-right tnum"
+                          <MoneyInput
+                            className="w-36 text-right"
                             aria-label="Precio de la lista"
                             value={f.price}
-                            onChange={(e) =>
+                            onValueChange={(v) =>
                               setFilas((prev) =>
                                 prev.map((x, i) =>
-                                  i === idx ? { ...x, price: e.target.value } : x,
+                                  i === idx ? { ...x, price: v } : x,
                                 ),
                               )
                             }
@@ -444,19 +436,16 @@ export function PriceListsDialog({
                           />
                         </TableCell>
                         <TableCell className="py-2">
-                          <Input
-                            type="number"
-                            min="0"
-                            step="1"
-                            inputMode="numeric"
-                            className="w-24 text-right tnum"
+                          <QuantityInput
+                            className="w-28 text-right"
                             aria-label="Cantidad mínima"
                             placeholder="1"
+                            decimales={0}
                             value={f.minQty}
-                            onChange={(e) =>
+                            onValueChange={(v) =>
                               setFilas((prev) =>
                                 prev.map((x, i) =>
-                                  i === idx ? { ...x, minQty: e.target.value } : x,
+                                  i === idx ? { ...x, minQty: v } : x,
                                 ),
                               )
                             }
@@ -503,7 +492,7 @@ export function PriceListsDialog({
                   onClick={() =>
                     setFilas((prev) => [
                       ...prev,
-                      { catalogProductId: "", price: "", minQty: "" },
+                      { catalogProductId: "", price: null, minQty: null },
                     ])
                   }
                 >
@@ -544,11 +533,7 @@ export function PriceListsDialog({
                       basePrice: p.salePrice,
                       qty: 1,
                       catalogProductId: p._id,
-                      list: {
-                        discountPercent:
-                          discountPercent.trim() === "" ? 0 : pctNum,
-                        items,
-                      },
+                      list: { discountPercent: pctNum, items },
                     })
                     const cambia = precio !== Math.round(p.salePrice)
                     return (

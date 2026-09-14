@@ -43,8 +43,10 @@ import {
   type ProductionOrderStatus,
   type ProductionOutput,
 } from "@/lib/erp/api-production"
-import { money, todayLocal, fmtDate, errorMessage, numOr } from "@/lib/erp/finance-format"
+import { money, todayLocal, fmtDate, errorMessage } from "@/lib/erp/finance-format"
 import { calcularMargenPct, nivelMargen } from "@/lib/erp/margen"
+import { unidadCorta, unidadNombre } from "@/lib/erp/unidades"
+import { MoneyInput, QuantityInput } from "@/components/ui/money-input"
 
 import { PageHeader } from "@/components/erp/page-header"
 import {
@@ -809,7 +811,7 @@ function BomsTable({
 
 interface DraftLine {
   productId: string
-  qty: string
+  qty: number | null
 }
 
 function NewBomDialog({
@@ -825,10 +827,10 @@ function NewBomDialog({
 }) {
   const [productId, setProductId] = React.useState("")
   const [name, setName] = React.useState("")
-  const [outputQty, setOutputQty] = React.useState("1")
-  const [extraCost, setExtraCost] = React.useState("0")
+  const [outputQty, setOutputQty] = React.useState<number | null>(1)
+  const [extraCost, setExtraCost] = React.useState<number | null>(0)
   const [lines, setLines] = React.useState<DraftLine[]>([
-    { productId: "", qty: "" },
+    { productId: "", qty: null },
   ])
   const [saving, setSaving] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
@@ -837,9 +839,9 @@ function NewBomDialog({
     if (!open) return
     setProductId("")
     setName("")
-    setOutputQty("1")
-    setExtraCost("0")
-    setLines([{ productId: "", qty: "" }])
+    setOutputQty(1)
+    setExtraCost(0)
+    setLines([{ productId: "", qty: null }])
     setError(null)
   }, [open])
 
@@ -849,19 +851,17 @@ function NewBomDialog({
   // armando deja margen hasta después de fabricar el primer lote.
   const materials = lines.reduce((sum, l) => {
     const input = products.find((p) => p._id === l.productId)
-    return sum + (input ? input.cost * Number(l.qty || 0) : 0)
+    return sum + (input ? input.cost * (l.qty ?? 0) : 0)
   }, 0)
-  const rendimiento = Number(outputQty || 0)
+  const rendimiento = outputQty ?? 0
+  const manoDeObra = extraCost ?? 0
   const unitCost =
-    rendimiento > 0
-      ? Math.round((materials + numOr(extraCost)) / rendimiento)
-      : 0
+    rendimiento > 0 ? Math.round((materials + manoDeObra) / rendimiento) : 0
   // El dueño escribe la mano de obra POR LOTE, pero lo que se compara contra el
   // precio de venta es lo que cuesta UNA unidad. Sin esta división a la vista
   // hay que hacerla de cabeza cada vez que se toca la receta.
   const materialsUnit = rendimiento > 0 ? Math.round(materials / rendimiento) : 0
-  const extraUnit =
-    rendimiento > 0 ? Math.round(numOr(extraCost) / rendimiento) : 0
+  const extraUnit = rendimiento > 0 ? Math.round(manoDeObra / rendimiento) : 0
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -871,11 +871,11 @@ function NewBomDialog({
       await createBom({
         productId,
         name: name.trim() || output?.name || "Receta",
-        outputQty: Number(outputQty),
-        extraCost: numOr(extraCost),
+        outputQty: rendimiento,
+        extraCost: Math.round(manoDeObra),
         lines: lines
-          .filter((l) => l.productId && Number(l.qty) > 0)
-          .map((l) => ({ productId: l.productId, qty: Number(l.qty) })),
+          .filter((l) => l.productId && (l.qty ?? 0) > 0)
+          .map((l) => ({ productId: l.productId, qty: l.qty ?? 0 })),
       })
       onSaved()
       onClose()
@@ -888,8 +888,8 @@ function NewBomDialog({
 
   const valid =
     productId &&
-    Number(outputQty) > 0 &&
-    lines.some((l) => l.productId && Number(l.qty) > 0)
+    rendimiento > 0 &&
+    lines.some((l) => l.productId && (l.qty ?? 0) > 0)
 
   return (
     <FormDialog
@@ -979,18 +979,15 @@ function NewBomDialog({
           <FieldGrid cols={2}>
             <Field
               id="bom-output"
-              label={`Rinde (${output?.unit ?? "und"})`}
+              label={`Rinde (${unidadCorta(output?.unit)})`}
               required
               help={{ term: "rinde" }}
             >
-              <Input
+              <QuantityInput
                 id="bom-output"
-                type="number"
-                min="0"
-                step="any"
                 value={outputQty}
-                onChange={(e) => setOutputQty(e.target.value)}
-                required
+                onValueChange={setOutputQty}
+                sufijo={unidadCorta(output?.unit)}
               />
             </Field>
             <Field
@@ -1005,16 +1002,14 @@ function NewBomDialog({
               }
               hint={
                 rendimiento > 0
-                  ? `${money.format(extraUnit)} por ${output?.unit ?? "unidad"}`
+                  ? `${money.format(extraUnit)} por ${unidadNombre(output?.unit, 1)}`
                   : "Pon cuánto rinde el lote para verlo por unidad."
               }
             >
-              <Input
+              <MoneyInput
                 id="bom-extra"
-                type="number"
-                min="0"
                 value={extraCost}
-                onChange={(e) => setExtraCost(e.target.value)}
+                onValueChange={setExtraCost}
               />
             </Field>
           </FieldGrid>
@@ -1031,7 +1026,7 @@ function NewBomDialog({
               variant="outline"
               size="sm"
               onClick={() =>
-                setLines((prev) => [...prev, { productId: "", qty: "" }])
+                setLines((prev) => [...prev, { productId: "", qty: null }])
               }
             >
               <Plus />
@@ -1039,7 +1034,9 @@ function NewBomDialog({
             </Button>
           }
         >
-          {lines.map((line, i) => (
+          {lines.map((line, i) => {
+            const insumo = products.find((p) => p._id === line.productId)
+            return (
             <div key={i} className="flex items-center gap-2">
               <NativeSelect
                 className="flex-1"
@@ -1058,19 +1055,15 @@ function NewBomDialog({
                     label: `${p.name} · ${p.sku}`,
                   }))}
               />
-              <Input
-                className="w-24 shrink-0"
-                type="number"
-                min="0"
-                step="any"
+              <QuantityInput
+                className="w-28 shrink-0"
                 aria-label={`Cantidad del insumo ${i + 1}`}
                 placeholder="Cant."
+                sufijo={insumo ? unidadCorta(insumo.unit) : undefined}
                 value={line.qty}
-                onChange={(e) =>
+                onValueChange={(v) =>
                   setLines((prev) =>
-                    prev.map((l, j) =>
-                      j === i ? { ...l, qty: e.target.value } : l,
-                    ),
+                    prev.map((l, j) => (j === i ? { ...l, qty: v } : l)),
                   )
                 }
               />
@@ -1087,7 +1080,8 @@ function NewBomDialog({
                 <Trash2 />
               </Button>
             </div>
-          ))}
+            )
+          })}
           {lines.length === 0 && (
             <p className="text-xs text-muted-foreground">
               Una receta sin insumos no descuenta nada del inventario. Agrega al
@@ -1111,7 +1105,7 @@ function NewBomDialog({
               {money.format(extraUnit)}
             </Row>
             <div className="mt-1 border-t border-border/70 pt-2">
-              <Row label={`Total por ${output?.unit ?? "unidad"}`}>
+              <Row label={`Total por ${unidadNombre(output?.unit, 1)}`}>
                 <span className="font-semibold">{money.format(unitCost)}</span>
               </Row>
             </div>
@@ -1142,7 +1136,7 @@ function NewOrderDialog({
   const [sedeId, setSedeId] = React.useState("")
   const [productId, setProductId] = React.useState("")
   const [date, setDate] = React.useState(todayLocal())
-  const [plannedQty, setPlannedQty] = React.useState("")
+  const [plannedQty, setPlannedQty] = React.useState<number | null>(null)
   const [note, setNote] = React.useState("")
   const [saving, setSaving] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
@@ -1152,7 +1146,7 @@ function NewOrderDialog({
     setSedeId(sedes.length === 1 ? (sedes[0]?._id ?? "") : "")
     setProductId("")
     setDate(todayLocal())
-    setPlannedQty("")
+    setPlannedQty(null)
     setNote("")
     setError(null)
   }, [open, sedes])
@@ -1166,8 +1160,8 @@ function NewOrderDialog({
 
   const selected = producibles.find((p) => p.product?._id === productId)
   const lotes =
-    selected && Number(plannedQty) > 0
-      ? Number(plannedQty) / selected.bom.outputQty
+    selected && plannedQty && plannedQty > 0
+      ? plannedQty / selected.bom.outputQty
       : 0
 
   async function save(start: boolean) {
@@ -1178,7 +1172,7 @@ function NewOrderDialog({
         sedeId,
         productId,
         date,
-        plannedQty: Number(plannedQty),
+        plannedQty: plannedQty ?? 0,
         note: note.trim() || undefined,
         start,
       })
@@ -1293,17 +1287,14 @@ function NewOrderDialog({
           <FieldGrid cols={2}>
             <Field
               id="op-qty"
-              label={`Cantidad (${selected?.product?.unit ?? "und"})`}
+              label={`Cantidad (${unidadCorta(selected?.product?.unit)})`}
               required
             >
-              <Input
+              <QuantityInput
                 id="op-qty"
-                type="number"
-                min="0"
-                step="any"
                 value={plannedQty}
-                onChange={(e) => setPlannedQty(e.target.value)}
-                required
+                onValueChange={setPlannedQty}
+                sufijo={unidadCorta(selected?.product?.unit)}
               />
             </Field>
             <Field id="op-date" label="Fecha" required>
@@ -1360,14 +1351,14 @@ function OrderDetailDialog({
   canManage: boolean
   products: InvProduct[]
 }) {
-  const [producedQty, setProducedQty] = React.useState("")
+  const [producedQty, setProducedQty] = React.useState<number | null>(null)
   const [expiresAt, setExpiresAt] = React.useState("")
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
   React.useEffect(() => {
     if (!order) return
-    setProducedQty(String(order.plannedQty))
+    setProducedQty(order.plannedQty)
     setExpiresAt(order.expiresAt ?? "")
     setError(null)
   }, [order])
@@ -1439,7 +1430,7 @@ function OrderDetailDialog({
               onClick={() =>
                 void run(() =>
                   completeProductionOrder(order._id, {
-                    producedQty: Number(producedQty),
+                    producedQty: producedQty ?? 0,
                     expiresAt: expiresAt || undefined,
                   }),
                 )
@@ -1532,16 +1523,14 @@ function OrderDetailDialog({
           <FieldGrid cols={2}>
             <Field
               id="op-produced"
-              label={`Salida real (${order.unit})`}
+              label={`Salida real (${unidadCorta(order.unit)})`}
               required
             >
-              <Input
+              <QuantityInput
                 id="op-produced"
-                type="number"
-                min="0"
-                step="any"
                 value={producedQty}
-                onChange={(e) => setProducedQty(e.target.value)}
+                onValueChange={setProducedQty}
+                sufijo={unidadCorta(order.unit)}
               />
             </Field>
             {output?.perishable && (
@@ -1605,7 +1594,7 @@ function PublishDialog({
   onClose: () => void
   onSaved: () => void
 }) {
-  const [salePrice, setSalePrice] = React.useState("")
+  const [salePrice, setSalePrice] = React.useState<number | null>(null)
   const [ivaRate, setIvaRate] = React.useState<"0" | "5" | "19">("19")
   const [margenMinimo] = useMargenMinimo()
   const [saving, setSaving] = React.useState(false)
@@ -1614,14 +1603,14 @@ function PublishDialog({
   React.useEffect(() => {
     if (!output) return
     // Sugerencia de arranque: costo con un margen del 40%, redondeado a peso.
-    setSalePrice(String(Math.round(output.unitCost * 1.4)))
+    setSalePrice(Math.round(output.unitCost * 1.4))
     setIvaRate("19")
     setError(null)
   }, [output])
 
   if (!output) return null
 
-  const price = numOr(salePrice)
+  const price = salePrice ?? 0
   const margin = price - output.unitCost
   const marginPct = price > 0 ? Math.round((margin / price) * 100) : 0
 
@@ -1704,13 +1693,10 @@ function PublishDialog({
               required
               help={{ term: "precioVenta" }}
             >
-              <Input
+              <MoneyInput
                 id="pub-price"
-                type="number"
-                min="0"
                 value={salePrice}
-                onChange={(e) => setSalePrice(e.target.value)}
-                required
+                onValueChange={setSalePrice}
               />
             </Field>
             <Field id="pub-iva" label="IVA" help={{ term: "iva" }}>

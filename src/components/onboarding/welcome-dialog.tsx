@@ -85,18 +85,24 @@ export function WelcomeDialog() {
 
   return (
     <div
-      className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-brand-950/50 dark:bg-navy-950/70 p-4 backdrop-blur-sm sm:items-center sm:p-6"
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-brand-950/50 dark:bg-navy-950/70 p-4 backdrop-blur-sm sm:p-6"
       role="dialog"
       aria-modal="true"
       aria-label="Bienvenida a BookiPos"
       onClick={dismissWelcome}
     >
+      {/* Quien scrollea mueve el CUERPO, no el velo.
+          Antes el velo entero hacía de contenedor con scroll y la tarjeta
+          crecía sin límite: en una pantalla corta el saludo se iba por arriba y
+          los dos botones por abajo a la vez, y la bienvenida parecía un muro
+          sin salida. Cabecera y botones fijos, el listado de pilares con scroll
+          propio y el alto en `svh` —con `vh` se sale por debajo en el móvil. */}
       <div
-        className="my-auto w-full max-w-lg overflow-hidden rounded-2xl bg-card shadow-xl"
+        className="flex max-h-[calc(100svh-2rem)] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-card shadow-xl sm:max-h-[calc(100svh-3rem)]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Cabecera con gradiente de marca */}
-        <div className="relative gradient-brand px-6 py-6 text-primary-foreground">
+        <div className="relative shrink-0 gradient-brand px-6 py-6 text-primary-foreground">
           <button
             type="button"
             onClick={dismissWelcome}
@@ -118,7 +124,7 @@ export function WelcomeDialog() {
         </div>
 
         {/* Pilares del software */}
-        <div className="flex flex-col gap-3 px-6 py-5">
+        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain px-6 py-5">
           {highlights.map((h) => (
             <div key={h.title} className="flex items-start gap-3">
               <span className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg bg-accent text-primary [&_svg]:size-4">
@@ -134,29 +140,33 @@ export function WelcomeDialog() {
           ))}
         </div>
 
-        {/* Acciones */}
-        <div className="flex flex-col gap-2 border-t border-border px-6 py-4 sm:flex-row-reverse">
-          <Button className="gap-2 sm:flex-1" onClick={startTour}>
-            <Compass className="size-4" />
-            Hacer el tour guiado
-          </Button>
-          <Button
-            variant="outline"
-            className="gap-2 sm:flex-1"
-            onClick={dismissWelcome}
-          >
-            Explorar por mi cuenta
-            <ArrowRight className="size-4" />
-          </Button>
+        {/* Acciones. Van en el pie fijo junto con la nota de "puedes volver a
+            abrirla": es la frase que quita el miedo a cerrarla, y dejarla
+            dentro del scroll era dejarla sin leer. */}
+        <div className="flex shrink-0 flex-col gap-2 border-t border-border bg-muted/30 px-6 py-4">
+          <div className="flex flex-col gap-2 sm:flex-row-reverse">
+            <Button className="gap-2 sm:flex-1" onClick={startTour}>
+              <Compass className="size-4" />
+              Hacer el tour guiado
+            </Button>
+            <Button
+              variant="outline"
+              className="gap-2 sm:flex-1"
+              onClick={dismissWelcome}
+            >
+              Explorar por mi cuenta
+              <ArrowRight className="size-4" />
+            </Button>
+          </div>
+          <p className="text-center text-xs text-muted-foreground">
+            Podrás reabrir esta guía cuando quieras desde el botón{" "}
+            <span className="inline-flex items-center gap-0.5 font-medium text-foreground">
+              <Compass className="size-3" /> Guía
+            </span>{" "}
+            de la barra superior. Además, en el panel te dejamos una lista de
+            primeros pasos.
+          </p>
         </div>
-        <p className="px-6 pb-5 text-center text-xs text-muted-foreground">
-          Podrás reabrir esta guía cuando quieras desde el botón{" "}
-          <span className="inline-flex items-center gap-0.5 font-medium text-foreground">
-            <Compass className="size-3" /> Guía
-          </span>{" "}
-          de la barra superior. Además, en el panel te dejamos una lista de
-          primeros pasos.
-        </p>
       </div>
     </div>
   )

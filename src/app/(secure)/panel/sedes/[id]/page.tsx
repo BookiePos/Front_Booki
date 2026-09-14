@@ -67,6 +67,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Skeleton } from "@/components/ui/skeleton"
 import { useConfirm } from "@/components/ui/confirm-dialog"
 import { Input, InputWithIcon } from "@/components/ui/input"
+import { MoneyInput } from "@/components/ui/money-input"
 import {
   FormDialog,
   FormSection,
@@ -1182,18 +1183,30 @@ function DiscountDialog({
               label={type === "percent" ? "Porcentaje" : "Monto"}
               required
             >
-              <InputWithIcon
-                id="d-value"
-                type="number"
-                min="0"
-                step="any"
-                inputMode="decimal"
-                suffix={type === "percent" ? "%" : "COP"}
-                value={value}
-                onChange={(e) => setValue(e.target.value)}
-                placeholder={type === "percent" ? "10" : "2000"}
-                required
-              />
+              {/* Un porcentaje son dos cifras y un monto son cinco o seis: solo
+                  el segundo necesita el punto de los miles, y ponerle el "$" a
+                  un 10 % sería mentir sobre lo que se está escribiendo. */}
+              {type === "percent" ? (
+                <InputWithIcon
+                  id="d-value"
+                  type="number"
+                  min="0"
+                  step="any"
+                  inputMode="decimal"
+                  suffix="%"
+                  value={value}
+                  onChange={(e) => setValue(e.target.value)}
+                  placeholder="10"
+                  required
+                />
+              ) : (
+                <MoneyInput
+                  id="d-value"
+                  placeholder="2.000"
+                  value={value === "" ? null : Number(value)}
+                  onValueChange={(v) => setValue(v === null ? "" : String(v))}
+                />
+              )}
             </Field>
           </FieldGrid>
 

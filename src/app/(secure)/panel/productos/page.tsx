@@ -14,6 +14,7 @@ import {
   ImageOff,
   ShieldOff,
   Tags,
+  TriangleAlert,
   X,
 } from "lucide-react"
 
@@ -22,9 +23,13 @@ import { ApiError } from "@/lib/api"
 import {
   listProducts,
   listCategories,
+  getStock,
   type InvProduct,
   type InvCategory,
+  type StockRow,
 } from "@/lib/erp/api-inventory"
+import { presentacionDeCompra } from "@/lib/erp/purchase-unit"
+import { unidadCorta, unidadNombre } from "@/lib/erp/unidades"
 import {
   listCatalogProducts,
   createCatalogProduct,
@@ -41,6 +46,8 @@ import {
 } from "@/lib/erp/api-catalog"
 import { listBoms, refId } from "@/lib/erp/api-production"
 import { PriceListsDialog } from "@/components/erp/price-lists-dialog"
+import { PasosFlujo } from "@/components/erp/pasos-flujo"
+import { LineaGanancia } from "@/components/erp/margen"
 
 import { PageHeader } from "@/components/erp/page-header"
 import { ProductImageField } from "@/components/erp/product-image-field"
@@ -62,6 +69,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import {
+  FormAlert,
   FormDialog,
   FormSection,
 } from "@/components/ui/form-dialog"
@@ -73,6 +81,7 @@ import {
 } from "@/components/ui/field"
 import { Segmented } from "@/components/ui/segmented"
 import { Input } from "@/components/ui/input"
+import { MoneyInput, QuantityInput } from "@/components/ui/money-input"
 import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useConfirm } from "@/components/ui/confirm-dialog"
@@ -146,7 +155,7 @@ function SourceBadge({ type }: { type: CatalogSourceType }) {
 
 interface RecipeRow {
   productId: string
-  qty: string
+  qty: number | null
 }
 
 interface ProductDialogProps {
@@ -156,6 +165,8 @@ interface ProductDialogProps {
   product?: CatalogProduct
   invProducts: InvProduct[]
   categories: InvCategory[]
+  /** Existencias de cada ítem de inventario, sumadas entre sedes. */
+  stockPorItem: Map<string, number>
   onSuccess: () => void
   /** Retail no maneja recetas: se oculta el selector de origen. */
   isRetail?: boolean
@@ -168,6 +179,7 @@ function ProductDialog({
   product,
   invProducts,
   categories,
+  stockPorItem,
   onSuccess,
   isRetail = false,
 }: ProductDialogProps) {
@@ -175,7 +187,7 @@ function ProductDialog({
   const [name, setName] = React.useState("")
   const [description, setDescription] = React.useState("")
   const [categoryId, setCategoryId] = React.useState("none")
-  const [salePrice, setSalePrice] = React.useState("")
+  const [salePrice, setSalePrice] = React.useState<number | null>(null)
   const [ivaSel, setIvaSel] = React.useState("19")
   const [sourceType, setSourceType] = React.useState<CatalogSourceType>(
     "inventory",
@@ -183,9 +195,9 @@ function ProductDialog({
   const [inventoryProductId, setInventoryProductId] = React.useState("")
   const [invQuery, setInvQuery] = React.useState("")
   const [invListOpen, setInvListOpen] = React.useState(false)
-  const [qtyPerUnit, setQtyPerUnit] = React.useState("1")
+  const [qtyPerUnit, setQtyPerUnit] = React.useState<number | null>(1)
   const [recipe, setRecipe] = React.useState<RecipeRow[]>([
-    { productId: "", qty: "" },
+    { productId: "", qty: null },
   ])
   /**
    * Empaque que gasta cada unidad vendida: la bolsa, el vaso, la cuchara.
@@ -202,6 +214,13 @@ function ProductDialog({
   const [error, setError] = React.useState<string | null>(null)
 
   const linkedProduct = invProducts.find((p) => p._id === inventoryProductId)
+  // Lo que cuesta UNA unidad vendida del ítem enlazado: su costo por unidad de
+  // consumo por cuánto gasta cada venta. Es lo que hace falta para decirle a
+  // quien pone el precio si le está quedando algo.
+  const costoUnitario =
+    linkedProduct && sourceType === "inventory"
+      ? linkedProduct.cost * (qtyPerUnit ?? 1)
+      : null
 
   const invMatches = React.useMemo(() => {
     const q = norm(invQuery)
@@ -223,9 +242,7 @@ function ProductDialog({
     setCategoryId((c) =>
       c === "none" && p.categoryId?._id ? p.categoryId._id : c,
     )
-    setSalePrice((sp) =>
-      sp || (p.salePrice != null ? String(p.salePrice) : ""),
-    )
+    setSalePrice((sp) => sp ?? p.salePrice ?? null)
   }
 
   React.useEffect(() => {
@@ -237,7 +254,7 @@ function ProductDialog({
         setName(product.name)
         setDescription(product.description ?? "")
         setCategoryId(product.categoryId?._id ?? "none")
-        setSalePrice(String(product.salePrice ?? ""))
+        setSalePrice(product.salePrice ?? null)
         setIvaSel(ivaKey(product.ivaRate ?? 19, product.ivaType ?? "gravado"))
         // Retail nunca usa receta; si por datos viejos llegara una, se trata
         // como "del inventario" para que la ficha sea coherente con el giro.
@@ -248,7 +265,7 @@ function ProductDialog({
             : null
         setInventoryProductId(linked?._id ?? "")
         setInvQuery(linked ? `${linked.name} · ${linked.sku}` : "")
-        setQtyPerUnit(String(product.qtyPerUnit ?? 1))
+        setQtyPerUnit(product.qtyPerUnit ?? 1)
         setRecipe(
           product.recipe.length > 0
             ? product.recipe.map((l) => ({
@@ -256,15 +273,15 @@ function ProductDialog({
                   typeof l.productId === "object"
                     ? l.productId._id
                     : l.productId,
-                qty: String(l.qty),
+                qty: l.qty,
               }))
-            : [{ productId: "", qty: "" }],
+            : [{ productId: "", qty: null }],
         )
         setPackaging(
           (product.packaging ?? []).map((l) => ({
             productId:
               typeof l.productId === "object" ? l.productId._id : l.productId,
-            qty: String(l.qty),
+            qty: l.qty,
           })),
         )
         setActive(product.active)
@@ -273,13 +290,13 @@ function ProductDialog({
         setName("")
         setDescription("")
         setCategoryId("none")
-        setSalePrice("")
+        setSalePrice(null)
         setIvaSel("19")
         setSourceType("inventory")
         setInventoryProductId("")
         setInvQuery("")
-        setQtyPerUnit("1")
-        setRecipe([{ productId: "", qty: "" }])
+        setQtyPerUnit(1)
+        setRecipe([{ productId: "", qty: null }])
         setPackaging([])
         setActive(true)
       }
@@ -298,7 +315,7 @@ function ProductDialog({
   }
 
   function addRecipeRow() {
-    setRecipe((rows) => [...rows, { productId: "", qty: "" }])
+    setRecipe((rows) => [...rows, { productId: "", qty: null }])
   }
 
   function removeRecipeRow(i: number) {
@@ -329,8 +346,8 @@ function ProductDialog({
     let cleanRecipe: { productId: string; qty: number }[] = []
     if (sourceType === "recipe") {
       cleanRecipe = recipe
-        .filter((r) => r.productId && Number(r.qty) > 0)
-        .map((r) => ({ productId: r.productId, qty: Number(r.qty) }))
+        .filter((r) => r.productId && (r.qty ?? 0) > 0)
+        .map((r) => ({ productId: r.productId, qty: r.qty ?? 0 }))
       if (cleanRecipe.length === 0) {
         setError("Agrega al menos un ingrediente con cantidad")
         return
@@ -338,13 +355,13 @@ function ProductDialog({
     }
     // Una fila con empaque elegido y sin cantidad casi siempre es un olvido:
     // guardarla en silencio dejaría la bolsa sin descontarse nunca.
-    if (packaging.some((r) => r.productId && !(Number(r.qty) > 0))) {
+    if (packaging.some((r) => r.productId && !((r.qty ?? 0) > 0))) {
       setError("Escribe cuánto empaque gasta cada unidad vendida")
       return
     }
     const cleanPackaging = packaging
-      .filter((r) => r.productId && Number(r.qty) > 0)
-      .map((r) => ({ productId: r.productId, qty: Number(r.qty) }))
+      .filter((r) => r.productId && (r.qty ?? 0) > 0)
+      .map((r) => ({ productId: r.productId, qty: r.qty ?? 0 }))
 
     setSaving(true)
     setError(null)
@@ -356,18 +373,14 @@ function ProductDialog({
         name,
         description: description || undefined,
         categoryId: catId || undefined,
-        salePrice: salePrice ? Number(salePrice) : 0,
+        salePrice: salePrice ?? 0,
         ivaRate: iva.rate,
         ivaType: iva.type,
         sourceType,
         inventoryProductId:
           sourceType === "inventory" ? inventoryProductId : undefined,
         qtyPerUnit:
-          sourceType === "inventory"
-            ? qtyPerUnit
-              ? Number(qtyPerUnit)
-              : 1
-            : undefined,
+          sourceType === "inventory" ? (qtyPerUnit ?? 1) : undefined,
         recipe: sourceType === "recipe" ? cleanRecipe : undefined,
         // Siempre viaja, aunque vaya vacío: así quitar la última bolsa de la
         // ficha de verdad la quita.
@@ -543,17 +556,13 @@ function ProductDialog({
               label="Precio de venta"
               required
               help={{ term: "precioVenta" }}
-              hint="IVA incluido."
+              hint="IVA incluido. Sin precio no sale en la caja."
             >
-              <Input
+              <MoneyInput
                 id="c-price"
-                type="number"
-                min="0"
-                step="any"
                 value={salePrice}
-                onChange={(e) => setSalePrice(e.target.value)}
+                onValueChange={setSalePrice}
                 placeholder="0"
-                required
               />
             </Field>
             <Field id="c-iva" label="IVA" help={{ term: "iva" }}>
@@ -579,6 +588,11 @@ function ProductDialog({
               />
             </Field>
           </FieldGrid>
+
+          {/* La cuenta que nadie hacía: cuánto cuesta lo que se está poniendo
+              a la venta y cuánto queda. Sale del costo del ítem de inventario
+              enlazado, así que solo aparece cuando ya hay uno elegido. */}
+          <LineaGanancia precio={salePrice} costo={costoUnitario} />
         </FormSection>
 
         <FormSection
@@ -601,62 +615,133 @@ function ProductDialog({
             description="El ítem que sale de la bodega cada vez que esto se vende."
             boxed
           >
-            <div className="relative flex flex-col gap-1.5">
-              <Label htmlFor="c-inv">
-                Buscar ítem de inventario (SKU o nombre)
-              </Label>
-              <Input
-                id="c-inv"
-                value={invQuery}
-                onChange={(e) => {
-                  setInvQuery(e.target.value)
-                  setInvListOpen(true)
-                  setInventoryProductId("")
-                }}
-                onFocus={() => setInvListOpen(true)}
-                onBlur={() => setInvListOpen(false)}
-                placeholder="Escribe el SKU o el nombre…"
-                autoComplete="off"
-              />
-              {invListOpen && invMatches.length > 0 && (
-                <div
-                  className="absolute top-full z-20 mt-1 max-h-56 w-full overflow-auto rounded-xl border border-border bg-popover p-1 shadow-md"
-                  onMouseDown={(e) => e.preventDefault()}
+            {/* Sin nada en el inventario, el buscador de abajo no puede
+                encontrar nada y quien lo usa cree que el programa falla. Se
+                sustituye por la explicación y el camino de salida. */}
+            {invProducts.length === 0 ? (
+              <FormAlert tone="warning" icon={TriangleAlert}>
+                Tu inventario está vacío, así que aquí no hay de dónde escoger.
+                Lo que se vende sale de algo que compraste: regístralo primero
+                en Inventario y vuelve.
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-2 flex"
+                  render={<Link href="/panel/inventario" />}
                 >
-                  {invMatches.map((p) => (
-                    <button
-                      key={p._id}
-                      type="button"
-                      className="flex w-full items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-left text-sm hover:bg-accent"
-                      onClick={() => pickInvProduct(p)}
-                    >
-                      <span className="truncate">{p.name}</span>
-                      <span className="font-mono text-xs text-muted-foreground">
-                        {p.sku}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              )}
-              {invQuery && invListOpen && invMatches.length === 0 && (
-                <div className="absolute top-full z-20 mt-1 w-full rounded-xl border border-border bg-popover p-2 text-sm text-muted-foreground shadow-md">
-                  Sin coincidencias. Crea el ítem en Inventario primero.
-                </div>
-              )}
-            </div>
+                  <Boxes />
+                  Ir a Inventario
+                </Button>
+              </FormAlert>
+            ) : (
+              <div className="relative flex flex-col gap-1.5">
+                <Label htmlFor="c-inv">
+                  Buscar ítem de inventario (SKU o nombre)
+                </Label>
+                <Input
+                  id="c-inv"
+                  value={invQuery}
+                  onChange={(e) => {
+                    setInvQuery(e.target.value)
+                    setInvListOpen(true)
+                    setInventoryProductId("")
+                  }}
+                  onFocus={() => setInvListOpen(true)}
+                  onBlur={() => setInvListOpen(false)}
+                  placeholder="Escribe el SKU o el nombre…"
+                  autoComplete="off"
+                />
+                {invListOpen && invMatches.length > 0 && (
+                  <div
+                    className="absolute top-full z-20 mt-1 max-h-64 w-full overflow-auto rounded-xl border border-border bg-popover p-1 shadow-md"
+                    onMouseDown={(e) => e.preventDefault()}
+                  >
+                    {/* Cada opción dice en qué se mide y cuánto hay: quien
+                        pone el precio necesita saber si está cobrando por
+                        gramo o por bulto, y si hay existencias de verdad. */}
+                    {invMatches.map((p) => {
+                      const pres = presentacionDeCompra(p)
+                      const hay = stockPorItem.get(p._id) ?? 0
+                      return (
+                        <button
+                          key={p._id}
+                          type="button"
+                          className="flex w-full flex-col gap-0.5 rounded-lg px-2 py-1.5 text-left text-sm hover:bg-accent"
+                          onClick={() => pickInvProduct(p)}
+                        >
+                          <span className="flex items-center justify-between gap-2">
+                            <span className="truncate font-medium">
+                              {p.name}
+                            </span>
+                            <span className="shrink-0 font-mono text-xs text-muted-foreground">
+                              {p.sku}
+                            </span>
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            Se mide en {unidadNombre(p.unit)}
+                            {pres.definida
+                              ? ` · llega por ${pres.unidad}${pres.contenido ? ` de ${pres.contenido}` : ""}`
+                              : ""}{" "}
+                            · tienes {nf.format(hay)} {unidadCorta(p.unit)}
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+                {invQuery && invListOpen && invMatches.length === 0 && (
+                  <div className="absolute top-full z-20 mt-1 w-full rounded-xl border border-border bg-popover p-2 text-sm text-muted-foreground shadow-md">
+                    Sin coincidencias. Crea el ítem en Inventario primero.
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Ficha del ítem ya enlazado: se queda a la vista mientras se
+                pone el precio, que es cuando hace falta recordar en qué se
+                está midiendo. */}
+            {linkedProduct && (
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl border border-border bg-muted/40 px-3 py-2.5 text-xs">
+                <span className="font-semibold text-foreground">
+                  {linkedProduct.name}
+                </span>
+                <span className="font-mono text-muted-foreground">
+                  {linkedProduct.sku}
+                </span>
+                <span className="text-muted-foreground">
+                  Se mide en {unidadNombre(linkedProduct.unit)}
+                </span>
+                {presentacionDeCompra(linkedProduct).definida && (
+                  <span className="text-muted-foreground">
+                    Llega por {presentacionDeCompra(linkedProduct).unidad}
+                    {presentacionDeCompra(linkedProduct).contenido
+                      ? ` de ${presentacionDeCompra(linkedProduct).contenido}`
+                      : ""}
+                  </span>
+                )}
+                <span className="text-muted-foreground">
+                  Tienes {nf.format(stockPorItem.get(linkedProduct._id) ?? 0)}{" "}
+                  {unidadCorta(linkedProduct.unit)}
+                </span>
+              </div>
+            )}
 
             <Field
               id="c-qpu"
-              label={`Consumo por unidad vendida${linkedProduct ? ` (${linkedProduct.unit})` : ""}`}
-              hint="Cuánto del ítem descuenta cada unidad vendida. Normalmente 1."
+              label="Cuánto gasta cada venta"
+              hint={
+                linkedProduct
+                  ? `Cuántos ${unidadNombre(linkedProduct.unit)} de ${linkedProduct.name} se van al vender una unidad. Normalmente 1.`
+                  : "Cuánto del ítem descuenta cada unidad vendida. Normalmente 1."
+              }
             >
-              <Input
+              <QuantityInput
                 id="c-qpu"
-                type="number"
-                min="0"
-                step="any"
                 value={qtyPerUnit}
-                onChange={(e) => setQtyPerUnit(e.target.value)}
+                onValueChange={setQtyPerUnit}
+                sufijo={
+                  linkedProduct ? unidadCorta(linkedProduct.unit) : undefined
+                }
                 placeholder="1"
               />
             </Field>
@@ -696,24 +781,14 @@ function ProductDialog({
                       label: `${p.name} · ${p.sku}`,
                     }))}
                   />
-                  <div className="relative w-28 shrink-0">
-                    <Input
-                      type="number"
-                      min="0"
-                      step="any"
+                  <div className="w-32 shrink-0">
+                    <QuantityInput
                       value={row.qty}
-                      onChange={(e) =>
-                        updateRecipeRow(i, { qty: e.target.value })
-                      }
+                      onValueChange={(v) => updateRecipeRow(i, { qty: v })}
                       placeholder="Cant."
                       aria-label={`Cantidad del ingrediente ${i + 1}`}
-                      className={ing ? "pr-10" : undefined}
+                      sufijo={ing ? unidadCorta(ing.unit) : undefined}
                     />
-                    {ing && (
-                      <span className="pointer-events-none absolute top-1/2 right-2.5 -translate-y-1/2 text-xs text-muted-foreground">
-                        {ing.unit}
-                      </span>
-                    )}
                   </div>
                   <Button
                     type="button"
@@ -745,7 +820,7 @@ function ProductDialog({
               variant="outline"
               size="sm"
               onClick={() =>
-                setPackaging((rows) => [...rows, { productId: "", qty: "1" }])
+                setPackaging((rows) => [...rows, { productId: "", qty: 1 }])
               }
             >
               <Plus />
@@ -774,24 +849,14 @@ function ProductDialog({
                       label: `${p.name} · ${p.sku}`,
                     }))}
                   />
-                  <div className="relative w-28 shrink-0">
-                    <Input
-                      type="number"
-                      min="0"
-                      step="any"
+                  <div className="w-32 shrink-0">
+                    <QuantityInput
                       value={row.qty}
-                      onChange={(e) =>
-                        updatePackagingRow(i, { qty: e.target.value })
-                      }
+                      onValueChange={(v) => updatePackagingRow(i, { qty: v })}
                       placeholder="Cant."
                       aria-label={`Cantidad del empaque ${i + 1}`}
-                      className={item ? "pr-10" : undefined}
+                      sufijo={item ? unidadCorta(item.unit) : undefined}
                     />
-                    {item && (
-                      <span className="pointer-events-none absolute top-1/2 right-2.5 -translate-y-1/2 text-xs text-muted-foreground">
-                        {item.unit}
-                      </span>
-                    )}
                   </div>
                   <Button
                     type="button"
@@ -832,6 +897,17 @@ export default function ProductosPage() {
    */
   const [producedIds, setProducedIds] = React.useState<Set<string>>(new Set())
   const [categories, setCategories] = React.useState<InvCategory[]>([])
+  /**
+   * Existencias de cada ítem de inventario, sumadas entre sedes.
+   *
+   * Se piden aquí y no en la ficha para que el buscador de ítems pueda decir
+   * "tienes 12 kg" al lado de cada opción: quien enlaza un producto de venta
+   * necesita saber si de eso hay algo, y hasta ahora tocaba salir a mirarlo a
+   * otra pantalla. Si falla, la ficha se pinta igual y solo se pierde el dato.
+   */
+  const [stockPorItem, setStockPorItem] = React.useState<Map<string, number>>(
+    new Map(),
+  )
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
   const [search, setSearch] = React.useState("")
@@ -860,6 +936,18 @@ export default function ProductosPage() {
     void fetchProducts()
     void listProducts().then(setInvProducts).catch(() => {})
     void listCategories().then(setCategories).catch(() => {})
+    void getStock()
+      .then((rows: StockRow[]) => {
+        const acumulado = new Map<string, number>()
+        for (const r of rows) {
+          acumulado.set(
+            r.product._id,
+            (acumulado.get(r.product._id) ?? 0) + r.qty,
+          )
+        }
+        setStockPorItem(acumulado)
+      })
+      .catch(() => {})
     void listBoms()
       .then((boms) =>
         setProducedIds(new Set(boms.map((b) => refId(b.productId)))),
@@ -927,7 +1015,19 @@ export default function ProductosPage() {
       <PageHeader
         section="Operación"
         title="Productos"
-        description="Catálogo de productos vendibles para el punto de venta."
+        description={
+          <>
+            Lo que <strong>vendes</strong> en la caja, con su precio. Cada
+            producto sale de algo que ya está en{" "}
+            <Link
+              href="/panel/inventario"
+              className="font-medium text-primary underline-offset-4 hover:underline"
+            >
+              Inventario
+            </Link>
+            : de ahí se descuenta el stock al cobrar.
+          </>
+        }
         actions={
           <div className="flex flex-wrap gap-2">
             {/* Las listas viven aquí porque lo que ponen precio es justo esto:
@@ -946,6 +1046,8 @@ export default function ProductosPage() {
         }
       />
 
+      <PasosFlujo activo="productos" />
+
       <PriceListsDialog
         open={priceListsOpen}
         onOpenChange={setPriceListsOpen}
@@ -953,6 +1055,48 @@ export default function ProductosPage() {
         canManage={canManage}
       />
 
+      {/* Inventario vacío: no es que falten productos, es que falta el paso
+          anterior. Sin ficha de inventario, un producto de venta no tiene de
+          dónde descontar ni con qué comparar el precio, así que en vez de una
+          tabla vacía se explica el orden. */}
+      {!loading && invProducts.length === 0 ? (
+        <Card>
+          <CardContent className="flex flex-col items-center gap-3 px-6 py-14 text-center">
+            <Boxes className="size-10 text-muted-foreground" aria-hidden />
+            <p className="font-display text-lg text-foreground">
+              Antes de vender, hay que tener
+            </p>
+            <p className="max-w-lg text-sm leading-relaxed text-muted-foreground">
+              Tu inventario está vacío, y todo lo que se vende sale de algo que
+              se compró. Sin eso, el sistema no puede descontar existencias al
+              cobrar ni decirte cuánto ganaste.
+            </p>
+            <ol className="mt-1 flex max-w-lg flex-col gap-2 text-left text-sm sm:flex-row">
+              <li className="flex-1 rounded-xl border border-border p-3">
+                <span className="font-semibold text-foreground">
+                  1. Registra en Inventario
+                </span>
+                <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">
+                  Lo que compras: la harina, las bolsas, la gaseosa que
+                  revendes.
+                </span>
+              </li>
+              <li className="flex-1 rounded-xl border border-border p-3">
+                <span className="font-semibold text-foreground">
+                  2. Arma aquí lo que vendes
+                </span>
+                <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">
+                  Con su precio, su foto y de qué se descuenta cada venta.
+                </span>
+              </li>
+            </ol>
+            <Button size="lg" className="mt-3" render={<Link href="/panel/inventario" />}>
+              <Boxes />
+              Empezar por Inventario
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
       <Card data-tour="productos-tabla">
         <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -975,15 +1119,26 @@ export default function ProductosPage() {
           ) : error ? (
             <p className="p-6 text-sm text-destructive">{error}</p>
           ) : filtered.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 py-14 text-center">
-              <Package className="size-9 text-muted-foreground" />
-              <p className="text-sm text-muted-foreground">
+            <div className="flex flex-col items-center gap-2 px-6 py-14 text-center">
+              <Package className="size-9 text-muted-foreground" aria-hidden />
+              <p className="font-display text-base text-foreground">
+                {products.length === 0
+                  ? "Tienes inventario, pero nada a la venta"
+                  : "Ningún producto coincide con la búsqueda"}
+              </p>
+              <p className="max-w-md text-sm leading-relaxed text-muted-foreground">
                 {products.length === 0
                   ? isRetail
-                    ? "Aún no hay productos. Crea el primero (con su código de barras) para escanearlo en el POS."
-                    : "Aún no hay productos. Crea el primero para venderlo en el POS."
-                  : "Ningún producto coincide con la búsqueda."}
+                    ? "Ya registraste lo que compras. Ahora di qué de eso se vende y a cuánto: con su código de barras podrás escanearlo en la caja."
+                    : "Ya registraste lo que compras. Ahora di qué de eso se vende y a cuánto. Puede ser un ítem tal cual, o una receta que gasta varios."
+                  : "Prueba con parte del nombre, con el SKU o con la categoría."}
               </p>
+              {products.length === 0 && canManage && (
+                <Button className="mt-2" onClick={openCreate}>
+                  <Plus />
+                  Crear el primer producto
+                </Button>
+              )}
             </div>
           ) : (
             <Table>
@@ -1099,8 +1254,23 @@ export default function ProductosPage() {
                           </span>
                         )}
                       </TableCell>
+                      {/* Un producto sin precio no aparece en la caja: el
+                          punto de venta solo muestra lo activo y con precio
+                          mayor que cero. Antes salía un "$ 0" mudo y el dueño
+                          buscaba el producto en la caja sin encontrarlo. */}
                       <TableCell className="text-right font-medium">
-                        {money.format(p.salePrice)}
+                        {p.salePrice > 0 ? (
+                          money.format(p.salePrice)
+                        ) : (
+                          <Badge
+                            variant="outline"
+                            className="gap-1 font-normal text-warning-ink"
+                            title="Sin precio no se puede cobrar, así que no sale en la caja"
+                          >
+                            <TriangleAlert className="size-3" aria-hidden />
+                            Sin precio
+                          </Badge>
+                        )}
                       </TableCell>
                       <TableCell>
                         {canManage && (
@@ -1134,6 +1304,7 @@ export default function ProductosPage() {
           )}
         </CardContent>
       </Card>
+      )}
 
       <ProductDialog
         open={sheetOpen}
@@ -1142,6 +1313,7 @@ export default function ProductosPage() {
         product={editing}
         invProducts={invProducts}
         categories={categories}
+        stockPorItem={stockPorItem}
         onSuccess={fetchProducts}
         isRetail={isRetail}
       />

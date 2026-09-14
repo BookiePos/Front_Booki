@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
 import {
   Plus,
   Pencil,
@@ -35,6 +36,7 @@ import {
   TrendingDown,
   ClipboardList,
   ScanSearch,
+  Wrench,
 } from "lucide-react"
 
 import { useAuth } from "@/lib/auth-context"
@@ -90,6 +92,11 @@ import {
   presentacionDeCompra,
   sugerirPresentacion,
 } from "@/lib/erp/purchase-unit"
+import { unidad, unidadCorta, unidadNombre } from "@/lib/erp/unidades"
+import {
+  PresentacionCompraPicker,
+  UnidadSelect,
+} from "@/components/erp/unidad-fields"
 import { TrazabilidadDialog } from "@/components/erp/trazabilidad-dialog"
 import { ReporteMermaDialog } from "@/components/erp/reporte-merma-dialog"
 import { listSuppliers, type Supplier } from "@/lib/erp/api-suppliers"
@@ -114,6 +121,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Input } from "@/components/ui/input"
+import { MoneyInput, QuantityInput } from "@/components/ui/money-input"
 import {
   Select,
   SelectContent,
@@ -121,6 +129,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   FormDialog,
@@ -140,8 +157,6 @@ import { useConfirm } from "@/components/ui/confirm-dialog"
 import { cn } from "@/lib/utils"
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-
-const UNITS = ["und", "kg", "g", "lb", "l", "ml"]
 
 /** Enlaza el botón Guardar del pie del diálogo con el <form> del cuerpo. */
 const VARIANTS_FORM_ID = "ficha-producto-variantes"
@@ -301,6 +316,56 @@ const HEADER_ALIASES: Record<string, CsvKey> = {
   estado: "active",
 }
 
+/**
+ * Sinónimos de unidad que se aceptan al importar.
+ *
+ * Lo que se GUARDA sigue siendo el código de siempre (`g`, `kg`, `arroba`) —el
+ * CSV que se exporta no cambia ni una letra— pero quien arma la planilla en
+ * Excel escribe "kilos" o "@", no "kg". Antes esas filas entraban con la
+ * unidad literal y el insumo quedaba medido en algo que el sistema no sabe
+ * convertir. Cualquier palabra que no esté aquí pasa tal cual, que es como se
+ * respetan las unidades raras que alguien ya tenía escritas.
+ */
+const UNIT_VALUE_ALIASES: Record<string, string> = {
+  und: "und",
+  unidad: "und",
+  unidades: "und",
+  u: "und",
+  gr: "g",
+  g: "g",
+  gramo: "g",
+  gramos: "g",
+  kg: "kg",
+  kilo: "kg",
+  kilos: "kg",
+  kilogramo: "kg",
+  kilogramos: "kg",
+  lb: "lb",
+  libra: "lb",
+  libras: "lb",
+  arroba: "arroba",
+  arrobas: "arroba",
+  ar: "arroba",
+  arr: "arroba",
+  ml: "ml",
+  mililitro: "ml",
+  mililitros: "ml",
+  cc: "ml",
+  l: "l",
+  lt: "l",
+  lts: "l",
+  litro: "l",
+  litros: "l",
+}
+
+/** Traduce lo escrito en la columna "unidad" al código que se guarda. */
+function normalizeUnitValue(raw: string): string {
+  // La arroba se escribe "@" en media Colombia y `normHeader` se come el
+  // símbolo entero, así que se atiende antes de normalizar.
+  if (raw.trim() === "@") return "arroba"
+  return UNIT_VALUE_ALIASES[normHeader(raw)] ?? raw.trim()
+}
+
 const NUMERIC_KEYS = new Set<CsvKey>([
   "weight",
   "purchaseFactor",
@@ -378,6 +443,8 @@ function csvToImportRows(matrix: string[][]): ImportProductRow[] {
         if (b !== undefined) target[key] = b
       } else if (key === "itemType") {
         if (VALID_ITEM_TYPES.has(raw)) target[key] = raw
+      } else if (key === "unit") {
+        target[key] = normalizeUnitValue(raw)
       } else {
         target[key] = raw
       }
@@ -699,13 +766,13 @@ function ProductSheet({
   // Cómo se COMPRA, cuando no es como se consume. Vacíos = se compra por su
   // propia unidad, que es lo normal en casi todo el catálogo.
   const [purchaseUnit, setPurchaseUnit] = React.useState("")
-  const [purchaseFactor, setPurchaseFactor] = React.useState("")
+  const [purchaseFactor, setPurchaseFactor] = React.useState<number | null>(null)
   const [barcode, setBarcode] = React.useState("")
   const [perishable, setPerishable] = React.useState(false)
   const [expiresAt, setExpiresAt] = React.useState("")
-  const [minStock, setMinStock] = React.useState("")
-  const [cost, setCost] = React.useState("")
-  const [salePrice, setSalePrice] = React.useState("")
+  const [minStock, setMinStock] = React.useState<number | null>(null)
+  const [cost, setCost] = React.useState<number | null>(null)
+  const [salePrice, setSalePrice] = React.useState<number | null>(null)
   const [saving, setSaving] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   /** Producto existente confirmado por el backend (409) al intentar crear. */
@@ -739,12 +806,10 @@ function ProductSheet({
   // insumos, y `und` para todo lo demás (así lo manda el payload).
   const unidadConsumo = isIngredient ? unit : "und"
   const presentacionNombre = purchaseUnit.trim()
-  const factorNum = Number(purchaseFactor)
-  const factorValido = Number.isFinite(factorNum) && factorNum > 0
-  // Sugerencia para el insumo que todavía no tiene presentación: quien mide en
-  // gramos casi siempre compra por kilo. Solo rellena el marcador de posición —
-  // no decide nada por su cuenta.
-  const sugerida = sugerirPresentacion(unidadConsumo)
+  const factorValido = purchaseFactor != null && purchaseFactor > 0
+  // Cómo se lee la unidad en las frases de ayuda: "gramos", "g".
+  const unidadPlural = unidadNombre(unidadConsumo)
+  const unidadAbrev = unidadCorta(unidadConsumo)
 
   React.useEffect(() => {
     async function reset() {
@@ -764,15 +829,13 @@ function ProductSheet({
         setUnit(product.unit)
         setWeight(product.weight != null ? String(product.weight) : "")
         setPurchaseUnit(product.purchaseUnit ?? "")
-        setPurchaseFactor(
-          product.purchaseFactor != null ? String(product.purchaseFactor) : "",
-        )
+        setPurchaseFactor(product.purchaseFactor ?? null)
         setBarcode(product.barcode ?? "")
         setPerishable(product.perishable)
         setExpiresAt(product.expiresAt ? product.expiresAt.slice(0, 10) : "")
-        setMinStock(String(product.minStock ?? 0))
-        setCost(String(product.cost ?? 0))
-        setSalePrice(product.salePrice != null ? String(product.salePrice) : "")
+        setMinStock(product.minStock ?? 0)
+        setCost(product.cost ?? 0)
+        setSalePrice(product.salePrice ?? null)
       } else {
         setSku("")
         setItemType("ingredient")
@@ -785,13 +848,13 @@ function ProductSheet({
         setUnit("und")
         setWeight("")
         setPurchaseUnit("")
-        setPurchaseFactor("")
+        setPurchaseFactor(null)
         setBarcode("")
         setPerishable(false)
         setExpiresAt("")
-        setMinStock("")
-        setCost("")
-        setSalePrice("")
+        setMinStock(null)
+        setCost(null)
+        setSalePrice(null)
       }
       setError(null)
       setConflictProduct(null)
@@ -839,15 +902,15 @@ function ProductSheet({
         // Cadena vacía = quitar la presentación; el backend la valida como par
         // y devuelve 400 con el motivo si falta una de las dos mitades.
         purchaseUnit: purchaseUnit.trim(),
-        purchaseFactor: purchaseFactor ? Number(purchaseFactor) : undefined,
+        purchaseFactor: purchaseFactor ?? undefined,
         barcode: barcode.trim() || undefined,
         perishable: perishableFinal,
         // Los montajes controlan lotes: cada entrada queda registrada.
         trackLots: isIngredient ? perishableFinal : true,
         expiresAt: perishableFinal && expiresAt ? expiresAt : "",
-        minStock: minStock ? Number(minStock) : 0,
-        cost: cost ? Number(cost) : 0,
-        salePrice: isIngredient && salePrice ? Number(salePrice) : undefined,
+        minStock: minStock ?? 0,
+        cost: cost ?? 0,
+        salePrice: isIngredient && salePrice ? salePrice : undefined,
       }
       if (mode === "create") {
         await createProduct({
@@ -1068,56 +1131,11 @@ function ProductSheet({
             {isIngredient && (
               <Field
                 id="p-unit"
-                label="Unidad de medida"
+                label="Unidad: cómo lo cuentas"
                 help={{ term: "unidad" }}
+                hint={unidad(unit)?.ejemplo}
               >
-                <NativeSelect
-                  id="p-unit"
-                  value={unit}
-                  onChange={setUnit}
-                  options={UNITS.map((u) => ({ value: u, label: u }))}
-                />
-              </Field>
-            )}
-
-            {/* Cómo LLEGA, cuando no es como se consume: la harina se consume
-                en gramos porque así la piden las recetas, pero el proveedor
-                despacha bultos de 25 kg y cotiza el bulto. Dejarlo vacío es lo
-                normal en casi todo el catálogo: se compra por su propia
-                unidad. */}
-            <Field
-              id="p-purchase-unit"
-              label="Presentación de compra"
-              help={{ term: "presentacionCompra" }}
-              hint="Opcional. Cómo te llega del proveedor."
-            >
-              <Input
-                id="p-purchase-unit"
-                value={purchaseUnit}
-                onChange={(e) => setPurchaseUnit(e.target.value)}
-                placeholder={sugerida ? sugerida.unidad : "bulto, caja, garrafa…"}
-              />
-            </Field>
-            {presentacionNombre !== "" && (
-              <Field
-                id="p-purchase-factor"
-                label={`Cuánto trae un ${presentacionNombre}`}
-                hint={
-                  factorValido
-                    ? `Un ${presentacionNombre} = ${describirContenido(factorNum, unidadConsumo)}. El precio lo escribes por ${presentacionNombre}.`
-                    : `En ${unidadConsumo}, que es como lo consumes.`
-                }
-              >
-                <Input
-                  id="p-purchase-factor"
-                  type="number"
-                  min="0"
-                  step="any"
-                  inputMode="decimal"
-                  value={purchaseFactor}
-                  onChange={(e) => setPurchaseFactor(e.target.value)}
-                  placeholder={sugerida ? String(sugerida.factor) : "25000"}
-                />
+                <UnidadSelect id="p-unit" value={unit} onChange={setUnit} />
               </Field>
             )}
 
@@ -1127,13 +1145,11 @@ function ProductSheet({
               help={{ term: "stockMinimo" }}
               hint="Te avisamos al llegar aquí."
             >
-              <Input
+              <QuantityInput
                 id="p-min"
-                type="number"
-                min="0"
-                step="any"
                 value={minStock}
-                onChange={(e) => setMinStock(e.target.value)}
+                onValueChange={setMinStock}
+                sufijo={unidadAbrev}
                 placeholder="3"
               />
             </Field>
@@ -1143,13 +1159,10 @@ function ProductSheet({
                 label="Precio de compra"
                 help={{ term: "costo" }}
               >
-                <Input
+                <MoneyInput
                   id="p-cost"
-                  type="number"
-                  min="0"
-                  step="any"
                   value={cost}
-                  onChange={(e) => setCost(e.target.value)}
+                  onValueChange={setCost}
                   placeholder="0"
                 />
               </Field>
@@ -1159,19 +1172,43 @@ function ProductSheet({
                 id="p-price"
                 label="Precio de venta"
                 help={{ term: "precioVenta" }}
+                hint="Solo si lo vendes tal cual, sin transformarlo."
               >
-                <Input
+                <MoneyInput
                   id="p-price"
-                  type="number"
-                  min="0"
-                  step="any"
                   value={salePrice}
-                  onChange={(e) => setSalePrice(e.target.value)}
+                  onValueChange={setSalePrice}
                   placeholder="Opcional"
                 />
               </Field>
             )}
           </FieldGrid>
+        </FormSection>
+
+        {/* La confusión número uno del inventario, resuelta a la vista: una
+            cosa es en qué se CUENTA por dentro y otra en qué LLEGA. El bulto
+            vive aquí abajo y no en el desplegable de unidades porque no es una
+            medida: un bulto trae lo que traiga, y si se guardara como unidad
+            el sistema sabría "tres bultos" y nunca cuántos gramos hay. */}
+        <FormSection
+          title="Cómo te llega del proveedor"
+          description={`Lo consumes en ${unidadPlural} y te puede llegar en bultos, arrobas, cajas o canastas. Escríbelo una vez y ya podrás registrar “3 bultos” y poner el precio del bulto: el costo por ${unidadNombre(unidadConsumo, 1)} lo saca el sistema.`}
+          help={{ term: "presentacionCompra" }}
+          boxed
+        >
+          <PresentacionCompraPicker
+            unidadConsumo={unidadConsumo}
+            presentacion={purchaseUnit}
+            onPresentacionChange={setPurchaseUnit}
+            factor={purchaseFactor}
+            onFactorChange={setPurchaseFactor}
+          />
+          {factorValido && presentacionNombre !== "" && (
+            <p className="text-xs font-medium text-foreground">
+              Un {presentacionNombre} ={" "}
+              {describirContenido(purchaseFactor!, unidadConsumo)}.
+            </p>
+          )}
         </FormSection>
 
         {isIngredient && (
@@ -1217,9 +1254,9 @@ function EntrySheet({
   const [productListOpen, setProductListOpen] = React.useState(false)
   const [sedeId, setSedeId] = React.useState("")
   const [entryUnit, setEntryUnit] = React.useState("und")
-  const [entryWeight, setEntryWeight] = React.useState("")
-  const [qty, setQty] = React.useState("")
-  const [unitCost, setUnitCost] = React.useState("")
+  const [entryWeight, setEntryWeight] = React.useState<number | null>(null)
+  const [qty, setQty] = React.useState<number | null>(null)
+  const [unitCost, setUnitCost] = React.useState<number | null>(null)
   const [supplierSel, setSupplierSel] = React.useState("none")
   const [legacySupplier, setLegacySupplier] = React.useState("")
   const [expiresAt, setExpiresAt] = React.useState("")
@@ -1235,10 +1272,9 @@ function EntrySheet({
   // conversión a unidades de consumo la hace el backend.
   const pres = product ? presentacionDeCompra(product) : null
   const enPresentacion = pres?.definida ?? false
-  const qtyNum = Number(qty)
   const equivalencia =
-    enPresentacion && pres && Number.isFinite(qtyNum) && qtyNum > 0
-      ? describirContenido(qtyNum * pres.factor, product?.unit ?? "und")
+    enPresentacion && pres && qty != null && qty > 0
+      ? describirContenido(qty * pres.factor, product?.unit ?? "und")
       : null
 
   const productMatches = React.useMemo(() => {
@@ -1268,13 +1304,11 @@ function EntrySheet({
       // harina, el del bulto, no el del gramo.
       setUnitCost(
         p?.cost
-          ? String(precioDePresentacion(p.cost, presentacionDeCompra(p).factor))
-          : "",
+          ? precioDePresentacion(p.cost, presentacionDeCompra(p).factor)
+          : null,
       )
       setEntryUnit(p?.unit ?? "und")
-      setEntryWeight(
-        p?.weight != null && p.weight > 0 ? String(p.weight) : "",
-      )
+      setEntryWeight(p?.weight != null && p.weight > 0 ? p.weight : null)
       setLegacySupplier(p?.supplier ?? "")
       setSupplierSel(initialSupplierSel(suppliers, p?.supplierId, p?.supplier))
     },
@@ -1294,7 +1328,7 @@ function EntrySheet({
       )
       setProductListOpen(false)
       setSedeId(preset?.sedeId ?? sedes[0]?._id ?? "")
-      setQty("")
+      setQty(null)
       setError(null)
       applyProductDefaults(presetProduct)
     }
@@ -1322,19 +1356,15 @@ function EntrySheet({
       // vive esa cuenta. Sin ella se conserva lo de siempre: la entrada puede
       // venir en otra unidad compatible (kg cuando el producto va en g) y se
       // reexpresa aquí, precio incluido para no inflar el costo.
-      const rawQty = Number(qty)
+      const rawQty = qty ?? 0
       const targetUnit = product?.unit ?? entryUnit
       const convertedQty = convertUnits(rawQty, entryUnit, targetUnit)
       const qtyFinal = enPresentacion ? rawQty : (convertedQty ?? rawQty)
       const costFinal = enPresentacion
-        ? unitCost
-          ? Number(unitCost)
-          : undefined
+        ? (unitCost ?? undefined)
         : unitCost && qtyFinal > 0
-          ? (Number(unitCost) * rawQty) / qtyFinal
-          : unitCost
-            ? Number(unitCost)
-            : undefined
+          ? (unitCost * rawQty) / qtyFinal
+          : (unitCost ?? undefined)
       // Proveedor: registrado (id + nombre como texto) o texto legado.
       const chosenSupplier = suppliers.find((sp) => sp._id === supplierSel)
       const supplierText =
@@ -1351,7 +1381,7 @@ function EntrySheet({
         expiresAt: !isAssembly && expiresAt ? expiresAt : undefined,
       })
       // Si cambió el peso por unidad, se refleja en el producto (convertido).
-      const w = !isAssembly && entryWeight ? Number(entryWeight) : undefined
+      const w = !isAssembly && entryWeight ? entryWeight : undefined
       const wFinal =
         w != null && w > 0 ? (convertUnits(w, entryUnit, targetUnit) ?? w) : undefined
       if (product && wFinal != null && wFinal > 0 && wFinal !== product.weight) {
@@ -1459,28 +1489,34 @@ function EntrySheet({
                 tiene sentido para el insumo que se recibe en su propia unidad
                 y a veces llega en kilos en vez de gramos. */}
             {!enPresentacion && (
-              <Field id="e-unit" label="Unidad de medida" help={{ term: "unidad" }}>
-                <NativeSelect
+              <Field
+                id="e-unit"
+                label="Unidad de medida"
+                help={{ term: "unidad" }}
+                hint={
+                  product && entryUnit !== product.unit
+                    ? `Lo llevas en ${unidadNombre(product.unit)}: lo convertimos al guardar.`
+                    : unidad(entryUnit)?.ejemplo
+                }
+              >
+                <UnidadSelect
                   id="e-unit"
                   value={entryUnit}
                   onChange={setEntryUnit}
-                  options={UNITS.map((u) => ({ value: u, label: u }))}
                 />
               </Field>
             )}
             {!isAssembly && (
               <Field
                 id="e-weight"
-                label={`Peso por unidad (${entryUnit})`}
+                label={`Peso por unidad (${unidadCorta(entryUnit)})`}
                 hint="Para productos que se compran por peso."
               >
-                <Input
+                <QuantityInput
                   id="e-weight"
-                  type="number"
-                  min="0"
-                  step="any"
                   value={entryWeight}
-                  onChange={(e) => setEntryWeight(e.target.value)}
+                  onValueChange={setEntryWeight}
+                  sufijo={unidadCorta(entryUnit)}
                   placeholder="500"
                 />
               </Field>
@@ -1502,14 +1538,11 @@ function EntrySheet({
                     : undefined
               }
             >
-              <Input
+              <QuantityInput
                 id="e-qty"
-                type="number"
-                min="0"
-                step="any"
                 value={qty}
-                onChange={(e) => setQty(e.target.value)}
-                required
+                onValueChange={setQty}
+                sufijo={enPresentacion ? pres!.unidad : unidadCorta(entryUnit)}
               />
             </Field>
             <Field
@@ -1519,17 +1552,18 @@ function EntrySheet({
               hint={
                 enPresentacion
                   ? `Lo que te cuesta un ${pres!.unidad} completo.`
-                  : "Por unidad, sin lo que le sumas para ganar."
+                  : `Por ${unidadNombre(entryUnit, 1)}, sin lo que le sumas para ganar.`
               }
             >
-              <Input
+              <MoneyInput
                 id="e-cost"
-                type="number"
-                min="0"
-                step="any"
                 value={unitCost}
-                onChange={(e) => setUnitCost(e.target.value)}
-                placeholder={enPresentacion ? `Por ${pres!.unidad}` : "Por unidad"}
+                onValueChange={setUnitCost}
+                placeholder={
+                  enPresentacion
+                    ? `Por ${pres!.unidad}`
+                    : `Por ${unidadNombre(entryUnit, 1)}`
+                }
               />
             </Field>
 
@@ -1584,7 +1618,7 @@ function AdjustSheet({
   const [productId, setProductId] = React.useState("")
   const [sedeId, setSedeId] = React.useState("")
   const [direction, setDirection] = React.useState<"add" | "remove">("remove")
-  const [qty, setQty] = React.useState("")
+  const [qty, setQty] = React.useState<number | null>(null)
   const [reason, setReason] = React.useState<AdjustReason>("conteo")
   const [lotCode, setLotCode] = React.useState("")
   const [expiresAt, setExpiresAt] = React.useState("")
@@ -1603,7 +1637,7 @@ function AdjustSheet({
       setProductId(preset?.productId ?? "")
       setSedeId(preset?.sedeId ?? sedes[0]?._id ?? "")
       setDirection("remove")
-      setQty("")
+      setQty(null)
       setReason("conteo")
       setLotCode("")
       setExpiresAt("")
@@ -1622,7 +1656,7 @@ function AdjustSheet({
         productId,
         sedeId,
         direction,
-        qty: Number(qty),
+        qty: qty ?? 0,
         reason,
         lotCode: createsLot && lotCode ? lotCode : undefined,
         expiresAt: createsLot && expiresAt ? expiresAt : undefined,
@@ -1658,7 +1692,7 @@ function AdjustSheet({
           <Button
             type="submit"
             form={ADJUST_FORM_ID}
-            disabled={saving || !productId || !sedeId}
+            disabled={saving || !productId || !sedeId || !qty}
             className="sm:min-w-36"
           >
             {saving ? (
@@ -1716,17 +1750,14 @@ function AdjustSheet({
             </Field>
             <Field
               id="a-qty"
-              label={`Cantidad${product ? ` (${product.unit})` : ""}`}
+              label={`Cantidad${product ? ` (${unidadCorta(product.unit)})` : ""}`}
               required
             >
-              <Input
+              <QuantityInput
                 id="a-qty"
-                type="number"
-                min="0"
-                step="any"
                 value={qty}
-                onChange={(e) => setQty(e.target.value)}
-                required
+                onValueChange={setQty}
+                sufijo={product ? unidadCorta(product.unit) : undefined}
               />
             </Field>
 
@@ -1816,7 +1847,7 @@ function TransferSheet({
   const [productId, setProductId] = React.useState("")
   const [fromSedeId, setFromSedeId] = React.useState("")
   const [toSedeId, setToSedeId] = React.useState("")
-  const [qty, setQty] = React.useState("")
+  const [qty, setQty] = React.useState<number | null>(null)
   const [note, setNote] = React.useState("")
   const [saving, setSaving] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
@@ -1830,7 +1861,7 @@ function TransferSheet({
       setProductId(preset?.productId ?? "")
       setFromSedeId(preset?.sedeId ?? sedes[0]?._id ?? "")
       setToSedeId("")
-      setQty("")
+      setQty(null)
       setNote("")
       setError(null)
     }
@@ -1846,7 +1877,7 @@ function TransferSheet({
         productId,
         fromSedeId,
         toSedeId,
-        qty: Number(qty),
+        qty: qty ?? 0,
         note: note || undefined,
       })
       onSuccess()
@@ -1879,7 +1910,7 @@ function TransferSheet({
           <Button
             type="submit"
             form={TRANSFER_FORM_ID}
-            disabled={saving || !productId || !fromSedeId || !toSedeId}
+            disabled={saving || !productId || !fromSedeId || !toSedeId || !qty}
             className="sm:min-w-36"
           >
             {saving ? <Loader2 className="animate-spin" /> : <ArrowLeftRight />}
@@ -1935,17 +1966,14 @@ function TransferSheet({
 
             <Field
               id="t-qty"
-              label={`Cantidad${product ? ` (${product.unit})` : ""}`}
+              label={`Cantidad${product ? ` (${unidadCorta(product.unit)})` : ""}`}
               required
             >
-              <Input
+              <QuantityInput
                 id="t-qty"
-                type="number"
-                min="0"
-                step="any"
                 value={qty}
-                onChange={(e) => setQty(e.target.value)}
-                required
+                onValueChange={setQty}
+                sufijo={product ? unidadCorta(product.unit) : undefined}
               />
             </Field>
             <Field id="t-note" label="Nota">
@@ -2033,7 +2061,9 @@ function ExpandedLots({ row }: { row: StockRow }) {
             <span>
               <span className="text-muted-foreground">Stock: </span>
               {nf.format(lot.qty)}{" "}
-              <span className="text-muted-foreground">{row.product.unit}</span>
+              <span className="text-muted-foreground">
+                {unidadCorta(row.product.unit)}
+              </span>
             </span>
             {row.product.itemType !== "assembly" && (
               <span className="flex items-center gap-2">
@@ -2306,12 +2336,15 @@ function LotsPanel({
   sedes,
   canAdjust,
   onAdjust,
+  onEntry,
   refreshKey,
 }: {
   sedes: Sede[]
   canAdjust: boolean
   /** Abre el ajuste con el producto y la sede del lote ya puestos. */
   onAdjust: (preset: { productId: string; sedeId: string }) => void
+  /** Abre la entrada de mercancía desde el estado vacío. */
+  onEntry: () => void
   /** Cambia tras cada operación de stock para forzar la recarga. */
   refreshKey: number
 }) {
@@ -2443,15 +2476,28 @@ function LotsPanel({
         ) : error ? (
           <p className="p-6 text-sm text-destructive">{error}</p>
         ) : filtered.length === 0 ? (
-          <div className="flex flex-col items-center gap-2 py-14 text-center">
-            <CalendarClock className="size-9 text-muted-foreground" />
-            <p className="font-display text-lg">Sin lotes que mostrar</p>
-            <p className="max-w-sm text-sm text-muted-foreground">
-              {rows.length === 0
-                ? "Solo llevan lote los productos marcados como perecederos o con control por lote. Actívalo en la ficha del producto y regístralo en la próxima entrada."
-                : "Ningún lote coincide con la búsqueda."}
-            </p>
-          </div>
+          rows.length === 0 ? (
+            <VacioConSalida
+              icon={CalendarClock}
+              titulo="Todavía no hay lotes"
+              frase="Un lote es cada tanda que entró junta, con su fecha de vencimiento. Solo los llevan las cosas que marcaste como perecederas: márcalo en la ficha y se creará solo en la próxima entrada."
+              accion={
+                canAdjust
+                  ? {
+                      texto: "Registrar una entrada",
+                      icon: PackagePlus,
+                      onClick: onEntry,
+                    }
+                  : undefined
+              }
+            />
+          ) : (
+            <VacioConSalida
+              icon={Search}
+              titulo="Ningún lote coincide"
+              frase="Prueba con otro filtro, o busca por el código del lote, el producto o el proveedor."
+            />
+          )
         ) : (
           <Table>
             <TableHeader>
@@ -2494,7 +2540,7 @@ function LotsPanel({
                         {nf.format(lot.qty)}
                       </span>{" "}
                       <span className="text-xs text-muted-foreground">
-                        {product?.unit ?? ""}
+                        {product ? unidadCorta(product.unit) : ""}
                       </span>
                       {consumido > 0 && (
                         <span className="block text-xs text-muted-foreground">
@@ -2561,6 +2607,109 @@ function LotsPanel({
 // ─── Main page ───────────────────────────────────────────────────────────────
 
 type Tab = "productos" | "existencias" | "lotes" | "movimientos"
+
+/**
+ * Qué se ve en cada pestaña, contado con las palabras del negocio.
+ *
+ * Las cuatro pestañas se llamaban con una sola palabra cada una y ninguna
+ * decía para qué sirve: "Lotes" y "Movimientos" no significan nada para quien
+ * no lleva inventarios de oficio. Y la primera se llamaba "Productos", igual
+ * que la PANTALLA de Productos del menú, que es otra cosa —lo que se vende—:
+ * eran dos sitios distintos con el mismo nombre.
+ */
+const TAB_INFO: Record<Tab, { label: string; frase: string }> = {
+  productos: {
+    label: "Insumos y mercancía",
+    frase:
+      "Todo lo que manejas: las fichas de lo que compras, con su unidad, su presentación y su costo. Todavía no dice cuánto tienes.",
+  },
+  existencias: {
+    label: "Existencias",
+    frase: "Cuánto tienes ahora mismo en cada sede, y qué está por acabarse.",
+  },
+  lotes: {
+    label: "Lotes",
+    frase:
+      "Cada tanda que entró, con su vencimiento. Sirve para sacar primero lo que se vence antes.",
+  },
+  movimientos: {
+    label: "Movimientos",
+    frase:
+      "La historia: cada entrada, salida, venta y ajuste, con su fecha y quién lo hizo. Aquí se mira cuando no cuadra algo.",
+  },
+}
+
+/**
+ * Una opción del menú "Herramientas", con su frase de qué hace.
+ *
+ * El nombre solo no basta —"Conteo" o "Merma" no le dicen nada a quien nunca
+ * los ha usado— y probarlos para averiguarlo es justo lo que da miedo en una
+ * pantalla que toca el inventario.
+ */
+function HerramientaItem({
+  icon: Icon,
+  titulo,
+  frase,
+  onClick,
+  disabled,
+}: {
+  icon: React.ElementType
+  titulo: string
+  frase: string
+  onClick: () => void
+  disabled?: boolean
+}) {
+  return (
+    <DropdownMenuItem
+      className="items-start gap-2.5 px-2 py-2"
+      disabled={disabled}
+      onClick={onClick}
+    >
+      <Icon className="mt-0.5 size-4 shrink-0" aria-hidden />
+      <span className="flex min-w-0 flex-col gap-0.5">
+        <span className="font-medium">{titulo}</span>
+        <span className="text-xs leading-relaxed text-muted-foreground">
+          {frase}
+        </span>
+      </span>
+    </DropdownMenuItem>
+  )
+}
+
+/**
+ * Estado vacío con salida: qué es esto, qué falta y el botón para hacerlo.
+ *
+ * Una pestaña vacía con "Sin movimientos registrados" y nada más deja a quien
+ * empieza sin saber si el programa falló o si le toca hacer algo.
+ */
+function VacioConSalida({
+  icon: Icon,
+  titulo,
+  frase,
+  accion,
+}: {
+  icon: React.ElementType
+  titulo: string
+  frase: string
+  accion?: { texto: string; icon: React.ElementType; onClick: () => void }
+}) {
+  const AccionIcon = accion?.icon
+  return (
+    <div className="flex flex-col items-center gap-2 px-6 py-14 text-center">
+      <Icon className="size-9 text-muted-foreground" aria-hidden />
+      <p className="font-display text-base text-foreground">{titulo}</p>
+      <p className="max-w-sm text-sm leading-relaxed text-muted-foreground">
+        {frase}
+      </p>
+      {accion && (
+        <Button className="mt-2" onClick={accion.onClick}>
+          {AccionIcon && <AccionIcon />}
+          {accion.texto}
+        </Button>
+      )}
+    </div>
+  )
+}
 
 // ─── Tallas y variantes (comercio sin recetas) ───────────────────────────────
 
@@ -2639,9 +2788,9 @@ function VariantsSheet({
   const [skuPrefix, setSkuPrefix] = React.useState("")
   const [name, setName] = React.useState("")
   const [categoryId, setCategoryId] = React.useState("none")
-  const [salePrice, setSalePrice] = React.useState("")
-  const [cost, setCost] = React.useState("")
-  const [minStock, setMinStock] = React.useState("")
+  const [salePrice, setSalePrice] = React.useState<number | null>(null)
+  const [cost, setCost] = React.useState<number | null>(null)
+  const [minStock, setMinStock] = React.useState<number | null>(null)
   const [axes, setAxes] = React.useState<AxisRow[]>([
     { name: "Talla", values: [] },
   ])
@@ -2655,9 +2804,9 @@ function VariantsSheet({
     setSkuPrefix("")
     setName("")
     setCategoryId("none")
-    setSalePrice("")
-    setCost("")
-    setMinStock("")
+    setSalePrice(null)
+    setCost(null)
+    setMinStock(null)
     setAxes([{ name: "Talla", values: [] }])
     setDrafts([""])
     setError(null)
@@ -2784,9 +2933,9 @@ function VariantsSheet({
         skuPrefix: skuPrefix.trim(),
         name: name.trim(),
         categoryId: categoryId === "none" ? undefined : categoryId,
-        salePrice: salePrice ? Number(salePrice) : undefined,
-        cost: cost ? Number(cost) : undefined,
-        minStock: minStock ? Number(minStock) : undefined,
+        salePrice: salePrice ?? undefined,
+        cost: cost ?? undefined,
+        minStock: minStock ?? undefined,
         axes: parsedAxes,
       })
       onSuccess()
@@ -2925,24 +3074,18 @@ function VariantsSheet({
                 label="Precio de venta"
                 hint="Con precio, entran solas al POS."
               >
-                <Input
+                <MoneyInput
                   id="v-price"
-                  type="number"
-                  min="0"
-                  step="any"
                   value={salePrice}
-                  onChange={(e) => setSalePrice(e.target.value)}
+                  onValueChange={setSalePrice}
                   placeholder="Opcional"
                 />
               </Field>
               <Field id="v-cost" label="Costo">
-                <Input
+                <MoneyInput
                   id="v-cost"
-                  type="number"
-                  min="0"
-                  step="any"
                   value={cost}
-                  onChange={(e) => setCost(e.target.value)}
+                  onValueChange={setCost}
                   placeholder="Opcional"
                 />
               </Field>
@@ -2951,13 +3094,11 @@ function VariantsSheet({
                 label="Stock mínimo"
                 hint="Por variante, no del total."
               >
-                <Input
+                <QuantityInput
                   id="v-min"
-                  type="number"
-                  min="0"
-                  step="any"
                   value={minStock}
-                  onChange={(e) => setMinStock(e.target.value)}
+                  onValueChange={setMinStock}
+                  sufijo="und"
                   placeholder="Opcional"
                 />
               </Field>
@@ -3178,16 +3319,15 @@ const FilaPrecio = React.memo(function FilaPrecio({
         {moneyUnit.format(actual)}
       </TableCell>
       <TableCell className="py-2">
-        <Input
-          type="number"
-          min="0"
-          step="any"
-          inputMode="decimal"
-          className="h-9 w-32 text-right tnum"
+        {/* El estado de la lista sigue siendo texto —una casilla en blanco
+            significa "no lo toqué", que no es lo mismo que cero— así que el
+            número que devuelve el campo se vuelve a guardar como texto. */}
+        <MoneyInput
+          className="h-9 w-36 text-right"
           aria-label={`Nuevo precio de ${p.name}`}
           placeholder={String(Math.round(actual))}
-          value={valor}
-          onChange={(e) => onChange(p._id, e.target.value)}
+          value={valor.trim() === "" ? null : n}
+          onValueChange={(v) => onChange(p._id, v === null ? "" : String(v))}
         />
       </TableCell>
       <TableCell className="tnum py-2 text-right">
@@ -3578,23 +3718,22 @@ const FilaConteo = React.memo(function FilaConteo({
       <TableCell className="py-2">
         <p className="font-medium leading-tight">{p.name}</p>
         <p className="font-mono text-xs text-muted-foreground">
-          {p.sku} · {p.unit}
+          {p.sku} · {unidadCorta(p.unit)}
         </p>
       </TableCell>
       <TableCell className="tnum py-2 text-right text-muted-foreground">
         {nf.format(esperado)}
       </TableCell>
       <TableCell className="py-2">
-        <Input
-          type="number"
-          min="0"
-          step="any"
-          inputMode="decimal"
-          className="h-9 w-28 text-right tnum"
+        {/* Sigue guardándose como texto: una casilla en blanco significa "no
+            lo conté", y convertirla a cero vaciaría la sede de un plumazo. */}
+        <QuantityInput
+          className="h-9 w-32 text-right"
           aria-label={`Cantidad contada de ${p.name}`}
           placeholder="—"
-          value={valor}
-          onChange={(e) => onChange(p._id, e.target.value)}
+          sufijo={unidadCorta(p.unit)}
+          value={valor.trim() === "" ? null : n}
+          onValueChange={(v) => onChange(p._id, v === null ? "" : String(v))}
         />
       </TableCell>
       <TableCell className="tnum py-2 text-right">
@@ -4586,12 +4725,28 @@ export default function InventarioPage() {
         section="Operación"
         title="Inventario"
         icon={BoxesIcon}
-        description="Todo lo que entra, sale y queda: catálogo, existencias por sede, lotes con su vencimiento y el kardex de cada movimiento."
+        description={
+          <>
+            Lo que <strong>compras</strong> y tienes guardado: insumos,
+            mercancía, existencias por sede, lotes con su vencimiento y el
+            historial de cada movimiento. Lo que <strong>vendes</strong> en la
+            caja se arma después, en{" "}
+            <Link
+              href="/panel/productos"
+              className="font-medium text-primary underline-offset-4 hover:underline"
+            >
+              Productos
+            </Link>
+            .
+          </>
+        }
         actions={
           <>
-            {/* Las acciones de uso diario van primero y con rótulo; las de
-                mantenimiento (exportar, importar, categorías) se quedan en
-                icono en cuanto la pantalla se estrecha. */}
+            {/* Antes había once botones en fila, la mitad convertidos en
+                iconos sin rótulo en cuanto la pantalla se estrechaba: nadie
+                sabía cuál era cuál. Ahora a la vista solo queda lo que se usa
+                todos los días —dar de alta, recibir, ajustar— y el resto vive
+                en un menú donde cada opción dice con palabras qué hace. */}
             {canAdjust && (
               <>
                 <Button
@@ -4609,104 +4764,103 @@ export default function InventarioPage() {
                   onClick={() => openOperation(setAdjustOpen)}
                 >
                   <PackageMinus />
-                  Ajuste
-                </Button>
-                {/* Con rótulo siempre visible: los insumos suben cada semana y
-                    esta es la acción que más se busca. En icono no se encuentra. */}
-                <Button
-                  variant="soft"
-                  aria-label="Actualizar los precios de compra del inventario"
-                  onClick={() => setPricesOpen(true)}
-                >
-                  <TrendingUp />
-                  Actualizar precios
-                </Button>
-                {/* Se usa una vez a la semana, así que se repliega a icono
-                    antes que las acciones del día a día. */}
-                <Button
-                  variant="outline"
-                  aria-label="Hacer un conteo físico de una sede"
-                  onClick={() => setCountOpen(true)}
-                >
-                  <ClipboardList />
-                  <ButtonLabel from="md">Conteo</ButtonLabel>
+                  <ButtonLabel from="md">Ajuste</ButtonLabel>
                 </Button>
               </>
             )}
-            {/* Solo lee: cualquiera que vea el inventario puede rastrear, y
-                cuando hace falta suele ser urgente. */}
-            <Button
-              variant="outline"
-              aria-label="Rastrear a dónde se fue un lote"
-              onClick={() => setTraceOpen(true)}
-            >
-              <ScanSearch />
-              <ButtonLabel from="md">Rastrear lote</ButtonLabel>
-            </Button>
-            {/* Solo lee. Se mira una vez al mes, así que se repliega a icono
-                antes que las acciones del día a día. */}
-            <Button
-              variant="outline"
-              aria-label="Ver el reporte de merma"
-              onClick={() => setWasteOpen(true)}
-            >
-              <Trash2 />
-              <ButtonLabel from="lg">Merma</ButtonLabel>
-            </Button>
-            {canTransfer && sedes.length > 1 && (
-              <Button
-                variant="outline"
-                aria-label="Trasladar existencias entre sedes"
-                onClick={() => openOperation(setTransferOpen)}
+
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={<Button variant="outline" aria-label="Herramientas" />}
               >
-                <ArrowLeftRight />
-                <ButtonLabel from="md">Traslado</ButtonLabel>
-              </Button>
-            )}
-            {canAdjust && (
-              <>
-                <Button
-                  variant="outline"
-                  aria-label="Administrar categorías"
-                  onClick={() => setCategoriesOpen(true)}
-                >
-                  <Tags />
-                  <ButtonLabel from="xl">Categorías</ButtonLabel>
-                </Button>
-                {usaTallas && (
-                  <Button
-                    variant="soft"
-                    aria-label="Crear producto con tallas o variantes"
-                    title="Crear un producto con tallas, colores u otras variantes"
-                    onClick={() => setVariantsOpen(true)}
-                  >
-                    <Layers />
-                    <ButtonLabel from="md">Tallas y variantes</ButtonLabel>
-                  </Button>
+                <Wrench />
+                <ButtonLabel from="sm">Herramientas</ButtonLabel>
+                <ChevronDown className="opacity-60" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-80">
+                {canAdjust && (
+                  <>
+                    <DropdownMenuGroup>
+                      <DropdownMenuLabel>Cada tanto</DropdownMenuLabel>
+                      <HerramientaItem
+                        icon={TrendingUp}
+                        titulo="Actualizar precios"
+                        frase="Subes de un golpe lo que te cobran por los insumos."
+                        onClick={() => setPricesOpen(true)}
+                      />
+                      <HerramientaItem
+                        icon={ClipboardList}
+                        titulo="Conteo físico"
+                        frase="La planilla del domingo: cuentas y el sistema cuadra."
+                        onClick={() => setCountOpen(true)}
+                      />
+                      {canTransfer && sedes.length > 1 && (
+                        <HerramientaItem
+                          icon={ArrowLeftRight}
+                          titulo="Traslado entre sedes"
+                          frase="Mueves mercancía de una sede a otra sin vender."
+                          onClick={() => openOperation(setTransferOpen)}
+                        />
+                      )}
+                    </DropdownMenuGroup>
+                    <DropdownMenuSeparator />
+                  </>
                 )}
-              </>
-            )}
-            <Button
-              variant="outline"
-              size="icon"
-              aria-label="Exportar el catálogo a CSV"
-              title="Exportar a CSV"
-              onClick={() => void handleExport()}
-              disabled={exporting}
-            >
-              <Download />
-            </Button>
-            {canAdjust && (
-              <Button
-                variant="outline"
-                size="icon"
-                aria-label="Importar productos desde CSV"
-                title="Importar desde CSV"
-                onClick={() => setImportOpen(true)}
-              >
-                <Upload />
-              </Button>
-            )}
+
+                <DropdownMenuGroup>
+                  <DropdownMenuLabel>Para revisar</DropdownMenuLabel>
+                  <HerramientaItem
+                    icon={ScanSearch}
+                    titulo="Rastrear un lote"
+                    frase="A dónde se fue todo lo que entró de una tanda."
+                    onClick={() => setTraceOpen(true)}
+                  />
+                  <HerramientaItem
+                    icon={Trash2}
+                    titulo="Reporte de merma"
+                    frase="Qué se botó, por qué y cuánta plata se fue en eso."
+                    onClick={() => setWasteOpen(true)}
+                  />
+                </DropdownMenuGroup>
+                <DropdownMenuSeparator />
+
+                <DropdownMenuGroup>
+                  <DropdownMenuLabel>Organizar</DropdownMenuLabel>
+                  {canAdjust && (
+                    <HerramientaItem
+                      icon={Tags}
+                      titulo="Categorías"
+                      frase="Los grupos con que ordenas: lácteos, empaques, aseo."
+                      onClick={() => setCategoriesOpen(true)}
+                    />
+                  )}
+                  {canAdjust && usaTallas && (
+                    <HerramientaItem
+                      icon={Layers}
+                      titulo="Tallas y variantes"
+                      frase="Creas de un tirón la misma cosa en varias tallas o colores."
+                      onClick={() => setVariantsOpen(true)}
+                    />
+                  )}
+                  <HerramientaItem
+                    icon={Download}
+                    titulo="Bajar a Excel"
+                    frase="Te llevas todo el listado en un archivo, como respaldo."
+                    disabled={exporting}
+                    onClick={() => void handleExport()}
+                  />
+                  {canAdjust && (
+                    <HerramientaItem
+                      icon={Upload}
+                      titulo="Subir desde Excel"
+                      frase="Cargas muchos de una vez desde una planilla."
+                      onClick={() => setImportOpen(true)}
+                    />
+                  )}
+                </DropdownMenuGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
             {canAdjust && (
               <Button
                 size="lg"
@@ -4718,7 +4872,7 @@ export default function InventarioPage() {
                 }}
               >
                 <Plus />
-                Nuevo producto
+                Nuevo insumo
               </Button>
             )}
           </>
@@ -4815,35 +4969,58 @@ export default function InventarioPage() {
 
       {/* Pestañas del módulo. El contador de lotes en riesgo va en la propia
           pestaña: es la única forma de que se vea sin entrar a buscarlo. */}
-      <div className="mb-5 overflow-x-auto pb-1" data-tour="inv-tabs">
+      <div className="mb-2 overflow-x-auto pb-1" data-tour="inv-tabs">
         <Segmented
           value={tab}
           onValueChange={setTab}
           ariaLabel="Vista del inventario"
           options={[
-            { value: "productos", label: "Productos", icon: Package },
-            { value: "existencias", label: "Existencias", icon: BoxesIcon },
+            {
+              value: "productos",
+              label: TAB_INFO.productos.label,
+              icon: Package,
+            },
+            {
+              value: "existencias",
+              label: TAB_INFO.existencias.label,
+              icon: BoxesIcon,
+            },
             {
               value: "lotes",
-              label: "Lotes",
+              label: TAB_INFO.lotes.label,
               icon: CalendarClock,
               badge:
                 (alerts?.expired.length ?? 0) +
                   (alerts?.expiringSoon.length ?? 0) || undefined,
             },
-            { value: "movimientos", label: "Movimientos", icon: ArrowLeftRight },
+            {
+              value: "movimientos",
+              label: TAB_INFO.movimientos.label,
+              icon: ArrowLeftRight,
+            },
           ]}
         />
       </div>
+      {/* La frase de la pestaña activa. Va fuera de la tarjeta, pegada a las
+          pestañas, porque lo que explica es la elección que se acaba de hacer. */}
+      <p className="mb-4 max-w-3xl text-sm leading-relaxed text-muted-foreground">
+        {TAB_INFO[tab].frase}
+      </p>
 
       {/* ── Tab: Productos ── */}
       {tab === "productos" && (
         <Card>
           <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <CardTitle>Catálogo</CardTitle>
+              <CardTitle>Insumos y mercancía</CardTitle>
               <CardDescription>
-                {filteredProducts.length} producto(s)
+                {filteredProducts.length} ficha(s) ·{" "}
+                <Link
+                  href="/panel/productos"
+                  className="text-primary underline-offset-4 hover:underline"
+                >
+                  Lo que vendes se arma en Productos
+                </Link>
               </CardDescription>
             </div>
             <div className="flex flex-wrap items-center gap-3">
@@ -4862,14 +5039,32 @@ export default function InventarioPage() {
             ) : productsError ? (
               <p className="p-6 text-sm text-destructive">{productsError}</p>
             ) : filteredProducts.length === 0 ? (
-              <div className="flex flex-col items-center gap-2 py-14 text-center">
-                <Boxes className="size-9 text-muted-foreground" />
-                <p className="text-sm text-muted-foreground">
-                  {products.length === 0
-                    ? "Aún no hay productos. Crea el primero con “Nuevo producto”."
-                    : "Sin resultados para la búsqueda."}
-                </p>
-              </div>
+              products.length === 0 ? (
+                <VacioConSalida
+                  icon={Package}
+                  titulo="Todavía no has registrado nada"
+                  frase="Aquí va lo que compras: la harina, las bolsas, la gaseosa que revendes. Cada ficha dice en qué lo mides y cómo te llega, y es de donde saldrá después lo que vendes en la caja."
+                  accion={
+                    canAdjust
+                      ? {
+                          texto: "Registrar mi primer insumo",
+                          icon: Plus,
+                          onClick: () => {
+                            setProductSheetMode("create")
+                            setEditingProduct(undefined)
+                            setProductSheetOpen(true)
+                          },
+                        }
+                      : undefined
+                  }
+                />
+              ) : (
+                <VacioConSalida
+                  icon={Search}
+                  titulo="Nada coincide con lo que buscaste"
+                  frase="Prueba con parte del nombre o con el SKU."
+                />
+              )
             ) : (
               <Table>
                 <TableHeader>
@@ -4877,6 +5072,7 @@ export default function InventarioPage() {
                     <TableHead>SKU</TableHead>
                     <TableHead>Tipo</TableHead>
                     <TableHead>Ítem</TableHead>
+                    <TableHead>Cómo lo mides</TableHead>
                     <TableHead>Categoría</TableHead>
                     <TableHead className="text-right">En stock</TableHead>
                     <TableHead />
@@ -4887,6 +5083,7 @@ export default function InventarioPage() {
                     const totalQty = allStock
                       .filter((r) => r.product._id === p._id)
                       .reduce((sum, r) => sum + r.qty, 0)
+                    const pres = presentacionDeCompra(p)
                     return (
                       <TableRow key={p._id}>
                         <TableCell className="font-mono text-xs">
@@ -4926,6 +5123,20 @@ export default function InventarioPage() {
                             )}
                           </div>
                         </TableCell>
+                        {/* Unidad y presentación juntas: es la pregunta que
+                            más se hace al mirar el listado —"¿esto va en
+                            gramos o en kilos, y cómo lo compro?"— y hasta
+                            ahora había que abrir la ficha para saberlo. */}
+                        <TableCell className="text-sm">
+                          <div className="flex flex-col gap-0.5">
+                            <span>{unidadNombre(p.unit)}</span>
+                            <span className="text-xs text-muted-foreground">
+                              {pres.definida
+                                ? `Llega por ${pres.unidad}${pres.contenido ? ` de ${pres.contenido}` : ""}`
+                                : "Se compra igual"}
+                            </span>
+                          </div>
+                        </TableCell>
                         <TableCell className="text-sm">
                           {p.categoryId?.name ?? (
                             <span className="text-muted-foreground">—</span>
@@ -4936,7 +5147,7 @@ export default function InventarioPage() {
                             {nf.format(totalQty)}
                           </span>{" "}
                           <span className="text-xs text-muted-foreground">
-                            {p.unit}
+                            {unidadCorta(p.unit)}
                           </span>
                         </TableCell>
                         <TableCell>
@@ -4982,7 +5193,7 @@ export default function InventarioPage() {
             <div>
               <CardTitle>Existencias</CardTitle>
               <CardDescription>
-                Stock consolidado por producto y sede
+                Cuánto tienes ahora mismo en cada sede
               </CardDescription>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -5032,13 +5243,37 @@ export default function InventarioPage() {
             ) : stockError ? (
               <p className="p-6 text-sm text-destructive">{stockError}</p>
             ) : stock.length === 0 ? (
-              <div className="flex flex-col items-center gap-2 py-14 text-center">
-                <Boxes className="size-9 text-muted-foreground" />
-                <p className="text-sm text-muted-foreground">
-                  Sin existencias registradas. Usa “Entrada” para recibir
-                  mercancía.
-                </p>
-              </div>
+              products.length === 0 ? (
+                <VacioConSalida
+                  icon={Package}
+                  titulo="Primero hay que tener fichas"
+                  frase="Las existencias son la cantidad de algo, y todavía no hay de qué. Registra en “Insumos y mercancía” lo que compras y vuelve aquí."
+                  accion={
+                    canAdjust
+                      ? {
+                          texto: "Ir a registrar un insumo",
+                          icon: Package,
+                          onClick: () => setTab("productos"),
+                        }
+                      : undefined
+                  }
+                />
+              ) : (
+                <VacioConSalida
+                  icon={BoxesIcon}
+                  titulo="Las fichas están, la mercancía no"
+                  frase="Ya tienes registrado qué manejas, pero nadie ha dicho que haya llegado. Registra una entrada por cada compra que recibas y aquí verás cuánto hay."
+                  accion={
+                    canAdjust
+                      ? {
+                          texto: "Registrar una entrada",
+                          icon: PackagePlus,
+                          onClick: () => openOperation(setEntryOpen),
+                        }
+                      : undefined
+                  }
+                />
+              )
             ) : (
               <Table>
                 <TableHeader>
@@ -5109,7 +5344,7 @@ export default function InventarioPage() {
                             {nf.format(row.qty)}
                           </span>{" "}
                           <span className="text-xs text-muted-foreground">
-                            {row.product.unit}
+                            {unidadCorta(row.product.unit)}
                           </span>
                           {low && (
                             <Badge variant="destructive" className="ml-2">
@@ -5214,6 +5449,7 @@ export default function InventarioPage() {
           canAdjust={canAdjust}
           refreshKey={lotsRefresh}
           onAdjust={(preset) => openOperation(setAdjustOpen, preset)}
+          onEntry={() => openOperation(setEntryOpen)}
         />
       )}
 
@@ -5222,9 +5458,11 @@ export default function InventarioPage() {
         <Card>
           <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <CardTitle>Kardex</CardTitle>
+              <CardTitle>Movimientos</CardTitle>
               <CardDescription>
-                {movements ? `${movements.total} movimiento(s)` : "Historial"}
+                {movements
+                  ? `${movements.total} movimiento(s) registrado(s)`
+                  : "Historial de entradas, salidas y ajustes"}
               </CardDescription>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -5283,12 +5521,20 @@ export default function InventarioPage() {
             ) : movsError ? (
               <p className="p-6 text-sm text-destructive">{movsError}</p>
             ) : !movements || movements.rows.length === 0 ? (
-              <div className="flex flex-col items-center gap-2 py-14 text-center">
-                <Boxes className="size-9 text-muted-foreground" />
-                <p className="text-sm text-muted-foreground">
-                  Sin movimientos registrados todavía.
-                </p>
-              </div>
+              <VacioConSalida
+                icon={ArrowLeftRight}
+                titulo="Todavía no se ha movido nada"
+                frase="Aquí se va escribiendo sola la historia: cada entrada de mercancía, cada venta y cada ajuste, con su fecha y su responsable. Empieza a llenarse en cuanto registres la primera entrada."
+                accion={
+                  canAdjust
+                    ? {
+                        texto: "Registrar una entrada",
+                        icon: PackagePlus,
+                        onClick: () => openOperation(setEntryOpen),
+                      }
+                    : undefined
+                }
+              />
             ) : (
               <>
                 <Table>

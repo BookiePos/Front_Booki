@@ -5,15 +5,55 @@
  * mostrador. Si una función nueva no se anuncia dentro de la aplicación,
  * sencillamente no existe — se queda ahí sin que nadie la encuentre.
  *
+ * Hasta la 1.2.0 esto era una sola lista de cinco párrafos en letra pequeña, y
+ * el dueño dijo lo que había que oír: en una sola página todo se veía muy
+ * pequeño y no se entendía. Una pared de texto no se lee, se cierra. Así que la
+ * novedad ya no es una lista: son páginas. Una idea por página, una frase corta
+ * por punto, un dibujo que explique el cambio sin tener que leerlo y un botón
+ * que lleve directo a la pantalla donde está esa función.
+ *
  * Para anunciar una versión nueva: cambia `NOVEDADES` por la de esa versión y
  * ya. La tarjeta sale sola al iniciar sesión.
  */
 
+/** Icono de la cabecera de cada página. El componente decide cuál pinta. */
+export type IconoNovedad = "cobro" | "inventario" | "cifras"
+
+/**
+ * Qué esquema se dibuja en la página.
+ *
+ * Es una palabra y no un dibujo a propósito: este archivo lo edita quien
+ * redacta el anuncio de la versión, y aquí no debe haber nada de pintura. El
+ * componente traduce la palabra al SVG que le corresponde.
+ */
+export type IlustracionNovedad =
+  | "columnas-cobro"
+  | "orden-inventario"
+  | "cifras-claras"
+
 export interface PuntoNovedad {
   /** Dónde está, con el nombre que sale en el menú: "Inventario → Conteo". */
   donde: string
-  /** Qué hace, en una frase y sin jerga. */
+  /** Qué hace. Una frase corta y sin jerga; si pide tres renglones, sobra. */
   texto: string
+  /**
+   * A dónde lleva el botón del punto. Siempre ruta absoluta: la tarjeta sale
+   * igual en el panel y en el terminal, y una ruta relativa acabaría en sitios
+   * distintos según desde dónde se abra.
+   */
+  ruta?: string
+  /** Texto del botón. Sin `ruta` no se pinta ningún botón. */
+  etiquetaRuta?: string
+}
+
+export interface PaginaNovedad {
+  titulo: string
+  /** Por qué importa, en una frase. Es lo primero que se lee de la página. */
+  gancho: string
+  icono: IconoNovedad
+  ilustracion: IlustracionNovedad
+  /** Tres como mucho: con cuatro la página vuelve a ser una lista apretada. */
+  puntos: PuntoNovedad[]
 }
 
 export interface Novedad {
@@ -23,40 +63,105 @@ export interface Novedad {
   titulo: string
   /** Una frase que resuma por qué vale la pena mirar. */
   resumen: string
-  puntos: PuntoNovedad[]
+  paginas: PaginaNovedad[]
 }
 
 export const NOVEDADES: Novedad = {
-  version: "1.2.0",
-  fecha: "12 de septiembre de 2026",
-  titulo: "Cobrar más rápido y buscar en todo",
+  version: "1.3.0",
+  fecha: "13 de septiembre de 2026",
+  titulo: "Más fácil de cobrar, de ordenar y de escribir",
   resumen:
-    "Cinco cambios en el punto de venta y en los productos. Esto es lo que puedes hacer desde hoy.",
-  puntos: [
+    "Tres cambios grandes en esta versión. Cada punto trae un botón que te lleva a la pantalla donde está.",
+  paginas: [
     {
-      donde: "Punto de venta → al cobrar",
-      texto:
-        "Escribes con cuánto paga el cliente y sale la devuelta exacta, en grande. Con Enter confirmas el cobro.",
+      titulo: "Cobrar sin perder de vista nada",
+      gancho:
+        "La pantalla de cobro ahora usa todo el monitor. Lo ves todo junto, sin subir y bajar.",
+      icono: "cobro",
+      ilustracion: "columnas-cobro",
+      puntos: [
+        {
+          donde: "Punto de venta → al cobrar",
+          texto:
+            "Tres columnas a la vista: lo que estás cobrando, el pago con la devuelta, y el cliente con el domicilio.",
+          ruta: "/pos",
+          etiquetaRuta: "Ir al punto de venta",
+        },
+        {
+          donde: "Punto de venta → al cobrar",
+          texto:
+            "El total y el botón de cobrar se quedan fijos. Por largo que sea el formulario, no se pierden de vista.",
+          ruta: "/pos",
+          etiquetaRuta: "Ver la pantalla de cobro",
+        },
+        {
+          donde: "Punto de venta → toda la pantalla",
+          texto:
+            "Menos huecos vacíos y letra más grande. La caja aprovecha lo ancho del monitor.",
+          ruta: "/pos",
+          etiquetaRuta: "Abrir el terminal",
+        },
+      ],
     },
     {
-      donde: "Punto de venta → al cobrar → Cliente",
-      texto:
-        "Consumidor final o cliente registrado, y un botón para agregar un cliente nuevo sin salir del cobro.",
+      titulo: "El inventario va primero",
+      gancho:
+        "Primero anotas lo que compras. Después armas lo que vendes. La pantalla te lleva de la mano.",
+      icono: "inventario",
+      ilustracion: "orden-inventario",
+      puntos: [
+        {
+          donde: "Inventario → al entrar",
+          texto:
+            "El orden está a la vista: Inventario primero, Productos después, con su botón para pasar al paso siguiente.",
+          ruta: "/panel/inventario",
+          etiquetaRuta: "Ir a Inventario",
+        },
+        {
+          donde: "Inventario → pestañas",
+          texto:
+            "Cada pestaña dice qué se ve ahí. Los botones sueltos quedaron juntos en un menú de herramientas.",
+          ruta: "/panel/inventario",
+          etiquetaRuta: "Ver las pestañas",
+        },
+        {
+          donde: "Productos → producto nuevo",
+          texto:
+            "Si no tienes nada en inventario, el sistema te avisa y te lleva a crearlo. Ya no se arman productos vacíos.",
+          ruta: "/panel/productos",
+          etiquetaRuta: "Ir a Productos",
+        },
+      ],
     },
     {
-      donde: "Punto de venta → al cobrar → Vendedor",
-      texto:
-        "Escoges quién atendió. Queda en el recibo y en Ventas, aunque haya cobrado otra persona.",
-    },
-    {
-      donde: "Punto de venta → barra de arriba",
-      texto:
-        "Un buscador para todo: escribes “galleta” y ves el producto, sus existencias, las ventas que la llevaron y los clientes. Tocas y te lleva. También con Ctrl K.",
-    },
-    {
-      donde: "Productos → ficha del producto → Empaque",
-      texto:
-        "Dices qué bolsa, caja o vaso gasta cada producto y se descuenta solo al vender, con su costo. La bolsa de más se anota al cobrar, en “Empaque extra”.",
+      titulo: "Escribir cifras sin contar ceros",
+      gancho:
+        "Los precios se puntúan solos y cada unidad se llama por su nombre completo.",
+      icono: "cifras",
+      ilustracion: "cifras-claras",
+      puntos: [
+        {
+          donde: "En todo el sistema → precios y costos",
+          texto:
+            "Escribes 45000 y aparece $45.000. El punto de los miles lo pone el sistema: se acabó contar ceros.",
+          ruta: "/panel/productos",
+          etiquetaRuta: "Ir a Productos",
+        },
+        {
+          donde: "Inventario → unidad de medida",
+          texto:
+            "Se leen completas: Gramo, Kilogramo, Litro, Mililitro, Libra y Arroba. La libra ya son 500 gramos y la arroba, 12,5 kilos.",
+          ruta: "/panel/inventario",
+          etiquetaRuta: "Ir a Inventario",
+        },
+        {
+          donde: "Inventario → presentación de compra",
+          texto:
+            "El bulto va con su contenido al lado: uno de harina trae 25 kilos y uno de papa trae 50. El sistema hace la cuenta.",
+          ruta: "/panel/inventario",
+          etiquetaRuta: "Ver las presentaciones",
+        },
+      ],
     },
   ],
 }

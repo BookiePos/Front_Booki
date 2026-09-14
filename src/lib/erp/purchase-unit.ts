@@ -20,7 +20,16 @@ import type { InvProduct } from "./api-inventory"
 export const UNIT_FACTORS: Record<string, { base: string; factor: number }> = {
   g: { base: "g", factor: 1 },
   kg: { base: "g", factor: 1000 },
-  lb: { base: "g", factor: 453.592 },
+  // 500 g, la libra de la plaza, no los 453,592 g de la libra internacional.
+  // Es decisión del dueño y es la que cuadra con el resto del sistema: aquí una
+  // arroba son 25 libras y 12,5 kg, cuenta que solo sale con la libra de 500.
+  // Con los 453,592 de antes, comprar "una libra de mantequilla" registraba un
+  // 9 % menos de lo que de verdad entró a la bodega.
+  lb: { base: "g", factor: 500 },
+  // La arroba castellana que se usa en Colombia: 12,5 kg exactos. Es medida,
+  // no empaque —a diferencia del bulto, que trae lo que traiga— así que sí
+  // puede ser la unidad en que se lleva un insumo. Ver `lib/erp/unidades.ts`.
+  arroba: { base: "g", factor: 12_500 },
   ml: { base: "ml", factor: 1 },
   l: { base: "ml", factor: 1000 },
   und: { base: "und", factor: 1 },

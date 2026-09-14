@@ -165,7 +165,7 @@ export function VariantPicker({
             </DialogPrimitive.Close>
           </header>
 
-          <div className="min-h-0 flex-1 overflow-y-auto p-4">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4">
             <div
               className={cn(
                 "grid gap-2",
