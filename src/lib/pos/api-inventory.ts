@@ -94,6 +94,10 @@ export type MovementType =
   | "transfer_in"
   | "sale"
   | "sale_void"
+  | "production_out"
+  | "production_in"
+  | "merge_out"
+  | "merge_in"
 
 export interface InvMovement {
   _id: string
@@ -143,6 +147,10 @@ export const MOVEMENT_TYPE_LABELS: Record<MovementType, string> = {
   transfer_in: "Traslado (entrada)",
   sale: "Venta",
   sale_void: "Anulación de venta",
+  production_out: "Consumo de producción",
+  production_in: "Producción",
+  merge_out: "Fusión (salida)",
+  merge_in: "Fusión (entrada)",
 }
 
 // ─── Sedes ───────────────────────────────────────────────────────────────────

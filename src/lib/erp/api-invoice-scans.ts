@@ -93,6 +93,11 @@ export interface NewProductDraft {
   salePrice?: number
   barcode?: string
   minStock?: number
+  /**
+   * Producto (`ingredient`, se compra y se guarda) o Montaje (`assembly`, se
+   * arma con otros y lleva lotes). Obligatorio: de una foto no se puede saber.
+   */
+  itemType?: "ingredient" | "product" | "assembly"
 }
 
 export interface LineDecision {

@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation"
 import {
   ArrowLeft,
   CheckCircle2,
+  GitMerge,
   History,
   Loader2,
   PackagePlus,
@@ -47,6 +48,7 @@ import {
   describirContenido,
   presentacionDeCompra,
 } from "@/lib/erp/purchase-unit"
+import { rankBySimilarity } from "@/lib/erp/product-match"
 import { listSuppliers, type Supplier } from "@/lib/erp/api-suppliers"
 import { listCategories as listFinanceCategories, type FinanceCategory } from "@/lib/erp/api-finance"
 import { errorMessage, fmtDate, money } from "@/lib/erp/finance-format"
@@ -170,6 +172,9 @@ function NewProductDialog({
   const [salePrice, setSalePrice] = React.useState<number | null>(null)
   const [barcode, setBarcode] = React.useState("")
   const [minStock, setMinStock] = React.useState("")
+  const [itemType, setItemType] = React.useState<
+    NewProductDraft["itemType"] | ""
+  >("")
 
   // Al abrir se rehidrata con lo ya completado o con lo que dijo la factura.
   React.useEffect(() => {
@@ -182,6 +187,7 @@ function NewProductDialog({
     setSalePrice(value?.salePrice ?? null)
     setBarcode(value?.barcode ?? line.barcode ?? "")
     setMinStock(value?.minStock != null ? String(value.minStock) : "")
+    setItemType(value?.itemType ?? "")
   }, [open, line, value])
 
   function handleSave() {
@@ -194,6 +200,7 @@ function NewProductDialog({
       salePrice: salePrice ?? undefined,
       barcode: barcode.trim() || undefined,
       minStock: minStock ? Number(minStock) : undefined,
+      itemType: itemType || undefined,
     })
     onOpenChange(false)
   }
@@ -217,7 +224,7 @@ function NewProductDialog({
           </Button>
           <Button
             onClick={handleSave}
-            disabled={!sku.trim() || !name.trim()}
+            disabled={!sku.trim() || !name.trim() || !itemType}
             className="sm:min-w-36"
           >
             <PackagePlus />
@@ -276,6 +283,23 @@ function NewProductDialog({
         description="Cómo se mide y cuándo te avisamos de que se está acabando."
       >
         <FieldGrid cols={3}>
+          <Field
+            id="np-type"
+            label="Tipo"
+            required
+            hint="Producto: se compra y se guarda. Montaje: se arma con otros productos y lleva lotes."
+          >
+            <NativeSelect
+              id="np-type"
+              value={itemType ?? ""}
+              onChange={(v) => setItemType(v as NewProductDraft["itemType"] | "")}
+              placeholder="Elige el tipo"
+              options={[
+                { value: "ingredient", label: "Producto" },
+                { value: "assembly", label: "Montaje" },
+              ]}
+            />
+          </Field>
           <Field id="np-unit" label="Unidad" help={{ term: "unidad" }}>
             <Input
               id="np-unit"
@@ -1103,19 +1127,35 @@ export default function RevisarFacturaPage() {
                                   ))}
                                 </SelectContent>
                               </Select>
+                              {!decision.productId && editable && (
+                                <SugerenciasProducto
+                                  descripcion={line.description}
+                                  productos={products}
+                                  onElegir={(productId) =>
+                                    patchDecision(index, {
+                                      productId,
+                                      createProduct: false,
+                                    })
+                                  }
+                                />
+                              )}
                               {!decision.productId && (
                                 <Button
                                   size="sm"
                                   variant={
-                                    decision.newProduct?.sku ? "ghost" : "outline"
+                                    decision.newProduct?.sku &&
+                                    decision.newProduct?.itemType
+                                      ? "ghost"
+                                      : "outline"
                                   }
                                   disabled={!editable}
                                   onClick={() => setNewProductLine(index)}
                                 >
                                   <PackagePlus className="size-4" aria-hidden />
-                                  {decision.newProduct?.sku
+                                  {decision.newProduct?.sku &&
+                                  decision.newProduct?.itemType
                                     ? `Ficha lista · ${decision.newProduct.sku}`
-                                    : "Completar ficha"}
+                                    : "Completar ficha (tipo y SKU)"}
                                 </Button>
                               )}
                               {/* La factura casi siempre viene en lo que el
@@ -1478,5 +1518,58 @@ function PresentacionDeCompra({
         )}
       </span>
     </label>
+  )
+}
+
+/**
+ * "¿Ya lo tienes?": productos del inventario que se parecen al renglón.
+ *
+ * Aparece antes de crear uno nuevo. Sin esto, "Coca cola regular friopack" de
+ * la factura creaba otro producto aunque ya existiera "Coca cola original", y
+ * el inventario se llenaba de duplicados que después había que fusionar. No
+ * empareja solo: ofrece, y la persona elige.
+ */
+function SugerenciasProducto({
+  descripcion,
+  productos,
+  onElegir,
+}: {
+  descripcion: string
+  productos: InvProduct[]
+  onElegir: (productId: string) => void
+}) {
+  const sugerencias = React.useMemo(
+    () =>
+      rankBySimilarity(descripcion, productos, (p) => p.name, {
+        limit: 3,
+      }),
+    [descripcion, productos],
+  )
+  if (sugerencias.length === 0) return null
+
+  return (
+    <div className="flex flex-col gap-1 rounded-lg border border-dashed border-border p-2">
+      <span className="text-xs text-muted-foreground">
+        ¿Ya lo tienes? Úsalo y evita un duplicado:
+      </span>
+      {sugerencias.map(({ item, score }) => (
+        <Button
+          key={item._id}
+          type="button"
+          size="sm"
+          variant="ghost"
+          className="h-auto justify-start whitespace-normal py-1 text-left text-xs"
+          onClick={() => onElegir(item._id)}
+        >
+          <GitMerge className="size-3.5 shrink-0" aria-hidden />
+          <span>
+            {item.name} · {item.sku}{" "}
+            <span className="text-muted-foreground">
+              ({Math.round(score * 100)}% parecido)
+            </span>
+          </span>
+        </Button>
+      ))}
+    </div>
   )
 }
