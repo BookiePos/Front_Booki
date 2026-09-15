@@ -50,6 +50,7 @@ export function UnidadSelect({
   onChange,
   className,
   disabled,
+  vacio,
   "aria-label": ariaLabel,
   "aria-describedby": ariaDescribedBy,
 }: {
@@ -58,6 +59,15 @@ export function UnidadSelect({
   onChange: (value: string) => void
   className?: string
   disabled?: boolean
+  /**
+   * Texto de la opción vacía, para donde todavía no hay unidad elegida.
+   *
+   * La ficha de inventario nace con `und` puesto y no la necesita. La revisión
+   * de una factura sí: lo que el papel llama "unidad" muchas veces es el
+   * empaque ("BLT"), y ahí lo correcto es no adivinar ninguna y que la persona
+   * escoja, en vez de dejar un `und` puesto que nadie va a mirar.
+   */
+  vacio?: string
   "aria-label"?: string
   "aria-describedby"?: string
 }) {
@@ -81,6 +91,7 @@ export function UnidadSelect({
           "md:text-sm dark:bg-input/25 dark:hover:bg-input/35",
         )}
       >
+        {vacio && <option value="">{vacio}</option>}
         {FAMILIAS.map((f) => (
           <optgroup key={f.familia} label={f.titulo}>
             {UNIDADES.filter((u) => u.familia === f.familia).map((u) => (

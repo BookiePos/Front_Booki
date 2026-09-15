@@ -49,6 +49,24 @@ import {
   describirContenido,
   presentacionDeCompra,
 } from "@/lib/erp/purchase-unit"
+import {
+  PRESENTACIONES_SUGERIDAS,
+  unidad,
+  unidadCorta,
+  unidadDesdeTexto,
+  unidadNombre,
+} from "@/lib/erp/unidades"
+import {
+  PresentacionCompraPicker,
+  UnidadSelect,
+  ejemploDeUnidad,
+} from "@/components/erp/unidad-fields"
+import {
+  SKU_ERROR,
+  normalizarSku,
+  skuParaRenglon,
+  skuValido,
+} from "@/lib/erp/sku"
 import { rankBySimilarity } from "@/lib/erp/product-match"
 import { listSuppliers, type Supplier } from "@/lib/erp/api-suppliers"
 import { listCategories as listFinanceCategories, type FinanceCategory } from "@/lib/erp/api-finance"
@@ -67,7 +85,7 @@ import {
 } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { MoneyInput } from "@/components/ui/money-input"
+import { MoneyInput, QuantityInput } from "@/components/ui/money-input"
 import {
   Select,
   SelectContent,
@@ -83,7 +101,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { FormDialog, FormSection } from "@/components/ui/form-dialog"
+import { FormAlert, FormDialog, FormSection } from "@/components/ui/form-dialog"
 import {
   Field,
   FieldGrid,
@@ -121,24 +139,24 @@ const MATCH_LABELS: Record<string, string> = {
 }
 
 /**
- * Sugiere un SKU a partir del nombre cuando la factura no trae código.
+ * La unidad de consumo que se deduce de lo que el modelo leyó en el renglón.
  *
- * Es una propuesta editable, no un código definitivo: legible ("ARROZ-DIANA-500")
- * en vez del `FAC-K3J2H1` que se generaba antes y que dentro de seis meses no le
- * dice nada a nadie.
+ * Solo vale si el papel trae una medida de verdad. El proveedor factura en lo
+ * que despacha —"BLT", "CJ", "PACA"— y eso NO es unidad de consumo sino
+ * presentación: si entrara como unidad, el insumo quedaría medido en bultos y
+ * ninguna receta podría descontarlo. Lo que no se reconozca se deja en blanco
+ * para que la persona lo elija; abajo, en la presentación, es donde encaja.
  */
-function suggestSku(line: ExtractedLine): string {
-  if (line.code?.trim()) return line.code.trim().toUpperCase()
-  return line.description
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .toUpperCase()
-    .replace(/[^A-Z0-9]+/g, "-")
-    .replace(/^-|-$/g, "")
-    .split("-")
-    .slice(0, 4)
-    .join("-")
-    .slice(0, 40)
+function unidadDelRenglon(line: ExtractedLine | null): string {
+  const traducida = unidadDesdeTexto(line?.unit)
+  return unidad(traducida) ? traducida : ""
+}
+
+/** Si lo que el papel llama "unidad" es en realidad un empaque, va aquí. */
+function presentacionDelRenglon(line: ExtractedLine | null): string {
+  const texto = unidadDesdeTexto(line?.unit).toLowerCase()
+  if (!texto || unidad(texto)) return ""
+  return PRESENTACIONES_SUGERIDAS.some((p) => p.nombre === texto) ? texto : ""
 }
 
 interface NewProductDialogProps {
@@ -147,15 +165,30 @@ interface NewProductDialogProps {
   line: ExtractedLine | null
   value: NewProductDraft | undefined
   categories: InvCategory[]
+  /** El catálogo entero, con inactivos: con él se caza el SKU repetido. */
+  productos: InvProduct[]
+  /** SKU ya apartados por OTROS renglones de esta misma factura. */
+  skusDeLaFactura: string[]
   onSave: (draft: NewProductDraft) => void
+  /** "Ese SKU ya es de otro producto": enlazar el renglón a ese en vez de crear. */
+  onUsarExistente: (productId: string) => void
 }
 
-/** Datos que llegan prellenados desde la factura y hay que confirmar. */
-type DatoLeido = "sku" | "name" | "unit" | "cost" | "barcode"
+/**
+ * Datos que llegan prellenados desde la factura y hay que confirmar.
+ *
+ * El **nombre ya no está** en la lista. Estaba, y obligaba a tocarlo o
+ * confirmarlo en cada renglón para poder seguir; es el campo que se lee entero
+ * de un vistazo en la primera línea de la ficha —y es la descripción del papel,
+ * literal—, así que pedir el clic solo costaba tiempo. Lo que sí sigue
+ * marcado es lo que se lee mal sin que salte a la vista: un cero de más en el
+ * costo o una unidad equivocada no se ven, y quedan en el catálogo para
+ * siempre.
+ */
+type DatoLeido = "sku" | "unit" | "cost" | "barcode"
 
 const DATO_LEIDO_LABELS: Record<DatoLeido, string> = {
   sku: "SKU",
-  name: "nombre",
   unit: "unidad",
   cost: "costo",
   barcode: "código de barras",
@@ -193,9 +226,14 @@ function LeidoDeLaFactura({
  *
  * Nada se crea con datos a medias: tipo, SKU, nombre, unidad, categoría, costo,
  * stock mínimo y precio de venta (o "no se vende en el POS") son obligatorios.
- * Y lo que la foto leyó —SKU propuesto, nombre, unidad, costo, código de
- * barras— viene marcado hasta que la persona lo confirma o lo corrige, uno por
- * uno. El servidor vuelve a verificarlo al aplicar.
+ * Y lo que la foto leyó y no salta a la vista —el código del proveedor usado
+ * como SKU, la unidad, el costo, el código de barras— viene marcado hasta que
+ * la persona lo confirma o lo corrige, uno por uno. El servidor vuelve a
+ * verificarlo al aplicar.
+ *
+ * Aquí se decide también **cómo se compra** el producto (bulto, caja, bolsa):
+ * la factura es el momento en que se sabe, y con eso el renglón puede entrar en
+ * bultos sin traducir nada a mano.
  *
  * El padre la monta con `key` por renglón: cada apertura parte de la ficha
  * guardada o de la factura, sin rehidratar estado en un efecto.
@@ -206,16 +244,40 @@ function NewProductDialog({
   line,
   value,
   categories,
+  productos,
+  skusDeLaFactura,
   onSave,
+  onUsarExistente,
 }: NewProductDialogProps) {
   const [itemType, setItemType] = React.useState<
     NewProductDraft["itemType"] | ""
   >(value?.itemType ?? "")
-  const [sku, setSku] = React.useState(
-    value?.sku ?? (line ? suggestSku(line) : ""),
+  // El SKU propuesto sigue la numeración del catálogo (10001, 10002…), que es
+  // la misma que exige la ficha de inventario. Antes salía de aquí un código
+  // hecho con el nombre ("ARROZ-DIANA-500") y el catálogo terminaba con dos
+  // criterios distintos según por dónde se hubiera creado el producto.
+  const skuPropuesto = React.useMemo(
+    () =>
+      skuParaRenglon(line?.code, [
+        ...productos.map((p) => p.sku),
+        ...skusDeLaFactura,
+      ]),
+    [line?.code, productos, skusDeLaFactura],
   )
+  const [sku, setSku] = React.useState(value?.sku ?? skuPropuesto)
   const [name, setName] = React.useState(value?.name ?? line?.description ?? "")
-  const [unit, setUnit] = React.useState(value?.unit ?? line?.unit ?? "")
+  const [unit, setUnit] = React.useState(
+    value?.unit ?? unidadDelRenglon(line),
+  )
+  // Cómo llega del proveedor: bulto, caja, bolsa. Va aparte de la unidad a
+  // propósito (ver `lib/erp/unidades.ts`), y se propone cuando lo que el papel
+  // llamó "unidad" era en realidad el empaque.
+  const [purchaseUnit, setPurchaseUnit] = React.useState(
+    value?.purchaseUnit ?? presentacionDelRenglon(line),
+  )
+  const [purchaseFactor, setPurchaseFactor] = React.useState<number | null>(
+    value?.purchaseFactor ?? null,
+  )
   const [categoryId, setCategoryId] = React.useState(value?.categoryId ?? "")
   const [cost, setCost] = React.useState<number | null>(
     value?.cost ?? line?.unitCost ?? null,
@@ -231,13 +293,14 @@ function NewProductDialog({
     value?.minStock != null ? String(value.minStock) : "",
   )
 
-  // Todo lo que llega prellenado, y no viene de una ficha ya revisada, queda
-  // pendiente de confirmar.
+  // Todo lo que llega prellenado DESDE LA FACTURA, y no viene de una ficha ya
+  // revisada, queda pendiente de confirmar. El SKU solo cuenta cuando es el
+  // código que traía el papel: el correlativo que propone el sistema no hay
+  // nada que compararlo contra.
   const [pendientes, setPendientes] = React.useState<Set<DatoLeido>>(() => {
     if (value?.reviewed) return new Set()
     const prellenados: [DatoLeido, boolean][] = [
-      ["sku", sku.trim() !== ""],
-      ["name", name.trim() !== ""],
+      ["sku", sku.trim() !== "" && sku === normalizarSku(line?.code ?? "")],
       ["unit", unit.trim() !== ""],
       ["cost", cost != null],
       ["barcode", barcode.trim() !== ""],
@@ -256,6 +319,24 @@ function NewProductDialog({
     })
   }
 
+  const skuNorm = normalizarSku(sku)
+  const presentacionNombre = purchaseUnit.trim()
+  const factorValido = purchaseFactor != null && purchaseFactor > 0
+
+  // El SKU repetido se caza AQUÍ y no al aplicar. Antes el choque salía del
+  // servidor —"Ya existe un producto con el SKU X"— cuando la factura ya se
+  // estaba aplicando y con medio trabajo hecho, sin decir siquiera de quién era
+  // ese SKU. Ahora se ve mientras se escribe, con el nombre del dueño y el
+  // atajo para usar ese producto en vez de crear un duplicado.
+  const productoDelSku = skuNorm
+    ? productos.find((p) => p.sku === skuNorm)
+    : undefined
+  const repetidoEnLaFactura =
+    !productoDelSku && skuNorm !== ""
+      ? skusDeLaFactura.some((s) => normalizarSku(s) === skuNorm)
+      : false
+  const skuMalFormado = skuNorm !== "" && !skuValido(skuNorm)
+
   const faltan: string[] = []
   if (!itemType) faltan.push("tipo")
   if (!sku.trim()) faltan.push("SKU")
@@ -269,13 +350,23 @@ function NewProductDialog({
   if (!notSold && !(salePrice != null && salePrice > 0)) {
     faltan.push("precio de venta")
   }
+  // La presentación va con su contenido o no va: "bulto" sin cuánto trae deja
+  // al sistema sin la cuenta con la que convierte la compra al consumo.
+  if (presentacionNombre !== "" && !factorValido) {
+    faltan.push(`cuánto trae un ${presentacionNombre}`)
+  }
   const porRevisar = [...pendientes].map((dato) => DATO_LEIDO_LABELS[dato])
-  const lista = faltan.length === 0 && porRevisar.length === 0
+  const lista =
+    faltan.length === 0 &&
+    porRevisar.length === 0 &&
+    !productoDelSku &&
+    !repetidoEnLaFactura &&
+    !skuMalFormado
 
   function handleSave() {
     if (!lista) return
     onSave({
-      sku: sku.trim().toUpperCase(),
+      sku: skuNorm,
       name: name.trim(),
       unit: unit.trim(),
       categoryId,
@@ -285,6 +376,8 @@ function NewProductDialog({
       barcode: barcode.trim() || undefined,
       minStock: Number(minStock),
       itemType: itemType || undefined,
+      purchaseUnit: presentacionNombre || undefined,
+      purchaseFactor: presentacionNombre ? (purchaseFactor ?? undefined) : undefined,
       reviewed: true,
     })
     onOpenChange(false)
@@ -304,7 +397,9 @@ function NewProductDialog({
             <p className="text-xs text-muted-foreground sm:mr-auto">
               {faltan.length > 0 && `Falta: ${faltan.join(", ")}.`}{" "}
               {porRevisar.length > 0 &&
-                `Por revisar: ${porRevisar.join(", ")}.`}
+                `Por revisar: ${porRevisar.join(", ")}.`}{" "}
+              {(productoDelSku || repetidoEnLaFactura || skuMalFormado) &&
+                "Arregla el SKU para poder guardar."}
             </p>
           )}
           <Button
@@ -349,17 +444,22 @@ function NewProductDialog({
               label="SKU"
               required
               help={{ term: "sku" }}
-              hint="Si la factura traía el código del proveedor se propone ese, para que la próxima factura empareje sola."
+              error={skuMalFormado ? SKU_ERROR : null}
+              hint="Numérico, mínimo 5 dígitos, como en el resto del inventario. Se propone el siguiente libre; si la factura traía el código del proveedor y sirve, se propone ese para que la próxima empareje sola."
             >
               <Input
                 id="np-sku"
                 value={sku}
+                inputMode="numeric"
+                aria-invalid={
+                  skuMalFormado || Boolean(productoDelSku) || repetidoEnLaFactura
+                }
                 className={cn(pendientes.has("sku") && "border-warning")}
                 onChange={(e) => {
                   setSku(e.target.value.toUpperCase())
                   revisado("sku")
                 }}
-                placeholder="p. ej. ARROZ-500"
+                placeholder="10001"
               />
               <LeidoDeLaFactura
                 pendiente={pendientes.has("sku")}
@@ -372,18 +472,44 @@ function NewProductDialog({
               <Input
                 id="np-name"
                 value={name}
-                className={cn(pendientes.has("name") && "border-warning")}
-                onChange={(e) => {
-                  setName(e.target.value)
-                  revisado("name")
-                }}
-              />
-              <LeidoDeLaFactura
-                pendiente={pendientes.has("name")}
-                onConfirmar={() => revisado("name")}
+                onChange={(e) => setName(e.target.value)}
               />
             </Field>
           </FieldSpan>
+          {productoDelSku && (
+            <FieldSpan span={3}>
+              <FormAlert tone="warning" icon={TriangleAlert}>
+                El SKU {skuNorm} ya es de{" "}
+                <span className="font-semibold">{productoDelSku.name}</span>
+                {productoDelSku.active
+                  ? ". Cambia el número —o, si es el mismo producto, enlaza el renglón con él y la mercancía se le suma al que ya tienes."
+                  : ", que está dado de baja. Su SKU sigue ocupado en la base: ponle otro número, o reactiva ese producto en Inventario si es el mismo."}
+                {productoDelSku.active && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="mt-2 flex"
+                    onClick={() => {
+                      onUsarExistente(productoDelSku._id)
+                      onOpenChange(false)
+                    }}
+                  >
+                    <GitMerge className="size-4" aria-hidden />
+                    Usar {productoDelSku.name}
+                  </Button>
+                )}
+              </FormAlert>
+            </FieldSpan>
+          )}
+          {repetidoEnLaFactura && (
+            <FieldSpan span={3}>
+              <FormAlert tone="warning" icon={TriangleAlert}>
+                Otro renglón de esta misma factura ya va a crear un producto con
+                el SKU {skuNorm}. Ponle uno distinto.
+              </FormAlert>
+            </FieldSpan>
+          )}
           <FieldSpan span={3}>
             <Field
               id="np-barcode"
@@ -415,16 +541,22 @@ function NewProductDialog({
         description="Cómo se mide y cuándo te avisamos de que se está acabando."
       >
         <FieldGrid cols={3}>
-          <Field id="np-unit" label="Unidad" required help={{ term: "unidad" }}>
-            <Input
+          <Field
+            id="np-unit"
+            label="Unidad"
+            required
+            help={{ term: "unidad" }}
+            hint={ejemploDeUnidad(unit) ?? "En qué se cuenta por dentro."}
+          >
+            <UnidadSelect
               id="np-unit"
               value={unit}
-              className={cn(pendientes.has("unit") && "border-warning")}
-              onChange={(e) => {
-                setUnit(e.target.value)
+              vacio="Elige la unidad"
+              className={cn(pendientes.has("unit") && "[&_select]:border-warning")}
+              onChange={(v) => {
+                setUnit(v)
                 revisado("unit")
               }}
-              placeholder="und, kg, g, l…"
             />
             <LeidoDeLaFactura
               pendiente={pendientes.has("unit")}
@@ -478,6 +610,11 @@ function NewProductDialog({
             label="Costo de compra"
             required
             help={{ term: "costo" }}
+            hint={
+              presentacionNombre !== ""
+                ? `Lo que cuesta un ${presentacionNombre}, tal como está en la factura. El costo por ${unidadCorta(unit || "und")} lo saca el sistema al entrar la mercancía.`
+                : undefined
+            }
           >
             <MoneyInput
               id="np-cost"
@@ -521,6 +658,32 @@ function NewProductDialog({
             </label>
           </FieldSpan>
         </FieldGrid>
+      </FormSection>
+
+      {/* La misma sección que la ficha de inventario, y por el mismo motivo:
+          la factura del proveedor viene en lo que él despacha —bultos, cajas,
+          bolsas— y el insumo se consume en otra cosa. Escrita aquí, el renglón
+          puede marcarse como "viene en bultos" y la entrada convierte sola: sin
+          ella, "3 BULTOS" entraba al inventario como 3 gramos. */}
+      <FormSection
+        title="Cómo te llega del proveedor"
+        description={`Lo consumes en ${unidadNombre(unit || "und")} y te puede llegar en bultos, cajas, bolsas o canastas. Escríbelo aquí y podrás marcar el renglón como “viene en ${presentacionNombre || "bultos"}”: el sistema convierte la cantidad y el costo.`}
+        help={{ term: "presentacionCompra" }}
+        boxed
+      >
+        <PresentacionCompraPicker
+          unidadConsumo={unit || "und"}
+          presentacion={purchaseUnit}
+          onPresentacionChange={setPurchaseUnit}
+          factor={purchaseFactor}
+          onFactorChange={setPurchaseFactor}
+        />
+        {factorValido && presentacionNombre !== "" && (
+          <p className="text-xs font-medium text-foreground">
+            Un {presentacionNombre} ={" "}
+            {describirContenido(purchaseFactor!, unit || "und")}.
+          </p>
+        )}
       </FormSection>
     </FormDialog>
   )
@@ -578,7 +741,9 @@ export default function RevisarFacturaPage() {
         getInvoiceScan(id),
         listSedes().catch(() => []),
         listSuppliers().catch(() => []),
-        listProducts().catch(() => []),
+        // Con inactivos: el SKU de un producto dado de baja sigue ocupado en la
+        // base, así que proponer uno libre y avisar del repetido exige verlos.
+        listProducts(true).catch(() => []),
         listFinanceCategories().catch(() => []),
         listInventoryCategories().catch(() => []),
       ])
@@ -612,6 +777,34 @@ export default function RevisarFacturaPage() {
       const lines = current.lines.map((line, i) =>
         i === index ? { ...line, ...patch } : line,
       )
+      return { ...current, lines }
+    })
+  }
+
+  /**
+   * Cambia cantidad o valor unitario y **rehace el total del renglón al vuelo**.
+   *
+   * El total dejaba de moverse en cuanto el renglón traía uno leído de la foto:
+   * se corregía la cantidad de 1 a 10, o el precio, y abajo seguía la cifra
+   * vieja —y con ella la suma de renglones y el aviso de descuadre, que es
+   * justo lo que se mira para decidir si la factura está bien—. Peor en un
+   * renglón escrito a mano, donde se teclea todo y el total no aparecía nunca.
+   *
+   * Solo se rehace cuando están las dos mitades de la cuenta. Si falta el
+   * unitario, el total leído es el único dato que hay y se respeta.
+   */
+  function patchImporte(index: number, patch: Partial<ExtractedLine>) {
+    setDraft((current) => {
+      if (!current) return current
+      const lines = current.lines.map((line, i) => {
+        if (i !== index) return line
+        const actualizada = { ...line, ...patch }
+        const { qty, unitCost } = actualizada
+        if (typeof qty === "number" && typeof unitCost === "number") {
+          return { ...actualizada, lineTotal: Math.round(qty * unitCost) }
+        }
+        return actualizada
+      })
       return { ...current, lines }
     })
   }
@@ -779,6 +972,21 @@ export default function RevisarFacturaPage() {
 
   // ─── Cálculos de apoyo ────────────────────────────────────────────────────
 
+  /** Lo que se puede enlazar o sugerir: un producto inactivo no se ofrece. */
+  const productosActivos = React.useMemo(
+    () => products.filter((p) => p.active),
+    [products],
+  )
+
+  /** Los SKU que otros renglones de esta factura ya tienen apartados. */
+  const skusDeOtrasLineas = React.useMemo(
+    () =>
+      decisions
+        .filter((d) => d.lineIndex !== newProductLine && d.newProduct?.sku)
+        .map((d) => d.newProduct!.sku as string),
+    [decisions, newProductLine],
+  )
+
   const sumaLineas = React.useMemo(() => {
     if (!draft) return 0
     return draft.lines.reduce((total, line, index) => {
@@ -839,7 +1047,10 @@ export default function RevisarFacturaPage() {
 
   const aplicada = scan.status === "applied"
   const editable = canManage && !aplicada
-  const productOptions = products.map((p) => ({
+  // Solo activos: el catálogo se carga entero —inactivos incluidos— para poder
+  // avisar del SKU repetido, pero un producto dado de baja no se ofrece para
+  // enlazarle mercancía.
+  const productOptions = productosActivos.map((p) => ({
     value: p._id,
     label: `${p.name} · ${p.sku}`,
   }))
@@ -1135,18 +1346,25 @@ export default function RevisarFacturaPage() {
             </CardHeader>
             <CardContent className="p-0">
               <div className="overflow-x-auto">
-                <Table className="max-md:block max-md:[&_tbody]:block max-md:[&_thead]:hidden">
+                {/* En celular son tarjetas (una fila por renglón, sin
+                    cabecera). De `md` para arriba vuelve a ser tabla, y ahí el
+                    ancho mínimo es lo que impide que comprima las casillas de
+                    cifras hasta dejar ver un solo dígito: con `w-full` a secas,
+                    cantidad y valor cedían su sitio a la descripción y el
+                    precio quedaba ilegible. Antes de aplicar una factura hay
+                    que poder leer lo que dice. */}
+                <Table className="md:min-w-[64rem] max-md:block max-md:[&_tbody]:block max-md:[&_thead]:hidden">
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="min-w-56">Descripción</TableHead>
-                      <TableHead className="w-20">Cant.</TableHead>
-                      <TableHead className="w-32">V/r unitario</TableHead>
+                      <TableHead className="min-w-52">Descripción</TableHead>
+                      <TableHead className="w-32">Cant.</TableHead>
+                      <TableHead className="w-40">V/r unitario</TableHead>
                       <TableHead className="w-28">Destino</TableHead>
                       <TableHead className="min-w-56">
                         Producto / categoría
                       </TableHead>
-                      <TableHead className="w-24">IVA</TableHead>
-                      <TableHead className="w-36 text-right">Total</TableHead>
+                      <TableHead className="w-20">IVA</TableHead>
+                      <TableHead className="w-40 text-right">Total</TableHead>
                       {editable && (
                         <TableHead className="w-12">
                           <span className="sr-only">Quitar</span>
@@ -1187,16 +1405,19 @@ export default function RevisarFacturaPage() {
                                   })
                                 }
                               />
-                              <Input
+                              {/* La unidad se escoge, no se escribe: tecleada a
+                                  mano salían "UND", "Und" y "unidad" como tres
+                                  cosas distintas. Lo que el papel trajera y no
+                                  esté en la lista se conserva al final del
+                                  desplegable en vez de borrarse. */}
+                              <UnidadSelect
                                 value={line.unit ?? ""}
-                                placeholder="Unidad"
+                                vacio="Unidad"
                                 aria-label="Unidad"
                                 disabled={!editable}
-                                className="h-8 text-xs"
-                                onChange={(e) =>
-                                  patchLine(index, {
-                                    unit: e.target.value || undefined,
-                                  })
+                                className="[&_select]:h-8 [&_select]:text-xs"
+                                onChange={(v) =>
+                                  patchLine(index, { unit: v || undefined })
                                 }
                               />
                             </div>
@@ -1208,16 +1429,17 @@ export default function RevisarFacturaPage() {
                             )}
                           </TableCell>
                           <TableCell data-label="Cantidad" className={CELDA_MOVIL}>
-                            <Input
-                              inputMode="decimal"
-                              value={line.qty ?? ""}
+                            {/* Sin `sufijo` a propósito: la unidad ya está en
+                                su desplegable, en esta misma fila, y pintarla
+                                otra vez dentro del campo se llevaría 56 de los
+                                128 px de la columna, que es lo que hay que
+                                cuidar aquí para que la cifra se lea entera. */}
+                            <QuantityInput
+                              value={line.qty ?? null}
                               disabled={!editable}
-                              onChange={(e) =>
-                                patchLine(index, {
-                                  qty: e.target.value
-                                    ? Number(e.target.value.replace(",", "."))
-                                    : undefined,
-                                })
+                              aria-label="Cantidad"
+                              onValueChange={(v) =>
+                                patchImporte(index, { qty: v ?? undefined })
                               }
                             />
                           </TableCell>
@@ -1225,8 +1447,11 @@ export default function RevisarFacturaPage() {
                             {editable ? (
                               <MoneyInput
                                 value={line.unitCost ?? null}
+                                aria-label="Valor unitario"
                                 onValueChange={(v) =>
-                                  patchLine(index, { unitCost: v ?? undefined })
+                                  patchImporte(index, {
+                                    unitCost: v ?? undefined,
+                                  })
                                 }
                               />
                             ) : (
@@ -1279,7 +1504,7 @@ export default function RevisarFacturaPage() {
                               {!decision.productId && editable && (
                                 <SugerenciasProducto
                                   descripcion={line.description}
-                                  productos={products}
+                                  productos={productosActivos}
                                   onElegir={(productId) =>
                                     patchDecision(index, {
                                       productId,
@@ -1307,14 +1532,15 @@ export default function RevisarFacturaPage() {
                               )}
                               {/* La factura casi siempre viene en lo que el
                                   proveedor vende —bultos, cajas— y no en la
-                                  unidad en que se consume. Solo se ofrece
-                                  cuando el producto tiene presentación: un
-                                  producto que se crea en esta misma factura
-                                  todavía no la tiene. */}
+                                  unidad en que se consume. Se ofrece cuando hay
+                                  presentación: la del producto emparejado, o la
+                                  que se le acabe de escribir en la ficha al
+                                  producto que nace con esta misma factura. */}
                               <PresentacionDeCompra
                                 producto={products.find(
                                   (p) => p._id === decision.productId,
                                 )}
+                                nuevo={decision.newProduct}
                                 cantidad={line.qty}
                                 marcado={decision.inPurchaseUnits ?? false}
                                 editable={editable}
@@ -1630,14 +1856,34 @@ export default function RevisarFacturaPage() {
             : undefined
         }
         categories={invCategories}
+        productos={products}
+        skusDeLaFactura={skusDeOtrasLineas}
         onSave={(nuevo) => {
           if (newProductLine === null) return
+          // Con presentación escrita, la cantidad del papel se da por venida en
+          // ella —el proveedor factura lo que despacha— igual que se propone
+          // para un producto ya emparejado que la tenga. Queda como propuesta:
+          // la casilla del renglón sigue ahí para quitarla. Sin esto, declarar
+          // "bulto de 25 kg" y olvidar la casilla metía 3 gramos al inventario.
+          const enPresentacion = Boolean(
+            nuevo.purchaseUnit && (nuevo.purchaseFactor ?? 0) > 0,
+          )
           patchDecision(newProductLine, {
             newProduct: nuevo,
             createProduct: true,
             productId: null,
+            inPurchaseUnits: enPresentacion,
           })
           toast.success("Ficha revisada. El producto se creará al aplicar la factura.")
+        }}
+        onUsarExistente={(productId) => {
+          if (newProductLine === null) return
+          patchDecision(newProductLine, {
+            productId,
+            createProduct: false,
+            newProduct: undefined,
+          })
+          toast.success("Renglón enlazado al producto que ya tenías.")
         }}
       />
     </>
@@ -1653,31 +1899,46 @@ export default function RevisarFacturaPage() {
  * 3 en vez de 75.000 deja el inventario en nada, y $95.000 como costo del gramo
  * infla cada receta veinticinco mil veces.
  *
- * Solo aparece cuando el producto tiene presentación definida. Uno que se vaya
- * a crear en esta misma factura todavía no la tiene, así que no hay nada que
- * convertir.
+ * Solo aparece cuando hay presentación definida: la del producto emparejado o,
+ * desde que la ficha de producto nuevo la pide, la de uno que se crea con esta
+ * misma factura. Sin presentación no hay nada que convertir.
  */
 function PresentacionDeCompra({
   producto,
+  nuevo,
   cantidad,
   marcado,
   editable,
   onChange,
 }: {
   producto?: InvProduct
+  /** Ficha del producto que nace con esta factura, si el renglón lo crea. */
+  nuevo?: NewProductDraft
   cantidad?: number
   marcado: boolean
   editable: boolean
   onChange: (v: boolean) => void
 }) {
-  if (!producto) return null
-  const pres = presentacionDeCompra(producto)
-  if (!pres.definida) return null
+  const unidadConsumo = producto?.unit ?? nuevo?.unit ?? "und"
+  const pres = producto
+    ? presentacionDeCompra(producto)
+    : nuevo?.purchaseUnit && (nuevo.purchaseFactor ?? 0) > 0
+      ? {
+          unidad: nuevo.purchaseUnit,
+          factor: nuevo.purchaseFactor as number,
+          definida: true,
+          contenido: describirContenido(
+            nuevo.purchaseFactor as number,
+            unidadConsumo,
+          ),
+        }
+      : null
+  if (!pres?.definida) return null
 
   const n = Number(cantidad)
   const entra =
     Number.isFinite(n) && n > 0
-      ? describirContenido(n * pres.factor, producto.unit)
+      ? describirContenido(n * pres.factor, unidadConsumo)
       : null
 
   return (
