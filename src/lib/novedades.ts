@@ -67,99 +67,69 @@ export interface Novedad {
 }
 
 export const NOVEDADES: Novedad = {
-  version: "1.3.0",
-  fecha: "13 de septiembre de 2026",
-  titulo: "Más fácil de cobrar, de ordenar y de escribir",
+  version: "1.4.0",
+  fecha: "14 de septiembre de 2026",
+  titulo: "El costo, donde está la factura",
   resumen:
-    "Tres cambios grandes en esta versión. Cada punto trae un botón que te lleva a la pantalla donde está.",
+    "Lo que salió del primer día cargando datos de verdad. Cada punto trae un botón que te lleva a la pantalla donde está.",
   paginas: [
     {
-      titulo: "Cobrar sin perder de vista nada",
+      titulo: "El precio de compra se escribe una sola vez",
       gancho:
-        "La pantalla de cobro ahora usa todo el monitor. Lo ves todo junto, sin subir y bajar.",
-      icono: "cobro",
-      ilustracion: "columnas-cobro",
-      puntos: [
-        {
-          donde: "Punto de venta → al cobrar",
-          texto:
-            "Tres columnas a la vista: lo que estás cobrando, el pago con la devuelta, y el cliente con el domicilio.",
-          ruta: "/pos",
-          etiquetaRuta: "Ir al punto de venta",
-        },
-        {
-          donde: "Punto de venta → al cobrar",
-          texto:
-            "El total y el botón de cobrar se quedan fijos. Por largo que sea el formulario, no se pierden de vista.",
-          ruta: "/pos",
-          etiquetaRuta: "Ver la pantalla de cobro",
-        },
-        {
-          donde: "Punto de venta → toda la pantalla",
-          texto:
-            "Menos huecos vacíos y letra más grande. La caja aprovecha lo ancho del monitor.",
-          ruta: "/pos",
-          etiquetaRuta: "Abrir el terminal",
-        },
-      ],
-    },
-    {
-      titulo: "El inventario va primero",
-      gancho:
-        "Primero anotas lo que compras. Después armas lo que vendes. La pantalla te lleva de la mano.",
+        "Y donde toca: al recibir la mercancía, con la factura en la mano.",
       icono: "inventario",
       ilustracion: "orden-inventario",
       puntos: [
         {
-          donde: "Inventario → al entrar",
+          donde: "Inventario → ficha del insumo",
           texto:
-            "El orden está a la vista: Inventario primero, Productos después, con su botón para pasar al paso siguiente.",
+            "Se quitó el “precio de compra”. Al dar de alta un insumo todavía no tienes la factura, así que ese número se ponía a ojo.",
           ruta: "/panel/inventario",
           etiquetaRuta: "Ir a Inventario",
         },
         {
-          donde: "Inventario → pestañas",
+          donde: "Inventario → Entrada de mercancía",
           texto:
-            "Cada pestaña dice qué se ve ahí. Los botones sueltos quedaron juntos en un menú de herramientas.",
+            "Aquí el costo es obligatorio y empieza en blanco. Antes venía puesto con el precio viejo y era fácil guardarlo sin mirar.",
           ruta: "/panel/inventario",
-          etiquetaRuta: "Ver las pestañas",
+          etiquetaRuta: "Registrar una entrada",
         },
         {
-          donde: "Productos → producto nuevo",
+          donde: "Inventario → Entrada de mercancía",
           texto:
-            "Si no tienes nada en inventario, el sistema te avisa y te lleva a crearlo. Ya no se arman productos vacíos.",
-          ruta: "/panel/productos",
-          etiquetaRuta: "Ir a Productos",
+            "Debajo te recuerda a cuánto lo compraste la vez pasada. Es un dato para comparar, no un valor que se guarde solo.",
+          ruta: "/panel/inventario",
+          etiquetaRuta: "Ver cómo quedó",
         },
       ],
     },
     {
-      titulo: "Escribir cifras sin contar ceros",
+      titulo: "Los roles ya son tuyos",
       gancho:
-        "Los precios se puntúan solos y cada unidad se llama por su nombre completo.",
+        "Un “Gerente” no significa lo mismo en una galletería que en un restaurante.",
       icono: "cifras",
       ilustracion: "cifras-claras",
       puntos: [
         {
-          donde: "En todo el sistema → precios y costos",
+          donde: "Configuración → Usuarios y roles",
           texto:
-            "Escribes 45000 y aparece $45.000. El punto de los miles lo pone el sistema: se acabó contar ceros.",
-          ruta: "/panel/productos",
-          etiquetaRuta: "Ir a Productos",
+            "Dueño, Administrador, Gerente y Cajero ya se pueden ajustar: quítales o dales los permisos que quieras.",
+          ruta: "/panel/config/usuarios",
+          etiquetaRuta: "Ir a Usuarios y roles",
         },
         {
-          donde: "Inventario → unidad de medida",
+          donde: "Configuración → Usuarios y roles → Editar rol",
           texto:
-            "Se leen completas: Gramo, Kilogramo, Litro, Mililitro, Libra y Arroba. La libra ya son 500 gramos y la arroba, 12,5 kilos.",
-          ruta: "/panel/inventario",
-          etiquetaRuta: "Ir a Inventario",
+            "Un rol sin tocar recibe solo cada función nueva. Si lo ajustas, manda lo que tú dejes escrito. La ficha te lo avisa antes.",
+          ruta: "/panel/config/usuarios",
+          etiquetaRuta: "Ver los roles",
         },
         {
-          donde: "Inventario → presentación de compra",
+          donde: "Configuración → Usuarios y roles",
           texto:
-            "El bulto va con su contenido al lado: uno de harina trae 25 kilos y uno de papa trae 50. El sistema hace la cuenta.",
-          ruta: "/panel/inventario",
-          etiquetaRuta: "Ver las presentaciones",
+            "Lo único que no te deja: quitarle a tu propio rol el permiso de gestionar roles o usuarios. Te dejarías fuera sin vuelta atrás.",
+          ruta: "/panel/config/usuarios",
+          etiquetaRuta: "Abrir la pantalla",
         },
       ],
     },
