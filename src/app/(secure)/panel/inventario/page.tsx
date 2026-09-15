@@ -4859,6 +4859,33 @@ export default function InventarioPage() {
     (alerts?.expired.length ?? 0) +
     (alerts?.expiringSoon.length ?? 0)
 
+  /**
+   * Trae a Empaques los insumos que ya figuran como empaque en la ficha de
+   * algún producto vendible. Idempotente: volver a pulsarlo no hace daño.
+   */
+  async function handleAdoptPackaging() {
+    setAdoptando(true)
+    try {
+      const { marcados } = await adoptPackaging()
+      await fetchProducts()
+      toast.success(
+        marcados === 0
+          ? "No se encontró ninguno por marcar"
+          : `${marcados} empaque(s) traídos aquí`,
+        {
+          description:
+            marcados === 0
+              ? "No hay insumos que ya figuren como empaque en la ficha de un producto."
+              : "Estaban entre tus insumos porque alguna ficha de producto ya los usaba de empaque.",
+        },
+      )
+    } catch (err) {
+      toast.error(errorMessage(err))
+    } finally {
+      setAdoptando(false)
+    }
+  }
+
   async function handleDelete(p: InvProduct) {
     if (
       !(await confirm({
@@ -5388,6 +5415,23 @@ export default function InventarioPage() {
                 placeholder="Buscar empaque…"
                 className="w-56"
               />
+              {/* Para quien ya venía configurando "cada galleta gasta una
+                  bolsa" antes de que los empaques tuvieran sección propia: esas
+                  bolsas están registradas, revueltas entre los insumos, y nadie
+                  se acuerda de cuáles eran. Va en la cabecera y no solo en el
+                  estado vacío porque en el estado vacío dejaría de alcanzarse
+                  en cuanto se registre el primer empaque a mano, que es justo
+                  cuando todavía faltan los demás. */}
+              {canAdjust && (
+                <Button
+                  variant="outline"
+                  disabled={adoptando}
+                  onClick={() => void handleAdoptPackaging()}
+                >
+                  {adoptando ? <Loader2 className="animate-spin" /> : <Sparkles />}
+                  Buscar los que ya uso
+                </Button>
+              )}
               {canAdjust && (
                 <Button
                   onClick={() => {
@@ -5413,66 +5457,24 @@ export default function InventarioPage() {
                   Ningún empaque coincide con “{search.trim()}”.
                 </p>
               ) : (
-                <div className="flex flex-col items-center gap-4 py-4">
-                  <VacioConSalida
-                    icon={ShoppingBag}
-                    titulo="Todavía no has registrado empaques"
-                    frase="Aquí van las bolsas, los vasos, las cajas y los cubiertos, con su foto. Se compran y se cuentan como todo lo demás, pero se gastan al vender: en la caja se elige con cuáles sale cada pedido."
-                    accion={
-                      canAdjust
-                        ? {
-                            texto: "Registrar mi primer empaque",
-                            icon: Plus,
-                            onClick: () => {
-                              setProductSheetMode("create")
-                              setEditingProduct(undefined)
-                              setProductSheetOpen(true)
-                            },
-                          }
-                        : undefined
-                    }
-                  />
-                  {/* Para quien ya venía configurando "cada galleta gasta una
-                      bolsa" antes de que los empaques tuvieran sección propia:
-                      esas bolsas están registradas, revueltas entre los
-                      insumos, y nadie se acuerda de cuáles eran. */}
-                  {canAdjust && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={adoptando}
-                      onClick={async () => {
-                        setAdoptando(true)
-                        try {
-                          const { marcados } = await adoptPackaging()
-                          await fetchProducts()
-                          toast.success(
-                            marcados === 0
-                              ? "No se encontró ninguno por marcar"
-                              : `${marcados} empaque(s) traídos aquí`,
-                            {
-                              description:
-                                marcados === 0
-                                  ? "No hay insumos que ya figuren como empaque en la ficha de un producto."
-                                  : "Estaban registrados entre tus insumos porque alguna ficha de producto ya los usaba de empaque.",
-                            },
-                          )
-                        } catch (err) {
-                          toast.error(errorMessage(err))
-                        } finally {
-                          setAdoptando(false)
+                <VacioConSalida
+                  icon={ShoppingBag}
+                  titulo="Todavía no has registrado empaques"
+                  frase="Aquí van las bolsas, los vasos, las cajas y los cubiertos, con su foto. Se compran y se cuentan como todo lo demás, pero se gastan al vender: en la caja se elige con cuáles sale cada pedido. Si ya tenías bolsas puestas en las fichas de tus productos, “Buscar los que ya uso” las trae aquí."
+                  accion={
+                    canAdjust
+                      ? {
+                          texto: "Registrar mi primer empaque",
+                          icon: Plus,
+                          onClick: () => {
+                            setProductSheetMode("create")
+                            setEditingProduct(undefined)
+                            setProductSheetOpen(true)
+                          },
                         }
-                      }}
-                    >
-                      {adoptando ? (
-                        <Loader2 className="animate-spin" />
-                      ) : (
-                        <Sparkles />
-                      )}
-                      Buscar los que ya uso de empaque
-                    </Button>
-                  )}
-                </div>
+                      : undefined
+                  }
+                />
               )
             ) : (
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
