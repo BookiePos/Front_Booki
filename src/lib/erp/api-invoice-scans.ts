@@ -196,10 +196,16 @@ export async function uploadInvoiceScan(
    * la factura SIN OCR: más exacto en los precios, más barato y más rápido.
    */
   text?: string,
+  /**
+   * XML de la factura electrónica DIAN. Con él la factura vuelve ya leída
+   * (`status: "extracted"`), con los datos exactos y sin pasar por la IA.
+   */
+  xml?: string,
 ): Promise<InvoiceScan> {
   const body = new FormData()
   body.append("file", file)
   if (text) body.append("text", text)
+  if (xml) body.append("xml", xml)
   const res = await authFetch("/invoice-scans", { method: "POST", body })
   return parseResponse<InvoiceScan>(res)
 }

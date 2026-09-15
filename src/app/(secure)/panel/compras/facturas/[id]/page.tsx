@@ -834,8 +834,12 @@ export default function RevisarFacturaPage() {
     <>
       <PageHeader
         section="Comercial"
-        title="Revisar factura"
-        description="Corrige lo que haga falta y aprueba. Nada entra al inventario hasta que lo apliques."
+        title={aplicada ? "Factura aplicada" : "Revisar factura"}
+        description={
+          aplicada
+            ? "Lo que se leyó de la factura y lo que se registró al aplicarla."
+            : "Corrige lo que haga falta y aprueba. Nada entra al inventario hasta que lo apliques."
+        }
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" render={<Link href="/panel/compras/facturas" />}>

@@ -5,6 +5,7 @@ import Link from "next/link"
 import {
   AlertTriangle,
   CheckCircle2,
+  Eye,
   FileText,
   Loader2,
   ScanLine,
@@ -24,7 +25,11 @@ import {
   type InvoiceScanStatus,
 } from "@/lib/erp/api-invoice-scans"
 import { prepareImageForUpload } from "@/lib/images"
-import { MAX_PDF_PAGES, isPdf, pdfToImages } from "@/lib/pdf"
+import {
+  XML_IMAGE_MAX_BYTES,
+  expandUpload,
+  type UploadItem,
+} from "@/lib/invoice-files"
 import { errorMessage, fmtDate, money } from "@/lib/erp/finance-format"
 
 import { PageHeader } from "@/components/erp/page-header"
@@ -59,7 +64,7 @@ interface Progress {
 }
 
 const PHASE_LABELS: Record<Progress["phase"], string> = {
-  convirtiendo: "Convirtiendo el PDF",
+  convirtiendo: "Preparando archivo",
   subiendo: "Subiendo",
   leyendo: "Leyendo",
 }
@@ -115,51 +120,62 @@ export default function FacturasPorFotoPage() {
   async function handleFiles(seleccion: File[]) {
     let fallos = 0
 
-    // Un PDF se convierte a imágenes antes de nada. De paso se rescata su capa
-    // de texto: si la trae, el backend lee la factura de ahí en vez de hacerle
-    // OCR a la imagen, que es más exacto y más barato.
-    const files: { image: File; text?: string }[] = []
-    for (const file of seleccion) {
-      if (!isPdf(file)) {
-        files.push({ image: file })
-        continue
-      }
+    // Cada archivo se convierte primero en lo que entiende el API: una imagen
+    // de soporte y, si se puede, el texto exacto (PDF, Word, Excel) o el XML de
+    // la factura electrónica (el ZIP o el XML del correo). Ver
+    // `lib/invoice-files.ts`.
+    const items: UploadItem[] = []
+    for (const [index, file] of seleccion.entries()) {
       try {
-        setProgress({ phase: "convirtiendo", current: 1, total: 1 })
-        const { pages, totalPages } = await pdfToImages(file)
-        if (pages.length === 0) throw new Error("No se pudo leer el PDF")
-        files.push(...pages)
-        if (totalPages > MAX_PDF_PAGES) {
-          toast.warning(
-            `${file.name} tiene ${totalPages} páginas: se procesaron las primeras ${MAX_PDF_PAGES}.`,
-          )
-        }
+        setProgress({
+          phase: "convirtiendo",
+          current: index + 1,
+          total: seleccion.length,
+        })
+        const { items: nuevos, warnings } = await expandUpload(file)
+        items.push(...nuevos)
+        for (const warning of warnings) toast.warning(warning)
       } catch (err) {
         fallos += 1
         toast.error(`${file.name}: ${errorMessage(err)}`)
       }
     }
 
-    for (const [index, item] of files.entries()) {
+    let delXml = 0
+    for (const [index, item] of items.entries()) {
       try {
-        setProgress({ phase: "subiendo", current: index + 1, total: files.length })
-        const ready = await prepareImageForUpload(item.image, "documento")
-        const scan = await uploadInvoiceScan(ready, item.text)
+        setProgress({ phase: "subiendo", current: index + 1, total: items.length })
+        // Con XML la imagen es solo soporte y viaja con el XML en la misma
+        // petición: se comprime más para no pasar el límite de Vercel.
+        const ready = await prepareImageForUpload(
+          item.image,
+          "documento",
+          item.xml ? XML_IMAGE_MAX_BYTES : undefined,
+        )
+        const scan = await uploadInvoiceScan(ready, item.text, item.xml)
 
-        setProgress({ phase: "leyendo", current: index + 1, total: files.length })
+        // Del XML la factura ya vuelve leída con los datos exactos: no hay nada
+        // que mandar a la IA.
+        if (scan.status === "extracted") {
+          delXml += 1
+          continue
+        }
+        setProgress({ phase: "leyendo", current: index + 1, total: items.length })
         await extractInvoiceScan(scan._id)
       } catch (err) {
         fallos += 1
-        toast.error(`${item.image.name}: ${errorMessage(err)}`)
+        toast.error(`${item.source}: ${errorMessage(err)}`)
       }
     }
     setProgress(null)
     await load()
-    if (fallos === 0) {
+    if (fallos === 0 && items.length > 0) {
       toast.success(
-        files.length === 1
-          ? "Factura leída: revísala antes de aplicarla"
-          : `${files.length} imágenes procesadas`,
+        items.length === 1
+          ? delXml === 1
+            ? "Factura electrónica leída de su XML: revísala antes de aplicarla"
+            : "Factura leída: revísala antes de aplicarla"
+          : `${items.length} documentos procesados`,
       )
     }
   }
@@ -237,9 +253,11 @@ export default function FacturasPorFotoPage() {
               Cargar facturas
             </CardTitle>
             <CardDescription>
-              Puedes subir varias a la vez, en foto o en <strong>PDF</strong>.
-              El PDF que llega por correo se lee de su propio texto —más exacto
-              y sin gastar cuota de lectura—; a las fotos se les aplica IA. Si
+              Puedes subir varias a la vez: fotos (también las del iPhone),
+              <strong> PDF</strong>, el <strong>ZIP o XML</strong> de la factura
+              electrónica, escaneos TIFF, Word o Excel. El ZIP o XML que llega
+              por correo se lee con los datos exactos de la DIAN, sin IA; el PDF,
+              Word y Excel, de su propio texto; a las fotos se les aplica IA. Si
               una factura tiene dos hojas, sube las dos: se agrupan solas por el
               número y el NIT.
             </CardDescription>
@@ -248,7 +266,7 @@ export default function FacturasPorFotoPage() {
             <InvoiceCapture
               onFiles={handleFiles}
               busy={progress !== null}
-              hint="Imágenes o PDF. Se reescala y comprime solo antes de subirse."
+              hint="Fotos, PDF, ZIP o XML de factura electrónica, TIFF, Word o Excel. Las imágenes se reescalan y comprimen solas antes de subirse."
             />
             {progress && (
               <div
@@ -352,7 +370,10 @@ export default function FacturasPorFotoPage() {
                         </TableCell>
                         <TableCell>
                           <div className="flex justify-end gap-1">
-                            {revisable && (
+                            {/* Una factura aplicada también se abre: queda como
+                                historial de solo lectura, con su imagen, lo que
+                                se leyó y a qué compra o gasto dio lugar. */}
+                            {(revisable || scan.status === "applied") && (
                               <Button
                                 size="sm"
                                 variant="outline"
@@ -362,8 +383,12 @@ export default function FacturasPorFotoPage() {
                                   />
                                 }
                               >
-                                <FileText className="size-4" aria-hidden />
-                                Revisar
+                                {revisable ? (
+                                  <FileText className="size-4" aria-hidden />
+                                ) : (
+                                  <Eye className="size-4" aria-hidden />
+                                )}
+                                {revisable ? "Revisar" : "Ver"}
                               </Button>
                             )}
                             {canManage && scan.status === "extracted" && (

@@ -80,6 +80,12 @@ export function ProductImageField({
       onRemovedChange(false)
       setPreview(URL.createObjectURL(ready))
       onPick(ready)
+    } catch (err) {
+      // Una foto HEIC del iPhone que no se pudo convertir: sin esto el error
+      // se perdía y el botón volvía a su estado como si nada hubiera pasado.
+      setError(
+        err instanceof Error ? err.message : "No se pudo preparar la foto.",
+      )
     } finally {
       setWorking(false)
     }

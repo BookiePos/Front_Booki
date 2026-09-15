@@ -76,7 +76,12 @@ export async function pdfToImages(file: File): Promise<PdfPagesResult> {
   ).toString()
 
   const data = new Uint8Array(await file.arrayBuffer())
-  const doc = await pdfjs.getDocument({ data }).promise
+  let doc: Awaited<ReturnType<typeof pdfjs.getDocument>["promise"]>
+  try {
+    doc = await pdfjs.getDocument({ data }).promise
+  } catch (err) {
+    throw readablePdfError(err)
+  }
   const totalPages = doc.numPages
   const pages: PdfPage[] = []
   const base = file.name.replace(/\.[^.]+$/, "") || "factura"
@@ -122,6 +127,34 @@ export async function pdfToImages(file: File): Promise<PdfPagesResult> {
   }
 
   return { pages, totalPages }
+}
+
+/**
+ * Traduce los errores de pdf.js a algo que la persona pueda resolver.
+ *
+ * "Invalid PDF structure" (con el aviso "Indexing all PDF objects" en la
+ * consola) sale cuando el archivo no tiene la estructura de un PDF: llegó
+ * cortado —una descarga a medias, un reenvío por WhatsApp—, lo generó mal un
+ * programa, o no es un PDF aunque se llame así. Ninguno se arregla
+ * reintentando, y el mensaje en inglés no le dice a nadie qué hacer.
+ */
+function readablePdfError(err: unknown): Error {
+  const name = (err as { name?: string } | null)?.name ?? ""
+  const message = err instanceof Error ? err.message : String(err)
+  if (name === "PasswordException" || /password/i.test(message)) {
+    return new Error(
+      "El PDF tiene contraseña. Ábrelo, guárdalo sin contraseña y vuelve a subirlo, o sube una foto de la factura.",
+    )
+  }
+  if (
+    name === "InvalidPDFException" ||
+    /invalid pdf structure|missing pdf|unexpected server response/i.test(message)
+  ) {
+    return new Error(
+      "El PDF está dañado o incompleto y no se puede abrir. Descárgalo otra vez del correo, o ábrelo en el computador y vuelve a guardarlo como PDF. También puedes subir una foto de la factura.",
+    )
+  }
+  return err instanceof Error ? err : new Error(message)
 }
 
 /** Texto de la página, o `undefined` si la capa no da para fiarse. */
