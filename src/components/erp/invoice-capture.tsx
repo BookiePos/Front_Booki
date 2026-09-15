@@ -66,9 +66,10 @@ export function InvoiceCapture({ onFiles, busy = false, hint }: InvoiceCapturePr
         className="hidden"
         onChange={handleChange}
       />
-      {/* El botón de archivos acepta también PDF: la factura electrónica llega
-          por correo en ese formato y hacerle una captura sería degradar a mano
-          la mejor fuente disponible. La cámara, en cambio, solo da imágenes. */}
+      {/* El botón de archivos acepta también PDF, el ZIP o XML de la factura
+          electrónica, Word y Excel: es como llega la factura por correo, y
+          hacerle una captura sería degradar a mano la mejor fuente disponible.
+          La cámara, en cambio, solo da imágenes. */}
       <input
         ref={filesRef}
         type="file"
