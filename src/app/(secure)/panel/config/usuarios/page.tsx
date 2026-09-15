@@ -77,6 +77,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { useConfirm } from "@/components/ui/confirm-dialog"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
+import { POS_BUNDLE, POS_PERMISSION } from "@/lib/access"
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -91,8 +92,6 @@ function errorMessage(err: unknown): string {
 // activarlo también se concede `inventory.view` para que el trabajador vea la
 // sección de inventario del POS. Las sedes del usuario definen DÓNDE puede
 // vender (aislamiento por sede, validado en el backend).
-const POS_PERMISSION = "pos.sell"
-const POS_BUNDLE = ["pos.sell", "inventory.view"]
 
 /** ¿El rol (por sus permisos) ya concede acceso al POS? */
 function roleGrantsPos(roleKey: string, roles: AdminRole[]): boolean {

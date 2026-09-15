@@ -8,6 +8,15 @@
 export type AccessArea = "pos" | "operacion"
 
 /**
+ * Acceso al punto de venta. Se gobierna con `pos.sell`; al darlo como permiso
+ * extra se concede también `inventory.view` para que la persona vea la sección
+ * de inventario del POS. Lo usan Usuarios y roles y el acceso de empleados: los
+ * dos tienen que conceder exactamente lo mismo.
+ */
+export const POS_PERMISSION = "pos.sell"
+export const POS_BUNDLE: readonly string[] = ["pos.sell", "inventory.view"]
+
+/**
  * Permisos de "Operación" (back-office): con cualquiera de ellos el usuario
  * tiene sentido en el panel administrativo. Un cajero puro (solo POS/caja) no
  * tiene ninguno.

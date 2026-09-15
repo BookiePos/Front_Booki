@@ -16,7 +16,13 @@ import {
   type AdminUser,
 } from "@/lib/api-admin"
 import { updateEmployee } from "@/lib/erp/api-employees"
-import { roleFitsArea, type AccessArea } from "@/lib/access"
+import {
+  POS_BUNDLE,
+  permsAllowOperation,
+  permsAllowPos,
+  roleFitsArea,
+  type AccessArea,
+} from "@/lib/access"
 import { ApiError } from "@/lib/api"
 
 import { Button } from "@/components/ui/button"
@@ -40,7 +46,7 @@ function slug(value: string): string {
   return value
     .toLowerCase()
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[̀-ͯ]/g, "")
     .replace(/[^a-z0-9]/g, "")
 }
 
@@ -51,14 +57,20 @@ function suggestUsername(firstName: string, lastName: string): string {
   return base.slice(0, 30)
 }
 
-/** Rol por defecto sugerido para un área, entre los roles que la habilitan. */
-function defaultRoleFor(area: AccessArea, areaRoles: AdminRole[]): string {
+/**
+ * Rol sugerido para un área: el habitual si existe (Cajero para el POS,
+ * Gerente o Administrador para Operación), si no el primero que habilite el
+ * área y, en último caso, el primero de la lista. Es solo la preselección: la
+ * lista completa sigue disponible.
+ */
+function defaultRoleFor(area: AccessArea, roles: AdminRole[]): string {
   const prefer = area === "pos" ? ["cashier"] : ["manager", "admin"]
   for (const key of prefer) {
-    const found = areaRoles.find((r) => r.key === key)
+    const found = roles.find((r) => r.key === key)
     if (found) return found.key
   }
-  return areaRoles[0]?.key ?? ""
+  const fitting = roles.find((r) => roleFitsArea(r.permissions, area))
+  return fitting?.key ?? roles[0]?.key ?? ""
 }
 
 export interface EmployeeForAccess {
@@ -92,6 +104,14 @@ const FORM_ID = "employee-access-form"
  * Operación), usuario, contraseña y rol. El nuevo usuario queda vinculado al
  * empleado (`userId`) y, si se pasa `sedeId`, asignado a esa sede.
  *
+ * **Los roles son exactamente los de Configuración → Usuarios y roles**: la
+ * misma lista, en el mismo orden y con los mismos nombres. Antes se filtraban
+ * por área y un rol creado a medida (o un Gerente sin permiso de venta) no
+ * aparecía aquí aunque sí en Usuarios, lo que obligaba a crear el acceso por
+ * otro lado. El área ya no esconde roles: si se da acceso al POS con un rol que
+ * no lo incluye, se agrega el POS como permiso extra, que es exactamente lo que
+ * hace el interruptor "Acceso al punto de venta" en Usuarios.
+ *
  * El `<form>` se conserva aunque el botón de envío esté en el pie de la ficha:
  * `form={FORM_ID}` los vuelve a unir, y con eso Enter sigue creando el acceso
  * sin tener que bajar a buscar el botón.
@@ -124,20 +144,22 @@ export function EmployeeAccessDialog({
       .catch(() => setRoles([]))
   }, [open, employee, areaProp])
 
-  // Roles que habilitan el área elegida.
-  const areaRoles = React.useMemo(
-    () => roles.filter((r) => roleFitsArea(r.permissions, area)),
-    [roles, area],
-  )
-
-  // Al cambiar de área (o al cargar roles), asegura un rol válido para el área.
+  // Al cambiar de área (o al cargar roles) se propone un rol habitual para esa
+  // área, pero solo si el elegido ya no existe: si la persona escogió uno a
+  // mano, se respeta.
   React.useEffect(() => {
     setRole((prev) =>
-      areaRoles.some((r) => r.key === prev)
-        ? prev
-        : defaultRoleFor(area, areaRoles),
+      roles.some((r) => r.key === prev) ? prev : defaultRoleFor(area, roles),
     )
-  }, [area, areaRoles])
+  }, [area, roles])
+
+  const selectedRole = roles.find((r) => r.key === role)
+  const roleHasPos = selectedRole ? permsAllowPos(selectedRole.permissions) : false
+  const roleHasOperation = selectedRole
+    ? permsAllowOperation(selectedRole.permissions)
+    : false
+  /** Acceso al POS pedido con un rol que no lo trae: va como permiso extra. */
+  const addsPos = area === "pos" && Boolean(selectedRole) && !roleHasPos
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -176,6 +198,8 @@ export function EmployeeAccessDialog({
         name: `${employee.firstName} ${employee.lastName}`.trim(),
         role,
         sedeIds: effectiveSedeId ? [effectiveSedeId] : [],
+        // Igual que el interruptor de POS en Usuarios y roles.
+        extraPermissions: addsPos ? [...POS_BUNDLE] : [],
       })
       // Vincula el usuario al expediente y asegura que el empleado quede en esa
       // sede (para su nómina y control de horas).
@@ -191,6 +215,14 @@ export function EmployeeAccessDialog({
       setSaving(false)
     }
   }
+
+  const roleHint = !selectedRole
+    ? "Un paquete de permisos con nombre: Cajero, Administrador… Son los mismos de Usuarios y roles."
+    : addsPos
+      ? `${selectedRole.name} no incluye el punto de venta: se le dará acceso al POS como permiso extra, igual que en Usuarios y roles.`
+      : area === "operacion" && !roleHasOperation
+        ? `${selectedRole.name} no da acceso al panel de operación: con este rol ${roleHasPos ? "solo podrá entrar al punto de venta" : "no podrá entrar a ninguna sección"}. Elige otro rol o cambia el área.`
+        : (selectedRole.description ?? "Son los mismos roles de Usuarios y roles.")
 
   return (
     <FormDialog
@@ -218,7 +250,7 @@ export function EmployeeAccessDialog({
           <Button
             type="submit"
             form={FORM_ID}
-            disabled={saving || areaRoles.length === 0}
+            disabled={saving || roles.length === 0}
             className="sm:min-w-36"
           >
             {saving ? <Loader2 className="animate-spin" /> : <KeyRound />}
@@ -317,24 +349,21 @@ export function EmployeeAccessDialog({
               required
               help={{ term: "rol" }}
               error={
-                areaRoles.length === 0
-                  ? "No hay roles para esta área. Créalos en Configuración → Usuarios y roles."
+                roles.length === 0
+                  ? "No hay roles. Créalos en Configuración → Usuarios y roles."
                   : null
               }
-              hint="Un paquete de permisos con nombre: Cajero, Administrador…"
+              hint={roleHint}
             >
+              {/* Misma lista, orden y nombres que el selector de rol de
+                  Configuración → Usuarios y roles. */}
               <NativeSelect
                 id="acc-role"
                 value={role}
                 onChange={setRole}
-                options={areaRoles.map((r) => ({
-                  value: r.key,
-                  label: r.name,
-                }))}
-                placeholder={
-                  areaRoles.length === 0 ? "Sin roles disponibles" : undefined
-                }
-                disabled={areaRoles.length === 0}
+                options={roles.map((r) => ({ value: r.key, label: r.name }))}
+                placeholder={roles.length === 0 ? "Sin roles" : undefined}
+                disabled={roles.length === 0}
               />
             </Field>
           </div>
