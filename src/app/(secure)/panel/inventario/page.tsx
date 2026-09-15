@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { SearchParamSync } from "@/components/erp/search-param-sync"
 import Link from "next/link"
 import {
   Plus,
@@ -779,13 +780,32 @@ function ProductSheet({
   /** Producto existente confirmado por el backend (409) al intentar crear. */
   const [conflictProduct, setConflictProduct] =
     React.useState<InvProduct | null>(null)
+  /**
+   * Todos los productos, incluidos los inactivos. La lista de la página solo
+   * trae los activos, pero el SKU no se puede repetir con ninguno: con un SKU
+   * de un producto desactivado la ficha no avisaba nada y el guardado fallaba
+   * con un error arriba del formulario, fuera de la vista.
+   */
+  const [allProducts, setAllProducts] = React.useState<InvProduct[] | null>(
+    null,
+  )
 
   // Detección en vivo de duplicados (solo al crear). El SKU exacto es la
   // señal fuerte; el nombre por prefijo de palabra es solo una pista.
+  const skuNormalizado = sku.trim().toUpperCase()
   const skuClash =
-    mode === "create" && sku.trim()
-      ? products.find((p) => p.active && p.sku === sku.trim().toUpperCase())
+    mode === "create" && skuNormalizado
+      ? (allProducts ?? products).find((p) => p.sku === skuNormalizado)
       : undefined
+  // El aviso va EN el campo, donde se está escribiendo: es lo primero que se
+  // ve y explica por qué "Guardar" no se deja pulsar.
+  const skuError = skuClash
+    ? skuClash.active
+      ? `Este SKU ya lo tiene "${skuClash.name}". Usa otro SKU.`
+      : `Este SKU ya lo tiene "${skuClash.name}", que está inactivo. Usa otro SKU o reactiva ese producto.`
+    : conflictProduct
+      ? `Este SKU ya lo tiene "${conflictProduct.name}". Usa otro SKU.`
+      : null
   const nameQuery = normalizeName(name)
   const nameClash =
     mode === "create" && !skuClash && nameQuery.length >= 4
@@ -798,7 +818,10 @@ function ProductSheet({
           )
         })
       : undefined
-  const duplicate = conflictProduct ?? skuClash ?? nameClash
+  // Registrar una entrada solo se ofrece para productos activos: uno inactivo
+  // no aparece en el diálogo de entradas.
+  const duplicate =
+    conflictProduct ?? (skuClash?.active ? skuClash : undefined) ?? nameClash
   // Formulario reducido para ingredientes: identidad + unidad + venta.
   // Peso, precio de compra y vencimiento se capturan en cada entrada.
   const isIngredient = itemType === "ingredient"
@@ -857,6 +880,15 @@ function ProductSheet({
       }
       setError(null)
       setConflictProduct(null)
+      if (mode === "create") {
+        try {
+          setAllProducts(await listProducts(true))
+        } catch {
+          // Sin la lista completa se compara con los activos; el backend
+          // rechaza igual el SKU repetido.
+          setAllProducts(null)
+        }
+      }
     }
     void reset()
   }, [open, mode, product, suppliers])
@@ -934,11 +966,15 @@ function ProductSheet({
       // SKU repetido al crear: en vez del error crudo, ofrecer registrar
       // una entrada del producto existente.
       if (mode === "create" && err instanceof ApiError && err.status === 409) {
-        const clash = products.find(
-          (p) => p.sku === sku.trim().toUpperCase(),
+        // Otro usuario pudo crearlo mientras se llenaba la ficha: se recarga
+        // la lista para que el aviso aparezca en el campo del SKU.
+        const fresh = await listProducts(true).catch(
+          () => allProducts ?? products,
         )
+        setAllProducts(fresh)
+        const clash = fresh.find((p) => p.sku === sku.trim().toUpperCase())
         if (clash) {
-          setConflictProduct(clash)
+          if (clash.active) setConflictProduct(clash)
           return
         }
       }
@@ -1017,6 +1053,7 @@ function ProductSheet({
               required
               help={{ term: "sku" }}
               hint="Corto y que no se repita."
+              error={skuError}
             >
               <Input
                 id="p-sku"
@@ -4756,6 +4793,7 @@ export default function InventarioPage() {
 
   return (
     <>
+      <SearchParamSync onValue={setSearch} />
       <PageHeader
         section="Operación"
         title="Inventario"

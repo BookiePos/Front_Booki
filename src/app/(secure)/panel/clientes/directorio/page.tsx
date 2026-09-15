@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { SearchParamSync } from "@/components/erp/search-param-sync"
 import { ShieldOff, Users, Plus, RefreshCw, Search, Pencil } from "lucide-react"
 
 import { useAuth } from "@/lib/auth-context"
@@ -93,6 +94,7 @@ export default function DirectorioClientesPage() {
 
   return (
     <>
+      <SearchParamSync onValue={setSearch} />
       <PageHeader
         section="Comercial"
         title="Directorio de clientes"

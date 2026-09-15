@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { SearchableSelect } from "@/components/ui/searchable-select"
 import Link from "next/link"
 import { useParams, useRouter } from "next/navigation"
 import {
@@ -525,6 +526,15 @@ function NewProductDialog({
   )
 }
 
+/**
+ * Celda de renglón en el celular: la tabla de ocho columnas se vuelve una
+ * tarjeta por renglón y cada celda lleva su título encima (`data-label`). Con
+ * la tabla había que desplazarse de lado para ver el total de cada renglón y
+ * los campos quedaban de 3 cm de ancho.
+ */
+const CELDA_MOVIL =
+  "max-md:block max-md:p-0 max-md:whitespace-normal max-md:before:mb-1 max-md:before:block max-md:before:text-xs max-md:before:font-medium max-md:before:text-muted-foreground max-md:before:content-[attr(data-label)]"
+
 export default function RevisarFacturaPage() {
   const params = useParams<{ id: string }>()
   const id = Array.isArray(params.id) ? params.id[0] : params.id
@@ -829,6 +839,10 @@ export default function RevisarFacturaPage() {
 
   const aplicada = scan.status === "applied"
   const editable = canManage && !aplicada
+  const productOptions = products.map((p) => ({
+    value: p._id,
+    label: `${p.name} · ${p.sku}`,
+  }))
 
   return (
     <>
@@ -907,31 +921,17 @@ export default function RevisarFacturaPage() {
             <CardContent className="grid gap-3 sm:grid-cols-2">
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="f-supplier">Proveedor registrado</Label>
-                <Select
-                  value={supplierId || "none"}
-                  items={{
-                    none: "Crear con los datos leídos",
-                    ...Object.fromEntries(suppliers.map((s) => [s._id, s.name])),
-                  }}
-                  onValueChange={(v) => {
-                    if (v !== null) setSupplierId(v === "none" ? "" : v)
-                  }}
+                <SearchableSelect
+                  id="f-supplier"
+                  value={supplierId}
+                  onChange={setSupplierId}
+                  placeholder="Crear con los datos leídos"
+                  options={suppliers.map((s) => ({
+                    value: s._id,
+                    label: `${s.name} · ${s.docNumber}`,
+                  }))}
                   disabled={!editable}
-                >
-                  <SelectTrigger id="f-supplier" className="w-full">
-                    <SelectValue placeholder="Elige un proveedor" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">
-                      Crear con los datos leídos
-                    </SelectItem>
-                    {suppliers.map((s) => (
-                      <SelectItem key={s._id} value={s._id}>
-                        {s.name} · {s.docNumber}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                />
               </div>
 
               <div className="flex flex-col gap-1.5">
@@ -1135,7 +1135,7 @@ export default function RevisarFacturaPage() {
             </CardHeader>
             <CardContent className="p-0">
               <div className="overflow-x-auto">
-                <Table>
+                <Table className="max-md:block max-md:[&_tbody]:block max-md:[&_thead]:hidden">
                   <TableHeader>
                     <TableRow>
                       <TableHead className="min-w-56">Descripción</TableHead>
@@ -1160,8 +1160,11 @@ export default function RevisarFacturaPage() {
                       const total =
                         line.lineTotal ?? (line.unitCost ?? 0) * (line.qty ?? 1)
                       return (
-                        <TableRow key={index}>
-                          <TableCell>
+                        <TableRow
+                          key={index}
+                          className="max-md:grid max-md:grid-cols-2 max-md:gap-x-3 max-md:gap-y-3 max-md:px-4 max-md:py-4 max-md:hover:bg-transparent"
+                        >
+                          <TableCell data-label="Descripción" className={CELDA_MOVIL + " max-md:col-span-2"}>
                             <Input
                               value={line.description}
                               placeholder="Descripción"
@@ -1204,7 +1207,7 @@ export default function RevisarFacturaPage() {
                               </p>
                             )}
                           </TableCell>
-                          <TableCell>
+                          <TableCell data-label="Cantidad" className={CELDA_MOVIL}>
                             <Input
                               inputMode="decimal"
                               value={line.qty ?? ""}
@@ -1218,7 +1221,7 @@ export default function RevisarFacturaPage() {
                               }
                             />
                           </TableCell>
-                          <TableCell>
+                          <TableCell data-label="Valor unitario" className={CELDA_MOVIL}>
                             {editable ? (
                               <MoneyInput
                                 value={line.unitCost ?? null}
@@ -1234,7 +1237,7 @@ export default function RevisarFacturaPage() {
                               </span>
                             )}
                           </TableCell>
-                          <TableCell>
+                          <TableCell data-label="Destino" className={CELDA_MOVIL + " max-md:col-span-2"}>
                             <Select
                               value={decision.target}
                               items={LINE_TARGET_LABELS}
@@ -1257,43 +1260,22 @@ export default function RevisarFacturaPage() {
                               </SelectContent>
                             </Select>
                           </TableCell>
-                          <TableCell>
+                          <TableCell data-label="Producto o categoría" className={CELDA_MOVIL + " max-md:col-span-2"}>
                             {decision.target === "inventory" ? (
                               <div className="flex flex-col gap-1.5">
-                              <Select
-                                value={decision.productId ?? "new"}
-                                items={{
-                                  new: "Crear producto nuevo",
-                                  ...Object.fromEntries(
-                                    products.map((p) => [
-                                      p._id,
-                                      `${p.name} · ${p.sku}`,
-                                    ]),
-                                  ),
-                                }}
-                                onValueChange={(v) => {
-                                  if (v === null) return
+                              <SearchableSelect
+                                aria-label="Producto del inventario"
+                                value={decision.productId ?? ""}
+                                placeholder="Crear producto nuevo"
+                                options={productOptions}
+                                onChange={(v) =>
                                   patchDecision(index, {
-                                    productId: v === "new" ? null : v,
-                                    createProduct: v === "new",
+                                    productId: v || null,
+                                    createProduct: !v,
                                   })
-                                }}
+                                }
                                 disabled={!editable}
-                              >
-                                <SelectTrigger className="w-full">
-                                  <SelectValue placeholder="Crear producto nuevo" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="new">
-                                    Crear producto nuevo
-                                  </SelectItem>
-                                  {products.map((p) => (
-                                    <SelectItem key={p._id} value={p._id}>
-                                      {p.name} · {p.sku}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                              />
                               {!decision.productId && editable && (
                                 <SugerenciasProducto
                                   descripcion={line.description}
@@ -1342,43 +1324,26 @@ export default function RevisarFacturaPage() {
                               />
                               </div>
                             ) : decision.target === "expense" ? (
-                              <Select
-                                value={decision.categoryId ?? "none"}
-                                items={{
-                                  none: "Elige la categoría",
-                                  ...Object.fromEntries(
-                                    categories.map((c) => [c._id, c.name]),
-                                  ),
-                                }}
-                                onValueChange={(v) => {
-                                  if (v === null) return
-                                  patchDecision(index, {
-                                    categoryId: v === "none" ? null : v,
-                                  })
-                                }}
+                              <SearchableSelect
+                                aria-label="Categoría del gasto"
+                                value={decision.categoryId ?? ""}
+                                placeholder="Elige la categoría"
+                                options={categories.map((c) => ({
+                                  value: c._id,
+                                  label: c.name,
+                                }))}
+                                onChange={(v) =>
+                                  patchDecision(index, { categoryId: v || null })
+                                }
                                 disabled={!editable}
-                              >
-                                <SelectTrigger className="w-full">
-                                  <SelectValue placeholder="Elige la categoría" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="none">
-                                    Elige la categoría
-                                  </SelectItem>
-                                  {categories.map((c) => (
-                                    <SelectItem key={c._id} value={c._id}>
-                                      {c.name}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                              />
                             ) : (
                               <span className="text-sm text-muted-foreground">
                                 No se registra
                               </span>
                             )}
                           </TableCell>
-                          <TableCell>
+                          <TableCell data-label="IVA" className={CELDA_MOVIL}>
                             <NativeSelect
                               value={
                                 line.ivaRate != null ? String(line.ivaRate) : ""
@@ -1393,7 +1358,7 @@ export default function RevisarFacturaPage() {
                               }
                             />
                           </TableCell>
-                          <TableCell className="text-right font-medium">
+                          <TableCell data-label="Total" className={CELDA_MOVIL + " text-right font-medium max-md:text-left"}>
                             {editable ? (
                               <MoneyInput
                                 value={line.lineTotal ?? null}
@@ -1408,7 +1373,7 @@ export default function RevisarFacturaPage() {
                             )}
                           </TableCell>
                           {editable && (
-                            <TableCell>
+                            <TableCell className="max-md:col-span-2 max-md:flex max-md:justify-end max-md:p-0">
                               <Button
                                 size="sm"
                                 variant="ghost"
@@ -1487,11 +1452,52 @@ export default function RevisarFacturaPage() {
               )}
             </CardContent>
           </Card>
+
+          {/* En el celular los botones de la cabecera quedan varias pantallas
+              más arriba después de revisar los renglones: se repiten abajo,
+              fijos, donde está el pulgar. */}
+          {editable && (
+            <div className="sticky bottom-3 z-20 flex gap-2 rounded-2xl border border-border bg-card/95 p-2 shadow-lg backdrop-blur md:hidden">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={handleSave}
+                disabled={saving}
+              >
+                {saving ? (
+                  <Loader2 className="size-4 animate-spin" aria-hidden />
+                ) : (
+                  <Save className="size-4" aria-hidden />
+                )}
+                Guardar
+              </Button>
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => setExpenseOpen(true)}
+                disabled={applying}
+              >
+                <Receipt className="size-4" aria-hidden />
+                Gastos
+              </Button>
+              <Button className="flex-1" onClick={handleApply} disabled={applying}>
+                {applying ? (
+                  <Loader2 className="size-4 animate-spin" aria-hidden />
+                ) : (
+                  <CheckCircle2 className="size-4" aria-hidden />
+                )}
+                Aplicar
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* ── Columna lateral: imágenes e historial ── */}
-        <div className="flex flex-col gap-4">
-          <Card>
+        {/* En el celular la columna se deshace (`contents`) para que las
+            imágenes suban arriba de todo —se revisa mirando la factura— y el
+            historial quede al final. */}
+        <div className="flex flex-col gap-4 max-lg:contents">
+          <Card className="max-lg:order-first">
             <CardHeader>
               <CardTitle className="font-display text-lg">
                 Imágenes ({scan.pages.length})
@@ -1500,16 +1506,27 @@ export default function RevisarFacturaPage() {
                 El soporte queda guardado con la compra.
               </CardDescription>
             </CardHeader>
-            <CardContent className="flex flex-col gap-3">
+            {/* En el celular las páginas van en una tira horizontal y con alto
+                limitado: apiladas a tamaño completo empujaban los renglones
+                varias pantallas hacia abajo. */}
+            <CardContent className="flex flex-col gap-3 max-lg:flex-row max-lg:snap-x max-lg:overflow-x-auto">
               {scan.pages.map((page, index) => (
-                <div key={page.imagePathname} className="flex flex-col gap-1">
+                <div
+                  key={page.imagePathname}
+                  className={
+                    "flex flex-col gap-1 max-lg:snap-start" +
+                    (scan.pages.length > 1
+                      ? " max-lg:w-[85%] max-lg:shrink-0"
+                      : " max-lg:w-full")
+                  }
+                >
                   <a href={page.imageUrl} target="_blank" rel="noreferrer">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={page.imageUrl}
                       alt={`Página ${index + 1} de la factura`}
                       loading="lazy"
-                      className="w-full rounded-lg border border-border object-contain"
+                      className="w-full rounded-lg border border-border object-contain max-lg:max-h-[50svh]"
                     />
                   </a>
                   {editable && scan.pages.length > 1 && (
