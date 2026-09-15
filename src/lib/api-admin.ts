@@ -37,6 +37,12 @@ export interface AdminRole {
   description: string
   permissions: string[]
   isSystem: boolean
+  /**
+   * Sus permisos ya se ajustaron a mano, así que manda lo guardado y no la
+   * plantilla del sistema. Lo que cambia en la práctica: un rol de sistema sin
+   * tocar recibe solo las funciones nuevas que se publiquen; uno tocado, no.
+   */
+  permissionsCustomized: boolean
   userCount: number
 }
 

@@ -771,7 +771,6 @@ function ProductSheet({
   const [perishable, setPerishable] = React.useState(false)
   const [expiresAt, setExpiresAt] = React.useState("")
   const [minStock, setMinStock] = React.useState<number | null>(null)
-  const [cost, setCost] = React.useState<number | null>(null)
   const [salePrice, setSalePrice] = React.useState<number | null>(null)
   const [saving, setSaving] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
@@ -834,7 +833,6 @@ function ProductSheet({
         setPerishable(product.perishable)
         setExpiresAt(product.expiresAt ? product.expiresAt.slice(0, 10) : "")
         setMinStock(product.minStock ?? 0)
-        setCost(product.cost ?? 0)
         setSalePrice(product.salePrice ?? null)
       } else {
         setSku("")
@@ -853,7 +851,6 @@ function ProductSheet({
         setPerishable(false)
         setExpiresAt("")
         setMinStock(null)
-        setCost(null)
         setSalePrice(null)
       }
       setError(null)
@@ -909,7 +906,10 @@ function ProductSheet({
         trackLots: isIngredient ? perishableFinal : true,
         expiresAt: perishableFinal && expiresAt ? expiresAt : "",
         minStock: minStock ?? 0,
-        cost: cost ?? 0,
+        // `cost` NO viaja desde esta ficha, ni en alta ni en edición. Lo pone
+        // la entrada de mercancía, con la factura delante. Mandarlo en la
+        // edición era además peligroso: al no haber ya casilla, habría salido
+        // un 0 que borraría el costo que las entradas llevaban construido.
         salePrice: isIngredient && salePrice ? salePrice : undefined,
       }
       if (mode === "create") {
@@ -1153,20 +1153,20 @@ function ProductSheet({
                 placeholder="3"
               />
             </Field>
-            {!isIngredient && (
-              <Field
-                id="p-cost"
-                label="Precio de compra"
-                help={{ term: "costo" }}
-              >
-                <MoneyInput
-                  id="p-cost"
-                  value={cost}
-                  onValueChange={setCost}
-                  placeholder="0"
-                />
-              </Field>
-            )}
+            {/* Aquí YA NO se escribe el precio de compra, y quitarlo arregló un
+                descuadre de plata de verdad.
+
+                Lo que pasaba: en esta ficha se escribía un costo —muchas veces
+                a ojo, porque al dar de alta el insumo todavía no se tiene la
+                factura delante—. Después, al registrar la entrada de mercancía,
+                el formulario traía ESE número ya escrito en la casilla del
+                costo. Quien recibía una factura de $680 veía un $500 puesto de
+                antemano, lo daba por bueno y guardaba: la mercancía entraba
+                valorada a $500 y el valor del inventario nunca cuadraba con lo
+                que se había pagado.
+
+                El costo lo pone ahora la entrada, que es el único momento en
+                que alguien tiene la factura en la mano. Ver `EntrySheet`. */}
             {isIngredient && (
               <Field
                 id="p-price"
@@ -1257,6 +1257,8 @@ function EntrySheet({
   const [entryWeight, setEntryWeight] = React.useState<number | null>(null)
   const [qty, setQty] = React.useState<number | null>(null)
   const [unitCost, setUnitCost] = React.useState<number | null>(null)
+  /** Lo que costó la vez pasada. Solo se enseña; nunca se guarda por su cuenta. */
+  const [costoAnterior, setCostoAnterior] = React.useState<number | null>(null)
   const [supplierSel, setSupplierSel] = React.useState("none")
   const [legacySupplier, setLegacySupplier] = React.useState("")
   const [expiresAt, setExpiresAt] = React.useState("")
@@ -1300,9 +1302,12 @@ function EntrySheet({
       } else {
         setExpiresAt("")
       }
-      // El precio se muestra en la presentación en que se compra: para la
-      // harina, el del bulto, no el del gramo.
-      setUnitCost(
+      // La casilla del costo se queda VACÍA a propósito: ver el comentario del
+      // campo. Lo que se compró la vez pasada se guarda aparte, para enseñarlo
+      // debajo como referencia, en la presentación en que se compra —para la
+      // harina, el precio del bulto, no el del gramo—.
+      setUnitCost(null)
+      setCostoAnterior(
         p?.cost
           ? precioDePresentacion(p.cost, presentacionDeCompra(p).factor)
           : null,
@@ -1414,10 +1419,14 @@ function EntrySheet({
           >
             Cancelar
           </Button>
+          {/* El costo entra en la condición: una entrada sin precio valoraba la
+              mercancía al costo viejo del producto y descuadraba el inventario
+              en silencio. Si de verdad no se sabe lo que costó, para eso está
+              el ajuste, que no pretende ser una compra. */}
           <Button
             type="submit"
             form={ENTRY_FORM_ID}
-            disabled={saving || !productId || !sedeId || !qty}
+            disabled={saving || !productId || !sedeId || !qty || !unitCost}
             className="sm:min-w-36"
           >
             {saving ? <Loader2 className="animate-spin" /> : <PackagePlus />}
@@ -1545,14 +1554,27 @@ function EntrySheet({
                 sufijo={enPresentacion ? pres!.unidad : unidadCorta(entryUnit)}
               />
             </Field>
+            {/* Obligatorio, y en blanco cada vez.
+
+                Antes esta casilla venía rellena con el último costo del
+                producto. Parecía una comodidad y era una trampa: quien recibía
+                una factura de $680 encontraba un $500 ya escrito, lo daba por
+                bueno y la mercancía entraba valorada a $500. El descuadre no
+                avisaba en ninguna parte, porque para el sistema ese 500 lo
+                había confirmado una persona.
+
+                Lo que se compró antes se cuenta debajo, como dato, no como
+                valor puesto: sirve para notar que algo subió y no se puede
+                guardar sin querer. */}
             <Field
               id="e-cost"
               label="Precio de compra"
+              required
               help={{ term: "costo" }}
               hint={
                 enPresentacion
-                  ? `Lo que te cuesta un ${pres!.unidad} completo.`
-                  : `Por ${unidadNombre(entryUnit, 1)}, sin lo que le sumas para ganar.`
+                  ? `Lo que te costó un ${pres!.unidad} completo, tal como viene en la factura.`
+                  : `Por ${unidadNombre(entryUnit, 1)}, tal como viene en la factura.`
               }
             >
               <MoneyInput
@@ -1565,6 +1587,15 @@ function EntrySheet({
                     : `Por ${unidadNombre(entryUnit, 1)}`
                 }
               />
+              {costoAnterior != null && costoAnterior > 0 && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  La vez pasada lo compraste a{" "}
+                  <span className="font-medium text-foreground">
+                    {money.format(costoAnterior)}
+                  </span>
+                  {enPresentacion ? ` el ${pres!.unidad}` : ""}.
+                </p>
+              )}
             </Field>
 
             <Field id="e-supplier" label="Proveedor">
