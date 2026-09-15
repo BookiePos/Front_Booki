@@ -98,6 +98,13 @@ export interface NewProductDraft {
    * arma con otros y lleva lotes). Obligatorio: de una foto no se puede saber.
    */
   itemType?: "ingredient" | "product" | "assembly"
+  /** No se vende en el POS (un insumo): no necesita precio de venta. */
+  notSold?: boolean
+  /**
+   * La persona confirmó contra la factura los datos prellenados. Sin esto el
+   * servidor no crea el producto al aplicar.
+   */
+  reviewed?: boolean
 }
 
 export interface LineDecision {
