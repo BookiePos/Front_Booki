@@ -229,6 +229,12 @@ export const PRESENTACIONES_SUGERIDAS: PresentacionSugerida[] = [
     nota: "Escribe cuántas unidades trae la caja.",
   },
   {
+    nombre: "bolsa",
+    familias: ["conteo", "masa", "volumen"],
+    contenido: null,
+    nota: "Escribe cuánto trae la bolsa.",
+  },
+  {
     nombre: "paquete",
     familias: ["conteo", "masa", "volumen"],
     contenido: null,
@@ -253,4 +259,79 @@ export function presentacionesPara(value: string | undefined | null) {
   const familia = unidad(value)?.familia
   if (!familia) return PRESENTACIONES_SUGERIDAS
   return PRESENTACIONES_SUGERIDAS.filter((p) => p.familias.includes(familia))
+}
+
+/**
+ * Alias con los que la gente escribe una unidad, normalizados (sin tildes, sin
+ * espacios ni símbolos) → el código que se guarda.
+ *
+ * Nace en la importación por CSV, donde la columna "unidad" llega escrita a
+ * mano, y lo usa también la revisión de la factura por foto: lo que el modelo
+ * lee del papel es "UND", "KGS", "LITROS" o "GR", nunca el código del sistema.
+ * Sin esta traducción, cada factura dejaba una unidad inventada en el producto.
+ */
+const ALIAS_DE_UNIDAD: Record<string, string> = {
+  und: "und",
+  un: "und",
+  u: "und",
+  uni: "und",
+  unid: "und",
+  unidad: "und",
+  unidades: "und",
+  gr: "g",
+  grs: "g",
+  g: "g",
+  gramo: "g",
+  gramos: "g",
+  kg: "kg",
+  kgs: "kg",
+  klo: "kg",
+  kilo: "kg",
+  kilos: "kg",
+  kilogramo: "kg",
+  kilogramos: "kg",
+  lb: "lb",
+  lbs: "lb",
+  libra: "lb",
+  libras: "lb",
+  arroba: "arroba",
+  arrobas: "arroba",
+  ar: "arroba",
+  arr: "arroba",
+  ml: "ml",
+  mls: "ml",
+  mililitro: "ml",
+  mililitros: "ml",
+  cc: "ml",
+  l: "l",
+  lt: "l",
+  lts: "l",
+  litro: "l",
+  litros: "l",
+}
+
+/** Deja el texto comparable: sin tildes, en minúscula y solo letras y cifras. */
+function normalizar(texto: string): string {
+  return texto
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9]/g, "")
+}
+
+/**
+ * Traduce lo que alguien escribió al código de unidad del sistema.
+ *
+ * Devuelve el texto tal cual —recortado— cuando no reconoce nada: en una base
+ * vieja puede haber un "paquete" escrito a mano y borrarlo sería peor que
+ * dejarlo. Quien necesite saber si de verdad es una unidad del sistema tiene
+ * `unidad()`.
+ */
+export function unidadDesdeTexto(raw: string | undefined | null): string {
+  if (!raw) return ""
+  // La arroba se escribe "@" en media Colombia y la normalización se come el
+  // símbolo entero, así que se atiende antes.
+  if (raw.trim() === "@") return "arroba"
+  return ALIAS_DE_UNIDAD[normalizar(raw)] ?? raw.trim()
 }

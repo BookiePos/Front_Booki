@@ -98,6 +98,16 @@ export interface NewProductDraft {
    * arma con otros y lleva lotes). Obligatorio: de una foto no se puede saber.
    */
   itemType?: "ingredient" | "product" | "assembly"
+  /**
+   * Cómo llega del proveedor cuando no es como se consume: "bulto", "caja",
+   * "bolsa" + cuánto trae en unidades de consumo (25000 g el bulto).
+   *
+   * Se pide en la misma revisión porque la factura ES el momento en que se
+   * sabe: el papel dice "3 BULTOS HARINA". Sin esto, el producto nacía sin
+   * presentación y la cantidad tenía que traducirse a mano antes de aplicar.
+   */
+  purchaseUnit?: string
+  purchaseFactor?: number
   /** No se vende en el POS (un insumo): no necesita precio de venta. */
   notSold?: boolean
   /**

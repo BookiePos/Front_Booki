@@ -94,7 +94,13 @@ import {
   presentacionDeCompra,
   sugerirPresentacion,
 } from "@/lib/erp/purchase-unit"
-import { unidad, unidadCorta, unidadNombre } from "@/lib/erp/unidades"
+import {
+  unidad,
+  unidadCorta,
+  unidadDesdeTexto,
+  unidadNombre,
+} from "@/lib/erp/unidades"
+import { SKU_ERROR, skuValido } from "@/lib/erp/sku"
 import {
   PresentacionCompraPicker,
   UnidadSelect,
@@ -326,48 +332,14 @@ const HEADER_ALIASES: Record<string, CsvKey> = {
  * CSV que se exporta no cambia ni una letra— pero quien arma la planilla en
  * Excel escribe "kilos" o "@", no "kg". Antes esas filas entraban con la
  * unidad literal y el insumo quedaba medido en algo que el sistema no sabe
- * convertir. Cualquier palabra que no esté aquí pasa tal cual, que es como se
- * respetan las unidades raras que alguien ya tenía escritas.
+ * convertir. Cualquier palabra que no esté en la tabla pasa tal cual, que es
+ * como se respetan las unidades raras que alguien ya tenía escritas.
+ *
+ * La tabla vive en `lib/erp/unidades.ts` desde que la revisión de la factura
+ * por foto necesitó traducir lo mismo: lo que el modelo lee del papel es
+ * "UND", "KGS" o "LITROS", nunca el código del sistema.
  */
-const UNIT_VALUE_ALIASES: Record<string, string> = {
-  und: "und",
-  unidad: "und",
-  unidades: "und",
-  u: "und",
-  gr: "g",
-  g: "g",
-  gramo: "g",
-  gramos: "g",
-  kg: "kg",
-  kilo: "kg",
-  kilos: "kg",
-  kilogramo: "kg",
-  kilogramos: "kg",
-  lb: "lb",
-  libra: "lb",
-  libras: "lb",
-  arroba: "arroba",
-  arrobas: "arroba",
-  ar: "arroba",
-  arr: "arroba",
-  ml: "ml",
-  mililitro: "ml",
-  mililitros: "ml",
-  cc: "ml",
-  l: "l",
-  lt: "l",
-  lts: "l",
-  litro: "l",
-  litros: "l",
-}
-
-/** Traduce lo escrito en la columna "unidad" al código que se guarda. */
-function normalizeUnitValue(raw: string): string {
-  // La arroba se escribe "@" en media Colombia y `normHeader` se come el
-  // símbolo entero, así que se atiende antes de normalizar.
-  if (raw.trim() === "@") return "arroba"
-  return UNIT_VALUE_ALIASES[normHeader(raw)] ?? raw.trim()
-}
+const normalizeUnitValue = unidadDesdeTexto
 
 const NUMERIC_KEYS = new Set<CsvKey>([
   "weight",
@@ -895,8 +867,8 @@ function ProductSheet({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (mode === "create" && !/^\d{5,}$/.test(sku.trim())) {
-      setError("El SKU debe ser numérico, mínimo 5 dígitos")
+    if (mode === "create" && !skuValido(sku)) {
+      setError(SKU_ERROR)
       return
     }
     if (
@@ -1052,7 +1024,7 @@ function ProductSheet({
               label="SKU"
               required
               help={{ term: "sku" }}
-              hint="Corto y que no se repita."
+              hint="Numérico, mínimo 5 dígitos, y que no se repita."
               error={skuError}
             >
               <Input
