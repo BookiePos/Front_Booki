@@ -20,6 +20,54 @@ es decidir "esto ya es lo que va a usar el negocio".
 
 ---
 
+## 1.4.0 — 14 de septiembre de 2026
+
+Sale del primer día de carga real de datos en Crunchy Munch.
+
+> **Se despliega DESPUÉS del backend 1.4.0.** La pantalla de roles guarda
+> permisos de Dueño y Administrador, y el backend viejo los rechaza.
+
+### El costo de la mercancía lo pone la entrada, no el alta del insumo
+
+Se auditó un descuadre concreto: **una factura de $680 dejaba el inventario
+valorado en $500**. No era un error de cuentas — la valoración estaba bien
+hecha— sino del formulario, y la cadena era esta:
+
+1. La ficha del insumo pedía un **"precio de compra"**, que casi siempre se
+   escribía a ojo: al dar de alta un insumo todavía no se tiene la factura
+   delante.
+2. Al registrar la entrada de mercancía, la casilla del costo aparecía **ya
+   rellena con ese número**.
+3. El costo era **opcional**. Quien recibía una factura de $680 veía un $500
+   puesto de antemano, lo daba por bueno y guardaba.
+4. La mercancía entraba valorada a $500 y **nada avisaba**, porque para el
+   sistema ese $500 lo había confirmado una persona.
+
+Qué cambia:
+
+- **Desaparece "precio de compra" de la ficha del insumo**, para todos los tipos
+  (producto, ingrediente y montaje). Era lo que pedía el dueño y además era la
+  raíz del descuadre.
+- Esa ficha **deja de mandar el campo del costo**, ni al crear ni al editar. Sin
+  casilla habría mandado un 0, y ese 0 habría borrado el costo que las entradas
+  llevaban construido.
+- En la entrada, **el costo es obligatorio y arranca en blanco**. Lo que se pagó
+  la vez pasada se muestra debajo como dato —"La vez pasada lo compraste a
+  $500 el bulto"—, que sirve para notar una subida y no se puede guardar sin
+  querer.
+
+Si de verdad no se sabe lo que costó algo que entra, para eso está el ajuste,
+que no pretende ser una compra.
+
+### Roles
+
+Los roles que trae el sistema —Dueño, Administrador, Gerente, Cajero— ya se
+pueden ajustar. Al abrir uno sin tocar, la ficha avisa de lo que implica: tal
+como viene, cada función nueva de BookiPos le llega sola; una vez ajustado,
+manda lo que quede escrito y las funciones que salgan después hay que dárselas.
+
+---
+
 ## 1.3.0 — 13 de septiembre de 2026
 
 Solo frontend. **El backend se queda en 1.2.0** y no hay que desplegarlo: esta

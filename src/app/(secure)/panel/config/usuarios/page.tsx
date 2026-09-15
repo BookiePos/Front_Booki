@@ -7,6 +7,7 @@ import {
   Trash2,
   ShieldOff,
   ShieldCheck,
+  Info,
   Mail,
   Copy,
   Check,
@@ -679,6 +680,22 @@ function RoleDialog({ open, onOpenChange, mode, role, permissionGroups, onSucces
     >
       <form id={ROLE_FORM_ID} onSubmit={handleSubmit} className="flex flex-col gap-5">
         {error && <FormAlert>{error}</FormAlert>}
+
+        {/* Los roles que trae el sistema ya se pueden ajustar enteros —un
+            "Gerente" no significa lo mismo en una galletería que en un
+            restaurante—, pero el cambio tiene una consecuencia que no se ve y
+            que conviene decir ANTES de tocar nada: mientras el rol está como
+            viene, cada función nueva que se publique le llega sola. En cuanto
+            se ajusta a mano, deja de pasar y hay que dársela cuando salga. */}
+        {mode === "edit" && role?.isSystem && !role.permissionsCustomized && (
+          <FormAlert tone="info" icon={Info}>
+            <strong>{role.name}</strong> es un rol que trae el sistema, y puedes
+            cambiarlo a tu gusto. Ten en cuenta una cosa: tal como está ahora,
+            cada función nueva de BookiPos le llega sola. Si le ajustas los
+            permisos, mandará lo que tú dejes escrito y las funciones que salgan
+            después tendrás que dárselas tú.
+          </FormAlert>
+        )}
 
         <FormSection title="Identificación del rol">
           <FieldGrid cols={2}>
