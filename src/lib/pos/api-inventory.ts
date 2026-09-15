@@ -25,6 +25,14 @@ export interface InvProduct {
   _id: string
   sku: string
   itemType: ItemType
+  /**
+   * Es empaque: la bolsa, el vaso, la caja. Es lo que el POS ofrece al cobrar.
+   * Puede faltar en fichas creadas antes de la 1.5.0: trátalo como "falso si
+   * falta".
+   */
+  isPackaging?: boolean
+  /** Foto de la ficha. Es como se reconoce un empaque en la caja. */
+  imageUrl?: string | null
   name: string
   brand?: string
   supplier?: string
@@ -194,10 +202,19 @@ export async function updateSede(
 
 // ─── Productos y categorías ──────────────────────────────────────────────────
 
-export async function listProducts(includeInactive = false): Promise<InvProduct[]> {
-  const res = await authFetch(
-    `/inventory/products${includeInactive ? "?includeInactive=true" : ""}`,
-  )
+/**
+ * Ítems de inventario. `isPackaging` filtra: `true` solo empaques (lo que pide
+ * el cobro), `false` solo lo que no lo es, y sin valor, todo junto.
+ */
+export async function listProducts(
+  includeInactive = false,
+  isPackaging?: boolean,
+): Promise<InvProduct[]> {
+  const params = new URLSearchParams()
+  if (includeInactive) params.set("includeInactive", "true")
+  if (isPackaging !== undefined) params.set("isPackaging", String(isPackaging))
+  const qs = params.toString()
+  const res = await authFetch(`/inventory/products${qs ? `?${qs}` : ""}`)
   return parseResponse<InvProduct[]>(res)
 }
 

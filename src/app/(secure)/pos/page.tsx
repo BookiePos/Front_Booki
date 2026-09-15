@@ -52,7 +52,9 @@ import {
   checkoutOrder,
   voidOrder,
   listDiscounts,
+  sugerirEmpaque,
   PAYMENT_METHOD_LABELS,
+  type SugerenciaEmpaque,
   type PosProduct,
   type PaymentMethod,
   type Sale,
@@ -367,12 +369,23 @@ export default function VentaPage() {
    * suele ser la misma persona, y elegirla en cada cobro cansa.
    */
   const [sellerKey, setSellerKey] = React.useState(QUIEN_COBRA)
-  // Empaque extra de este cobro: la bolsa grande, la caja de más.
+  /**
+   * Con qué empaque sale esta venta.
+   *
+   * Lo que se marque aquí es lo que baja del inventario: el empaque de la ficha
+   * del producto ya NO se descuenta por su cuenta (el cobro manda
+   * `packagingExplicit`). Por eso la lista empieza con la sugerencia ya puesta
+   * —lo que se usó la vez anterior con estos mismos productos, o lo que dicen
+   * las fichas— y no vacía: si arrancara vacía, "no tocar nada" sería "sin
+   * empaques" y las bolsas dejarían de descontarse el día del despliegue.
+   */
   const [empaqueAbierto, setEmpaqueAbierto] = React.useState(false)
-  const [invItems, setInvItems] = React.useState<InvProduct[]>([])
-  const [extraPack, setExtraPack] = React.useState<
-    { productId: string; qty: string }[]
-  >([])
+  const [empaques, setEmpaques] = React.useState<InvProduct[]>([])
+  /** Cuánto de cada empaque, por id de ítem de inventario. */
+  const [empaqueSel, setEmpaqueSel] = React.useState<Record<string, number>>({})
+  const [sugerencia, setSugerencia] = React.useState<SugerenciaEmpaque | null>(
+    null,
+  )
   /**
    * Factura electrónica DIAN. Es un interruptor explícito en el cobro, no un
    * trámite aparte: si el cliente la pide, se marca aquí y sale con la venta.
@@ -416,30 +429,48 @@ export default function VentaPage() {
     void lookupEmployees().then(setEmpList).catch(() => setEmpList([]))
   }, [checkoutOpen])
 
-  // Los ítems de inventario solo hacen falta si se abre "Empaque extra", que es
-  // la excepción: no se piden en cada cobro.
+  /**
+   * Al abrir el cobro: los empaques disponibles y con cuál suele salir esto.
+   *
+   * Las dos cosas se piden a la vez y en cada cobro —ya no "solo si abres la
+   * sección"—, porque ahora la sugerencia tiene que estar puesta ANTES de que
+   * nadie mire: es lo que se va a descontar si se cobra sin abrir nada.
+   *
+   * Si cualquiera de las dos falla, el cobro sigue: se queda sin sugerencia y
+   * quien cobra elige a mano. Nunca al revés.
+   */
   React.useEffect(() => {
-    if (!empaqueAbierto || invItems.length > 0) return
+    if (!checkoutOpen || !sedeId || cart.length === 0) return
     let vivo = true
     async function cargar() {
       await Promise.resolve()
-      try {
-        const items = await listInvItems()
-        if (!vivo) return
-        setInvItems(
-          items
-            .filter((i) => i.active)
-            .sort((a, b) => a.name.localeCompare(b.name)),
-        )
-      } catch {
-        // Sin la lista no se puede anotar empaque extra; la venta sigue igual.
+      const lines = cart.map((i) => ({ productId: i.product._id, qty: i.qty }))
+      const [items, sug] = await Promise.all([
+        listInvItems(false, true).catch(() => [] as InvProduct[]),
+        sugerirEmpaque(sedeId!, lines).catch(() => null),
+      ])
+      if (!vivo) return
+      setEmpaques(
+        items
+          .filter((i) => i.active)
+          .sort((a, b) => a.name.localeCompare(b.name)),
+      )
+      setSugerencia(sug)
+      if (sug) {
+        const inicial: Record<string, number> = {}
+        for (const l of sug.lineas) inicial[l.productId] = l.qty
+        setEmpaqueSel(inicial)
       }
     }
     void cargar()
     return () => {
       vivo = false
     }
-  }, [empaqueAbierto, invItems.length])
+    // `cart` a propósito fuera: la sugerencia se calcula al ABRIR el cobro. Si
+    // se recalculara con cada cambio del carrito pisaría lo que quien cobra
+    // acabe de ajustar a mano, que es exactamente lo que no debe pasar.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [checkoutOpen, sedeId])
 
   /**
    * Elige (o suelta, con "") el cliente registrado. Sus datos pasan a la venta
@@ -976,6 +1007,9 @@ export default function VentaPage() {
   )
   const lineDiscountTotal = cart.reduce((s, i) => s + lineDiscount(i), 0)
   const itemCount = cart.reduce((s, i) => s + i.qty, 0)
+  // Se mira el carrito y no el catálogo entero: un negocio puede tener foto en
+  // la mitad de sus productos y en este pedido no haber ninguna.
+  const cartShowImages = cart.some((i) => i.product.imageUrl)
 
   // Propina en pesos (0 si no hay). El 10% se sugiere sobre el total de bienes.
   const tipAmount = tip ?? 0
@@ -1204,10 +1238,16 @@ export default function VentaPage() {
       }
     : undefined
 
-  const packagingRows = extraPack
-    .filter((r) => r.productId && Number(r.qty) > 0)
-    .map((r) => ({ productId: r.productId, qty: Number(r.qty) }))
-  const packagingPayload = packagingRows.length > 0 ? packagingRows : undefined
+  /**
+   * El empaque de la venta, tal como está marcado en pantalla.
+   *
+   * Siempre viaja, junto con `packagingExplicit`, y una lista vacía es una
+   * respuesta ("sin empaques"), no un hueco: lo que se ve marcado es
+   * exactamente lo que va a bajar del inventario.
+   */
+  const packagingRows = Object.entries(empaqueSel)
+    .filter(([, qty]) => qty > 0)
+    .map(([productId, qty]) => ({ productId, qty }))
 
   /** Por qué no se puede confirmar todavía (o `false` si se puede). */
   const confirmBlocked =
@@ -1324,7 +1364,8 @@ export default function VentaPage() {
           // Sin líneas se cobra todo lo que falte, que es el cobro de siempre.
           lines: splitLines,
           seller: sellerPayload,
-          packaging: packagingPayload,
+          packaging: packagingRows,
+          packagingExplicit: true,
         })
         // Con un cobro parcial la cuenta puede seguir abierta con el resto, así
         // que hay que volver a preguntarle al servidor en vez de darla por
@@ -1359,7 +1400,8 @@ export default function VentaPage() {
           payment,
           customer: customerData,
           seller: sellerPayload,
-          packaging: packagingPayload,
+          packaging: packagingRows,
+          packagingExplicit: true,
           tip: tipAmount || undefined,
           // El cliente registrado viaja aparte del deudor del fiado: su lista
           // de precios tiene que aplicarse pague como pague.
@@ -1402,9 +1444,9 @@ export default function VentaPage() {
       setDeliveryPhone("")
       setDeliveryNotes("")
       setCourier("")
-      // El pago, el cliente, la factura y el empaque extra también son de ESTE
-      // cobro: antes el siguiente cliente heredaba el nombre y la lista de
-      // precios del anterior. El vendedor no se toca (ver `sellerKey`).
+      // El pago, el cliente, la factura y el empaque también son de ESTE cobro:
+      // antes el siguiente cliente heredaba el nombre y la lista de precios del
+      // anterior. El vendedor no se toca (ver `sellerKey`).
       setReceived(null)
       setClienteModo("final")
       setCustId("")
@@ -1413,7 +1455,8 @@ export default function VentaPage() {
       setShowCustomer(false)
       setEmitInvoice(false)
       setSaveCustomer(false)
-      setExtraPack([])
+      setEmpaqueSel({})
+      setSugerencia(null)
       setEmpaqueAbierto(false)
       void fetchProducts()
 
@@ -2052,6 +2095,28 @@ export default function VentaPage() {
                         columna del carrito se desbordaba en un portátil de
                         1366 px y el "+" se salía de la tarjeta. */}
                     <div className="flex items-start gap-2">
+                      {/* Miniatura: a esta columna se le mira de reojo mientras
+                          se atiende, y la foto se reconoce más rápido que el
+                          nombre. Solo aparece si algún producto del carrito
+                          tiene foto; si no, sería una fila de cuadros vacíos
+                          comiéndose el ancho del nombre. */}
+                      {cartShowImages &&
+                        (i.product.imageUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={i.product.imageUrl}
+                            alt=""
+                            loading="lazy"
+                            className="size-9 shrink-0 rounded-md border border-border object-cover"
+                          />
+                        ) : (
+                          <span
+                            className="flex size-9 shrink-0 items-center justify-center rounded-md border border-dashed border-border text-muted-foreground"
+                            aria-hidden
+                          >
+                            <ImageOff className="size-4" />
+                          </span>
+                        ))}
                       <div className="min-w-0 flex-1">
                         <p className="line-clamp-2 text-[0.8125rem] font-medium leading-snug">
                           {i.product.name}
@@ -3356,90 +3421,159 @@ export default function VentaPage() {
                     )}
                   </CheckoutGroup>
 
-                  {/* Empaque extra: la bolsa grande porque se llevó todo junto,
-                      la caja de más. Lo que cada producto ya gasta por su ficha
-                      se descuenta solo y no hace falta anotarlo aquí. */}
+                  {/* Con qué empaque sale la venta. Lo que quede marcado aquí
+                      es EXACTAMENTE lo que baja del inventario: la ficha del
+                      producto ya no descuenta por su cuenta. Por eso abre con
+                      la sugerencia puesta y no vacío. */}
                   <CheckoutGroup
-                    title="Empaque extra"
+                    title="Empaques"
                     icon={Package}
                     open={empaqueAbierto}
                     onOpenChange={setEmpaqueAbierto}
                     summary={
                       packagingRows.length > 0
-                        ? `${packagingRows.length} ítem(s) anotados`
-                        : "Nada anotado"
+                        ? packagingRows
+                            .map((r) => {
+                              const e = empaques.find(
+                                (p) => p._id === r.productId,
+                              )
+                              return `${r.qty} ${e?.name ?? "empaque"}`
+                            })
+                            .join(" · ")
+                        : "Sin empaques"
                     }
                   >
                     <p className="text-[11px] text-muted-foreground">
-                      Sale del inventario y suma al costo de la venta; al cliente
-                      no se le cobra.
+                      Lo que quede marcado sale del inventario y suma al costo
+                      de la venta; al cliente no se le cobra.
                     </p>
-                    {extraPack.map((row, i) => (
-                      <div key={i} className="flex items-center gap-2">
-                        <NativeSelect
-                          className="flex-1"
-                          value={row.productId}
-                          aria-label={`Empaque extra ${i + 1}`}
-                          placeholder={
-                            invItems.length === 0 ? "Cargando…" : "Bolsa, caja, vaso…"
-                          }
-                          onChange={(v) =>
-                            setExtraPack((rows) =>
-                              rows.map((r, idx) =>
-                                idx === i ? { ...r, productId: v } : r,
-                              ),
+
+                    {/* De dónde salió lo que está marcado. Importa decirlo: es
+                        la diferencia entre "el sistema se acordó" y "el sistema
+                        se lo inventó", y quien cobra decide distinto según
+                        cuál de las dos sea. */}
+                    {sugerencia && sugerencia.origen !== "ninguno" && (
+                      <p className="flex items-start gap-1.5 text-[11px] text-muted-foreground">
+                        <Info className="mt-px size-3.5 shrink-0" aria-hidden />
+                        {sugerencia.origen === "historial"
+                          ? `Como las últimas ${sugerencia.apoyo} ${
+                              sugerencia.apoyo === 1 ? "vez" : "veces"
+                            } que vendiste esto.`
+                          : "Según el empaque de la ficha de cada producto."}
+                      </p>
+                    )}
+
+                    {empaques.length === 0 ? (
+                      <p className="text-[11px] text-muted-foreground">
+                        Todavía no hay empaques registrados. Se cargan en
+                        Inventario → Empaques.
+                      </p>
+                    ) : (
+                      <>
+                        <div className="grid grid-cols-2 gap-2">
+                          {empaques.map((e) => {
+                            const qty = empaqueSel[e._id] ?? 0
+                            return (
+                              <div
+                                key={e._id}
+                                className={cn(
+                                  "flex flex-col gap-1.5 rounded-xl border p-2 transition-colors",
+                                  qty > 0
+                                    ? "border-primary/50 bg-primary/5"
+                                    : "border-border",
+                                )}
+                              >
+                                <button
+                                  type="button"
+                                  className="flex min-w-0 items-center gap-2 text-left"
+                                  aria-label={`Agregar ${e.name}`}
+                                  onClick={() =>
+                                    setEmpaqueSel((s) => ({
+                                      ...s,
+                                      [e._id]: (s[e._id] ?? 0) + 1,
+                                    }))
+                                  }
+                                >
+                                  {e.imageUrl ? (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img
+                                      src={e.imageUrl}
+                                      alt=""
+                                      loading="lazy"
+                                      className="size-10 shrink-0 rounded-lg border border-border object-cover"
+                                    />
+                                  ) : (
+                                    <span
+                                      className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-dashed border-border text-muted-foreground"
+                                      aria-hidden
+                                    >
+                                      <ImageOff className="size-4" />
+                                    </span>
+                                  )}
+                                  <span className="line-clamp-2 min-w-0 text-[0.8125rem] leading-snug font-medium text-balance">
+                                    {e.name}
+                                  </span>
+                                </button>
+                                <div className="flex items-center gap-1">
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="icon-sm"
+                                    disabled={qty === 0}
+                                    aria-label={`Quitar uno de ${e.name}`}
+                                    onClick={() =>
+                                      setEmpaqueSel((s) => ({
+                                        ...s,
+                                        [e._id]: Math.max((s[e._id] ?? 0) - 1, 0),
+                                      }))
+                                    }
+                                  >
+                                    <Minus />
+                                  </Button>
+                                  <QuantityInput
+                                    value={qty}
+                                    decimales={0}
+                                    aria-label={`Cantidad de ${e.name}`}
+                                    className="h-8 flex-1 text-center"
+                                    onValueChange={(v) =>
+                                      setEmpaqueSel((s) => ({
+                                        ...s,
+                                        [e._id]: Math.max(v ?? 0, 0),
+                                      }))
+                                    }
+                                  />
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="icon-sm"
+                                    aria-label={`Agregar uno de ${e.name}`}
+                                    onClick={() =>
+                                      setEmpaqueSel((s) => ({
+                                        ...s,
+                                        [e._id]: (s[e._id] ?? 0) + 1,
+                                      }))
+                                    }
+                                  >
+                                    <Plus />
+                                  </Button>
+                                </div>
+                              </div>
                             )
-                          }
-                          options={invItems.map((p) => ({
-                            value: p._id,
-                            label: p.name,
-                          }))}
-                        />
-                        <QuantityInput
-                          value={row.qty === "" ? null : Number(row.qty)}
-                          onValueChange={(v) =>
-                            setExtraPack((rows) =>
-                              rows.map((r, idx) =>
-                                idx === i
-                                  ? { ...r, qty: v === null ? "" : String(v) }
-                                  : r,
-                              ),
-                            )
-                          }
-                          decimales={0}
-                          aria-label={`Cantidad del empaque extra ${i + 1}`}
-                          className="h-9 w-20 text-right"
-                        />
+                          })}
+                        </div>
                         <Button
                           type="button"
-                          variant="ghost"
-                          size="icon-sm"
-                          aria-label={`Quitar el empaque extra ${i + 1}`}
-                          onClick={() =>
-                            setExtraPack((rows) =>
-                              rows.filter((_, idx) => idx !== i),
-                            )
-                          }
+                          variant="outline"
+                          size="sm"
+                          className="self-start"
+                          disabled={packagingRows.length === 0}
+                          onClick={() => setEmpaqueSel({})}
                         >
                           <X className="size-4" />
+                          Sin empaques
                         </Button>
-                      </div>
-                    ))}
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="self-start"
-                      onClick={() =>
-                        setExtraPack((rows) => [
-                          ...rows,
-                          { productId: "", qty: "1" },
-                        ])
-                      }
-                    >
-                      <Plus className="size-4" />
-                      Agregar empaque
-                    </Button>
+                      </>
+                    )}
                   </CheckoutGroup>
                 </CheckoutColumn>
               </div>

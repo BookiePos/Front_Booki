@@ -67,69 +67,69 @@ export interface Novedad {
 }
 
 export const NOVEDADES: Novedad = {
-  version: "1.4.0",
-  fecha: "14 de septiembre de 2026",
-  titulo: "El costo, donde está la factura",
+  version: "1.5.0",
+  fecha: "15 de septiembre de 2026",
+  titulo: "Los empaques, por fin en su sitio",
   resumen:
-    "Lo que salió del primer día cargando datos de verdad. Cada punto trae un botón que te lleva a la pantalla donde está.",
+    "Las bolsas y los vasos ya no están revueltos entre los insumos: tienen sección propia, foto, y en la caja eliges con cuáles sale cada pedido.",
   paginas: [
     {
-      titulo: "El precio de compra se escribe una sola vez",
+      titulo: "Una sección solo para tus empaques",
       gancho:
-        "Y donde toca: al recibir la mercancía, con la factura en la mano.",
+        "Con foto, porque nadie reconoce una bolsa leyendo “BOL-KRAFT-22”.",
       icono: "inventario",
       ilustracion: "orden-inventario",
       puntos: [
         {
-          donde: "Inventario → ficha del insumo",
+          donde: "Inventario → Empaques",
           texto:
-            "Se quitó el “precio de compra”. Al dar de alta un insumo todavía no tienes la factura, así que ese número se ponía a ojo.",
+            "Bolsas, vasos, cajas y cubiertos viven aquí, cada uno con su foto. Se compran y se cuentan como todo lo demás.",
           ruta: "/panel/inventario",
-          etiquetaRuta: "Ir a Inventario",
+          etiquetaRuta: "Ir a Empaques",
         },
         {
-          donde: "Inventario → Entrada de mercancía",
+          donde: "Inventario → ficha de cualquier insumo",
           texto:
-            "Aquí el costo es obligatorio y empieza en blanco. Antes venía puesto con el precio viejo y era fácil guardarlo sin mirar.",
+            "Toda ficha admite foto ahora, y una casilla “Es un empaque” que lo mueve a esa sección.",
           ruta: "/panel/inventario",
-          etiquetaRuta: "Registrar una entrada",
+          etiquetaRuta: "Abrir Inventario",
         },
         {
-          donde: "Inventario → Entrada de mercancía",
+          donde: "Inventario → Empaques",
           texto:
-            "Debajo te recuerda a cuánto lo compraste la vez pasada. Es un dato para comparar, no un valor que se guarde solo.",
+            "Si ya tenías bolsas configuradas en las fichas de tus productos, un botón las trae aquí de una vez.",
           ruta: "/panel/inventario",
           etiquetaRuta: "Ver cómo quedó",
         },
       ],
     },
     {
-      titulo: "Los roles ya son tuyos",
+      titulo: "En la caja eliges con qué sale el pedido",
       gancho:
-        "Un “Gerente” no significa lo mismo en una galletería que en un restaurante.",
-      icono: "cifras",
-      ilustracion: "cifras-claras",
+        "Y el sistema se va acordando de con qué sueles despachar cada cosa.",
+      icono: "cobro",
+      ilustracion: "columnas-cobro",
       puntos: [
         {
-          donde: "Configuración → Usuarios y roles",
+          donde: "Terminal → Cobrar → Empaques",
           texto:
-            "Dueño, Administrador, Gerente y Cajero ya se pueden ajustar: quítales o dales los permisos que quieras.",
-          ruta: "/panel/config/usuarios",
-          etiquetaRuta: "Ir a Usuarios y roles",
+            "Marcas las bolsas con su foto, o dejas el pedido sin ninguna. Lo que quede marcado es lo que baja del inventario.",
+          ruta: "/pos",
+          etiquetaRuta: "Ir al terminal",
         },
         {
-          donde: "Configuración → Usuarios y roles → Editar rol",
+          donde: "Terminal → Cobrar → Empaques",
           texto:
-            "Un rol sin tocar recibe solo cada función nueva. Si lo ajustas, manda lo que tú dejes escrito. La ficha te lo avisa antes.",
-          ruta: "/panel/config/usuarios",
-          etiquetaRuta: "Ver los roles",
+            "Abre con lo que usaste las últimas veces que vendiste eso mismo. Si nunca lo has vendido, con lo que diga la ficha.",
+          ruta: "/pos",
+          etiquetaRuta: "Probarlo en una venta",
         },
         {
-          donde: "Configuración → Usuarios y roles",
+          donde: "Terminal → el pedido",
           texto:
-            "Lo único que no te deja: quitarle a tu propio rol el permiso de gestionar roles o usuarios. Te dejarías fuera sin vuelta atrás.",
-          ruta: "/panel/config/usuarios",
-          etiquetaRuta: "Abrir la pantalla",
+            "Cada línea del pedido muestra la foto del producto, para revisar de un vistazo lo que se está cobrando.",
+          ruta: "/pos",
+          etiquetaRuta: "Abrir la caja",
         },
       ],
     },

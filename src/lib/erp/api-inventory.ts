@@ -27,6 +27,14 @@ export interface InvProduct {
   _id: string
   sku: string
   itemType: ItemType
+  /**
+   * Es empaque: la bolsa, el vaso, la caja. Se administra en su propia sección
+   * de Inventario y es lo que el POS ofrece al cobrar. Puede faltar en fichas
+   * creadas antes de la 1.5.0, así que trátalo siempre como "falso si falta".
+   */
+  isPackaging?: boolean
+  /** Foto de la ficha. Ausente si nunca se subió una. */
+  imageUrl?: string | null
   name: string
   brand?: string
   supplier?: string
@@ -309,16 +317,70 @@ export async function deleteDiscount(id: string): Promise<{ ok: boolean }> {
 
 // ─── Productos y categorías ──────────────────────────────────────────────────
 
-export async function listProducts(includeInactive = false): Promise<InvProduct[]> {
-  const res = await authFetch(
-    `/inventory/products${includeInactive ? "?includeInactive=true" : ""}`,
-  )
+/**
+ * Ítems de inventario.
+ *
+ * `isPackaging` filtra: `true` solo empaques, `false` solo lo que no lo es, y
+ * sin valor todo junto —que es lo que quieren la fusión, la factura por foto y
+ * la actualización de precios, a las que un empaque les da igual—.
+ */
+export async function listProducts(
+  includeInactive = false,
+  isPackaging?: boolean,
+): Promise<InvProduct[]> {
+  const params = new URLSearchParams()
+  if (includeInactive) params.set("includeInactive", "true")
+  if (isPackaging !== undefined) params.set("isPackaging", String(isPackaging))
+  const qs = params.toString()
+  const res = await authFetch(`/inventory/products${qs ? `?${qs}` : ""}`)
   return parseResponse<InvProduct[]>(res)
+}
+
+/**
+ * Sube o reemplaza la foto de la ficha.
+ *
+ * Se manda FormData y NO se pone Content-Type a mano: el navegador tiene que
+ * escribirlo él para incluir el `boundary` (ver `applyContentType` en
+ * api-admin).
+ */
+export async function uploadProductImage(
+  id: string,
+  file: File | Blob,
+): Promise<InvProduct> {
+  const body = new FormData()
+  body.append("file", file)
+  const res = await authFetch(`/inventory/products/${id}/image`, {
+    method: "POST",
+    body,
+  })
+  return parseResponse<InvProduct>(res)
+}
+
+/** Quita la foto de la ficha (y borra el archivo del store). */
+export async function deleteProductImage(id: string): Promise<InvProduct> {
+  const res = await authFetch(`/inventory/products/${id}/image`, {
+    method: "DELETE",
+  })
+  return parseResponse<InvProduct>(res)
+}
+
+/**
+ * Marca como empaque los ítems que ya figuran como empaque en la ficha de
+ * algún producto vendible. Devuelve cuántos cambió; volver a llamarlo no hace
+ * daño.
+ */
+export async function adoptPackaging(): Promise<{ marcados: number }> {
+  const res = await authFetch("/inventory/products/adopt-packaging", {
+    method: "POST",
+  })
+  return parseResponse<{ marcados: number }>(res)
 }
 
 export interface ProductPayload {
   sku?: string
   itemType?: ItemType
+  /** Es empaque: lo saca de "Insumos y mercancía" y lo lleva a "Empaques". */
+  isPackaging?: boolean
   name?: string
   brand?: string
   supplier?: string
@@ -385,6 +447,8 @@ export interface ImportProductRow {
   sku?: string
   name?: string
   itemType?: ItemType
+  /** Columna "empaque" del archivo. */
+  isPackaging?: boolean
   brand?: string
   supplier?: string
   description?: string
