@@ -1,6 +1,6 @@
 "use client"
 
-import { Bell, Search, Compass, ShoppingCart } from "lucide-react"
+import { Bell, Compass, ShoppingCart } from "lucide-react"
 import { usePathname, useRouter } from "next/navigation"
 
 import { useAuth } from "@/lib/auth-context"
@@ -8,7 +8,7 @@ import { useOnboarding } from "@/lib/onboarding/onboarding-context"
 import { guideForPath } from "@/lib/onboarding/guides"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
-import { Input } from "@/components/ui/input"
+import { GlobalSearch } from "@/components/erp/global-search"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { ThemeToggle } from "@/components/ui/theme-toggle"
@@ -54,25 +54,8 @@ export function AppTopbar() {
       <SidebarTrigger className="size-9" aria-label="Alternar menú lateral" />
       <Separator orientation="vertical" className="mr-1 hidden h-6 md:block" />
 
-      {/* Buscador */}
-      <div
-        data-tour="buscar"
-        className="relative ml-1 hidden max-w-md flex-1 sm:block"
-      >
-        <Search
-          className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
-          aria-hidden
-        />
-        <label htmlFor="topbar-search" className="sr-only">
-          Buscar en BookiPos
-        </label>
-        <Input
-          id="topbar-search"
-          type="search"
-          placeholder="Buscar productos, facturas, clientes…"
-          className="h-9 pl-9"
-        />
-      </div>
+      {/* Buscador: productos, clientes, proveedores y secciones del negocio */}
+      <GlobalSearch />
 
       <div className="ml-auto flex items-center gap-1.5">
         <Button

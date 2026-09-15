@@ -36,6 +36,13 @@ import { HelpTip, type HelpTipProps } from "@/components/ui/help-tip"
  * - **Cabecera y pie fijos, solo el cuerpo hace scroll.** Es la diferencia
  *   entre saber siempre qué estás llenando y perderte en el campo doce.
  */
+/** Campos en los que tiene sentido empezar a escribir. */
+const FIRST_FIELD = [
+  'input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([disabled]):not([readonly])',
+  "textarea:not([disabled]):not([readonly])",
+  "select:not([disabled])",
+].join(",")
+
 export function FormDialog({
   open,
   onOpenChange,
@@ -76,12 +83,20 @@ export function FormDialog({
   // no avisa de que sigue habiendo campos más arriba.
   const [scrolled, setScrolled] = React.useState(false)
 
-  // Al abrir, el foco va a la tarjeta y no al primer elemento pulsable.
-  // Por defecto caía en la "X" de cerrar —es lo primero del DOM— y la ficha se
-  // abría con el botón de descartar resaltado, que es justo lo contrario de lo
-  // que se quiere sugerir. Enfocar el contenedor conserva Escape, el Tab dentro
-  // de la ficha y el anuncio del título en el lector de pantalla.
+  // Al abrir, el foco va al primer campo del formulario: se abre la ficha y
+  // se empieza a escribir, sin tener que tocar el campo antes. Nunca a la "X"
+  // de cerrar, que es lo primero del DOM y dejaba el botón de descartar
+  // resaltado. Si la ficha no tiene campos (solo lectura, confirmaciones) va a
+  // la tarjeta, que conserva Escape, el Tab dentro y el anuncio del título.
   const popupRef = React.useRef<HTMLDivElement | null>(null)
+  const bodyRef = React.useRef<HTMLDivElement | null>(null)
+  const firstField = React.useCallback(() => {
+    const fields = bodyRef.current?.querySelectorAll<HTMLElement>(FIRST_FIELD)
+    const visible = Array.from(fields ?? []).find(
+      (el) => el.getClientRects().length > 0,
+    )
+    return visible ?? popupRef.current
+  }, [])
 
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
@@ -98,7 +113,7 @@ export function FormDialog({
         />
         <DialogPrimitive.Popup
           ref={popupRef}
-          initialFocus={popupRef}
+          initialFocus={firstField}
           className={cn(
             "fixed top-1/2 left-1/2 z-50 flex -translate-x-1/2 -translate-y-1/2 flex-col",
             // `svh` y no `vh`: en móvil la barra del navegador se recoge y con
@@ -176,6 +191,7 @@ export function FormDialog({
           </header>
 
           <div
+            ref={bodyRef}
             onScroll={(e) => {
               const top = e.currentTarget.scrollTop > 4
               setScrolled((prev) => (prev === top ? prev : top))

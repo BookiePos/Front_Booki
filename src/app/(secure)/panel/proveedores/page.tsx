@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { SearchParamSync } from "@/components/erp/search-param-sync"
 import {
   Plus,
   Pencil,
@@ -456,6 +457,7 @@ export default function ProveedoresPage() {
 
   return (
     <>
+      <SearchParamSync onValue={setSearch} />
       <PageHeader
         section="Comercial"
         title="Proveedores"

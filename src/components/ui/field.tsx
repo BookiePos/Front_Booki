@@ -7,6 +7,15 @@ import { cn } from "@/lib/utils"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { HelpTip, type HelpTipProps } from "@/components/ui/help-tip"
+import { SearchableSelect } from "@/components/ui/searchable-select"
+
+/**
+ * A partir de cuántas opciones la lista se vuelve buscable. Con cinco o seis
+ * (tipo de documento, IVA) el `<select>` nativo es lo más rápido, sobre todo en
+ * el celular; con la lista de productos o proveedores del negocio hay que
+ * poder escribir para encontrar.
+ */
+const SEARCHABLE_FROM = 8
 
 /**
  * Campo de formulario: etiqueta, ayuda, control, pista y error.
@@ -167,6 +176,22 @@ export function NativeSelect({
   /** Opción vacía inicial ("Sin cargo", "Todas las sedes"). */
   placeholder?: string
 }) {
+  if (options.length > SEARCHABLE_FROM) {
+    return (
+      <SearchableSelect
+        value={value}
+        onChange={onChange}
+        options={options}
+        placeholder={placeholder}
+        className={className}
+        id={props.id}
+        disabled={props.disabled}
+        aria-label={props["aria-label"]}
+        aria-invalid={props["aria-invalid"]}
+        aria-describedby={props["aria-describedby"]}
+      />
+    )
+  }
   return (
     <div className={cn("relative min-w-0", className)}>
       <select
@@ -180,6 +205,10 @@ export function NativeSelect({
           "disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-muted disabled:opacity-60",
           "aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20",
           "md:text-sm dark:bg-input/25 dark:hover:bg-input/35",
+          // Las opciones las pinta el sistema operativo. Con el fondo
+          // semitransparente del campo en oscuro, Windows las dejaba en letra
+          // clara sobre blanco: ilegibles. Se les da el color del menú.
+          "[&_option]:bg-popover [&_option]:text-popover-foreground",
           // Sin valor elegido el texto va en gris, como el placeholder de Input.
           value === "" && placeholder && "text-muted-foreground",
         )}
