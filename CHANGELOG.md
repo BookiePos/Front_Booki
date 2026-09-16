@@ -85,6 +85,44 @@ esa columna se le mira de reojo mientras se atiende, y una foto se reconoce más
 rápido que un nombre. Si ningún producto del pedido tiene foto, la miniatura no
 aparece: sería una fila de cuadros vacíos comiéndose el ancho del nombre.
 
+### El costo de una receta, completo y a la vista
+
+Hasta ahora, la ficha de un producto **con receta no mostraba ningún costo**: el
+"te cuesta X · ganas Y" de debajo del precio solo salía cuando el producto venía
+de un ítem del inventario tal cual. Justo al revés de donde hace falta — en un
+ítem suelto el costo se sabe de memoria; en una receta hay que sumar cinco
+cosas.
+
+En **Productos → ficha del producto** hay ahora dos casillas nuevas, las dos
+opcionales y las dos en pesos por unidad vendida:
+
+- **Mano de obra** — lo que calculas que cuesta el trabajo de preparar una. No
+  tiene nada que ver con la nómina ni la toca.
+- **Empaque** — la bolsa, el vaso o la servilleta **que no llevas en el
+  inventario**. Es la alternativa a elegir el empaque del catálogo, no su
+  reemplazo: si usas las dos, se suman. Así puedes cobrarte el vaso que sí
+  cuentas y la servilleta que no.
+
+Debajo aparece el desglose —ingredientes, empaque, mano de obra, total— y el
+semáforo de margen con su color. Si algún ingrediente todavía no tiene costo de
+compra, lo dice: ese total saldría más barato de lo real y el verde sería
+mentira.
+
+### Recetas de lote: el empaque sale de la mano de obra
+
+En **Producción → Recetas**, la casilla de mano de obra cargaba también con el
+empaque ("mano de obra, energía, empaque"). Mezclados no se podía ver subir la
+bolsa: es el costo que más se mueve y el que se negocia por su lado.
+
+- Casilla propia de **Empaque (por lote)**, opcional, con lo que cuesta por
+  unidad calculado debajo.
+- El costo por unidad del terminado ahora se desglosa en tres —materiales, mano
+  de obra y empaque— tanto al escribir la receta como en el tablero de
+  Terminados y en el detalle de la orden terminada.
+- **Las recetas ya se pueden editar.** Antes solo se podían crear y borrar, así
+  que cambiar un gramo o el precio del empaque obligaba a escribir la receta
+  entera otra vez.
+
 ---
 
 ## 1.4.0 — 14 de septiembre de 2026
