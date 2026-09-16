@@ -39,6 +39,12 @@ export interface Bom {
   lines: BomLine[]
   /** Mano de obra e indirectos por lote (COP entero). */
   extraCost: number
+  /**
+   * Empaque del lote escrito en dinero (COP entero). Va aparte de la mano de
+   * obra porque es el costo que más se mueve y el que se negocia por su lado.
+   * Puede faltar en recetas creadas antes de esta versión.
+   */
+  packagingCost?: number
   note?: string
   active: boolean
   createdAt: string
@@ -56,6 +62,7 @@ export interface CreateBomPayload {
   outputQty: number
   lines: BomLinePayload[]
   extraCost?: number
+  packagingCost?: number
   note?: string
 }
 
@@ -64,6 +71,7 @@ export interface UpdateBomPayload {
   outputQty?: number
   lines?: BomLinePayload[]
   extraCost?: number
+  packagingCost?: number
   note?: string
   active?: boolean
 }
@@ -127,6 +135,8 @@ export interface ProductionOutput {
   name: string
   outputQty: number
   extraCost: number
+  /** Empaque por lote escrito en dinero en la receta. */
+  packagingCost?: number
   lines: OutputLine[]
   product: {
     _id: string
@@ -229,6 +239,8 @@ export interface ProductionOrder {
   producedQty: number
   lines: ProductionOrderLine[]
   extraCost: number
+  /** Empaque del lote, prorrateado de la receta y congelado en la orden. */
+  packagingCost?: number
   materialsCost: number
   totalCost: number
   unitCost: number
@@ -249,6 +261,7 @@ export interface CreateProductionOrderPayload {
   /** Si se omite, el backend explota la receta del terminado. */
   lines?: { productId: string; qty: number }[]
   extraCost?: number
+  packagingCost?: number
   note?: string
   start?: boolean
 }
@@ -259,6 +272,7 @@ export interface CompleteProductionOrderPayload {
   lotCode?: string
   expiresAt?: string
   extraCost?: number
+  packagingCost?: number
   note?: string
 }
 

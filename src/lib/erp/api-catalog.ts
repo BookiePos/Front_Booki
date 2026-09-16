@@ -69,6 +69,16 @@ export interface CatalogProduct {
    * bolsa— y por eso va aparte de la receta. Puede faltar en productos viejos.
    */
   packaging?: RecipeLine[]
+  /**
+   * Mano de obra por unidad vendida, en pesos. Es lo que el dueño calcula que
+   * cuesta el trabajo de una porción; no sale de la nómina ni la toca.
+   */
+  laborCost?: number
+  /**
+   * Empaque por unidad vendida escrito en pesos, para quien no lleva las
+   * bolsas en el inventario. Convive con `packaging`: si están los dos, suman.
+   */
+  packagingCost?: number
   /** Foto del producto (Vercel Blob). Ausente si nunca se subió una. */
   imageUrl?: string | null
   active: boolean
@@ -94,6 +104,10 @@ export interface CatalogProductPayload {
   recipe?: RecipeLinePayload[]
   /** Una lista vacía quita el empaque; no mandarla lo deja como estaba. */
   packaging?: RecipeLinePayload[]
+  /** Mano de obra por unidad vendida, en pesos. Cero la quita. */
+  laborCost?: number
+  /** Empaque por unidad vendida escrito en pesos. Cero lo quita. */
+  packagingCost?: number
   active?: boolean
 }
 
