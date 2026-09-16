@@ -30,6 +30,15 @@ export interface SubscriptionView {
   failedAttempts?: number
 }
 
+/** Tarjeta registrada de la empresa, tal como la guarda el backend. */
+export interface PaymentMethodView {
+  paymentSourceId: number
+  customerEmail: string
+  /** Marca (VISA, MASTERCARD…) y últimos cuatro dígitos: datos públicos de Wompi. */
+  brand?: string | null
+  lastFour?: string | null
+}
+
 export interface PaymentView {
   reference: string
   kind: "subscription" | "renewal" | "docPackage"
@@ -48,8 +57,17 @@ export interface DocumentUsage {
 
 export interface BillingStatus {
   subscription: SubscriptionView | null
+  /** Tarjeta guardada; `null`/ausente si la empresa nunca registró una. */
+  paymentMethod?: PaymentMethodView | null
   payments: PaymentView[]
   documents: DocumentUsage
+}
+
+/** Estado real de un cobro, consultado a la pasarela si seguía pendiente. */
+export interface PaymentSyncResult {
+  reference: string
+  status: PaymentView["status"]
+  applied: boolean
 }
 
 export interface ChargeResult {
@@ -61,8 +79,13 @@ export interface ChargeResult {
 export interface SubscribePayload {
   plan: BusinessPlan
   billingCycle?: "monthly" | "annual"
-  cardToken: string
-  acceptanceToken: string
+  /**
+   * Tarjeta nueva del widget. Se omite cuando ya hay una registrada: el token
+   * de Wompi es de un solo uso, así que la tarjeta guardada es la que sirve
+   * para cambiar de plan sin volver a escribirla.
+   */
+  cardToken?: string
+  acceptanceToken?: string
   acceptPersonalAuth?: string
   customerEmail?: string
   addOns?: {
@@ -70,6 +93,14 @@ export interface SubscribePayload {
     extraSedes?: number
     extraEmployees?: number
   }
+}
+
+/** Registro de la tarjeta sin cobrar nada. */
+export interface SavePaymentMethodPayload {
+  cardToken: string
+  acceptanceToken: string
+  acceptPersonalAuth?: string
+  customerEmail?: string
 }
 
 export async function getBillingConfig(): Promise<BillingConfig> {
@@ -86,6 +117,33 @@ export async function subscribe(payload: SubscribePayload): Promise<ChargeResult
       method: "POST",
       body: JSON.stringify(payload),
     }),
+  )
+}
+
+/**
+ * Guarda la tarjeta en el backend (la cambia por una fuente de pago de Wompi).
+ * Sin esto la tarjeta solo vivía en memoria de la pestaña y desaparecía al
+ * recargar la página.
+ */
+export async function savePaymentMethod(
+  payload: SavePaymentMethodPayload,
+): Promise<PaymentMethodView> {
+  return parseResponse<PaymentMethodView>(
+    await authFetch("/billing/payment-method", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  )
+}
+
+/**
+ * Pregunta por el estado real de un cobro. El backend consulta a Wompi si
+ * sigue pendiente, en vez de esperar al webhook: es lo que permite cerrar el
+ * pago en segundos en vez de quedarse en "pago en proceso".
+ */
+export async function syncPayment(reference: string): Promise<PaymentSyncResult> {
+  return parseResponse<PaymentSyncResult>(
+    await authFetch(`/billing/payments/${encodeURIComponent(reference)}`),
   )
 }
 
