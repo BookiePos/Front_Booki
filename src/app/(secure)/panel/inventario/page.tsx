@@ -39,6 +39,9 @@ import {
   ScanSearch,
   Wrench,
   GitMerge,
+  ShoppingBag,
+  ImageOff,
+  Sparkles,
 } from "lucide-react"
 
 import { useAuth } from "@/lib/auth-context"
@@ -65,6 +68,9 @@ import {
   importProducts,
   importStock,
   applyStockCount,
+  uploadProductImage,
+  deleteProductImage,
+  adoptPackaging,
   type ImportProductRow,
   type ImportResult,
   type ImportStockRow,
@@ -105,6 +111,8 @@ import {
   PresentacionCompraPicker,
   UnidadSelect,
 } from "@/components/erp/unidad-fields"
+import { toast } from "sonner"
+import { ProductImageField } from "@/components/erp/product-image-field"
 import { TrazabilidadDialog } from "@/components/erp/trazabilidad-dialog"
 import { ReporteMermaDialog } from "@/components/erp/reporte-merma-dialog"
 import { MergeProductDialog } from "./merge-product-dialog"
@@ -715,6 +723,8 @@ interface ProductSheetProps {
   onSuccess: () => void
   /** Cierra este sheet y abre "Entrada" con el producto preseleccionado. */
   onRegisterEntry: (productId: string) => void
+  /** Al crear desde la sección de Empaques, la ficha nace marcada como empaque. */
+  defaultPackaging?: boolean
 }
 
 function ProductSheet({
@@ -727,9 +737,21 @@ function ProductSheet({
   suppliers,
   onSuccess,
   onRegisterEntry,
+  defaultPackaging = false,
 }: ProductSheetProps) {
   const [sku, setSku] = React.useState("")
   const [itemType, setItemType] = React.useState<ItemType>("ingredient")
+  /**
+   * Es empaque: la bolsa, el vaso, la caja. No es un tipo más al lado de
+   * "Producto" y "Montaje" sino una marca aparte, porque un empaque se compra,
+   * se cuenta y se merma igual que cualquier insumo: lo único que cambia es en
+   * qué sección se administra y que el POS puede ofrecerlo al cobrar.
+   */
+  const [isPackaging, setIsPackaging] = React.useState(false)
+  /** Foto elegida y pendiente de subir (se sube al guardar la ficha). */
+  const [imageFile, setImageFile] = React.useState<File | Blob | null>(null)
+  /** El usuario quitó la foto que ya tenía guardada. */
+  const [imageRemoved, setImageRemoved] = React.useState(false)
   const [name, setName] = React.useState("")
   const [brand, setBrand] = React.useState("")
   const [supplierSel, setSupplierSel] = React.useState("none")
@@ -811,9 +833,12 @@ function ProductSheet({
     async function reset() {
       await Promise.resolve()
       if (!open) return
+      setImageFile(null)
+      setImageRemoved(false)
       if (mode === "edit" && product) {
         setSku(product.sku)
         setItemType(product.itemType ?? "product")
+        setIsPackaging(product.isPackaging ?? false)
         setName(product.name)
         setBrand(product.brand ?? "")
         setLegacySupplier(product.supplier ?? "")
@@ -834,6 +859,9 @@ function ProductSheet({
       } else {
         setSku("")
         setItemType("ingredient")
+        // Abrir la ficha desde la sección de Empaques ya la deja marcada: si
+        // estás ahí, lo que vas a registrar es una bolsa.
+        setIsPackaging(defaultPackaging)
         setName("")
         setBrand("")
         setLegacySupplier("")
@@ -863,7 +891,7 @@ function ProductSheet({
       }
     }
     void reset()
-  }, [open, mode, product, suppliers])
+  }, [open, mode, product, suppliers, defaultPackaging])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -894,6 +922,7 @@ function ProductSheet({
       const payload = {
         sku,
         itemType,
+        isPackaging,
         name,
         brand: brand || undefined,
         supplier: supplierText || undefined,
@@ -918,18 +947,34 @@ function ProductSheet({
         // un 0 que borraría el costo que las entradas llevaban construido.
         salePrice: isIngredient && salePrice ? salePrice : undefined,
       }
+      let saved: InvProduct
       if (mode === "create") {
-        await createProduct({
+        saved = await createProduct({
           ...payload,
           categoryId: catId || undefined,
           expiresAt: payload.expiresAt || undefined,
         })
       } else if (product) {
         // En edición la cadena vacía sí viaja: significa quitar el proveedor.
-        await updateProduct(product._id, {
+        saved = await updateProduct(product._id, {
           ...payload,
           supplier: supplierText,
           supplierId: chosenSupplier?._id ?? "",
+        })
+      } else {
+        return
+      }
+      // La foto va después de guardar: al crear, el producto todavía no tiene
+      // id cuando se elige el archivo. Si la subida falla, la ficha YA está
+      // guardada, así que se avisa y no se deshace nada: volver a entrar y
+      // elegir la foto otra vez es mejor que perder lo escrito.
+      try {
+        if (imageFile) await uploadProductImage(saved._id, imageFile)
+        else if (imageRemoved && product?.imageUrl)
+          await deleteProductImage(saved._id)
+      } catch (err) {
+        toast.error("Se guardó la ficha, pero la foto no subió", {
+          description: errorMessage(err),
         })
       }
       onSuccess()
@@ -1011,6 +1056,30 @@ function ProductSheet({
               { value: "ingredient", label: "Producto", icon: Package },
               { value: "assembly", label: "Montaje", icon: Boxes },
             ]}
+          />
+          {/* La marca de empaque va aquí y no como un tipo más arriba porque no
+              es otra clase de cosa: una bolsa se compra, se cuenta y se merma
+              igual que la harina. Lo que cambia es dónde se administra. */}
+          <CheckboxField
+            id="p-packaging"
+            label="Es un empaque"
+            hint="Bolsas, vasos, cajas, cubiertos. Se administran en “Empaques” y el POS los ofrece al cobrar."
+            checked={isPackaging}
+            onCheckedChange={setIsPackaging}
+          />
+        </FormSection>
+
+        <FormSection
+          title="Foto"
+          description="Para reconocerlo de un vistazo. En los empaques es lo que se ve en la caja al cobrar."
+        >
+          <ProductImageField
+            currentUrl={product?.imageUrl}
+            file={imageFile}
+            onPick={setImageFile}
+            removed={imageRemoved}
+            onRemovedChange={setImageRemoved}
+            disabled={saving}
           />
         </FormSection>
 
@@ -2648,7 +2717,12 @@ function LotsPanel({
 
 // ─── Main page ───────────────────────────────────────────────────────────────
 
-type Tab = "productos" | "existencias" | "lotes" | "movimientos"
+type Tab =
+  | "productos"
+  | "empaques"
+  | "existencias"
+  | "lotes"
+  | "movimientos"
 
 /**
  * Qué se ve en cada pestaña, contado con las palabras del negocio.
@@ -2664,6 +2738,11 @@ const TAB_INFO: Record<Tab, { label: string; frase: string }> = {
     label: "Insumos y mercancía",
     frase:
       "Todo lo que manejas: las fichas de lo que compras, con su unidad, su presentación y su costo. Todavía no dice cuánto tienes.",
+  },
+  empaques: {
+    label: "Empaques",
+    frase:
+      "Bolsas, vasos, cajas y cubiertos, con su foto para reconocerlos. Se compran y se cuentan como todo lo demás, pero se gastan al vender: en la caja se elige con cuáles sale cada pedido.",
   },
   existencias: {
     label: "Existencias",
@@ -4543,6 +4622,8 @@ export default function InventarioPage() {
   const [movPage, setMovPage] = React.useState(1)
 
   // Sheets
+  /** Buscando entre los insumos los que ya se usan de empaque en alguna ficha. */
+  const [adoptando, setAdoptando] = React.useState(false)
   const [productSheetOpen, setProductSheetOpen] = React.useState(false)
   const [productSheetMode, setProductSheetMode] = React.useState<
     "create" | "edit"
@@ -4721,7 +4802,8 @@ export default function InventarioPage() {
     )
   }
 
-  const filteredProducts = products.filter((p) => {
+  /** Coincide con lo que se está buscando en la barra de arriba. */
+  function coincideBusqueda(p: InvProduct): boolean {
     const q = search.trim().toLowerCase()
     if (!q) return true
     return (
@@ -4730,12 +4812,51 @@ export default function InventarioPage() {
       (p.barcode ?? "").toLowerCase().includes(q) ||
       (p.categoryId?.name ?? "").toLowerCase().includes(q)
     )
-  })
+  }
+
+  // Las dos secciones se reparten la MISMA lista: los empaques salen de
+  // "Insumos y mercancía" y viven en la suya. Se reparte aquí, en el cliente, y
+  // no con dos llamadas al backend, porque el resto de la pantalla (existencias,
+  // lotes, kardex, conteo) los sigue necesitando juntos: un empaque se cuenta y
+  // se merma como cualquier otra cosa.
+  const filteredProducts = products.filter(
+    (p) => !p.isPackaging && coincideBusqueda(p),
+  )
+  const filteredPackaging = products.filter(
+    (p) => p.isPackaging && coincideBusqueda(p),
+  )
 
   const alertCount =
     (alerts?.lowStock.length ?? 0) +
     (alerts?.expired.length ?? 0) +
     (alerts?.expiringSoon.length ?? 0)
+
+  /**
+   * Trae a Empaques los insumos que ya figuran como empaque en la ficha de
+   * algún producto vendible. Idempotente: volver a pulsarlo no hace daño.
+   */
+  async function handleAdoptPackaging() {
+    setAdoptando(true)
+    try {
+      const { marcados } = await adoptPackaging()
+      await fetchProducts()
+      toast.success(
+        marcados === 0
+          ? "No se encontró ninguno por marcar"
+          : `${marcados} empaque(s) traídos aquí`,
+        {
+          description:
+            marcados === 0
+              ? "No hay insumos que ya figuren como empaque en la ficha de un producto."
+              : "Estaban entre tus insumos porque alguna ficha de producto ya los usaba de empaque.",
+        },
+      )
+    } catch (err) {
+      toast.error(errorMessage(err))
+    } finally {
+      setAdoptando(false)
+    }
+  }
 
   async function handleDelete(p: InvProduct) {
     if (
@@ -5026,6 +5147,11 @@ export default function InventarioPage() {
               icon: Package,
             },
             {
+              value: "empaques",
+              label: TAB_INFO.empaques.label,
+              icon: ShoppingBag,
+            },
+            {
               value: "existencias",
               label: TAB_INFO.existencias.label,
               icon: BoxesIcon,
@@ -5235,6 +5361,175 @@ export default function InventarioPage() {
                   })}
                 </TableBody>
               </Table>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── Tab: Empaques ──
+          Rejilla con foto y no tabla, a propósito: la gracia de esta sección es
+          reconocer la bolsa de un vistazo, y en una tabla de texto una bolsa
+          kraft de 22 y una de 25 son dos renglones idénticos. */}
+      {tab === "empaques" && (
+        <Card>
+          <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <CardTitle>Empaques</CardTitle>
+              <CardDescription>
+                {filteredPackaging.length} empaque(s) · se gastan al vender, y
+                en la caja se elige con cuáles sale cada pedido
+              </CardDescription>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Buscar empaque…"
+                className="w-56"
+              />
+              {/* Para quien ya venía configurando "cada galleta gasta una
+                  bolsa" antes de que los empaques tuvieran sección propia: esas
+                  bolsas están registradas, revueltas entre los insumos, y nadie
+                  se acuerda de cuáles eran. Va en la cabecera y no solo en el
+                  estado vacío porque en el estado vacío dejaría de alcanzarse
+                  en cuanto se registre el primer empaque a mano, que es justo
+                  cuando todavía faltan los demás. */}
+              {canAdjust && (
+                <Button
+                  variant="outline"
+                  disabled={adoptando}
+                  onClick={() => void handleAdoptPackaging()}
+                >
+                  {adoptando ? <Loader2 className="animate-spin" /> : <Sparkles />}
+                  Buscar los que ya uso
+                </Button>
+              )}
+              {canAdjust && (
+                <Button
+                  onClick={() => {
+                    setProductSheetMode("create")
+                    setEditingProduct(undefined)
+                    setProductSheetOpen(true)
+                  }}
+                >
+                  <Plus />
+                  Nuevo empaque
+                </Button>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent>
+            {productsLoading ? (
+              <TableSkeleton cols={4} />
+            ) : productsError ? (
+              <p className="text-sm text-destructive">{productsError}</p>
+            ) : filteredPackaging.length === 0 ? (
+              filteredPackaging.length === 0 && search.trim() ? (
+                <p className="py-8 text-center text-sm text-muted-foreground">
+                  Ningún empaque coincide con “{search.trim()}”.
+                </p>
+              ) : (
+                <VacioConSalida
+                  icon={ShoppingBag}
+                  titulo="Todavía no has registrado empaques"
+                  frase="Aquí van las bolsas, los vasos, las cajas y los cubiertos, con su foto. Se compran y se cuentan como todo lo demás, pero se gastan al vender: en la caja se elige con cuáles sale cada pedido. Si ya tenías bolsas puestas en las fichas de tus productos, “Buscar los que ya uso” las trae aquí."
+                  accion={
+                    canAdjust
+                      ? {
+                          texto: "Registrar mi primer empaque",
+                          icon: Plus,
+                          onClick: () => {
+                            setProductSheetMode("create")
+                            setEditingProduct(undefined)
+                            setProductSheetOpen(true)
+                          },
+                        }
+                      : undefined
+                  }
+                />
+              )
+            ) : (
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+                {filteredPackaging.map((p) => (
+                  <div
+                    key={p._id}
+                    className={cn(
+                      "flex flex-col overflow-hidden rounded-xl border border-border bg-card",
+                      !p.active && "opacity-60",
+                    )}
+                  >
+                    {p.imageUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={p.imageUrl}
+                        alt=""
+                        loading="lazy"
+                        className="aspect-square w-full border-b border-border object-cover"
+                      />
+                    ) : (
+                      <span
+                        className="flex aspect-square w-full items-center justify-center border-b border-dashed border-border text-muted-foreground"
+                        aria-hidden
+                      >
+                        <ImageOff className="size-7" />
+                      </span>
+                    )}
+                    <div className="flex min-w-0 flex-1 flex-col gap-1 p-2.5">
+                      <p className="line-clamp-2 text-sm leading-snug font-medium text-balance">
+                        {p.name}
+                      </p>
+                      <p className="font-mono text-[11px] text-muted-foreground">
+                        {p.sku}
+                      </p>
+                      <p className="mt-auto pt-1 text-xs text-muted-foreground">
+                        {p.cost > 0
+                          ? `${money.format(p.cost)} / ${unidadCorta(p.unit)}`
+                          : "Sin costo todavía"}
+                      </p>
+                      {!p.active && (
+                        <Badge variant="outline" className="self-start">
+                          Inactivo
+                        </Badge>
+                      )}
+                      {canAdjust && (
+                        <div className="flex items-center gap-1 pt-1">
+                          <Button
+                            variant="outline"
+                            size="icon-sm"
+                            aria-label={`Editar ${p.name}`}
+                            onClick={() => {
+                              setProductSheetMode("edit")
+                              setEditingProduct(p)
+                              setProductSheetOpen(true)
+                            }}
+                          >
+                            <Pencil />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="icon-sm"
+                            aria-label={`Registrar entrada de ${p.name}`}
+                            onClick={() =>
+                              openOperation(setEntryOpen, { productId: p._id })
+                            }
+                          >
+                            <PackagePlus />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            className="ml-auto text-muted-foreground hover:text-destructive"
+                            aria-label={`Eliminar ${p.name}`}
+                            onClick={() => void handleDelete(p)}
+                          >
+                            <Trash2 />
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
           </CardContent>
         </Card>
@@ -5717,6 +6012,7 @@ export default function InventarioPage() {
           setProductSheetOpen(false)
           openOperation(setEntryOpen, { productId })
         }}
+        defaultPackaging={tab === "empaques"}
       />
       <CategoriesSheet
         open={categoriesOpen}

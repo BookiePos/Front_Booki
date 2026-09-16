@@ -243,8 +243,17 @@ export interface CreateSalePayload {
   delivery?: DeliveryInput
   /** Quién vendió. Sin esto, la venta queda a nombre de quien cobra. */
   seller?: SaleSeller
-  /** Empaque extra de este cobro. */
+  /** Con qué empaque sale la venta. Ver `packagingExplicit`. */
   packaging?: SalePackagingInput[]
+  /**
+   * `packaging` es TODO el empaque, no un añadido.
+   *
+   * Con esto, el empaque que cada producto declara en su ficha deja de
+   * descontarse solo: baja exactamente lo de la lista, y una lista vacía
+   * significa "sin empaques". El POS lo manda SIEMPRE, incluso cuando no se
+   * tocó nada, porque lo que se ve en pantalla es lo que tiene que pasar.
+   */
+  packagingExplicit?: boolean
 }
 
 // ─── Cuentas abiertas (comandas / mesas) ─────────────────────────────────────
@@ -314,8 +323,10 @@ export interface CheckoutOrderPayload {
   lines?: { productId: string; qty: number }[]
   /** Quién vendió. Sin esto, la venta queda a nombre de quien cobra. */
   seller?: SaleSeller
-  /** Empaque extra de este cobro. */
+  /** Con qué empaque sale este cobro. Ver `packagingExplicit`. */
   packaging?: SalePackagingInput[]
+  /** `packaging` es TODO el empaque, no un añadido. Ver `CreateSaleInput`. */
+  packagingExplicit?: boolean
 }
 
 /** Lo que falta por cobrar de cada producto de una comanda. */
@@ -359,6 +370,34 @@ export async function createSale(payload: CreateSalePayload): Promise<Sale> {
     body: JSON.stringify(payload),
   })
   return parseResponse<Sale>(res)
+}
+
+/** De dónde salió la sugerencia de empaque. El POS lo dice en pantalla. */
+export type OrigenSugerencia = "historial" | "ficha" | "ninguno"
+
+export interface SugerenciaEmpaque {
+  lineas: { productId: string; name: string; qty: number }[]
+  origen: OrigenSugerencia
+  /** Cuántas ventas pasadas la respaldan (0 si viene de la ficha). */
+  apoyo: number
+}
+
+/**
+ * Con qué empaque suele salir este carrito.
+ *
+ * Solo lee (va por POST por el tamaño del carrito, no porque escriba). Si
+ * falla, el cobro sigue igual: una sugerencia es una comodidad, no un
+ * requisito.
+ */
+export async function sugerirEmpaque(
+  sedeId: string,
+  lines: { productId: string; qty: number }[],
+): Promise<SugerenciaEmpaque> {
+  const res = await authFetch("/sales/packaging-suggestion", {
+    method: "POST",
+    body: JSON.stringify({ sedeId, lines }),
+  })
+  return parseResponse<SugerenciaEmpaque>(res)
 }
 
 export async function listSales(

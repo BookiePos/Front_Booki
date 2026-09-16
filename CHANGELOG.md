@@ -20,6 +20,73 @@ es decidir "esto ya es lo que va a usar el negocio".
 
 ---
 
+## 1.5.0 — 15 de septiembre de 2026
+
+Sale de llenar el sistema con el negocio de verdad: las bolsas estaban
+registradas, sí, pero revueltas entre la harina y el azúcar, y no había forma de
+reconocerlas ni de decidir con cuáles sale cada pedido.
+
+> **Se despliega DESPUÉS del backend 1.5.0.** El terminal manda campos nuevos en
+> el cobro y el backend viejo rechazaría la venta entera.
+
+### Inventario → Empaques
+
+Una sección propia para bolsas, vasos, cajas y cubiertos. **Con foto**, que es
+lo que de verdad cambia el día a día: nadie reconoce una bolsa leyendo
+"BOL-KRAFT-22", y en una tabla de texto la kraft de 22 y la de 25 son dos
+renglones idénticos. Por eso es una rejilla de fotos y no una tabla.
+
+Un empaque se compra, se cuenta, se merma y entra por lotes exactamente igual
+que cualquier otro insumo — sigue apareciendo en Existencias, en Lotes, en el
+kardex y en el conteo físico. Lo único que cambia es dónde se administra y que
+la caja puede ofrecerlo al cobrar.
+
+- **Toda ficha de inventario admite foto ahora**, no solo las de empaque.
+- Una casilla **"Es un empaque"** en la ficha lo mueve de una sección a la otra.
+- Si ya tenías bolsas configuradas en las fichas de tus productos, el estado
+  vacío trae un botón que **las busca y las trae aquí**. Estaban registradas
+  entre los insumos y nadie se acuerda de cuáles eran.
+- Los empaques **ya no aparecen en "Insumos y mercancía"**: están en lo suyo.
+
+### En el cobro eliges con qué sale el pedido
+
+La sección "Empaque extra" era una lista desplegable con todo el inventario
+dentro, sin fotos, y solo sabía **sumar**. Ahora es una rejilla con la foto de
+cada empaque, y lo que quede marcado ahí es **exactamente** lo que baja del
+inventario.
+
+- Hay un botón **"Sin empaques"**, y significa sin empaques: el empaque que cada
+  producto trae en su ficha ya no se descuenta por su cuenta.
+- La sección **abre con la sugerencia ya puesta**, nunca vacía. Si abriera
+  vacía, no tocar nada querría decir "sin empaques" y las bolsas dejarían de
+  descontarse el día del despliegue.
+- Al cliente se le sigue sin cobrar el empaque: sale del inventario y suma al
+  costo de la venta, como antes.
+
+### El sistema se acuerda de con qué despachas cada cosa
+
+La sugerencia es **lo que usaste las últimas veces que vendiste ese mismo
+conjunto de productos**. Mientras no haya historial, lo que digan las fichas; y
+si tampoco hay ficha, nada — una sugerencia inventada se descuenta del
+inventario igual que una buena.
+
+Debajo del título dice de dónde salió lo que está marcado ("Como las últimas 3
+veces que vendiste esto" o "Según el empaque de la ficha de cada producto"),
+porque no es lo mismo decidir sobre algo que el sistema recuerda que sobre algo
+que se supuso.
+
+Reconoce el pedido aunque cambien las cantidades: tres empanadas salen en la
+misma bolsa que dos.
+
+### El pedido, con las fotos de lo que se está vendiendo
+
+Cada línea de la columna del pedido muestra ahora la miniatura del producto. A
+esa columna se le mira de reojo mientras se atiende, y una foto se reconoce más
+rápido que un nombre. Si ningún producto del pedido tiene foto, la miniatura no
+aparece: sería una fila de cuadros vacíos comiéndose el ancho del nombre.
+
+---
+
 ## 1.4.0 — 14 de septiembre de 2026
 
 Sale del primer día de carga real de datos en Crunchy Munch.
