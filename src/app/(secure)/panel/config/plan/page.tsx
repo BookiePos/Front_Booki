@@ -19,7 +19,6 @@ import {
   cancelSubscription,
   getBillingConfig,
   getBillingStatus,
-  purchaseDocs,
   savePaymentMethod,
   subscribe,
   syncPayment,
@@ -34,7 +33,6 @@ const ADDON_PRICE = {
   payroll: 34_900,
   extraSede: 89_900,
   extraEmployee: 2_900,
-  docPackage: 29_900,
 }
 
 const PLAN_IDS: BusinessPlan[] = ["punto", "negocio", "control", "cadena"]
@@ -82,7 +80,6 @@ export default function PlanBillingPage() {
   const [acceptedTerms, setAcceptedTerms] = useState(false)
   const [acceptedPersonalData, setAcceptedPersonalData] = useState(false)
 
-  const [docPacks, setDocPacks] = useState(1)
 
   const [submitting, setSubmitting] = useState(false)
   const [message, setMessage] = useState<
@@ -296,36 +293,6 @@ export default function PlanBillingPage() {
     }
   }
 
-  async function onBuyDocs() {
-    setMessage(null)
-    setSubmitting(true)
-    try {
-      const result = await purchaseDocs(docPacks)
-      setMessage({ kind: "info", text: "Compra en proceso, confirmando con la pasarela…" })
-      const outcome = await confirmCharge(result.reference)
-      if (outcome === "approved") {
-        setMessage({ kind: "ok", text: `Compraste ${docPacks * 1000} documentos.` })
-      } else if (outcome === "failed") {
-        setMessage({
-          kind: "error",
-          text: "El banco rechazó el cobro del paquete. Revisa la tarjeta e inténtalo de nuevo.",
-        })
-      } else {
-        setMessage({
-          kind: "info",
-          text: "La compra sigue en proceso. Los documentos se acreditan en cuanto la pasarela confirme.",
-        })
-      }
-    } catch (err) {
-      setMessage({
-        kind: "error",
-        text: err instanceof Error ? err.message : "No se pudo comprar el paquete.",
-      })
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
   async function onCancel() {
     setMessage(null)
     setSubmitting(true)
@@ -405,8 +372,11 @@ export default function PlanBillingPage() {
                     <span className="font-medium text-foreground">
                       {formatNumber(status.documents.used)}
                     </span>{" "}
-                    / {formatNumber(status.documents.base)}
-                    {status.documents.credits > 0 &&
+                    {status.documents.base === null
+                      ? " · ilimitados"
+                      : ` / ${formatNumber(status.documents.base)}`}
+                    {status.documents.base !== null &&
+                      status.documents.credits > 0 &&
                       ` · ${formatNumber(status.documents.credits)} créditos comprados`}
                   </p>
                 )}
@@ -716,36 +686,10 @@ export default function PlanBillingPage() {
             </CardContent>
           </Card>
 
-          {/* Paquetes de documentos + cancelar */}
+          {/* Cancelar suscripción */}
           {sub && sub.status !== "canceled" && (
             <Card>
-              <CardContent className="flex flex-wrap items-center justify-between gap-4 py-5">
-                <div className="flex items-center gap-3">
-                  <span className="text-sm text-muted-foreground">
-                    Comprar documentos extra
-                  </span>
-                  <input
-                    type="number"
-                    min={1}
-                    max={100}
-                    step={1}
-                    inputMode="numeric"
-                    value={docPacks}
-                    onChange={(e) => setDocPacks(clampInt(e.target.value, 1, 100))}
-                    className="w-16 rounded-lg border border-border bg-background px-2 py-1 text-sm"
-                  />
-                  <span className="text-xs text-muted-foreground">
-                    ×1.000 docs · ${formatNumber(docPacks * ADDON_PRICE.docPackage)}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={onBuyDocs}
-                    disabled={submitting}
-                    className="rounded-full border border-border px-4 py-1.5 text-sm font-medium hover:bg-accent disabled:opacity-60"
-                  >
-                    Comprar
-                  </button>
-                </div>
+              <CardContent className="flex flex-wrap items-center justify-end gap-4 py-5">
                 <button
                   type="button"
                   onClick={onCancel}

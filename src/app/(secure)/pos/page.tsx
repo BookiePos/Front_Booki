@@ -393,8 +393,10 @@ export default function VentaPage() {
   const [emitInvoice, setEmitInvoice] = React.useState(false)
   /** Si además hay que dejarlo en el directorio de clientes para la próxima. */
   const [saveCustomer, setSaveCustomer] = React.useState(false)
+  // `pending`: la factura tiene número pero la DIAN aún no la confirma (caída
+  // o lenta). La venta está bien; el backend la reintenta solo.
   const [invoiceState, setInvoiceState] = React.useState<
-    "idle" | "emitting" | "done" | "error"
+    "idle" | "emitting" | "done" | "pending" | "error"
   >("idle")
   const [invoiceNumber, setInvoiceNumber] = React.useState<string | null>(null)
   const [invoiceError, setInvoiceError] = React.useState<string | null>(null)
@@ -1472,7 +1474,20 @@ export default function VentaPage() {
           // `fullNumber` incluye el prefijo de la resolución (ej. "SETP-990").
           // Es el número que sale impreso y por el que pregunta el cliente.
           setInvoiceNumber(doc.fullNumber)
-          setInvoiceState("done")
+          if (doc.dianStatus === "accepted") {
+            setInvoiceState("done")
+          } else if (doc.dianStatus === "pending") {
+            setInvoiceState("pending")
+          } else {
+            // Rechazada o con la conexión mal configurada: el número quedó
+            // reservado y se reenvía con el mismo desde Factura electrónica.
+            setInvoiceError(
+              [doc.dianMessage, ...(doc.dianErrors ?? [])]
+                .filter(Boolean)
+                .join(" ") || "la DIAN no la aceptó",
+            )
+            setInvoiceState("error")
+          }
         } catch (err) {
           setInvoiceError(errorMessage(err))
           setInvoiceState("error")
@@ -2450,6 +2465,7 @@ export default function VentaPage() {
                         "flex items-start gap-2 rounded-xl px-4 py-3 text-sm",
                         invoiceState === "done" && "bg-success/10 text-success-ink",
                         invoiceState === "emitting" && "bg-accent text-accent-foreground",
+                        invoiceState === "pending" && "bg-warning/15 text-warning-ink",
                         invoiceState === "error" &&
                           "bg-destructive/10 text-destructive",
                       )}
@@ -2457,7 +2473,7 @@ export default function VentaPage() {
                       {invoiceState === "emitting" && (
                         <Loader2 className="mt-0.5 size-4 shrink-0 animate-spin" />
                       )}
-                      {invoiceState === "done" && (
+                      {(invoiceState === "done" || invoiceState === "pending") && (
                         <FileText className="mt-0.5 size-4 shrink-0" />
                       )}
                       {invoiceState === "error" && (
@@ -2466,7 +2482,9 @@ export default function VentaPage() {
                       <span>
                         {invoiceState === "emitting" && "Emitiendo factura electrónica…"}
                         {invoiceState === "done" &&
-                          `Factura electrónica emitida${invoiceNumber ? ` · ${invoiceNumber}` : ""}`}
+                          `Factura electrónica aceptada por la DIAN${invoiceNumber ? ` · ${invoiceNumber}` : ""}`}
+                        {invoiceState === "pending" &&
+                          `Factura ${invoiceNumber ?? ""} enviada: la DIAN aún no la confirma. Se reintenta sola; puedes seguir vendiendo.`}
                         {invoiceState === "error" && (
                           <>
                             La venta quedó registrada, pero la factura no se pudo
@@ -3190,7 +3208,7 @@ export default function VentaPage() {
 
                         <p className="text-[11px] text-muted-foreground">
                           {deliveryFee > 0
-                            ? `Se cobran ${money(deliveryFee)} encima del total. El domicilio no lleva IVA.`
+                            ? `Se cobran ${money(deliveryFee)} encima del total. Ya incluye el impuesto de lo que se lleva.`
                             : "Domicilio sin costo para el cliente."}
                         </p>
                       </div>

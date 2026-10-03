@@ -39,6 +39,7 @@ export const OPERATION_PERMISSIONS = [
   "payroll.manage",
   "employees.view",
   "employees.manage",
+  "einvoicing.configure",
 ] as const
 
 /** ¿El conjunto de permisos habilita el punto de venta? */
