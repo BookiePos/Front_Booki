@@ -73,6 +73,8 @@ import {
   lookupEmployees,
   type Customer as RegCustomer,
   type EmployeeLookup,
+  DIAN_ID_TYPE,
+  docTypeFromDian,
 } from "@/lib/pos/api-customers"
 import { listPriceLists, type PriceList } from "@/lib/erp/api-catalog"
 import { resolveUnitPrice } from "@/lib/erp/price-list"
@@ -489,7 +491,16 @@ export default function VentaPage() {
     // tener sentido y confundiría.
     setManualListId("")
     const c = lista.find((x) => x._id === id)
-    if (c) setCustomer({ name: c.name, idNumber: c.docNumber, phone: c.phone })
+    if (c) {
+      setCustomer({
+        name: c.name,
+        idNumber: c.docNumber,
+        idType: DIAN_ID_TYPE[c.docType],
+        phone: c.phone,
+        email: c.email,
+        address: c.address,
+      })
+    }
   }
 
   async function quickAddCustomer() {
@@ -1076,7 +1087,14 @@ export default function VentaPage() {
     const elegido = regCustomers.find((c) => c._id === custId)
     setCustomer(
       elegido
-        ? { name: elegido.name, idNumber: elegido.docNumber, phone: elegido.phone }
+        ? {
+            name: elegido.name,
+            idNumber: elegido.docNumber,
+            idType: DIAN_ID_TYPE[elegido.docType],
+            phone: elegido.phone,
+            email: elegido.email,
+            address: elegido.address,
+          }
         : {},
     )
     setClienteModo(custId ? "registrado" : "final")
@@ -1208,7 +1226,9 @@ export default function VentaPage() {
 
   /** Limpia el cliente: descarta campos vacíos. */
   function cleanCustomer(): Customer | undefined {
-    const entries = (["name", "idNumber", "phone", "email"] as const)
+    const entries = (
+      ["name", "idNumber", "idType", "phone", "email", "address"] as const
+    )
       .map((k) => [k, customer[k]?.trim()] as const)
       .filter(([, v]) => v)
     return entries.length > 0 ? Object.fromEntries(entries) : undefined
@@ -1226,11 +1246,31 @@ export default function VentaPage() {
       : undefined)
 
   /**
-   * `true` si se pidió factura electrónica pero faltan los datos mínimos que
-   * la DIAN exige del adquiriente (nombre e identificación).
+   * Lo que falta para la factura electrónica. Al consumidor final solo se le
+   * pide nombre e identificación; a un cliente identificado la DIAN le exige
+   * además dirección y teléfono. Se avisa ANTES de cobrar: descubrirlo después
+   * obliga a reenviar la factura.
    */
-  const invoiceDataMissing =
-    emitInvoice && (!customerToSend?.name || !customerToSend?.idNumber)
+  const esConsumidorFinal =
+    (customerToSend?.idNumber ?? "").replace(/\D/g, "") ===
+    CONSUMIDOR_FINAL.idNumber
+  const conDocumento = Boolean(customerToSend?.idNumber?.trim())
+  const invoiceMissing: string[] = !emitInvoice
+    ? []
+    : [
+        !customerToSend?.name?.trim() && "el nombre",
+        !conDocumento && "la cédula o NIT",
+        conDocumento &&
+          !esConsumidorFinal &&
+          !customerToSend?.address?.trim() &&
+          "la dirección",
+        conDocumento &&
+          !esConsumidorFinal &&
+          !customerToSend?.phone?.trim() &&
+          "el teléfono",
+      ].filter((x): x is string => Boolean(x))
+  const invoiceDataMissing = invoiceMissing.length > 0
+  const invoiceMissingText = `Para la factura electrónica falta ${invoiceMissing.join(", ")} del cliente.`
 
   const vendedor = empList.find((e) => e._id === sellerKey)
   const sellerPayload = vendedor
@@ -1281,7 +1321,7 @@ export default function VentaPage() {
               (debtorType === "employee" && !empId))
           ? "Elige a quién se le fía para poder cobrar."
           : invoiceDataMissing
-            ? "Para la factura electrónica hace falta el nombre y la cédula o NIT del cliente."
+            ? invoiceMissingText
             : method === "cash" &&
                 receivedNum !== undefined &&
                 receivedNum < netTotal
@@ -1499,7 +1539,10 @@ export default function VentaPage() {
           await createCustomer({
             name: customerData.name,
             docNumber: customerData.idNumber,
+            docType: docTypeFromDian(customerData.idType),
             phone: customerData.phone,
+            email: customerData.email,
+            address: customerData.address,
           })
         } catch {
           // Alta en el directorio: no es crítica y no debe ensuciar la
@@ -3402,17 +3445,34 @@ export default function VentaPage() {
                         placeholder="Nombre"
                         aria-label="Nombre del cliente"
                       />
-                      <Input
-                        value={customer.idNumber ?? ""}
-                        onChange={(e) =>
-                          setCustomer((c) => ({
-                            ...c,
-                            idNumber: e.target.value,
-                          }))
-                        }
-                        placeholder="Cédula / NIT"
-                        aria-label="Identificación del cliente"
-                      />
+                      <div className="flex gap-2">
+                        <NativeSelect
+                          value={customer.idType ?? ""}
+                          onChange={(v) =>
+                            setCustomer((c) => ({ ...c, idType: v || undefined }))
+                          }
+                          options={[
+                            { value: "13", label: "CC" },
+                            { value: "31", label: "NIT" },
+                            { value: "22", label: "CE" },
+                            { value: "41", label: "Pasaporte" },
+                          ]}
+                          placeholder="Tipo"
+                          aria-label="Tipo de documento del cliente"
+                          className="w-28 shrink-0"
+                        />
+                        <Input
+                          value={customer.idNumber ?? ""}
+                          onChange={(e) =>
+                            setCustomer((c) => ({
+                              ...c,
+                              idNumber: e.target.value,
+                            }))
+                          }
+                          placeholder="Cédula / NIT"
+                          aria-label="Identificación del cliente"
+                        />
+                      </div>
                       <Input
                         value={customer.phone ?? ""}
                         onChange={(e) =>
@@ -3429,12 +3489,20 @@ export default function VentaPage() {
                         placeholder="Correo"
                         aria-label="Correo del cliente"
                       />
+                      <Input
+                        value={customer.address ?? ""}
+                        onChange={(e) =>
+                          setCustomer((c) => ({ ...c, address: e.target.value }))
+                        }
+                        placeholder="Dirección"
+                        aria-label="Dirección del cliente"
+                        className="sm:col-span-2"
+                      />
                     </div>
                     {invoiceDataMissing && (
                       <p className="flex items-start gap-2 rounded-xl bg-accent px-3 py-2 text-xs text-accent-foreground">
                         <Info className="mt-0.5 size-4 shrink-0" />
-                        Para la factura electrónica hace falta el nombre y la
-                        cédula o NIT del cliente.
+                        {invoiceMissingText}
                       </p>
                     )}
                   </CheckoutGroup>

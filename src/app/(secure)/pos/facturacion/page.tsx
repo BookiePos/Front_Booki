@@ -7,9 +7,9 @@ import {
   MapPin,
   Printer,
   Ban,
-  CheckCircle2,
   Loader2,
   Receipt as ReceiptIcon,
+  RefreshCw,
 } from "lucide-react"
 
 import { useAuth } from "@/lib/auth-context"
@@ -19,8 +19,11 @@ import {
   listDocuments,
   createInvoiceFromSale,
   createCreditNote,
+  retryDocument,
   type ElectronicDocument,
 } from "@/lib/pos/api-einvoicing"
+import { DIAN_TONE_CLASS, dianStatusInfo } from "@/lib/einvoicing-status"
+import { DianDetail } from "@/components/ui/dian-detail"
 import { money, timeOnly } from "@/lib/pos/format"
 import { FacturaElectronica } from "@/components/pos/factura-electronica"
 
@@ -29,7 +32,6 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { FormDialog } from "@/components/ui/form-dialog"
-import { Termino } from "@/components/ui/help-tip"
 
 function errorMessage(err: unknown): string {
   if (err instanceof Error) return err.message
@@ -100,6 +102,20 @@ export default function FacturacionPage() {
       const note = await createCreditNote(invoice._id, reason.trim())
       await load()
       setSelected(note)
+    } catch (err) {
+      alert(errorMessage(err))
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  /** Reenvía con el mismo número una factura pendiente, rechazada o sin enviar. */
+  async function handleRetry(doc: ElectronicDocument) {
+    setBusyId(doc._id)
+    try {
+      const updated = await retryDocument(doc._id)
+      await load()
+      setSelected(updated)
     } catch (err) {
       alert(errorMessage(err))
     } finally {
@@ -181,8 +197,11 @@ export default function FacturacionPage() {
 
                     {invoice ? (
                       <>
-                        <Badge className="border-transparent bg-success/10 text-success-ink">
-                          {invoice.fullNumber}
+                        <Badge variant="outline">{invoice.fullNumber}</Badge>
+                        <Badge
+                          className={`border-transparent ${DIAN_TONE_CLASS[dianStatusInfo(invoice).tone]}`}
+                        >
+                          {dianStatusInfo(invoice).label}
                         </Badge>
                         <Button
                           variant="outline"
@@ -191,7 +210,23 @@ export default function FacturacionPage() {
                         >
                           Ver
                         </Button>
-                        {canVoid && (
+                        {dianStatusInfo(invoice).canRetry && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-1.5"
+                            disabled={busyId === invoice._id}
+                            onClick={() => void handleRetry(invoice)}
+                          >
+                            {busyId === invoice._id ? (
+                              <Loader2 className="size-4 animate-spin" />
+                            ) : (
+                              <RefreshCw className="size-4" />
+                            )}
+                            Reenviar
+                          </Button>
+                        )}
+                        {canVoid && invoice.dianStatus === "accepted" && (
                           <Button
                             variant="ghost"
                             size="sm"
@@ -247,26 +282,25 @@ export default function FacturacionPage() {
               <Printer />
               Imprimir / PDF
             </Button>
-            <Button
-              variant="outline"
-              className="no-print"
-              disabled
-              title="Requiere integración con proveedor (Siigo u otro)"
-            >
-              <CheckCircle2 />
-              Enviar a DIAN
-            </Button>
+            {selected && dianStatusInfo(selected).canRetry && (
+              <Button
+                variant="outline"
+                className="no-print"
+                disabled={busyId === selected._id}
+                onClick={() => void handleRetry(selected)}
+              >
+                <RefreshCw />
+                Reenviar a la DIAN
+              </Button>
+            )}
             <Button onClick={() => setSelected(null)}>Cerrar</Button>
           </>
         }
       >
         {selected && (
           <>
+            <DianDetail doc={selected} />
             <FacturaElectronica doc={selected} />
-            <p className="no-print text-center text-xs text-muted-foreground">
-              El envío y la validación ante la <Termino>DIAN</Termino> se
-              habilitan al integrar el <Termino>proveedor tecnológico</Termino>.
-            </p>
           </>
         )}
       </FormDialog>
