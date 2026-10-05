@@ -24,7 +24,9 @@ import {
   createCreditNote,
   retryDocument,
   downloadDocumentFile,
+  listAlerts,
   type ElectronicDocument,
+  type EinvoicingAlert,
 } from "@/lib/erp/api-einvoicing"
 import { DIAN_TONE_CLASS, dianStatusInfo } from "@/lib/einvoicing-status"
 import { DianDetail } from "@/components/ui/dian-detail"
@@ -82,6 +84,7 @@ export default function FacturacionPage() {
   const [error, setError] = React.useState<string | null>(null)
   const [busyId, setBusyId] = React.useState<string | null>(null)
   const [selected, setSelected] = React.useState<ElectronicDocument | null>(null)
+  const [alerts, setAlerts] = React.useState<EinvoicingAlert[]>([])
 
   const sede = sedes.find((s) => s._id === sedeId)
 
@@ -110,10 +113,13 @@ export default function FacturacionPage() {
     setLoading(true)
     setError(null)
     try {
-      const [page, docs] = await Promise.all([
+      const [page, docs, alertas] = await Promise.all([
         listSales(sedeId, 1, 50),
         listDocuments(sedeId),
+        // Las alertas no deben tumbar la pantalla si fallan.
+        listAlerts().catch(() => [] as EinvoicingAlert[]),
       ])
+      setAlerts(alertas)
       setSales(page.rows)
       const map = new Map<string, ElectronicDocument>()
       for (const d of docs) {
@@ -336,6 +342,28 @@ export default function FacturacionPage() {
           </div>
         </details>
       </Card>
+
+      {/* Lo que necesita atención: certificado por vencer, rechazadas,
+          pendientes de hace rato. Va arriba porque sin certificado no se
+          factura. */}
+      {alerts.length > 0 && (
+        <div className="mb-4 flex flex-col gap-2">
+          {alerts.map((a) => (
+            <div
+              key={`${a.kind}-${a.nit ?? ""}`}
+              role="alert"
+              className={`flex items-start gap-2 rounded-xl px-4 py-3 text-sm ${
+                a.severity === "danger"
+                  ? "bg-destructive/10 text-destructive"
+                  : "bg-warning/15 text-warning-ink"
+              }`}
+            >
+              <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+              <span>{a.message}</span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {sede && !feReady && (
         <Card className="mb-4 border-warning/40">

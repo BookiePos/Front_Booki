@@ -1027,6 +1027,11 @@ export default function VentaPage() {
   // Propina en pesos (0 si no hay). El 10% se sugiere sobre el total de bienes.
   const tipAmount = tip ?? 0
   const suggestedTip = Math.round(total * 0.1)
+  // Tope legal: la propina que va en la factura no puede pasar del 10 % del
+  // consumo (Ley 1935 de 2018, art. 3). Hacia arriba, para que el 10 %
+  // sugerido siempre quepa. El backend aplica la misma regla.
+  const maxTip = Math.max(0, Math.ceil(total * 0.1))
+  const tipTooHigh = tipAmount > maxTip
 
   const filtered = React.useMemo(() => {
     return products.filter((p) => {
@@ -1270,7 +1275,12 @@ export default function VentaPage() {
           "el teléfono",
       ].filter((x): x is string => Boolean(x))
   const invoiceDataMissing = invoiceMissing.length > 0
-  const invoiceMissingText = `Para la factura electrónica falta ${invoiceMissing.join(", ")} del cliente.`
+  // "la dirección y el teléfono", no "la dirección, el teléfono".
+  const faltanTexto =
+    invoiceMissing.length > 1
+      ? `${invoiceMissing.slice(0, -1).join(", ")} y ${invoiceMissing[invoiceMissing.length - 1]}`
+      : (invoiceMissing[0] ?? "")
+  const invoiceMissingText = `Para la factura electrónica falta ${faltanTexto} del cliente.`
 
   const vendedor = empList.find((e) => e._id === sellerKey)
   const sellerPayload = vendedor
@@ -1296,6 +1306,7 @@ export default function VentaPage() {
     saving ||
     cart.length === 0 ||
     invoiceDataMissing ||
+    tipTooHigh ||
     (method === "cash" && receivedNum !== undefined && receivedNum < netTotal) ||
     (method === "credit" &&
       ((debtorType === "customer" && !custId) ||
@@ -1320,7 +1331,9 @@ export default function VentaPage() {
             ((debtorType === "customer" && !custId) ||
               (debtorType === "employee" && !empId))
           ? "Elige a quién se le fía para poder cobrar."
-          : invoiceDataMissing
+          : tipTooHigh
+            ? `La propina no puede pasar del 10 % del consumo (${money(maxTip)}).`
+            : invoiceDataMissing
             ? invoiceMissingText
             : method === "cash" &&
                 receivedNum !== undefined &&
@@ -2351,6 +2364,7 @@ export default function VentaPage() {
                         onValueChange={(v) => setTip(v ?? 0)}
                         placeholder="$0"
                         className="flex-1"
+                        aria-invalid={tipTooHigh || undefined}
                       />
                       <Button
                         variant="ghost"
@@ -2361,6 +2375,12 @@ export default function VentaPage() {
                         10%
                       </Button>
                     </div>
+                  )}
+                  {tipTooHigh && (
+                    <p className="mt-2 text-xs text-destructive">
+                      Máximo {money(maxTip)}: la ley no permite una propina de
+                      más del 10 % del consumo en la factura.
+                    </p>
                   )}
                 </div>
               )}

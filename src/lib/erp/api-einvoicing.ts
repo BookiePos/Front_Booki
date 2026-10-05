@@ -259,6 +259,22 @@ export async function registerResolution(
   return parseResponse<ResolutionRow[]>(res)
 }
 
+// ─── Alertas ─────────────────────────────────────────────────────────────────
+
+/** Algo de la facturación electrónica que alguien tiene que mirar. */
+export interface EinvoicingAlert {
+  kind: "certificate" | "pending" | "rejected"
+  severity: "warning" | "danger"
+  message: string
+  count?: number
+  nit?: string
+}
+
+/** Certificados por vencer, pendientes de hace rato y rechazadas (lo grave primero). */
+export async function listAlerts(): Promise<EinvoicingAlert[]> {
+  return parseResponse(await authFetch("/einvoicing/alerts"))
+}
+
 // ─── Conexión con la DIAN (habilitación por NIT) ─────────────────────────────
 
 /** Paso en que va la habilitación de un NIT, en orden. */
