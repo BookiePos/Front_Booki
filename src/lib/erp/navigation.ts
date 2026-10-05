@@ -29,6 +29,7 @@ import {
   SlidersHorizontal,
   CreditCard,
   ScanLine,
+  PlugZap,
 } from "lucide-react"
 
 export type NavItem = {
@@ -115,6 +116,7 @@ export const navSections: NavSection[] = [
       { title: "Impuestos", href: "/panel/impuestos", icon: Percent, requiredPermissions: ["tax.manage"], requiredFeature: "accounting" },
       { title: "Facturación electrónica", href: "/panel/facturacion", icon: FileText, requiredPermissions: ["einvoicing.issue"] },
       { title: "Resoluciones", href: "/panel/resoluciones", icon: ScrollText, requiredPermissions: ["einvoicing.issue"] },
+      { title: "Conexión DIAN", href: "/panel/facturacion/conexion", icon: PlugZap, requiredPermissions: ["einvoicing.configure"] },
       { title: "Auditoría", href: "/panel/auditoria", icon: ShieldCheck, requiredPermissions: ["audit.view"], requiredFeature: "audit" },
     ],
   },

@@ -298,6 +298,32 @@ export interface EinvoicingConnection {
   /** Por qué falló el último paso, para mostrarlo. */
   lastError?: string
   connected: boolean
+  testSet: TestSetView
+}
+
+/** Un documento del set de pruebas y lo que respondió la DIAN. */
+export interface TestSetDoc {
+  kind: "invoice" | "credit_note" | "debit_note"
+  prefix: string
+  number: number
+  cufe?: string
+  status: "pending" | "accepted" | "rejected"
+  message?: string
+  errors: string[]
+}
+
+/** Set de pruebas de la DIAN: 8 facturas, 1 nota crédito y 1 nota débito. */
+export interface TestSetView {
+  sentAt?: string
+  docs: TestSetDoc[]
+  summary: {
+    sent: number
+    accepted: number
+    rejected: number
+    pending: number
+    complete: boolean
+    missing: { invoice: number; credit_note: number; debit_note: number }
+  }
 }
 
 /** Rango que la DIAN asoció al software (trae la clave técnica). */
@@ -383,6 +409,22 @@ export async function setEnvironment(
     await authFetch(`/einvoicing/connection/${nit}/environment`, {
       method: "PUT",
       body: JSON.stringify({ environment }),
+    }),
+  )
+}
+
+/** Paso 4: manda el set de pruebas a la DIAN. El resultado llega después. */
+export async function runTestSet(nit: string): Promise<TestSetView> {
+  return parseResponse(
+    await authFetch(`/einvoicing/connection/${nit}/test-set`, { method: "POST" }),
+  )
+}
+
+/** Consulta a la DIAN cómo va el set de pruebas. */
+export async function checkTestSet(nit: string): Promise<TestSetView> {
+  return parseResponse(
+    await authFetch(`/einvoicing/connection/${nit}/test-set/check`, {
+      method: "POST",
     }),
   )
 }
