@@ -5,7 +5,12 @@
 import { authFetch, parseResponse } from "@/lib/api-admin"
 
 export type DocType = "invoice" | "credit_note"
-export type DianStatus = "draft" | "pending" | "accepted" | "rejected"
+/**
+ * Estado ante la DIAN. `draft` son documentos viejos, de antes de conectar con
+ * la DIAN. `failed` es un problema de configuración (certificado vencido,
+ * conexión sin configurar): se reenvía al arreglarlo.
+ */
+export type DianStatus = "draft" | "pending" | "accepted" | "rejected" | "failed"
 
 export interface DocEmisor {
   name?: string
@@ -27,6 +32,7 @@ export interface DocAdquiriente {
   name?: string
   phone?: string
   email?: string
+  address?: string
 }
 
 export interface DocLine {
@@ -37,6 +43,7 @@ export interface DocLine {
   unitPrice: number
   discountAmount: number
   base: number
+  taxKind?: "iva" | "inc" | "none"
   ivaRate: number
   ivaAmount: number
   total: number
@@ -68,6 +75,8 @@ export interface ElectronicDocument {
   ivaTotal: number
   discountTotal: number
   total: number
+  /** Propina voluntaria: va aparte, sin impuesto. */
+  tip?: number
   formaPago: string
   medioPago?: string
   resolution?: DocResolucion
@@ -78,8 +87,19 @@ export interface ElectronicDocument {
   qrUrl?: string
   signature?: string
   dianStatus: DianStatus
+  /** Mensaje del último intento, listo para mostrar. */
+  dianMessage?: string
+  /** Reglas que incumplió (rechazo) o notificaciones de la DIAN. */
+  dianErrors?: string[]
+  validatedAt?: string
+  /** Lo emitido en habilitación no vale fiscalmente. */
+  environment?: "habilitacion" | "produccion"
   technicalProvider?: string
+  pdfFile?: string
   xmlUrl?: string
+  attempts?: number
+  /** Próximo reintento automático (si la DIAN no respondió). */
+  nextAttemptAt?: string
   createdByEmail: string
   createdAt: string
 }
@@ -106,6 +126,28 @@ export async function createInvoiceFromSale(
     body: JSON.stringify({ saleId }),
   })
   return parseResponse<ElectronicDocument>(res)
+}
+
+/** Reenvía un documento pendiente, rechazado o fallido, con su mismo número. */
+export async function retryDocument(id: string): Promise<ElectronicDocument> {
+  const res = await authFetch(`/einvoicing/${id}/retry`, { method: "POST" })
+  return parseResponse<ElectronicDocument>(res)
+}
+
+/**
+ * PDF o XML de un documento aceptado. Va por la API (con el token de sesión),
+ * no por enlace directo: el facturador está en una red privada.
+ */
+export async function downloadDocumentFile(
+  id: string,
+  kind: "pdf" | "xml",
+): Promise<Blob> {
+  const res = await authFetch(`/einvoicing/${id}/file/${kind}`)
+  if (!res.ok) {
+    // Reutiliza el manejo de errores del cliente (mensaje del backend).
+    await parseResponse<never>(res)
+  }
+  return res.blob()
 }
 
 export async function createCreditNote(

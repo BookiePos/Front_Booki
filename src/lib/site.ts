@@ -85,8 +85,9 @@ export const BENEFITS: Benefit[] = [
     id: "dian",
     icon: "file",
     title: "DIAN sin sustos",
-    claim: "Factura electrónica con tu resolución.",
+    claim: "Factura electrónica ilimitada con tu resolución.",
     detail: [
+      "Sin cupo de documentos: factura todas tus ventas",
       "IVA e INC según el régimen del negocio",
       "Numeración y resolución controladas desde el panel",
       "Rastro completo de cada documento emitido",
@@ -213,9 +214,8 @@ export const PLANS: Plan[] = [
       "Inventario y control de stock",
       "Caja: apertura, arqueo y cierre",
       "Clientes y reportes de venta",
-      "Factura y POS electrónico DIAN",
+      "Factura electrónica DIAN ilimitada",
       "1 sede · 3 usuarios",
-      "400 documentos electrónicos",
       "Soporte por chat y centro de ayuda",
     ],
   },
@@ -235,7 +235,6 @@ export const PLANS: Plan[] = [
       "Compras, órdenes y proveedores",
       "Gastos y flujo de caja",
       "1 sede · usuarios ilimitados",
-      "2.000 documentos electrónicos",
       "Capacitación de arranque + soporte en horario comercial",
     ],
   },
@@ -256,7 +255,7 @@ export const PLANS: Plan[] = [
       "Cuentas por pagar y por cobrar",
       "Presupuestos, tesorería y auditoría",
       "Nómina hasta 10 empleados",
-      "1 sede · 5.000 documentos",
+      "1 sede",
       "Soporte prioritario + capacitación trimestral",
     ],
   },
@@ -275,7 +274,6 @@ export const PLANS: Plan[] = [
       "Traslados de stock entre sedes",
       "Permisos y roles por sede",
       "Nómina hasta 25 empleados",
-      "12.000 documentos electrónicos",
       "Sede adicional: $89.900",
       "Gerente de cuenta + soporte extendido",
     ],
@@ -293,7 +291,7 @@ export interface PlanComparisonRow {
 
 export const PLAN_COMPARISON: PlanComparisonRow[] = [
   { feature: "POS y cajas ilimitadas", punto: "Sí", negocio: "Sí", control: "Sí", cadena: "Sí" },
-  { feature: "Facturación y POS electrónico DIAN", punto: "Sí", negocio: "Sí", control: "Sí", cadena: "Sí" },
+  { feature: "Factura electrónica DIAN", punto: "Sí", negocio: "Sí", control: "Sí", cadena: "Sí" },
   { feature: "Inventario y arqueo de caja", punto: "Sí", negocio: "Sí", control: "Sí", cadena: "Sí" },
   { feature: "Mesas, comandas y propinas", punto: "—", negocio: "Sí", control: "Sí", cadena: "Sí" },
   { feature: "Lotes, vencimientos y trazabilidad", punto: "—", negocio: "Sí", control: "Sí", cadena: "Sí" },
@@ -303,7 +301,7 @@ export const PLAN_COMPARISON: PlanComparisonRow[] = [
   { feature: "Nómina colombiana", punto: "Complemento", negocio: "Complemento", control: "10 empleados", cadena: "25 empleados" },
   { feature: "Multi-sede y traslados", punto: "—", negocio: "—", control: "—", cadena: "3 sedes" },
   { feature: "Auditoría y permisos por rol", punto: "—", negocio: "Básico", control: "Sí", cadena: "Por sede" },
-  { feature: "Documentos electrónicos / mes", punto: "400", negocio: "2.000", control: "5.000", cadena: "12.000" },
+  { feature: "Documentos electrónicos / mes", punto: "Ilimitados", negocio: "Ilimitados", control: "Ilimitados", cadena: "Ilimitados" },
 ];
 
 /** Complemento (add-on) contratable sobre cualquier plan. */
@@ -334,12 +332,6 @@ export const ADD_ONS: AddOn[] = [
     price: 89_900,
     unit: "/mes",
     note: "Sobre Cadena, sin límite de sedes.",
-  },
-  {
-    name: "Paquete de 1.000 documentos",
-    price: 29_900,
-    unit: "único",
-    note: "No expira; se consume solo al pasar el cupo del plan.",
   },
   {
     name: "Migración desde Siigo, Alegra o Excel",

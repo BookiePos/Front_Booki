@@ -50,7 +50,8 @@ export interface PaymentView {
 
 export interface DocumentUsage {
   used: number
-  base: number
+  /** Tope del mes. `null` = ilimitado (todos los planes hoy). */
+  base: number | null
   credits: number
   period: string
 }
@@ -144,15 +145,6 @@ export async function savePaymentMethod(
 export async function syncPayment(reference: string): Promise<PaymentSyncResult> {
   return parseResponse<PaymentSyncResult>(
     await authFetch(`/billing/payments/${encodeURIComponent(reference)}`),
-  )
-}
-
-export async function purchaseDocs(packages: number): Promise<ChargeResult> {
-  return parseResponse<ChargeResult>(
-    await authFetch("/billing/purchase-docs", {
-      method: "POST",
-      body: JSON.stringify({ packages }),
-    }),
   )
 }
 

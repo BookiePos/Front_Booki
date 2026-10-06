@@ -9,6 +9,8 @@ export interface Customer {
   docType: CustomerDocType
   docNumber: string
   phone?: string
+  email?: string
+  address?: string
   /**
    * Lista de precios pactada con él. Vacío = precio de mostrador.
    * El terminal la usa para mostrar el precio correcto mientras se arma el
@@ -16,6 +18,21 @@ export interface Customer {
    */
   priceListId?: string
   active: boolean
+}
+
+/** Tipo de documento del directorio → código DIAN de la factura. */
+export const DIAN_ID_TYPE: Record<CustomerDocType, string> = {
+  CC: "13",
+  NIT: "31",
+  CE: "22",
+  PAS: "41",
+}
+
+/** Lo contrario, para guardar en el directorio lo que se tecleó al facturar. */
+export function docTypeFromDian(code?: string): CustomerDocType | undefined {
+  return (Object.entries(DIAN_ID_TYPE) as [CustomerDocType, string][]).find(
+    ([, c]) => c === code,
+  )?.[0]
 }
 
 export async function listCustomers(search?: string): Promise<Customer[]> {
@@ -29,6 +46,8 @@ export async function createCustomer(payload: {
   docNumber: string
   docType?: CustomerDocType
   phone?: string
+  email?: string
+  address?: string
 }): Promise<Customer> {
   const res = await authFetch("/customers", {
     method: "POST",

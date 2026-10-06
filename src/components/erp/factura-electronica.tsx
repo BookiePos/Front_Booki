@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import QRCode from "qrcode"
+import { DIAN_TONE_CLASS, dianStatusInfo } from "@/lib/einvoicing-status"
 
 import type { ElectronicDocument } from "@/lib/erp/api-einvoicing"
 import { cn } from "@/lib/utils"
@@ -32,7 +33,9 @@ const MEDIO_PAGO_LABELS: Record<string, string> = {
   "10": "Efectivo",
   "48": "Tarjeta de crédito",
   "49": "Tarjeta débito",
-  "42": "Transferencia",
+  "42": "Consignación",
+  // El POS manda las transferencias como "transferencia débito bancaria".
+  "47": "Transferencia",
 }
 
 const DOC_TYPE_LABELS: Record<string, string> = {
@@ -50,7 +53,8 @@ function fmtDate(iso?: string): string {
 /**
  * Representación gráfica de la factura electrónica / nota crédito (admin),
  * conforme a los elementos mínimos DIAN (Res. 000165/2023, Anexo Técnico 1.9).
- * Sin proveedor tecnológico el documento va en 'draft' ("sin validar DIAN").
+ * El estado ante la DIAN (validada, pendiente, rechazada…) sale de
+ * `dianStatusInfo`, igual que en el POS y el panel.
  */
 export function FacturaElectronica({
   doc,
@@ -65,7 +69,8 @@ export function FacturaElectronica({
   const emisor = doc.emisor
   const adq = doc.adquiriente
   const res = doc.resolution
-  const validated = doc.dianStatus === "accepted"
+  // Etiqueta y nota salen del mismo lugar que en el POS y el panel.
+  const status = dianStatusInfo(doc)
 
   React.useEffect(() => {
     let active = true
@@ -130,11 +135,11 @@ export function FacturaElectronica({
             {dateTime(doc.createdAt)}
           </p>
           <p className="mt-1 text-xs">
-            {validated ? (
-              <span className="font-medium text-success-ink">Validada DIAN</span>
-            ) : (
-              <span className="font-medium text-warning-ink">Sin validar DIAN</span>
-            )}
+            <span
+              className={`rounded-full px-2 py-0.5 font-medium ${DIAN_TONE_CLASS[status.tone]}`}
+            >
+              {status.label}
+            </span>
           </p>
         </div>
       </div>
@@ -177,6 +182,9 @@ export function FacturaElectronica({
               <p className="text-muted-foreground">Tel: {adq.phone}</p>
             )}
             {adq?.email && <p className="text-muted-foreground">{adq.email}</p>}
+            {adq?.address && (
+              <p className="text-muted-foreground">{adq.address}</p>
+            )}
           </div>
         </div>
         <div className="sm:text-right">
@@ -237,7 +245,7 @@ export function FacturaElectronica({
             />
           ) : (
             <div className="flex size-24 items-center justify-center rounded border border-dashed border-border text-center text-[10px] text-muted-foreground">
-              QR al validar con el PT
+              El QR aparece cuando la DIAN valida el documento
             </div>
           )}
           {doc.cufe && (
@@ -261,14 +269,19 @@ export function FacturaElectronica({
             <span>TOTAL</span>
             <span className="tabular-nums">{money(doc.total)}</span>
           </div>
+          {(doc.tip ?? 0) > 0 && (
+            <>
+              {/* La propina no hace parte de la base (Ley 1935 de 2018): va
+                  aparte y aceptada por el cliente. */}
+              <Row label="Propina voluntaria" value={money(doc.tip ?? 0)} muted />
+              <Row label="Total a pagar" value={money(doc.total + (doc.tip ?? 0))} />
+            </>
+          )}
         </div>
       </div>
 
       <p className="mt-6 text-center text-[11px] leading-snug text-muted-foreground">
-        {validated
-          ? "Documento validado por la DIAN."
-          : "Documento sin validar ante la DIAN — pendiente de integración con proveedor tecnológico."}
-        {doc.technicalProvider ? ` Proveedor: ${doc.technicalProvider}.` : ""}
+        {status.note}
       </p>
     </div>
   )

@@ -272,7 +272,9 @@ export const guidesB: GuideDescriptor[] = [
   },
   {
     id: "facturacion",
-    match: /^\/panel\/facturacion/,
+    // Solo la pantalla principal: la conexión DIAN (/panel/facturacion/conexion)
+    // tiene sus propios pasos y este tour señala elementos que allá no están.
+    match: /^\/panel\/facturacion\/?$/,
     build: () => [
       {
         target: null,

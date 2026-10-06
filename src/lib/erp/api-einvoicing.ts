@@ -5,7 +5,12 @@
 import { authFetch, parseResponse } from "@/lib/api-admin"
 
 export type DocType = "invoice" | "credit_note"
-export type DianStatus = "draft" | "pending" | "accepted" | "rejected"
+/**
+ * Estado ante la DIAN. `draft` son documentos viejos, de antes de conectar con
+ * la DIAN. `failed` es un problema de configuración (certificado vencido,
+ * conexión sin configurar): se reenvía al arreglarlo.
+ */
+export type DianStatus = "draft" | "pending" | "accepted" | "rejected" | "failed"
 
 export interface DocEmisor {
   name?: string
@@ -27,6 +32,7 @@ export interface DocAdquiriente {
   name?: string
   phone?: string
   email?: string
+  address?: string
 }
 
 export interface DocLine {
@@ -37,6 +43,7 @@ export interface DocLine {
   unitPrice: number
   discountAmount: number
   base: number
+  taxKind?: "iva" | "inc" | "none"
   ivaRate: number
   ivaAmount: number
   total: number
@@ -68,6 +75,8 @@ export interface ElectronicDocument {
   ivaTotal: number
   discountTotal: number
   total: number
+  /** Propina voluntaria: va aparte, sin impuesto. */
+  tip?: number
   formaPago: string
   medioPago?: string
   resolution?: DocResolucion
@@ -78,8 +87,19 @@ export interface ElectronicDocument {
   qrUrl?: string
   signature?: string
   dianStatus: DianStatus
+  /** Mensaje del último intento, listo para mostrar. */
+  dianMessage?: string
+  /** Reglas que incumplió (rechazo) o notificaciones de la DIAN. */
+  dianErrors?: string[]
+  validatedAt?: string
+  /** Lo emitido en habilitación no vale fiscalmente. */
+  environment?: "habilitacion" | "produccion"
   technicalProvider?: string
+  pdfFile?: string
   xmlUrl?: string
+  attempts?: number
+  /** Próximo reintento automático (si la DIAN no respondió). */
+  nextAttemptAt?: string
   createdByEmail: string
   createdAt: string
 }
@@ -106,6 +126,28 @@ export async function createInvoiceFromSale(
     body: JSON.stringify({ saleId }),
   })
   return parseResponse<ElectronicDocument>(res)
+}
+
+/** Reenvía un documento pendiente, rechazado o fallido, con su mismo número. */
+export async function retryDocument(id: string): Promise<ElectronicDocument> {
+  const res = await authFetch(`/einvoicing/${id}/retry`, { method: "POST" })
+  return parseResponse<ElectronicDocument>(res)
+}
+
+/**
+ * PDF o XML de un documento aceptado. Va por la API (con el token de sesión),
+ * no por enlace directo: el facturador está en una red privada.
+ */
+export async function downloadDocumentFile(
+  id: string,
+  kind: "pdf" | "xml",
+): Promise<Blob> {
+  const res = await authFetch(`/einvoicing/${id}/file/${kind}`)
+  if (!res.ok) {
+    // Reutiliza el manejo de errores del cliente (mensaje del backend).
+    await parseResponse<never>(res)
+  }
+  return res.blob()
 }
 
 export async function createCreditNote(
@@ -215,4 +257,174 @@ export async function registerResolution(
     body: JSON.stringify(payload),
   })
   return parseResponse<ResolutionRow[]>(res)
+}
+
+// ─── Alertas ─────────────────────────────────────────────────────────────────
+
+/** Algo de la facturación electrónica que alguien tiene que mirar. */
+export interface EinvoicingAlert {
+  kind: "certificate" | "pending" | "rejected"
+  severity: "warning" | "danger"
+  message: string
+  count?: number
+  nit?: string
+}
+
+/** Certificados por vencer, pendientes de hace rato y rechazadas (lo grave primero). */
+export async function listAlerts(): Promise<EinvoicingAlert[]> {
+  return parseResponse(await authFetch("/einvoicing/alerts"))
+}
+
+// ─── Conexión con la DIAN (habilitación por NIT) ─────────────────────────────
+
+/** Paso en que va la habilitación de un NIT, en orden. */
+export type ConnectionStep =
+  | "empresa"
+  | "certificado"
+  | "software"
+  | "set_pruebas"
+  | "produccion"
+
+/** Conexión de un NIT con el facturador. Nunca trae el token ni el certificado. */
+export interface EinvoicingConnection {
+  nit: string
+  dv?: string
+  sedes: { id: string; code: string; name: string }[]
+  step: ConnectionStep
+  environment: "habilitacion" | "produccion"
+  softwareId?: string
+  hasTestSet: boolean
+  certificateExpiresAt?: string
+  /** Por qué falló el último paso, para mostrarlo. */
+  lastError?: string
+  connected: boolean
+  testSet: TestSetView
+}
+
+/** Un documento del set de pruebas y lo que respondió la DIAN. */
+export interface TestSetDoc {
+  kind: "invoice" | "credit_note" | "debit_note"
+  prefix: string
+  number: number
+  cufe?: string
+  status: "pending" | "accepted" | "rejected"
+  message?: string
+  errors: string[]
+}
+
+/** Set de pruebas de la DIAN: 8 facturas, 1 nota crédito y 1 nota débito. */
+export interface TestSetView {
+  sentAt?: string
+  docs: TestSetDoc[]
+  summary: {
+    sent: number
+    accepted: number
+    rejected: number
+    pending: number
+    complete: boolean
+    missing: { invoice: number; credit_note: number; debit_note: number }
+  }
+}
+
+/** Rango que la DIAN asoció al software (trae la clave técnica). */
+export interface NumberingRange {
+  resolutionNumber: string
+  resolutionDate?: string
+  prefix: string
+  from: number
+  to: number
+  dateFrom?: string
+  dateTo?: string
+  technicalKey?: string
+}
+
+export async function listConnections(): Promise<EinvoicingConnection[]> {
+  return parseResponse(await authFetch("/einvoicing/connection"))
+}
+
+/** Paso 1: crea la empresa en el facturador con los datos fiscales de la sede. */
+export async function registerCompany(
+  sedeId: string,
+): Promise<EinvoicingConnection[]> {
+  return parseResponse(
+    await authFetch("/einvoicing/connection/company", {
+      method: "POST",
+      body: JSON.stringify({ sedeId }),
+    }),
+  )
+}
+
+/**
+ * Paso 2: certificado digital (.p12/.pfx) en base64 y su clave. Pasa directo
+ * al facturador; BookiPos no lo guarda.
+ */
+export async function uploadCertificate(
+  nit: string,
+  certificate: string,
+  password: string,
+): Promise<EinvoicingConnection[]> {
+  return parseResponse(
+    await authFetch(`/einvoicing/connection/${nit}/certificate`, {
+      method: "PUT",
+      body: JSON.stringify({ certificate, password }),
+    }),
+  )
+}
+
+/** Paso 3: software propio registrado en el portal de la DIAN. */
+export async function configureSoftware(
+  nit: string,
+  payload: { softwareId: string; pin: string; testSetId?: string },
+): Promise<EinvoicingConnection[]> {
+  return parseResponse(
+    await authFetch(`/einvoicing/connection/${nit}/software`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    }),
+  )
+}
+
+/** Registra en el facturador la resolución de la sede y la de notas crédito. */
+export async function syncResolutions(
+  sedeId: string,
+): Promise<EinvoicingConnection[]> {
+  return parseResponse(
+    await authFetch(`/einvoicing/connection/resolutions/${sedeId}`, {
+      method: "POST",
+    }),
+  )
+}
+
+export async function getNumberingRanges(nit: string): Promise<NumberingRange[]> {
+  return parseResponse(
+    await authFetch(`/einvoicing/connection/${nit}/numbering-ranges`),
+  )
+}
+
+export async function setEnvironment(
+  nit: string,
+  environment: "habilitacion" | "produccion",
+): Promise<EinvoicingConnection[]> {
+  return parseResponse(
+    await authFetch(`/einvoicing/connection/${nit}/environment`, {
+      method: "PUT",
+      body: JSON.stringify({ environment }),
+    }),
+  )
+}
+
+/** Paso 4: manda el set de pruebas a la DIAN. El resultado llega después. */
+export async function runTestSet(nit: string): Promise<TestSetView> {
+  return parseResponse(
+    await authFetch(`/einvoicing/connection/${nit}/test-set`, { method: "POST" }),
+  )
+}
+
+/** Consulta a la DIAN cómo va el set de pruebas. */
+export async function checkTestSet(nit: string): Promise<TestSetView> {
+  return parseResponse(
+    await authFetch(`/einvoicing/connection/${nit}/test-set/check`, {
+      method: "POST",
+    }),
+  )
 }

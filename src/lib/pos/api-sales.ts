@@ -132,8 +132,12 @@ export interface SalePackagingInput {
 export interface Customer {
   name?: string
   idNumber?: string
+  /** Tipo de documento con su código DIAN: 13 CC, 31 NIT, 22 CE, 41 pasaporte. */
+  idType?: string
   phone?: string
   email?: string
+  /** La DIAN la exige para facturar a un cliente identificado. */
+  address?: string
 }
 
 export interface Sale {

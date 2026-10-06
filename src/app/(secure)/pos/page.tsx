@@ -73,6 +73,8 @@ import {
   lookupEmployees,
   type Customer as RegCustomer,
   type EmployeeLookup,
+  DIAN_ID_TYPE,
+  docTypeFromDian,
 } from "@/lib/pos/api-customers"
 import { listPriceLists, type PriceList } from "@/lib/erp/api-catalog"
 import { resolveUnitPrice } from "@/lib/erp/price-list"
@@ -393,8 +395,10 @@ export default function VentaPage() {
   const [emitInvoice, setEmitInvoice] = React.useState(false)
   /** Si además hay que dejarlo en el directorio de clientes para la próxima. */
   const [saveCustomer, setSaveCustomer] = React.useState(false)
+  // `pending`: la factura tiene número pero la DIAN aún no la confirma (caída
+  // o lenta). La venta está bien; el backend la reintenta solo.
   const [invoiceState, setInvoiceState] = React.useState<
-    "idle" | "emitting" | "done" | "error"
+    "idle" | "emitting" | "done" | "pending" | "error"
   >("idle")
   const [invoiceNumber, setInvoiceNumber] = React.useState<string | null>(null)
   const [invoiceError, setInvoiceError] = React.useState<string | null>(null)
@@ -487,7 +491,16 @@ export default function VentaPage() {
     // tener sentido y confundiría.
     setManualListId("")
     const c = lista.find((x) => x._id === id)
-    if (c) setCustomer({ name: c.name, idNumber: c.docNumber, phone: c.phone })
+    if (c) {
+      setCustomer({
+        name: c.name,
+        idNumber: c.docNumber,
+        idType: DIAN_ID_TYPE[c.docType],
+        phone: c.phone,
+        email: c.email,
+        address: c.address,
+      })
+    }
   }
 
   async function quickAddCustomer() {
@@ -1014,6 +1027,11 @@ export default function VentaPage() {
   // Propina en pesos (0 si no hay). El 10% se sugiere sobre el total de bienes.
   const tipAmount = tip ?? 0
   const suggestedTip = Math.round(total * 0.1)
+  // Tope legal: la propina que va en la factura no puede pasar del 10 % del
+  // consumo (Ley 1935 de 2018, art. 3). Hacia arriba, para que el 10 %
+  // sugerido siempre quepa. El backend aplica la misma regla.
+  const maxTip = Math.max(0, Math.ceil(total * 0.1))
+  const tipTooHigh = tipAmount > maxTip
 
   const filtered = React.useMemo(() => {
     return products.filter((p) => {
@@ -1074,7 +1092,14 @@ export default function VentaPage() {
     const elegido = regCustomers.find((c) => c._id === custId)
     setCustomer(
       elegido
-        ? { name: elegido.name, idNumber: elegido.docNumber, phone: elegido.phone }
+        ? {
+            name: elegido.name,
+            idNumber: elegido.docNumber,
+            idType: DIAN_ID_TYPE[elegido.docType],
+            phone: elegido.phone,
+            email: elegido.email,
+            address: elegido.address,
+          }
         : {},
     )
     setClienteModo(custId ? "registrado" : "final")
@@ -1206,7 +1231,9 @@ export default function VentaPage() {
 
   /** Limpia el cliente: descarta campos vacíos. */
   function cleanCustomer(): Customer | undefined {
-    const entries = (["name", "idNumber", "phone", "email"] as const)
+    const entries = (
+      ["name", "idNumber", "idType", "phone", "email", "address"] as const
+    )
       .map((k) => [k, customer[k]?.trim()] as const)
       .filter(([, v]) => v)
     return entries.length > 0 ? Object.fromEntries(entries) : undefined
@@ -1224,11 +1251,36 @@ export default function VentaPage() {
       : undefined)
 
   /**
-   * `true` si se pidió factura electrónica pero faltan los datos mínimos que
-   * la DIAN exige del adquiriente (nombre e identificación).
+   * Lo que falta para la factura electrónica. Al consumidor final solo se le
+   * pide nombre e identificación; a un cliente identificado la DIAN le exige
+   * además dirección y teléfono. Se avisa ANTES de cobrar: descubrirlo después
+   * obliga a reenviar la factura.
    */
-  const invoiceDataMissing =
-    emitInvoice && (!customerToSend?.name || !customerToSend?.idNumber)
+  const esConsumidorFinal =
+    (customerToSend?.idNumber ?? "").replace(/\D/g, "") ===
+    CONSUMIDOR_FINAL.idNumber
+  const conDocumento = Boolean(customerToSend?.idNumber?.trim())
+  const invoiceMissing: string[] = !emitInvoice
+    ? []
+    : [
+        !customerToSend?.name?.trim() && "el nombre",
+        !conDocumento && "la cédula o NIT",
+        conDocumento &&
+          !esConsumidorFinal &&
+          !customerToSend?.address?.trim() &&
+          "la dirección",
+        conDocumento &&
+          !esConsumidorFinal &&
+          !customerToSend?.phone?.trim() &&
+          "el teléfono",
+      ].filter((x): x is string => Boolean(x))
+  const invoiceDataMissing = invoiceMissing.length > 0
+  // "la dirección y el teléfono", no "la dirección, el teléfono".
+  const faltanTexto =
+    invoiceMissing.length > 1
+      ? `${invoiceMissing.slice(0, -1).join(", ")} y ${invoiceMissing[invoiceMissing.length - 1]}`
+      : (invoiceMissing[0] ?? "")
+  const invoiceMissingText = `Para la factura electrónica falta ${faltanTexto} del cliente.`
 
   const vendedor = empList.find((e) => e._id === sellerKey)
   const sellerPayload = vendedor
@@ -1254,6 +1306,7 @@ export default function VentaPage() {
     saving ||
     cart.length === 0 ||
     invoiceDataMissing ||
+    tipTooHigh ||
     (method === "cash" && receivedNum !== undefined && receivedNum < netTotal) ||
     (method === "credit" &&
       ((debtorType === "customer" && !custId) ||
@@ -1278,8 +1331,10 @@ export default function VentaPage() {
             ((debtorType === "customer" && !custId) ||
               (debtorType === "employee" && !empId))
           ? "Elige a quién se le fía para poder cobrar."
-          : invoiceDataMissing
-            ? "Para la factura electrónica hace falta el nombre y la cédula o NIT del cliente."
+          : tipTooHigh
+            ? `La propina no puede pasar del 10 % del consumo (${money(maxTip)}).`
+            : invoiceDataMissing
+            ? invoiceMissingText
             : method === "cash" &&
                 receivedNum !== undefined &&
                 receivedNum < netTotal
@@ -1472,7 +1527,20 @@ export default function VentaPage() {
           // `fullNumber` incluye el prefijo de la resolución (ej. "SETP-990").
           // Es el número que sale impreso y por el que pregunta el cliente.
           setInvoiceNumber(doc.fullNumber)
-          setInvoiceState("done")
+          if (doc.dianStatus === "accepted") {
+            setInvoiceState("done")
+          } else if (doc.dianStatus === "pending") {
+            setInvoiceState("pending")
+          } else {
+            // Rechazada o con la conexión mal configurada: el número quedó
+            // reservado y se reenvía con el mismo desde Factura electrónica.
+            setInvoiceError(
+              [doc.dianMessage, ...(doc.dianErrors ?? [])]
+                .filter(Boolean)
+                .join(" ") || "la DIAN no la aceptó",
+            )
+            setInvoiceState("error")
+          }
         } catch (err) {
           setInvoiceError(errorMessage(err))
           setInvoiceState("error")
@@ -1484,7 +1552,10 @@ export default function VentaPage() {
           await createCustomer({
             name: customerData.name,
             docNumber: customerData.idNumber,
+            docType: docTypeFromDian(customerData.idType),
             phone: customerData.phone,
+            email: customerData.email,
+            address: customerData.address,
           })
         } catch {
           // Alta en el directorio: no es crítica y no debe ensuciar la
@@ -2293,6 +2364,7 @@ export default function VentaPage() {
                         onValueChange={(v) => setTip(v ?? 0)}
                         placeholder="$0"
                         className="flex-1"
+                        aria-invalid={tipTooHigh || undefined}
                       />
                       <Button
                         variant="ghost"
@@ -2303,6 +2375,12 @@ export default function VentaPage() {
                         10%
                       </Button>
                     </div>
+                  )}
+                  {tipTooHigh && (
+                    <p className="mt-2 text-xs text-destructive">
+                      Máximo {money(maxTip)}: la ley no permite una propina de
+                      más del 10 % del consumo en la factura.
+                    </p>
                   )}
                 </div>
               )}
@@ -2450,6 +2528,7 @@ export default function VentaPage() {
                         "flex items-start gap-2 rounded-xl px-4 py-3 text-sm",
                         invoiceState === "done" && "bg-success/10 text-success-ink",
                         invoiceState === "emitting" && "bg-accent text-accent-foreground",
+                        invoiceState === "pending" && "bg-warning/15 text-warning-ink",
                         invoiceState === "error" &&
                           "bg-destructive/10 text-destructive",
                       )}
@@ -2457,7 +2536,7 @@ export default function VentaPage() {
                       {invoiceState === "emitting" && (
                         <Loader2 className="mt-0.5 size-4 shrink-0 animate-spin" />
                       )}
-                      {invoiceState === "done" && (
+                      {(invoiceState === "done" || invoiceState === "pending") && (
                         <FileText className="mt-0.5 size-4 shrink-0" />
                       )}
                       {invoiceState === "error" && (
@@ -2466,7 +2545,9 @@ export default function VentaPage() {
                       <span>
                         {invoiceState === "emitting" && "Emitiendo factura electrónica…"}
                         {invoiceState === "done" &&
-                          `Factura electrónica emitida${invoiceNumber ? ` · ${invoiceNumber}` : ""}`}
+                          `Factura electrónica aceptada por la DIAN${invoiceNumber ? ` · ${invoiceNumber}` : ""}`}
+                        {invoiceState === "pending" &&
+                          `Factura ${invoiceNumber ?? ""} enviada: la DIAN aún no la confirma. Se reintenta sola; puedes seguir vendiendo.`}
                         {invoiceState === "error" && (
                           <>
                             La venta quedó registrada, pero la factura no se pudo
@@ -3190,7 +3271,7 @@ export default function VentaPage() {
 
                         <p className="text-[11px] text-muted-foreground">
                           {deliveryFee > 0
-                            ? `Se cobran ${money(deliveryFee)} encima del total. El domicilio no lleva IVA.`
+                            ? `Se cobran ${money(deliveryFee)} encima del total. Ya incluye el impuesto de lo que se lleva.`
                             : "Domicilio sin costo para el cliente."}
                         </p>
                       </div>
@@ -3384,17 +3465,34 @@ export default function VentaPage() {
                         placeholder="Nombre"
                         aria-label="Nombre del cliente"
                       />
-                      <Input
-                        value={customer.idNumber ?? ""}
-                        onChange={(e) =>
-                          setCustomer((c) => ({
-                            ...c,
-                            idNumber: e.target.value,
-                          }))
-                        }
-                        placeholder="Cédula / NIT"
-                        aria-label="Identificación del cliente"
-                      />
+                      <div className="flex gap-2">
+                        <NativeSelect
+                          value={customer.idType ?? ""}
+                          onChange={(v) =>
+                            setCustomer((c) => ({ ...c, idType: v || undefined }))
+                          }
+                          options={[
+                            { value: "13", label: "CC" },
+                            { value: "31", label: "NIT" },
+                            { value: "22", label: "CE" },
+                            { value: "41", label: "Pasaporte" },
+                          ]}
+                          placeholder="Tipo"
+                          aria-label="Tipo de documento del cliente"
+                          className="w-28 shrink-0"
+                        />
+                        <Input
+                          value={customer.idNumber ?? ""}
+                          onChange={(e) =>
+                            setCustomer((c) => ({
+                              ...c,
+                              idNumber: e.target.value,
+                            }))
+                          }
+                          placeholder="Cédula / NIT"
+                          aria-label="Identificación del cliente"
+                        />
+                      </div>
                       <Input
                         value={customer.phone ?? ""}
                         onChange={(e) =>
@@ -3411,12 +3509,20 @@ export default function VentaPage() {
                         placeholder="Correo"
                         aria-label="Correo del cliente"
                       />
+                      <Input
+                        value={customer.address ?? ""}
+                        onChange={(e) =>
+                          setCustomer((c) => ({ ...c, address: e.target.value }))
+                        }
+                        placeholder="Dirección"
+                        aria-label="Dirección del cliente"
+                        className="sm:col-span-2"
+                      />
                     </div>
                     {invoiceDataMissing && (
                       <p className="flex items-start gap-2 rounded-xl bg-accent px-3 py-2 text-xs text-accent-foreground">
                         <Info className="mt-0.5 size-4 shrink-0" />
-                        Para la factura electrónica hace falta el nombre y la
-                        cédula o NIT del cliente.
+                        {invoiceMissingText}
                       </p>
                     )}
                   </CheckoutGroup>

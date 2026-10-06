@@ -6,12 +6,13 @@ import {
   ShieldOff,
   Printer,
   Ban,
-  CheckCircle2,
   Loader2,
   Receipt as ReceiptIcon,
   AlertTriangle,
   BookOpen,
   ChevronDown,
+  RefreshCw,
+  Download,
 } from "lucide-react"
 
 import { useAuth } from "@/lib/auth-context"
@@ -21,8 +22,14 @@ import {
   listDocuments,
   createInvoiceFromSale,
   createCreditNote,
+  retryDocument,
+  downloadDocumentFile,
+  listAlerts,
   type ElectronicDocument,
+  type EinvoicingAlert,
 } from "@/lib/erp/api-einvoicing"
+import { DIAN_TONE_CLASS, dianStatusInfo } from "@/lib/einvoicing-status"
+import { DianDetail } from "@/components/ui/dian-detail"
 import { ApiError } from "@/lib/api"
 
 import { PageHeader } from "@/components/erp/page-header"
@@ -39,7 +46,6 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { FormDialog } from "@/components/ui/form-dialog"
-import { Termino } from "@/components/ui/help-tip"
 
 const money = new Intl.NumberFormat("es-CO", {
   style: "currency",
@@ -78,6 +84,7 @@ export default function FacturacionPage() {
   const [error, setError] = React.useState<string | null>(null)
   const [busyId, setBusyId] = React.useState<string | null>(null)
   const [selected, setSelected] = React.useState<ElectronicDocument | null>(null)
+  const [alerts, setAlerts] = React.useState<EinvoicingAlert[]>([])
 
   const sede = sedes.find((s) => s._id === sedeId)
 
@@ -106,10 +113,13 @@ export default function FacturacionPage() {
     setLoading(true)
     setError(null)
     try {
-      const [page, docs] = await Promise.all([
+      const [page, docs, alertas] = await Promise.all([
         listSales(sedeId, 1, 50),
         listDocuments(sedeId),
+        // Las alertas no deben tumbar la pantalla si fallan.
+        listAlerts().catch(() => [] as EinvoicingAlert[]),
       ])
+      setAlerts(alertas)
       setSales(page.rows)
       const map = new Map<string, ElectronicDocument>()
       for (const d of docs) {
@@ -150,6 +160,38 @@ export default function FacturacionPage() {
       const note = await createCreditNote(invoice._id, reason.trim())
       await load()
       setSelected(note)
+    } catch (err) {
+      alert(errorMessage(err))
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  /** Reenvía con el mismo número una factura pendiente, rechazada o sin enviar. */
+  async function handleRetry(doc: ElectronicDocument) {
+    setBusyId(doc._id)
+    try {
+      const updated = await retryDocument(doc._id)
+      await load()
+      setSelected(updated)
+    } catch (err) {
+      alert(errorMessage(err))
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  /** PDF o XML tal como lo dejó el facturador (pasa por la API, con sesión). */
+  async function handleDownload(doc: ElectronicDocument, kind: "pdf" | "xml") {
+    setBusyId(doc._id)
+    try {
+      const blob = await downloadDocumentFile(doc._id, kind)
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `${doc.fullNumber}.${kind}`
+      a.click()
+      URL.revokeObjectURL(url)
     } catch (err) {
       alert(errorMessage(err))
     } finally {
@@ -279,17 +321,17 @@ export default function FacturacionPage() {
                 Estado en este sistema
               </p>
               <p>
-                <span className="text-success-ink">Listo:</span> datos fiscales del
-                emisor y adquiriente, IVA discriminado, numeración por
-                resolución, CUFE (Anexo 1.9) y representación gráfica con QR.
+                Cada factura se firma con el certificado digital del negocio y
+                se envía a la DIAN en el momento (modalidad{" "}
+                <span className="font-medium text-foreground">software
+                propio</span>). La DIAN la valida y devuelve el CUFE oficial y
+                el QR.
               </p>
               <p className="mt-1">
-                <span className="text-warning-ink">Pendiente:</span> la firma
-                digital, el XML UBL 2.1 y la transmisión/validación ante la DIAN
-                se habilitan al integrar un{" "}
-                <span className="font-medium text-foreground">proveedor
-                tecnológico (Siigo u otro)</span>. Por eso los documentos figuran
-                como “sin validar DIAN”.
+                Si la DIAN no responde, la factura queda{" "}
+                <span className="text-warning-ink">pendiente</span> y se
+                reintenta sola con el mismo número; si la rechaza, aquí se ve
+                el motivo y se reenvía después de corregirlo.
               </p>
             </div>
 
@@ -300,6 +342,28 @@ export default function FacturacionPage() {
           </div>
         </details>
       </Card>
+
+      {/* Lo que necesita atención: certificado por vencer, rechazadas,
+          pendientes de hace rato. Va arriba porque sin certificado no se
+          factura. */}
+      {alerts.length > 0 && (
+        <div className="mb-4 flex flex-col gap-2">
+          {alerts.map((a) => (
+            <div
+              key={`${a.kind}-${a.nit ?? ""}`}
+              role="alert"
+              className={`flex items-start gap-2 rounded-xl px-4 py-3 text-sm ${
+                a.severity === "danger"
+                  ? "bg-destructive/10 text-destructive"
+                  : "bg-warning/15 text-warning-ink"
+              }`}
+            >
+              <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+              <span>{a.message}</span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {sede && !feReady && (
         <Card className="mb-4 border-warning/40">
@@ -352,8 +416,11 @@ export default function FacturacionPage() {
 
                     {invoice ? (
                       <>
-                        <Badge className="border-transparent bg-success/10 text-success-ink">
-                          {invoice.fullNumber}
+                        <Badge variant="outline">{invoice.fullNumber}</Badge>
+                        <Badge
+                          className={`border-transparent ${DIAN_TONE_CLASS[dianStatusInfo(invoice).tone]}`}
+                        >
+                          {dianStatusInfo(invoice).label}
                         </Badge>
                         <Button
                           variant="outline"
@@ -362,7 +429,23 @@ export default function FacturacionPage() {
                         >
                           Ver
                         </Button>
-                        {canVoid && (
+                        {dianStatusInfo(invoice).canRetry && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-1.5"
+                            disabled={busyId === invoice._id}
+                            onClick={() => void handleRetry(invoice)}
+                          >
+                            {busyId === invoice._id ? (
+                              <Loader2 className="size-4 animate-spin" />
+                            ) : (
+                              <RefreshCw className="size-4" />
+                            )}
+                            Reenviar
+                          </Button>
+                        )}
+                        {canVoid && invoice.dianStatus === "accepted" && (
                           <Button
                             variant="ghost"
                             size="sm"
@@ -418,27 +501,50 @@ export default function FacturacionPage() {
               <Printer />
               Imprimir / PDF
             </Button>
-            <Button
-              variant="outline"
-              className="no-print"
-              disabled
-              title="Requiere integración con proveedor (Siigo u otro)"
-            >
-              <CheckCircle2 />
-              Enviar a DIAN
-            </Button>
+            {selected && dianStatusInfo(selected).canRetry && (
+              <Button
+                variant="outline"
+                className="no-print"
+                disabled={busyId === selected._id}
+                onClick={() => void handleRetry(selected)}
+              >
+                <RefreshCw />
+                Reenviar a la DIAN
+              </Button>
+            )}
+            {selected &&
+              selected.dianStatus === "accepted" &&
+              selected.technicalProvider !== "simulado" &&
+              selected.pdfFile && (
+                <>
+                  <Button
+                    variant="outline"
+                    className="no-print"
+                    disabled={busyId === selected._id}
+                    onClick={() => void handleDownload(selected, "pdf")}
+                  >
+                    <Download />
+                    PDF DIAN
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="no-print"
+                    disabled={busyId === selected._id}
+                    onClick={() => void handleDownload(selected, "xml")}
+                  >
+                    <Download />
+                    XML
+                  </Button>
+                </>
+              )}
             <Button onClick={() => setSelected(null)}>Cerrar</Button>
           </>
         }
       >
         {selected && (
           <>
+            <DianDetail doc={selected} />
             <FacturaElectronica doc={selected} />
-            <p className="no-print text-center text-xs text-muted-foreground">
-              El envío y la validación ante la{" "}
-              <Termino>DIAN</Termino> se habilitan al integrar el{" "}
-              <Termino>proveedor tecnológico</Termino>.
-            </p>
           </>
         )}
       </FormDialog>

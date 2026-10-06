@@ -135,7 +135,7 @@ export type PlanFeature =
 export interface PlanQuotas {
   sedes: number
   users: number | null
-  documentsPerMonth: number
+  documentsPerMonth: number | null
   payrollEmployees: number
   /** Facturas de compra que se pueden leer por foto al mes. */
   invoiceScansPerMonth: number
