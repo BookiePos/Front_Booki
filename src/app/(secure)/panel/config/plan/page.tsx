@@ -20,9 +20,11 @@ import {
   getBillingConfig,
   getBillingStatus,
   purchaseDocs,
+  savePaymentMethod,
   subscribe,
+  syncPayment,
 } from "@/lib/erp/api-billing"
-import { openCardTokenizer, type WompiPaymentSource } from "@/lib/erp/wompi-widget"
+import { openCardTokenizer } from "@/lib/erp/wompi-widget"
 import { PageHeader } from "@/components/erp/page-header"
 import { Termino } from "@/components/ui/help-tip"
 import { Card, CardContent } from "@/components/ui/card"
@@ -70,8 +72,12 @@ export default function PlanBillingPage() {
   const [extraSedes, setExtraSedes] = useState(0)
   const [extraEmployees, setExtraEmployees] = useState(0)
 
-  // La tarjeta se captura en el widget de Wompi; aquí solo queda su token.
-  const [cardSource, setCardSource] = useState<WompiPaymentSource | null>(null)
+  // La tarjeta se captura en el widget de Wompi y se registra en el backend en
+  // ese mismo momento: el token que devuelve el widget es de un solo uso y solo
+  // vive en esta pestaña, así que guardarlo aquí hacía que la tarjeta
+  // "guardada" desapareciera al recargar. La tarjeta vigente viene de
+  // `status.paymentMethod`, que es lo que sobrevive a la recarga.
+  const [savingCard, setSavingCard] = useState(false)
   const [openingWidget, setOpeningWidget] = useState(false)
   const [acceptedTerms, setAcceptedTerms] = useState(false)
   const [acceptedPersonalData, setAcceptedPersonalData] = useState(false)
@@ -135,6 +141,12 @@ export default function PlanBillingPage() {
     }
   }, [authorized, currentPlan])
 
+  /**
+   * Tarjeta que el backend tiene registrada. Es la única que sobrevive a una
+   * recarga: el token del widget vive solo en esta pestaña.
+   */
+  const savedCard = status?.paymentMethod ?? null
+
   const previewAmount = useMemo(() => {
     const p = PLAN_BY_ID[selectedPlan]
     if (!p) return 0
@@ -147,18 +159,32 @@ export default function PlanBillingPage() {
     return planPrice + addOnMonthly * months
   }, [selectedPlan, cycle, payroll, extraSedes, extraEmployees])
 
-  async function pollUntilActive(): Promise<boolean> {
-    for (let i = 0; i < 8; i++) {
-      await new Promise((r) => setTimeout(r, 1500))
+  /**
+   * Espera a que la pasarela resuelva el cobro, preguntándole por él.
+   *
+   * Wompi devuelve `PENDING` al crear la transacción SIEMPRE y la aprueba unos
+   * segundos después; la confirmación llega por webhook. Mientras esto miraba
+   * el estado guardado —que solo cambia cuando llega el webhook— el cobro se
+   * veía "en proceso" indefinidamente en desarrollo, donde Wompi no puede
+   * llamar a localhost. Consultar la referencia cierra el ciclo sin webhook.
+   */
+  async function confirmCharge(
+    reference: string,
+  ): Promise<"approved" | "failed" | "pending"> {
+    for (let i = 0; i < 12; i++) {
       try {
-        const st = await getBillingStatus()
-        setStatus(st)
-        if (st.subscription?.status === "active") return true
+        const r = await syncPayment(reference)
+        if (r.status !== "pending") {
+          await refreshStatus()
+          return r.status === "approved" ? "approved" : "failed"
+        }
       } catch {
-        /* reintenta */
+        /* reintenta: la pasarela puede tardar */
       }
+      await new Promise((r) => setTimeout(r, 1500))
     }
-    return false
+    await refreshStatus()
+    return "pending"
   }
 
   async function onSubscribe(event: React.FormEvent) {
@@ -168,45 +194,35 @@ export default function PlanBillingPage() {
       setMessage({ kind: "error", text: "La pasarela de pagos no está configurada." })
       return
     }
-    if (!cardSource) {
-      setMessage({ kind: "error", text: "Agrega tu tarjeta en el formulario seguro de Wompi." })
-      return
-    }
-    // Un backend anterior no publica la autorización de datos: en ese caso no
-    // se pide la casilla ni se envía el campo (lo rechazaría por no declarado).
-    const needsPersonalData = Boolean(config.personalDataAuthToken)
-    if (!acceptedTerms || (needsPersonalData && !acceptedPersonalData)) {
+    if (!savedCard) {
       setMessage({
         kind: "error",
-        text: "Para registrar la tarjeta debes aceptar los términos de Wompi y autorizar el tratamiento de tus datos.",
+        text: "Agrega tu tarjeta en el formulario seguro de Wompi antes de contratar.",
       })
       return
     }
     setSubmitting(true)
     try {
+      // Sin `cardToken`: se cobra contra la tarjeta que ya quedó registrada.
       const result = await subscribe({
         plan: selectedPlan,
         billingCycle: cycle,
-        cardToken: cardSource.token,
-        acceptanceToken: config.acceptanceToken,
-        acceptPersonalAuth: needsPersonalData ? config.personalDataAuthToken : undefined,
         addOns: {
           payroll: payroll || undefined,
           extraSedes: extraSedes || undefined,
           extraEmployees: extraEmployees || undefined,
         },
       })
-      if (result.status === "APPROVED") {
-        await refreshStatus()
-        setMessage({ kind: "ok", text: "¡Pago aprobado! Actualizando tu plan…" })
-        setTimeout(() => window.location.reload(), 1200)
-        return
-      }
       setMessage({ kind: "info", text: "Pago en proceso, confirmando con la pasarela…" })
-      const ok = await pollUntilActive()
-      if (ok) {
+      const outcome = await confirmCharge(result.reference)
+      if (outcome === "approved") {
         setMessage({ kind: "ok", text: "¡Listo! Tu plan quedó activo." })
         setTimeout(() => window.location.reload(), 1200)
+      } else if (outcome === "failed") {
+        setMessage({
+          kind: "error",
+          text: "El banco rechazó el cobro. Revisa la tarjeta o registra otra e inténtalo de nuevo.",
+        })
       } else {
         setMessage({
           kind: "info",
@@ -214,9 +230,6 @@ export default function PlanBillingPage() {
         })
       }
     } catch (err) {
-      // El token de Wompi es de un solo uso: si el backend alcanzó a usarlo,
-      // reintentar con el mismo fallaría. Se pide registrar la tarjeta de nuevo.
-      setCardSource(null)
       setMessage({
         kind: "error",
         text: err instanceof Error ? err.message : "No se pudo procesar el pago.",
@@ -229,11 +242,24 @@ export default function PlanBillingPage() {
   async function onAddCard() {
     if (!config?.configured) return
     setMessage(null)
+    // Un backend anterior no publica la autorización de datos: en ese caso no
+    // se pide la casilla ni se envía el campo (lo rechazaría por no declarado).
+    const needsPersonalData = Boolean(config.personalDataAuthToken)
+    if (!acceptedTerms || (needsPersonalData && !acceptedPersonalData)) {
+      setMessage({
+        kind: "error",
+        text: "Para registrar la tarjeta debes aceptar los términos de Wompi y autorizar el tratamiento de tus datos.",
+      })
+      return
+    }
+    const cfg = config
     setOpeningWidget(true)
     try {
-      await openCardTokenizer(config.publicKey, (source) => {
-        setCardSource(source)
-        setMessage(null)
+      await openCardTokenizer(cfg.publicKey, (source) => {
+        // El token del widget es de un solo uso y muere con la pestaña: se
+        // cambia en el acto por una fuente de pago en el backend, que es lo
+        // único que sobrevive a la recarga.
+        void registerCard(cfg, source.token)
       })
     } catch (err) {
       setMessage({
@@ -245,17 +271,50 @@ export default function PlanBillingPage() {
     }
   }
 
+  /** Cambia el token del widget por una fuente de pago guardada en el backend. */
+  async function registerCard(cfg: BillingConfig, cardToken: string) {
+    setSavingCard(true)
+    setMessage(null)
+    try {
+      await savePaymentMethod({
+        cardToken,
+        acceptanceToken: cfg.acceptanceToken,
+        acceptPersonalAuth: cfg.personalDataAuthToken || undefined,
+      })
+      await refreshStatus()
+      setMessage({
+        kind: "ok",
+        text: "Tarjeta registrada. Queda guardada para tus cobros.",
+      })
+    } catch (err) {
+      setMessage({
+        kind: "error",
+        text: err instanceof Error ? err.message : "No se pudo registrar la tarjeta.",
+      })
+    } finally {
+      setSavingCard(false)
+    }
+  }
+
   async function onBuyDocs() {
     setMessage(null)
     setSubmitting(true)
     try {
       const result = await purchaseDocs(docPacks)
-      if (result.status === "APPROVED") {
-        await refreshStatus()
+      setMessage({ kind: "info", text: "Compra en proceso, confirmando con la pasarela…" })
+      const outcome = await confirmCharge(result.reference)
+      if (outcome === "approved") {
         setMessage({ kind: "ok", text: `Compraste ${docPacks * 1000} documentos.` })
+      } else if (outcome === "failed") {
+        setMessage({
+          kind: "error",
+          text: "El banco rechazó el cobro del paquete. Revisa la tarjeta e inténtalo de nuevo.",
+        })
       } else {
-        setMessage({ kind: "info", text: "Compra en proceso, confirmando con la pasarela…" })
-        await pollUntilActive()
+        setMessage({
+          kind: "info",
+          text: "La compra sigue en proceso. Los documentos se acreditan en cuanto la pasarela confirme.",
+        })
       }
     } catch (err) {
       setMessage({
@@ -505,24 +564,31 @@ export default function PlanBillingPage() {
                     Wompi: BookiPos nunca los ve ni los guarda.
                   </p>
                   <div className="mt-3 flex flex-wrap items-center gap-3">
-                    {cardSource && (
+                    {savedCard && (
                       <span className="inline-flex items-center gap-1.5 rounded-full bg-success/15 px-3 py-1 text-xs font-semibold text-success-ink">
                         <CheckCircle2 className="size-4" aria-hidden="true" />
-                        Tarjeta registrada con Wompi
+                        {savedCard.brand ?? "Tarjeta"}
+                        {savedCard.lastFour ? ` •••• ${savedCard.lastFour}` : ""}
                       </span>
                     )}
                     <button
                       type="button"
                       onClick={onAddCard}
-                      disabled={submitting || openingWidget || !config?.configured}
+                      disabled={
+                        submitting || openingWidget || savingCard || !config?.configured
+                      }
                       className="inline-flex items-center gap-2 rounded-full border border-border px-4 py-1.5 text-sm font-medium hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      {openingWidget ? (
+                      {openingWidget || savingCard ? (
                         <Loader2 className="size-4 animate-spin" aria-hidden="true" />
                       ) : (
                         <CreditCard className="size-4" aria-hidden="true" />
                       )}
-                      {cardSource ? "Cambiar tarjeta" : "Agregar tarjeta"}
+                      {savingCard
+                        ? "Registrando…"
+                        : savedCard
+                          ? "Cambiar tarjeta"
+                          : "Agregar tarjeta"}
                     </button>
                   </div>
                   {config?.environment === "sandbox" && (
@@ -596,11 +662,13 @@ export default function PlanBillingPage() {
                   <div className="flex flex-col items-end gap-1.5">
                     <button
                       type="submit"
-                      disabled={submitting || !config?.configured}
+                      disabled={submitting || !config?.configured || !savedCard}
                       title={
-                        config?.configured
-                          ? undefined
-                          : "El cobro con tarjeta no está disponible en este momento."
+                        !config?.configured
+                          ? "El cobro con tarjeta no está disponible en este momento."
+                          : !savedCard
+                            ? "Agrega tu tarjeta antes de contratar."
+                            : undefined
                       }
                       className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-2.5 text-sm font-semibold text-primary-foreground shadow-[0_10px_30px_-12px_var(--primary)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
                     >
@@ -616,6 +684,12 @@ export default function PlanBillingPage() {
                         El cobro con tarjeta no está disponible ahora mismo.
                         Vuelve a cargar la página; si sigue igual, escríbenos y
                         reactivamos la cuenta a mano.
+                      </p>
+                    )}
+                    {!loading && config?.configured && !savedCard && (
+                      <p className="max-w-xs text-right text-xs text-muted-foreground">
+                        Primero agrega tu tarjeta arriba: queda guardada para
+                        este cobro y para las renovaciones.
                       </p>
                     )}
                   </div>
