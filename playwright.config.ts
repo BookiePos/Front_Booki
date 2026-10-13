@@ -9,9 +9,24 @@
  * NO se define webServer aquí porque el stack completo (Mongo + NestJS + Next.js)
  * no se puede orquestar de forma fiable en este contexto.
  * Levanta el stack manualmente antes de ejecutar `pnpm e2e`.
+ *
+ * ENTORNO (todas opcionales; sin ellas apunta al stack local y al seeder demo):
+ *   E2E_BASE_URL  frontend (baseURL)   por defecto http://localhost:3000
+ *   E2E_API_URL   backend              por defecto http://localhost:3001
+ *   E2E_EMAIL     usuario de la empresa demo
+ *   E2E_PASSWORD  su clave
+ *
+ * `pnpm e2e:prod` corre SOLO sale.spec.ts (flujo feliz de venta) contra otro
+ * stack, p. ej. producción. Úsalo SIEMPRE con una empresa demo dedicada: el test
+ * abre caja y registra una venta real en esa empresa. Ejemplo (bash):
+ *   E2E_BASE_URL=https://<front> E2E_API_URL=https://<api> \
+ *   E2E_EMAIL=<demo> E2E_PASSWORD=<clave> pnpm e2e:prod
+ * En PowerShell, define cada una con $env:E2E_... = "..." antes del comando.
+ * Nunca escribas la clave real en este archivo ni en scripts versionados.
  */
 
 import { defineConfig, devices } from "@playwright/test";
+import { FRONTEND_URL } from "./e2e/helpers/auth";
 
 export default defineConfig({
   testDir: "./e2e",
@@ -32,7 +47,7 @@ export default defineConfig({
 
   /** Captura trace solo en el primer fallo para no saturar disco en uso normal. */
   use: {
-    baseURL: "http://localhost:3000",
+    baseURL: FRONTEND_URL,
     trace: "on-first-retry",
     screenshot: "only-on-failure",
     video: "off",

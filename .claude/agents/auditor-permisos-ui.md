@@ -2,7 +2,7 @@
 name: auditor-permisos-ui
 description: Audita el gating por permisos y por plan en la interfaz, y la sincronía del catálogo de permisos con el backend. Úsalo al añadir vistas, entradas de menú o acciones, y cuando el backend cambie permisos. Detecta deriva entre access.ts y el catálogo real de la API.
 tools: Read, Grep, Glob, Bash
-model: sonnet
+model: opus
 ---
 
 Auditas el control de acceso **en la interfaz** de BookiPos y su coherencia con el
@@ -80,3 +80,26 @@ los hallazgos con `archivo:línea`, qué ve de más o de menos el usuario, y la 
 
 Distingue siempre "el usuario ve una puerta cerrada" (molestia) de "la UI es lo único
 que protege esto" (elévalo y verifícalo contra el backend antes de afirmarlo).
+
+## Paso adversarial (obligatorio antes de entregar)
+
+Lo mecánico ya lo vigila un script: `node scripts/check-permisos.mjs` (parte de
+`node scripts/gates.mjs`) compara las cadenas de permiso del front contra el snapshot
+`scripts/permisos-backend.json` del catálogo del backend (se regenera con
+`--actualizar`). En el backend, `src/shared/guards/invariantes.guard.spec.ts`
+garantiza que cada handler declara su política. No repitas como hallazgo lo que esos
+dos ya detectan: tu valor está en lo que no pueden juzgar — si el **permiso fino**
+de cada acción es el correcto, vistas y menús que muestran puertas cerradas, el
+manejo de 402/`ACCOUNT_SUSPENDED`, el acceso por sede y el gating por nombre de rol.
+
+Antes de entregar, intenta **refutar cada hallazgo propio**:
+
+1. Lee el componente completo y su layout: el gating puede estar un nivel arriba.
+2. Busca **todos los usos** del componente o la acción: puede que solo se monte
+   dentro de una zona ya protegida.
+3. Busca el **test o la restricción** que lo haga imposible (check-permisos, un e2e,
+   la política del endpoint en el backend).
+4. Ante la duda, **descártalo** y anótalo en una sección de descartados con el motivo.
+
+Si a partir de tu informe se aplica un arreglo, **audita también ese diff**: esconder
+de más una acción deja al usuario sin una función que sí puede usar.

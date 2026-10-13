@@ -13,7 +13,7 @@
  */
 
 import { test, expect } from "@playwright/test";
-import { DEMO_EMAIL, DEMO_PASSWORD } from "./helpers/auth";
+import { DEMO_EMAIL, DEMO_PASSWORD, FRONTEND_URL } from "./helpers/auth";
 
 test.describe("Login — BookiPos", () => {
   test.beforeEach(async ({ page }) => {
@@ -68,7 +68,7 @@ test.describe("Login — BookiPos", () => {
 
     // El backend (NestJS) envía el refresh_token como HttpOnly cookie.
     // context.cookies() incluye todas las cookies del contexto del browser.
-    const cookies = await context.cookies("http://localhost:3000");
+    const cookies = await context.cookies(FRONTEND_URL);
     const refreshToken = cookies.find((c) => c.name === "refresh_token");
 
     expect(

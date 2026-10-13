@@ -1,0 +1,4 @@
+# El hook de pre-commit se ejecuta con sh: un retorno de carro (CRLF) rompe el
+# exec y deja de proteger sin avisar (Git en Windows trae core.autocrlf=true).
+.githooks/* text eol=lf
+*.sh text eol=lf
