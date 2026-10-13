@@ -10,10 +10,24 @@
 
 import { type APIRequestContext, type BrowserContext } from "@playwright/test";
 
-export const DEMO_EMAIL = "demo@sistemapos.local";
-export const DEMO_PASSWORD = "Demo123!";
-export const BACKEND_URL = "http://localhost:3001";
-export const FRONTEND_URL = "http://localhost:3000";
+/**
+ * URLs y credenciales salen del entorno para poder apuntar los e2e a otro stack
+ * (p. ej. producción con una empresa demo, ver `pnpm e2e:prod` en
+ * playwright.config.ts). Sin variables, se usan el stack local y el seeder demo.
+ *
+ *   E2E_API_URL   backend NestJS   (por defecto http://localhost:3001)
+ *   E2E_BASE_URL  frontend Next    (por defecto http://localhost:3000)
+ *   E2E_EMAIL     usuario demo     (por defecto demo@sistemapos.local)
+ *   E2E_PASSWORD  clave del demo   (por defecto la del seeder local)
+ */
+function sinBarraFinal(url: string): string {
+  return url.replace(/\/+$/, "");
+}
+
+export const DEMO_EMAIL = process.env.E2E_EMAIL || "demo@sistemapos.local";
+export const DEMO_PASSWORD = process.env.E2E_PASSWORD || "Demo123!";
+export const BACKEND_URL = sinBarraFinal(process.env.E2E_API_URL || "http://localhost:3001");
+export const FRONTEND_URL = sinBarraFinal(process.env.E2E_BASE_URL || "http://localhost:3000");
 
 /**
  * Realiza el login vía API directa al backend NestJS.

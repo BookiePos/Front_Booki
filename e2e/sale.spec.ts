@@ -22,7 +22,7 @@
  */
 
 import { test, expect, type Page } from "@playwright/test";
-import { DEMO_EMAIL, DEMO_PASSWORD } from "./helpers/auth";
+import { DEMO_EMAIL, DEMO_PASSWORD, FRONTEND_URL } from "./helpers/auth";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -232,7 +232,7 @@ test.describe("POS — Flujo de venta (flujo feliz)", () => {
 
     const url = page.url();
     const isRedirected =
-      url.includes("/login") || url === "http://localhost:3000/";
+      url.includes("/login") || url === `${FRONTEND_URL}/`;
 
     expect(
       isRedirected,
@@ -249,7 +249,7 @@ test.describe("POS — Flujo de venta (flujo feliz)", () => {
 
     const url = page.url();
     const isRedirected =
-      url.includes("/login") || url === "http://localhost:3000/";
+      url.includes("/login") || url === `${FRONTEND_URL}/`;
 
     expect(
       isRedirected,

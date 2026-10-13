@@ -17,6 +17,31 @@ Next.js 16 (App Router) + React 19 + TypeScript + Tailwind v4. Gestor: **pnpm**.
 El backend NestJS corre en **:3001**. Sin él, la app arranca pero toda vista
 autenticada falla.
 
+## Cómo se trabaja
+
+- **Al empezar**: lee `../Backend/docs/ESTADO.md` (el estado de los dos repos vive
+  ahí) y comprueba con `git rev-parse --short HEAD` en cada repo que el HEAD coincide
+  con el anotado. Si no, para y avisa.
+- **Gates antes de cada PR**: `node scripts/gates.mjs --build` (skill `gates`): tsc,
+  eslint, check-permisos, secretos y build. Un gate sin cifra es `SIN MEDIR`, nunca
+  verde. CI (`.github/workflows/ci.yml`) es obligatorio.
+- **Techos** (`scripts/techos.json`): deuda congelada que solo baja. Si una cuenta baja,
+  baja el techo en el mismo PR; subirlo exige justificarlo en el PR.
+- **check-permisos** (`scripts/check-permisos.mjs`): compara las cadenas de permiso del
+  front con el snapshot del backend `scripts/permisos-backend.json`. Si el backend
+  cambió permisos, regenéralo con `--actualizar` y revisa su diff en el mismo PR.
+- **Secretos**: `scripts/check-no-secrets.mjs` + hook `.githooks/pre-commit`
+  (`git config core.hooksPath .githooks`). Un falso positivo se marca con `secretos-ok`.
+- **Verde unitario no es verde e2e**: si tocas un flujo, corre `pnpm e2e` (ver Testing E2E).
+- **Despliegue**: backend primero, frontend después; luego la sonda del backend
+  (`node scripts/sonda-prod.mjs` en `../Backend`). Al cerrar, `/cerrar-sesion` (Backend).
+- **Auditores** (`.claude/agents/`): `auditor-permisos-ui` (opus) en cambios de
+  permisos o gating; intenta refutar sus hallazgos antes de entregarlos y audita
+  también el diff del arreglo. Para dinero o tenancy, los auditores del Backend.
+- **Skills**: `gates`; `componente-ui` y `nueva-vista-erp` (panel y POS);
+  `design-taste-frontend` (web pública y marketing, no dashboards); `emil-design-eng`
+  (animación y pulido de interacción); `find-skills`. `security-audit` vive en el Backend.
+
 ## Un solo origen: por qué importa
 
 La web pública, `/panel` y `/pos` comparten origen a propósito. Eso elimina el
@@ -51,6 +76,12 @@ restaurante, propinas, descuentos, impresión de tirilla— es `/pos`.
 Qué área ve cada usuario lo decide `src/lib/access.ts` a partir de sus permisos:
 `permsAllowPos()` (necesita `pos.sell`) y `permsAllowOperation()` (cualquiera de
 `OPERATION_PERMISSIONS`). Un rol puede calificar para ambas.
+
+Las cadenas de permiso replican el catálogo del backend
+(`../Backend/src/modules/core-auth/domain/permissions.ts`). Si allí se añade o
+renombra un permiso, `access.ts` queda desincronizado y el gate `check-permisos` se
+pone en rojo: actualiza `access.ts` y regenera el snapshot con
+`node scripts/check-permisos.mjs --actualizar`.
 
 ## Capa de datos
 
@@ -138,8 +169,9 @@ screenshot en fallo. **No hay `webServer` configurado a propósito**: el stack c
 
 `e2e/helpers/auth.ts` hace login por **API directa al backend** (más rápido que navegar
 la UI) y devuelve el `storageState`. Credenciales demo (`demo@sistemapos.local`) creadas
-por el seeder del backend. Las URLs están hardcodeadas ahí: si cambian, se cambian en
-ese archivo.
+por el seeder del backend. URLs y credenciales se configuran con `E2E_API_URL`,
+`E2E_BASE_URL`, `E2E_EMAIL` y `E2E_PASSWORD` (sin ellas, los valores locales por
+defecto).
 
 ## Convenciones
 

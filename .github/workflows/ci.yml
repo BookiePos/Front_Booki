@@ -1,0 +1,49 @@
+# CI del frontend: los mismos gates que se corren en local (scripts/gates.mjs).
+# El runner no tiene ../Backend, así que check-permisos valida solo contra el
+# snapshot versionado scripts/permisos-backend.json.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      # NEXT_PUBLIC_* se incrustan en el bundle: valores locales, no hay secretos.
+      NEXT_PUBLIC_API_URL: http://localhost:3001
+      NEXT_PUBLIC_SITE_URL: http://localhost:3000
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Historia completa para que check-no-secrets pueda diferenciar contra la base del PR.
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Instalar dependencias
+        run: pnpm install --frozen-lockfile
+
+      - name: Secretos en el diff del PR
+        if: github.event_name == 'pull_request'
+        run: node scripts/check-no-secrets.mjs --desde origin/${{ github.base_ref }}
+
+      - name: Gates (tsc, eslint, permisos, secretos, build)
+        run: node scripts/gates.mjs --build
