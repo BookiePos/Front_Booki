@@ -71,7 +71,10 @@ function gateTsc() {
 
 function gateLint() {
   const salidaJson = rutaLog("eslint-json")
-  const r = pnpm(["exec", "eslint", ".", "-f", "json", "-o", `"${salidaJson}"`])
+  // Con shell (Windows) la ruta va entre comillas por los espacios; sin shell (Linux,
+  // el CI) las comillas llegarían literales y eslint escribiría en otro archivo.
+  const destino = ES_WINDOWS ? `"${salidaJson}"` : salidaJson
+  const r = pnpm(["exec", "eslint", ".", "-f", "json", "-o", destino])
   let informe
   try {
     informe = JSON.parse(readFileSync(salidaJson, "utf8"))
