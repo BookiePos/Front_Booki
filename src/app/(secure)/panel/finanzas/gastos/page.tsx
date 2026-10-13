@@ -190,30 +190,12 @@ export default function GastosPage() {
     if (canView) void load()
   }, [canView, load])
 
-  if (!canView) {
-    return (
-      <>
-        <PageHeader section="Finanzas" title="Gastos" />
-        <Card>
-          <CardContent className="flex flex-col items-center gap-3 py-14 text-center">
-            <ShieldOff className="size-10 text-muted-foreground" />
-            <p className="font-display text-lg text-foreground">Sin acceso</p>
-            <p className="max-w-xs text-sm text-muted-foreground">
-              No tienes permiso para ver los gastos.
-            </p>
-          </CardContent>
-        </Card>
-      </>
-    )
-  }
-
-  const visibleRows =
-    categoryId === ALL ? rows : rows.filter((r) => r.categoryId === categoryId)
-  const totalPeriodo = visibleRows.reduce((s, r) => s + r.amount + r.taxAmount, 0)
-  const gastosPorPagar = visibleRows
-    .filter((r) => r.status === "payable")
-    .reduce((s, r) => s + r.amount + r.taxAmount, 0)
-  const obligaciones = gastosPorPagar + cxpOpen
+  // Antes del return temprano: un hook no puede quedar detrás de un `if` (React
+  // exige el mismo orden de hooks en cada render).
+  const visibleRows = React.useMemo(
+    () => (categoryId === ALL ? rows : rows.filter((r) => r.categoryId === categoryId)),
+    [rows, categoryId],
+  )
 
   // Gastos agrupados por categoría (vista por defecto).
   const grouped = React.useMemo(() => {
@@ -238,6 +220,29 @@ export default function GastosPage() {
       (a, b) => b.amount + b.tax - (a.amount + a.tax),
     )
   }, [visibleRows])
+
+  if (!canView) {
+    return (
+      <>
+        <PageHeader section="Finanzas" title="Gastos" />
+        <Card>
+          <CardContent className="flex flex-col items-center gap-3 py-14 text-center">
+            <ShieldOff className="size-10 text-muted-foreground" />
+            <p className="font-display text-lg text-foreground">Sin acceso</p>
+            <p className="max-w-xs text-sm text-muted-foreground">
+              No tienes permiso para ver los gastos.
+            </p>
+          </CardContent>
+        </Card>
+      </>
+    )
+  }
+
+  const totalPeriodo = visibleRows.reduce((s, r) => s + r.amount + r.taxAmount, 0)
+  const gastosPorPagar = visibleRows
+    .filter((r) => r.status === "payable")
+    .reduce((s, r) => s + r.amount + r.taxAmount, 0)
+  const obligaciones = gastosPorPagar + cxpOpen
 
   function openNew() {
     setEditing(null)
