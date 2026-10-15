@@ -251,7 +251,7 @@ export default function FacturacionPage() {
               variant="outline"
               className="no-print"
               disabled
-              title="Requiere integración con proveedor (Siigo u otro)"
+              title="Requiere integración con la DIAN"
             >
               <CheckCircle2 />
               Enviar a DIAN
