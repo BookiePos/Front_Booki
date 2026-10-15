@@ -288,7 +288,7 @@ export default function FacturacionPage() {
                 digital, el XML UBL 2.1 y la transmisión/validación ante la DIAN
                 se habilitan al integrar un{" "}
                 <span className="font-medium text-foreground">proveedor
-                tecnológico (Siigo u otro)</span>. Por eso los documentos figuran
+                tecnológico</span>. Por eso los documentos figuran
                 como “sin validar DIAN”.
               </p>
             </div>
@@ -422,7 +422,7 @@ export default function FacturacionPage() {
               variant="outline"
               className="no-print"
               disabled
-              title="Requiere integración con proveedor (Siigo u otro)"
+              title="Requiere integración con la DIAN"
             >
               <CheckCircle2 />
               Enviar a DIAN
