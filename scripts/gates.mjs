@@ -131,6 +131,27 @@ function gateSecretos() {
   return { cifra: resumen.trim().slice(0, 80), estado: r.codigo === 0 ? "OK" : "FALLA", nota: "", log: r.salida }
 }
 
+/** Ítem 5.7: pruebas unitarias de `lib/` y de los componentes de dinero. */
+function gateUnit() {
+  const json = rutaLog("vitest-json")
+  const r = pnpm(["exec", "vitest", "run", "--reporter=json", `--outputFile=${ES_WINDOWS ? `"${json}"` : json}`])
+  let rep = null
+  try {
+    rep = JSON.parse(readFileSync(json, "utf8"))
+  } catch {
+    rep = null
+  }
+  const total = rep?.numTotalTests ?? 0
+  if (!rep || total === 0) return { cifra: "?", estado: "SIN MEDIR", nota: "vitest no dejó reporte o corrió 0 pruebas", log: r.salida }
+  const fallan = (rep.numFailedTests ?? 0) + (rep.numFailedTestSuites ?? 0)
+  return {
+    cifra: `${rep.numPassedTests} pasan, ${rep.numFailedTests} fallan`,
+    estado: fallan === 0 && rep.success !== false ? "OK" : "FALLA",
+    nota: "",
+    log: r.salida,
+  }
+}
+
 function gateBuild() {
   const r = pnpm(["build"])
   return {
@@ -144,6 +165,7 @@ function gateBuild() {
 const LISTA = [
   ["tsc", gateTsc],
   ["eslint", gateLint],
+  ["unit", gateUnit],
   ["permisos", gatePermisos],
   ["secretos", gateSecretos],
   ...(CON_BUILD ? [["build", gateBuild]] : []),
