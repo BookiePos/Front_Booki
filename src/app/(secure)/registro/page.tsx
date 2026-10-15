@@ -22,6 +22,7 @@ import {
   RegisterPayload,
 } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
+import { PASSWORD_REQUISITOS, validarPassword } from "@/lib/password-policy";
 
 const PLANS: Record<BusinessPlan, { name: string; blurb: string }> = {
   punto: {
@@ -98,8 +99,10 @@ function RegistroForm() {
       setError("Las contraseñas no coinciden.");
       return;
     }
-    if (password.length < 6) {
-      setError("La contraseña debe tener al menos 6 caracteres.");
+    // Misma política que el backend (RegisterDto, ítem 4.9).
+    const motivoPassword = validarPassword(password);
+    if (motivoPassword) {
+      setError(motivoPassword);
       return;
     }
 
@@ -339,7 +342,7 @@ function RegistroForm() {
                           autoComplete="new-password"
                           value={password}
                           onChange={(e) => setPassword(e.target.value)}
-                          placeholder="Mínimo 6 caracteres"
+                          placeholder="Mínimo 8 caracteres"
                           className="h-13 w-full rounded-xl border border-hairline bg-white px-4 pr-13 text-base text-ink outline-none transition-colors placeholder:text-ink-faint focus:border-brand-500"
                         />
                         <button
@@ -359,6 +362,9 @@ function RegistroForm() {
                           )}
                         </button>
                       </div>
+                      <p className="mt-2 text-sm text-ink-muted">
+                        {PASSWORD_REQUISITOS}
+                      </p>
                     </div>
                     <Field
                       label="Confirmar contraseña"

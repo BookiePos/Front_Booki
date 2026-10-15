@@ -21,11 +21,11 @@ export interface AuthUser {
   entitlements?: Entitlements
 }
 
+/** Tokens que el backend devuelve en el body. El refresh token NO está aquí:
+ *  viaja solo en la cookie HttpOnly (`credentials: "include"`), fuera del
+ *  alcance de JavaScript, y el backend ya no lo devuelve ni lo acepta por body. */
 export interface Tokens {
   accessToken: string
-  /** El refresh token ya no se usa desde JS: viaja en una cookie HttpOnly.
-   *  Se mantiene opcional porque el backend aún lo incluye en la respuesta. */
-  refreshToken?: string
 }
 
 export interface LoginResponse {
@@ -200,11 +200,50 @@ export async function apiMe(accessToken: string): Promise<AuthUser> {
   return res.json() as Promise<AuthUser>
 }
 
-export async function apiRefresh(): Promise<Tokens> {
+/**
+ * Refresh en vuelo, compartido. El backend rota el refresh token en cada uso y
+ * trata como robo reutilizar uno ya rotado (pasado un margen de 30 s revoca
+ * TODAS las sesiones del usuario). Una pantalla que dispara varias peticiones
+ * con el access vencido recibe varios 401 a la vez: sin esto, cada uno mandaba
+ * su propio refresh con la misma cookie, solo el primero ganaba y los demás
+ * fallaban con "Sesión expirada". Ahora todos esperan la misma respuesta.
+ */
+let refreshEnVuelo: Promise<Tokens> | null = null
+
+export function apiRefresh(): Promise<Tokens> {
+  if (!refreshEnVuelo) {
+    refreshEnVuelo = refrescarEntrePestanas().finally(() => {
+      refreshEnVuelo = null
+    })
+  }
+  return refreshEnVuelo
+}
+
+/**
+ * Entre pestañas la promesa no se comparte, pero la cookie sí: con Web Locks
+ * las pestañas refrescan de una en una, y la que espera manda ya la cookie
+ * nueva que dejó la anterior (rota otra vez, pero con un token vigente). Sin
+ * soporte de Web Locks, se refresca directamente, como antes.
+ */
+function refrescarEntrePestanas(): Promise<Tokens> {
+  if (typeof navigator !== "undefined" && navigator.locks?.request) {
+    // `request` resuelve con lo que resuelve el callback; el tipado de la lib
+    // DOM lo anida (Promise<Promise<T>>) y `then` lo aplana.
+    return navigator.locks
+      .request("bookipos-auth-refresh", () => pedirRefresh())
+      .then((tokens) => tokens)
+  }
+  return pedirRefresh()
+}
+
+async function pedirRefresh(): Promise<Tokens> {
   // El refresh token viaja en la cookie HttpOnly; no se envía desde JS.
+  // Con tope de tiempo: mientras esto no termina, el lock de Web Locks sigue
+  // tomado y las demás pestañas esperan. Un refresh colgado no debe bloquearlas.
   const res = await fetch(`${API_URL}/auth/refresh`, {
     method: "POST",
     credentials: "include",
+    signal: AbortSignal.timeout(15_000),
   })
   if (!res.ok) return parseError(res)
   return res.json() as Promise<Tokens>
