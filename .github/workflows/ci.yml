@@ -58,3 +58,87 @@ jobs:
       - name: Log del gate que falló
         if: failure()
         run: for f in /tmp/bookipos-gates-*.log; do echo "::group::$f"; tail -n 120 "$f"; echo "::endgroup::"; done
+
+  # Ítem 5.6: los flujos principales de punta a punta con el stack completo.
+  # Mongo en contenedor (replica set: las ventas usan transacciones), el backend
+  # de la MISMA rama si existe (si no, main) con la semilla demo, y el front.
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      NEXT_PUBLIC_API_URL: http://localhost:3001
+      NEXT_PUBLIC_SITE_URL: http://localhost:3000
+    steps:
+      - uses: actions/checkout@v4
+
+      # `runner.temp` no existe en el `env` del job: se fija desde un paso.
+      - run: echo "BACKEND_DIR=$RUNNER_TEMP/backend" >> "$GITHUB_ENV"
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Backend de la misma rama (o main)
+        run: |
+          rama="${{ github.head_ref || github.ref_name }}"
+          repo=https://github.com/BookiePos/Backend_booki.git
+          if git ls-remote --exit-code --heads "$repo" "$rama" >/dev/null; then ref="$rama"; else ref=main; fi
+          echo "Backend en la rama $ref"
+          git clone --depth 1 --branch "$ref" "$repo" "$BACKEND_DIR"
+
+      - name: Mongo (replica set de un nodo)
+        run: |
+          docker run -d --name mongo -p 27017:27017 mongo:7 --replSet rs0 --bind_ip_all
+          for i in $(seq 1 30); do docker exec mongo mongosh --quiet --eval 'db.runCommand({ping:1})' && break; sleep 1; done
+          docker exec mongo mongosh --quiet --eval 'rs.initiate({_id:"rs0",members:[{_id:0,host:"localhost:27017"}]})'
+          for i in $(seq 1 30); do docker exec mongo mongosh --quiet --eval 'rs.status().myState' | grep -q 1 && break; sleep 1; done
+
+      - name: Backend (semilla demo y arranque)
+        working-directory: ${{ env.BACKEND_DIR }}
+        env:
+          # Sin secretos: valores de prueba. E2E_SIN_LIMITES apaga el rate
+          # limiting (nunca aplica con NODE_ENV=production ni en Vercel).
+          NODE_ENV: development
+          E2E_SIN_LIMITES: "1"
+          MONGODB_URI: mongodb://localhost:27017/sistema-pos?replicaSet=rs0
+          JWT_SECRET: e2e-acceso-0123456789abcdef0123456789abcdef
+          JWT_REFRESH_SECRET: e2e-refresco-0123456789abcdef0123456789ab
+          CORS_ORIGIN: http://localhost:3000
+          PORT: "3001"
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+          node dist/seed-demo.js
+          nohup node dist/main.js > "$RUNNER_TEMP/backend.log" 2>&1 &
+          for i in $(seq 1 60); do curl -sf localhost:3001/health | grep -q connected && exit 0; sleep 1; done
+          cat "$RUNNER_TEMP/backend.log"; exit 1
+
+      - name: Frontend (build y arranque)
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+          nohup pnpm start -p 3000 > "$RUNNER_TEMP/frontend.log" 2>&1 &
+          for i in $(seq 1 60); do curl -sf -o /dev/null localhost:3000/login && exit 0; sleep 1; done
+          cat "$RUNNER_TEMP/frontend.log"; exit 1
+
+      - name: Playwright
+        run: |
+          pnpm exec playwright install --with-deps chromium
+          pnpm e2e
+
+      - name: Reporte y logs si falla
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e
+          path: |
+            playwright-report
+            test-results
+            ${{ runner.temp }}/backend.log
+            ${{ runner.temp }}/frontend.log
+          retention-days: 7

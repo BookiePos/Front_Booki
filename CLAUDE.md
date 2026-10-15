@@ -174,8 +174,15 @@ screenshot en fallo. **No hay `webServer` configurado a propósito**: el stack c
 (Mongo + NestJS + Next) no se orquesta de forma fiable, así que se levanta a mano.
 
 `e2e/helpers/auth.ts` hace login por **API directa al backend** (más rápido que navegar
-la UI) y devuelve el `storageState`. Credenciales demo (`demo@sistemapos.local`) creadas
-por el seeder del backend. URLs y credenciales se configuran con `E2E_API_URL`,
+la UI) y devuelve el `storageState`. `e2e/helpers/sesion.ts` pone la sesión antes de
+cargar la página y marca como vistas la bienvenida, los tours y las novedades.
+
+En CI corre el job `e2e` (`.github/workflows/ci.yml`): Mongo en contenedor, el backend
+de la misma rama (o `main`) con `seed:demo` y `E2E_SIN_LIMITES=1`, y el front. En local,
+si el backend lee `Backend/.env`, vacía `AUTH_COOKIE_DOMAIN` y las llaves externas
+(correo, Wompi, IA) y apunta `MONGODB_URI` a una base local: nunca a la de producción.
+
+Credenciales demo (`demo@sistemapos.local`) creadas por el seeder del backend. URLs y credenciales se configuran con `E2E_API_URL`,
 `E2E_BASE_URL`, `E2E_EMAIL` y `E2E_PASSWORD` (sin ellas, los valores locales por
 defecto).
 
