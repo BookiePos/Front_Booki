@@ -921,9 +921,13 @@ function BomDialog({
   const materialsUnit = rendimiento > 0 ? Math.round(materials / rendimiento) : 0
   const extraUnit = rendimiento > 0 ? Math.round(manoDeObra / rendimiento) : 0
   const empaqueUnit = rendimiento > 0 ? Math.round(empaque / rendimiento) : 0
-  // El total es la suma de lo que se ve, no el lote redondeado una sola vez:
-  // si no, tres renglones de pesos enteros pueden no sumar el total (por 1 $).
-  const unitCost = materialsUnit + extraUnit + empaqueUnit
+  // Mismo criterio que el backend (estimatedUnitCost): el lote entero se divide
+  // una sola vez. Así este diálogo y la tabla de Terminados dicen lo mismo; los
+  // renglones de arriba son orientativos y pueden diferir en un peso.
+  const unitCost =
+    rendimiento > 0
+      ? Math.round((materials + manoDeObra + empaque) / rendimiento)
+      : 0
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -1463,6 +1467,8 @@ function OrderDetailDialog({
   products: InvProduct[]
 }) {
   const [producedQty, setProducedQty] = React.useState<number | null>(null)
+  /** Empaque real del lote; vacío deja el de la orden. */
+  const [empaqueReal, setEmpaqueReal] = React.useState<number | null>(null)
   const [expiresAt, setExpiresAt] = React.useState("")
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
@@ -1470,6 +1476,7 @@ function OrderDetailDialog({
   React.useEffect(() => {
     if (!order) return
     setProducedQty(order.plannedQty)
+    setEmpaqueReal(null)
     setExpiresAt(order.expiresAt ?? "")
     setError(null)
   }, [order])
@@ -1477,6 +1484,12 @@ function OrderDetailDialog({
   if (!order) return null
 
   const output = products.find((p) => p._id === order.productId)
+  // NIIF para Pymes 13.13(a): el costo de conversión no se reparte sobre
+  // unidades que no existieron; si salió menos, el empaque se ajusta.
+  const salioMenos =
+    (order.packagingCost ?? 0) > 0 &&
+    producedQty !== null &&
+    producedQty < order.plannedQty
   // Se renombró: `open` ahora es la apertura del diálogo. Esto es otra cosa:
   // si la orden todavía admite que la inicien, la anulen o la terminen.
   const puedeOperar =
@@ -1543,6 +1556,10 @@ function OrderDetailDialog({
                   completeProductionOrder(order._id, {
                     producedQty: producedQty ?? 0,
                     expiresAt: expiresAt || undefined,
+                    packagingCost:
+                      salioMenos && empaqueReal !== null
+                        ? Math.round(empaqueReal)
+                        : undefined,
                   }),
                 )
               }
@@ -1666,6 +1683,25 @@ function OrderDetailDialog({
               </Field>
             )}
           </FieldGrid>
+
+          {salioMenos && (
+            <>
+              <FormAlert tone="warning" icon={CheckCircle2}>
+                Salió menos de lo planeado y el empaque de la orden (
+                {money.format(order.packagingCost ?? 0)}) se calculó para la
+                cantidad planeada. Si gastaste menos bolsas, ajústalo aquí: un
+                empaque de más infla el costo de cada unidad.
+              </FormAlert>
+              <Field id="op-packaging" label="Empaque real del lote">
+                <MoneyInput
+                  id="op-packaging"
+                  value={empaqueReal}
+                  onValueChange={setEmpaqueReal}
+                  placeholder={String(order.packagingCost ?? 0)}
+                />
+              </Field>
+            </>
+          )}
 
           <FormAlert tone="warning" icon={CheckCircle2}>
             Al terminar, los insumos salen del inventario y el terminado entra

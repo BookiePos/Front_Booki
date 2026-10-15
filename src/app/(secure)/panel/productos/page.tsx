@@ -188,6 +188,8 @@ interface ProductDialogProps {
   categories: InvCategory[]
   /** Existencias de cada ítem de inventario, sumadas entre sedes. */
   stockPorItem: Map<string, number>
+  /** Ítems que son terminado de una receta de lote (tienen BOM). */
+  producedIds: Set<string>
   onSuccess: () => void
   /** Retail no maneja recetas: se oculta el selector de origen. */
   isRetail?: boolean
@@ -201,6 +203,7 @@ function ProductDialog({
   invProducts,
   categories,
   stockPorItem,
+  producedIds,
   onSuccess,
   isRetail = false,
 }: ProductDialogProps) {
@@ -243,6 +246,12 @@ function ProductDialog({
   const [error, setError] = React.useState<string | null>(null)
 
   const linkedProduct = invProducts.find((p) => p._id === inventoryProductId)
+  // Un terminado fabricado ya trae en su costo la mano de obra y el empaque de
+  // la receta de lote: sumarlos otra vez los contaría doble.
+  const costoYaIncluido =
+    sourceType === "inventory" &&
+    Boolean(linkedProduct) &&
+    producedIds.has(linkedProduct!._id)
 
   /** Suma el costo de una lista de renglones (ingredientes o empaques). */
   const costoDeFilas = React.useCallback(
@@ -267,8 +276,8 @@ function ProductDialog({
         : null
       : costoDeFilas(recipe)
   const costoEmpaqueItems = costoDeFilas(packaging)
-  const costoManoDeObra = laborCost ?? 0
-  const costoEmpaqueDinero = packagingCost ?? 0
+  const costoManoDeObra = costoYaIncluido ? 0 : (laborCost ?? 0)
+  const costoEmpaqueDinero = costoYaIncluido ? 0 : (packagingCost ?? 0)
   const costoEmpaque = costoEmpaqueItems + costoEmpaqueDinero
 
   // Con la fuente sin resolver (ítem sin elegir, receta sin renglones) no hay
@@ -466,8 +475,8 @@ function ProductDialog({
         packaging: cleanPackaging,
         // Lo mismo con los costos en dinero: borrar la casilla tiene que
         // borrar el costo, y para eso el cero tiene que llegar al backend.
-        laborCost: Math.round(laborCost ?? 0),
-        packagingCost: Math.round(packagingCost ?? 0),
+        laborCost: costoYaIncluido ? 0 : Math.round(laborCost ?? 0),
+        packagingCost: costoYaIncluido ? 0 : Math.round(packagingCost ?? 0),
       }
       // La foto va en una petición aparte (multipart) y DESPUÉS de guardar la
       // ficha: al crear, el id del producto solo existe a partir de aquí.
@@ -967,6 +976,13 @@ function ProductDialog({
           description="Lo que te cuesta cada unidad por fuera del inventario. Es opcional: si lo dejas vacío, no suma."
           boxed
         >
+          {costoYaIncluido && (
+            <p className="text-xs text-muted-foreground">
+              Ya incluido en el costo de producción: este producto sale de una
+              receta de lote, y su costo ya trae la mano de obra y el empaque de
+              esa receta. Cámbialos en Producción → Recetas.
+            </p>
+          )}
           <FieldGrid cols={2}>
             <Field
               id="c-labor-cost"
@@ -982,8 +998,9 @@ function ProductDialog({
             >
               <MoneyInput
                 id="c-labor-cost"
-                value={laborCost}
+                value={costoYaIncluido ? null : laborCost}
                 onValueChange={setLaborCost}
+                disabled={costoYaIncluido}
                 placeholder="0"
               />
             </Field>
@@ -1005,8 +1022,9 @@ function ProductDialog({
             >
               <MoneyInput
                 id="c-packaging-cost"
-                value={packagingCost}
+                value={costoYaIncluido ? null : packagingCost}
                 onValueChange={setPackagingCost}
+                disabled={costoYaIncluido}
                 placeholder="0"
               />
             </Field>
@@ -1494,6 +1512,7 @@ export default function ProductosPage() {
         invProducts={invProducts}
         categories={categories}
         stockPorItem={stockPorItem}
+        producedIds={producedIds}
         onSuccess={fetchProducts}
         isRetail={isRetail}
       />
