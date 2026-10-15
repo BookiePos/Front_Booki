@@ -77,7 +77,17 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { useConfirm } from "@/components/ui/confirm-dialog"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
-import { POS_BUNDLE, POS_PERMISSION } from "@/lib/access"
+import { PASSWORD_REQUISITOS, validarPassword } from "@/lib/password-policy"
+import {
+  POS_BUNDLE,
+  POS_PERMISSION,
+  OWNER_ROLE,
+  isOwnerActor,
+  actorSeesAllSedes,
+  actorCanGrant,
+  actorCanGrantSede,
+  type Actor,
+} from "@/lib/access"
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -85,6 +95,42 @@ function errorMessage(err: unknown): string {
   if (err instanceof ApiError) return err.message
   if (err instanceof Error) return err.message
   return "Error desconocido"
+}
+
+/**
+ * ¿Puede el actor asignar este rol? Espejo de `assertPuedeAsignarRol`: el rol
+ * Dueño es solo del Dueño y nadie asigna un rol con permisos que no tiene.
+ */
+function actorCanAssignRole(actor: Actor, role: AdminRole): boolean {
+  if (role.key === OWNER_ROLE && !isOwnerActor(actor)) return false
+  return role.permissions.every((p) => actorCanGrant(actor, p))
+}
+
+/** Roles que el actor puede ofrecer; `keep` conserva el rol actual del usuario. */
+function assignableRolesFor(
+  roles: AdminRole[],
+  actor: Actor,
+  keep?: string,
+): AdminRole[] {
+  return roles.filter((r) => r.key === keep || actorCanAssignRole(actor, r))
+}
+
+/** Estado del catálogo de permisos (GET /permissions exige roles.manage). */
+type CatalogState = "loading" | "ready" | "denied" | "error"
+
+function CatalogPlaceholder({ state }: { state: CatalogState }) {
+  return (
+    <p
+      role={state === "loading" ? undefined : "status"}
+      className="rounded-2xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground"
+    >
+      {state === "denied"
+        ? "No tienes acceso al catálogo de permisos (requiere el permiso de gestionar roles), así que no puedes asignar permisos adicionales desde aquí."
+        : state === "error"
+          ? "No se pudo cargar el catálogo de permisos. Cierra la ficha e inténtalo de nuevo."
+          : "Cargando catálogo de permisos…"}
+    </p>
+  )
 }
 
 // ─── Acceso al POS ──────────────────────────────────────────────────────────
@@ -136,6 +182,7 @@ function TableSkeleton({ cols = 5, rows = 5 }: { cols?: number; rows?: number })
  */
 const USER_FORM_ID = "usuario-form"
 const ROLE_FORM_ID = "rol-form"
+const ROLE_LOCK_REASON_ID = "rol-bloqueo-motivo"
 const INVITE_FORM_ID = "invitacion-form"
 
 interface UserDialogProps {
@@ -146,10 +193,15 @@ interface UserDialogProps {
   roles: AdminRole[]
   sedes: Sede[]
   permissionGroups: PermissionGroup[]
+  catalogState: CatalogState
+  /** Dueños activos hoy: para avisar si se toca al último. */
+  activeOwners: number
+  /** Quien edita: de él dependen las reglas de jerarquía (espejo del backend). */
+  actor: Actor
   onSuccess: () => void
 }
 
-function UserDialog({ open, onOpenChange, mode, user, roles, sedes, permissionGroups, onSuccess }: UserDialogProps) {
+function UserDialog({ open, onOpenChange, mode, user, roles, sedes, permissionGroups, catalogState, activeOwners, actor, onSuccess }: UserDialogProps) {
   const [name, setName] = React.useState("")
   const [email, setEmail] = React.useState("")
   const [password, setPassword] = React.useState("")
@@ -162,21 +214,72 @@ function UserDialog({ open, onOpenChange, mode, user, roles, sedes, permissionGr
   const [saving, setSaving] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
+  // ── Jerarquía (el backend responde 403 a todo esto; aquí no se ofrece) ──
+  // Solo el Dueño asigna el rol Dueño, y nadie un rol con permisos que no tiene;
+  // al editar se conserva el rol actual aunque el actor no pudiera asignarlo.
+  const currentRole = mode === "edit" ? user?.role : undefined
+  const assignableRoles = React.useMemo(
+    () => assignableRolesFor(roles, actor, currentRole),
+    [roles, actor, currentRole],
+  )
+  const isSelf = mode === "edit" && !!user && user.id === actor.id
+  // Solo el Dueño edita al Dueño: la ficha queda de solo lectura.
+  const ownerLocked =
+    mode === "edit" && user?.role === OWNER_ROLE && !isOwnerActor(actor)
+  // Quien tiene permisos que el actor no tiene no se puede tocar (clave, estado,
+  // rol, extras ni sedes).
+  const outranked = React.useMemo(() => {
+    if (mode !== "edit" || !user || isSelf) return false
+    const perms = [
+      ...(roles.find((r) => r.key === user.role)?.permissions ?? []),
+      ...user.extraPermissions,
+    ]
+    return perms.some((p) => !actorCanGrant(actor, p))
+  }, [mode, user, isSelf, roles, actor])
+  const locked = ownerLocked || outranked
+  // Reactivar a alguien "superado" se permite (no toma su cuenta); solo se
+  // prohíbe desactivarlo. El Dueño sigue siendo intocable para quien no lo es.
+  const activeLocked = ownerLocked || (outranked && !!user?.active)
+  // Último Dueño activo: el backend rechaza desactivarlo o degradarlo.
+  const isLastOwner =
+    mode === "edit" && user?.role === OWNER_ROLE && !!user.active && activeOwners <= 1
+  const lastOwnerRisk = isLastOwner && (!active || role !== OWNER_ROLE)
+  const lockReason = ownerLocked
+    ? "Solo el Dueño puede editar al Dueño."
+    : outranked
+      ? "Esta persona tiene permisos que tú no tienes: no puedes cambiar su contraseña, rol, permisos ni sedes, ni desactivarla."
+      : isSelf
+        ? "No puedes cambiar tu propio rol ni tus permisos, ni ampliar tus sedes: pídeselo a otra persona que gestione usuarios."
+        : null
+
   // Si el rol elegido ya trae POS, el acceso es inherente (toggle bloqueado).
   const rolePos = roleGrantsPos(role, roles)
   // Acceso efectivo mostrado: inherente por rol, o activado a mano.
   const posEnabled = rolePos || posAccess
+  // Dar el POS concede `pos.sell` + `inventory.view`: hay que tenerlos. Quitarlo
+  // siempre se puede, salvo en la propia cuenta o en una ficha bloqueada.
+  const posToggleBlocked =
+    locked ||
+    isSelf ||
+    (!posAccess && !POS_BUNDLE.every((p) => actorCanGrant(actor, p)))
   // Permisos que ya concede el rol elegido (se muestran marcados y bloqueados).
   const rolePermSet = React.useMemo(
     () => new Set(roles.find((r) => r.key === role)?.permissions ?? []),
     [roles, role],
   )
 
-  // Reset on open/mode change — use async wrapper to satisfy set-state-in-effect rule
+  // Reinicia solo al ABRIR (false→true): si cambiara `actor` o `roles` con la
+  // ficha abierta, se perdería lo que la persona ya escribió.
+  const wasOpen = React.useRef(false)
   React.useEffect(() => {
     async function reset() {
+      if (!open) {
+        wasOpen.current = false
+        return
+      }
+      if (wasOpen.current) return
+      wasOpen.current = true
       await Promise.resolve()
-      if (!open) return
       if (mode === "edit" && user) {
         setName(user.name)
         setEmail(user.email)
@@ -190,7 +293,7 @@ function UserDialog({ open, onOpenChange, mode, user, roles, sedes, permissionGr
         setName("")
         setEmail("")
         setPassword("")
-        setRole(roles[0]?.key ?? "")
+        setRole(assignableRoles[0]?.key ?? "")
         setActive(true)
         setPosAccess(false)
         setSelectedSedes(new Set())
@@ -199,7 +302,7 @@ function UserDialog({ open, onOpenChange, mode, user, roles, sedes, permissionGr
       setError(null)
     }
     void reset()
-  }, [open, mode, user, roles])
+  }, [open, mode, user, roles, assignableRoles])
 
   function toggleSede(id: string) {
     setSelectedSedes((prev) => {
@@ -219,6 +322,15 @@ function UserDialog({ open, onOpenChange, mode, user, roles, sedes, permissionGr
     })
   }
 
+  // Una sede ya asignada siempre se puede quitar; sumar una nueva exige poder
+  // repartirla y, en la auto-edición, ver todas las sedes.
+  function sedeDisabled(id: string): boolean {
+    if (locked) return true
+    if (user?.sedeIds.includes(id)) return false
+    if (isSelf && !actorSeesAllSedes(actor)) return true
+    return !actorCanGrantSede(actor, id)
+  }
+
   // Sedes a mostrar: activas + cualquiera ya asignada aunque esté inactiva.
   const visibleSedes = sedes.filter(
     (s) => s.active || selectedSedes.has(s._id),
@@ -229,6 +341,17 @@ function UserDialog({ open, onOpenChange, mode, user, roles, sedes, permissionGr
     setSaving(true)
     setError(null)
     try {
+      // Misma política de contraseña que el backend (Create/UpdateUserDto,
+      // ítem 4.9). Al editar solo se valida si se escribió una nueva.
+      if (mode === "create" || password.trim()) {
+        const motivo = validarPassword(password)
+        if (motivo) {
+          setError(motivo)
+          setSaving(false)
+          return
+        }
+      }
+
       const sedeIds = Array.from(selectedSedes)
 
       // Sin sede no puede operar el POS (el backend valida el aislamiento).
@@ -310,7 +433,7 @@ function UserDialog({ open, onOpenChange, mode, user, roles, sedes, permissionGr
           <Button
             type="submit"
             form={USER_FORM_ID}
-            disabled={saving}
+            disabled={saving || ownerLocked || !role}
             className="sm:min-w-36"
           >
             {saving ? (
@@ -331,6 +454,18 @@ function UserDialog({ open, onOpenChange, mode, user, roles, sedes, permissionGr
     >
       <form id={USER_FORM_ID} onSubmit={handleSubmit} className="flex flex-col gap-5">
         {error && <FormAlert>{error}</FormAlert>}
+        {lockReason && (
+          <FormAlert tone="info" icon={Info}>
+            {lockReason}
+          </FormAlert>
+        )}
+        {lastOwnerRisk && (
+          <FormAlert tone="warning">
+            Esta persona es el último Dueño activo: la empresa debe conservar al
+            menos uno, así que el sistema rechazará desactivarla o cambiarle el
+            rol. Nombra primero a otro Dueño.
+          </FormAlert>
+        )}
 
         {/* ── Quién es ─────────────────────────────────────────── */}
         <FormSection
@@ -345,6 +480,7 @@ function UserDialog({ open, onOpenChange, mode, user, roles, sedes, permissionGr
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Juan García"
+                disabled={ownerLocked}
                 required
               />
             </Field>
@@ -365,7 +501,7 @@ function UserDialog({ open, onOpenChange, mode, user, roles, sedes, permissionGr
                   id="u-password"
                   label="Contraseña"
                   required
-                  hint="Mínimo 8 caracteres."
+                  hint={PASSWORD_REQUISITOS}
                 >
                   <Input
                     id="u-password"
@@ -381,7 +517,7 @@ function UserDialog({ open, onOpenChange, mode, user, roles, sedes, permissionGr
               <Field
                 id="u-password-edit"
                 label="Nueva contraseña"
-                hint="Déjala vacía para no cambiarla."
+                hint={`Déjala vacía para no cambiarla. ${PASSWORD_REQUISITOS}`}
               >
                 <Input
                   id="u-password-edit"
@@ -389,6 +525,7 @@ function UserDialog({ open, onOpenChange, mode, user, roles, sedes, permissionGr
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Sin cambios"
+                  disabled={locked}
                 />
               </Field>
             )}
@@ -398,14 +535,19 @@ function UserDialog({ open, onOpenChange, mode, user, roles, sedes, permissionGr
               label="Rol"
               required
               help={{ term: "rol" }}
-              hint="El paquete de permisos base de esta persona."
+              hint={
+                isSelf
+                  ? "No puedes cambiar tu propio rol."
+                  : "El paquete de permisos base de esta persona."
+              }
             >
               <NativeSelect
                 id="u-role"
                 value={role}
                 onChange={setRole}
-                options={roles.map((r) => ({ value: r.key, label: r.name }))}
-                placeholder={roles.length === 0 ? "Sin roles" : undefined}
+                disabled={locked || isSelf}
+                options={assignableRoles.map((r) => ({ value: r.key, label: r.name }))}
+                placeholder={assignableRoles.length === 0 ? "Sin roles que puedas asignar" : undefined}
               />
             </Field>
           </FieldGrid>
@@ -414,8 +556,15 @@ function UserDialog({ open, onOpenChange, mode, user, roles, sedes, permissionGr
             <CheckboxField
               id="u-active"
               label="Usuario activo"
-              hint="Un usuario inactivo no puede iniciar sesión, pero conserva su historial."
+              hint={
+                outranked && user?.active
+                  ? "No puedes desactivar a alguien con permisos que tú no tienes."
+                  : outranked
+                    ? "Puedes reactivar esta cuenta, pero no cambiar nada más de ella."
+                    : "Un usuario inactivo no puede iniciar sesión, pero conserva su historial."
+              }
               checked={active}
+              disabled={activeLocked}
               onCheckedChange={setActive}
             />
           )}
@@ -434,10 +583,12 @@ function UserDialog({ open, onOpenChange, mode, user, roles, sedes, permissionGr
             hint={
               rolePos
                 ? "El rol seleccionado ya incluye acceso al POS, así que no se puede quitar aquí."
-                : "Permite entrar al POS y vender en las sedes marcadas abajo."
+                : posToggleBlocked
+                  ? "No puedes darlo: requiere permisos que tú no tienes, o es tu propia cuenta."
+                  : "Permite entrar al POS y vender en las sedes marcadas abajo."
             }
             checked={posEnabled}
-            disabled={rolePos}
+            disabled={rolePos || posToggleBlocked}
             onCheckedChange={setPosAccess}
           />
 
@@ -460,14 +611,22 @@ function UserDialog({ open, onOpenChange, mode, user, roles, sedes, permissionGr
                 {visibleSedes.map((s) => (
                   <label
                     key={s._id}
+                    title={
+                      sedeDisabled(s._id)
+                        ? "No puedes asignar esta sede: no es tuya o es tu propia cuenta."
+                        : undefined
+                    }
                     className={cn(
-                      "flex cursor-pointer items-center gap-2.5 rounded-xl border border-border bg-card px-3 py-2.5 transition-colors",
-                      "hover:border-primary/35 hover:bg-primary/[0.03]",
+                      "flex items-center gap-2.5 rounded-xl border border-border bg-card px-3 py-2.5 transition-colors",
+                      sedeDisabled(s._id)
+                        ? "cursor-not-allowed opacity-60"
+                        : "cursor-pointer hover:border-primary/35 hover:bg-primary/[0.03]",
                       "has-data-checked:border-primary/45 has-data-checked:bg-primary/[0.05]",
                     )}
                   >
                     <Checkbox
                       checked={selectedSedes.has(s._id)}
+                      disabled={sedeDisabled(s._id)}
                       onCheckedChange={() => toggleSede(s._id)}
                     />
                     <span className="min-w-0 truncate text-sm font-medium text-foreground">
@@ -476,6 +635,17 @@ function UserDialog({ open, onOpenChange, mode, user, roles, sedes, permissionGr
                     {!s.active && (
                       <Badge variant="outline" className="ml-auto shrink-0 text-xs">
                         Inactiva
+                      </Badge>
+                    )}
+                    {sedeDisabled(s._id) && (
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          "shrink-0 text-[0.6875rem]",
+                          s.active && "ml-auto",
+                        )}
+                      >
+                        {locked ? "bloqueada" : isSelf ? "tu cuenta" : "no es tuya"}
                       </Badge>
                     )}
                   </label>
@@ -492,9 +662,7 @@ function UserDialog({ open, onOpenChange, mode, user, roles, sedes, permissionGr
           description="Cosas que esta persona puede hacer además de lo que ya trae su rol. Lo que da el rol sale marcado como «por rol» y no se quita aquí."
         >
           {permissionGroups.length === 0 ? (
-            <p className="rounded-2xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
-              Cargando catálogo de permisos…
-            </p>
+            <CatalogPlaceholder state={catalogState} />
           ) : (
             <div className="grid gap-3 lg:grid-cols-2">
               {permissionGroups.map((group) => {
@@ -514,19 +682,28 @@ function UserDialog({ open, onOpenChange, mode, user, roles, sedes, permissionGr
                       {items.map((item) => {
                         const byRole = rolePermSet.has(item.key)
                         const checked = byRole || extraPerms.has(item.key)
+                        // Quitar un extra siempre se puede; darlo exige tenerlo.
+                        const cantGrant =
+                          !checked && !actorCanGrant(actor, item.key)
+                        const blocked = byRole || locked || isSelf || cantGrant
                         return (
                           <label
                             key={item.key}
+                            title={
+                              cantGrant
+                                ? "No puedes conceder un permiso que tú no tienes."
+                                : undefined
+                            }
                             className={cn(
                               "flex items-center gap-2.5 px-3.5 py-2 transition-colors",
-                              byRole
+                              blocked
                                 ? "cursor-not-allowed opacity-70"
                                 : "cursor-pointer hover:bg-primary/[0.04]",
                             )}
                           >
                             <Checkbox
                               checked={checked}
-                              disabled={byRole}
+                              disabled={blocked}
                               onCheckedChange={() => toggleExtraPerm(item.key)}
                             />
                             <span className="min-w-0 text-sm text-foreground">
@@ -538,6 +715,14 @@ function UserDialog({ open, onOpenChange, mode, user, roles, sedes, permissionGr
                                 className="ml-auto shrink-0 text-[0.6875rem]"
                               >
                                 por rol
+                              </Badge>
+                            )}
+                            {cantGrant && !byRole && (
+                              <Badge
+                                variant="outline"
+                                className="ml-auto shrink-0 text-[0.6875rem]"
+                              >
+                                no lo tienes
                               </Badge>
                             )}
                           </label>
@@ -563,15 +748,52 @@ interface RoleDialogProps {
   mode: "create" | "edit"
   role?: AdminRole
   permissionGroups: PermissionGroup[]
+  catalogState: CatalogState
+  actor: Actor
   onSuccess: () => void
 }
 
-function RoleDialog({ open, onOpenChange, mode, role, permissionGroups, onSuccess }: RoleDialogProps) {
+/** Llaves que el rol Dueño nunca pierde (el backend responde 400 si faltan). */
+const OWNER_KEY_PERMISSIONS: readonly string[] = ["users.manage", "roles.manage"]
+
+function RoleDialog({ open, onOpenChange, mode, role, permissionGroups, catalogState, actor, onSuccess }: RoleDialogProps) {
   const [name, setName] = React.useState("")
   const [description, setDescription] = React.useState("")
   const [selectedPerms, setSelectedPerms] = React.useState<Set<string>>(new Set())
   const [saving, setSaving] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+
+  // Reglas del backend: solo el Dueño edita el rol Dueño, y nadie (salvo el
+  // Dueño) cambia los permisos de su propio rol.
+  const ownerRoleLocked =
+    mode === "edit" && role?.key === OWNER_ROLE && !isOwnerActor(actor)
+  const ownRoleLocked =
+    mode === "edit" &&
+    !!role &&
+    role.key === actor.role &&
+    !isOwnerActor(actor)
+  const permsLocked = ownerRoleLocked || ownRoleLocked
+  const roleLockReason = ownerRoleLocked
+    ? "Solo el Dueño puede editar el rol Dueño."
+    : ownRoleLocked
+      ? "No puedes cambiar los permisos de tu propio rol: pídeselo a otra persona que gestione roles. Sí puedes cambiar su nombre y descripción."
+      : null
+  // En el rol Dueño, gestionar usuarios y roles no se puede desmarcar.
+  const editingOwnerRole = mode === "edit" && role?.key === OWNER_ROLE
+  function isOwnerKey(key: string): boolean {
+    return editingOwnerRole && OWNER_KEY_PERMISSIONS.includes(key)
+  }
+  // Un permiso se puede sumar solo si se tiene; quitarlo siempre se puede.
+  function permDisabled(key: string): boolean {
+    if (permsLocked) return true
+    if (isOwnerKey(key)) return true
+    return !selectedPerms.has(key) && !actorCanGrant(actor, key)
+  }
+  // Por qué está deshabilitado, en texto visible (no solo en `title`).
+  function permReason(key: string): string | null {
+    if (permsLocked || !permDisabled(key)) return null
+    return isOwnerKey(key) ? "obligatorio del Dueño" : "no lo tienes"
+  }
 
   React.useEffect(() => {
     async function reset() {
@@ -601,13 +823,18 @@ function RoleDialog({ open, onOpenChange, mode, role, permissionGroups, onSucces
   }
 
   function toggleGroup(items: PermissionGroup["items"]) {
+    if (permsLocked) return
     const allSelected = items.every((item) => selectedPerms.has(item.key))
     setSelectedPerms((prev) => {
       const next = new Set(prev)
       if (allSelected) {
-        items.forEach((item) => next.delete(item.key))
+        items
+          .filter((item) => !isOwnerKey(item.key))
+          .forEach((item) => next.delete(item.key))
       } else {
-        items.forEach((item) => next.add(item.key))
+        items
+          .filter((item) => actorCanGrant(actor, item.key))
+          .forEach((item) => next.add(item.key))
       }
       return next
     })
@@ -625,13 +852,22 @@ function RoleDialog({ open, onOpenChange, mode, role, permissionGroups, onSucces
           permissions: Array.from(selectedPerms),
         }
         await createRole(payload)
+        toast.success("Rol creado")
       } else if (role) {
         const payload: UpdateRolePayload = {
           name,
           description: description || undefined,
-          permissions: Array.from(selectedPerms),
         }
+        // Los permisos solo viajan si cambiaron: el backend marca el rol como
+        // «editado a mano» con solo recibirlos, y renombrar a Dueño o
+        // Administrador no debe congelarles las funciones nuevas.
+        const before = new Set(role.permissions)
+        const changed =
+          before.size !== selectedPerms.size ||
+          Array.from(selectedPerms).some((p) => !before.has(p))
+        if (changed && !permsLocked) payload.permissions = Array.from(selectedPerms)
         await updateRole(role.id, payload)
+        toast.success("Rol actualizado")
       }
       onSuccess()
       onOpenChange(false)
@@ -664,7 +900,7 @@ function RoleDialog({ open, onOpenChange, mode, role, permissionGroups, onSucces
           <Button
             type="submit"
             form={ROLE_FORM_ID}
-            disabled={saving}
+            disabled={saving || ownerRoleLocked}
             className="sm:min-w-36"
           >
             {saving ? <Loader2 className="animate-spin" /> : <ShieldCheck />}
@@ -679,6 +915,22 @@ function RoleDialog({ open, onOpenChange, mode, role, permissionGroups, onSucces
     >
       <form id={ROLE_FORM_ID} onSubmit={handleSubmit} className="flex flex-col gap-5">
         {error && <FormAlert>{error}</FormAlert>}
+        {roleLockReason && (
+          <FormAlert tone="info" icon={Info}>
+            {roleLockReason}
+          </FormAlert>
+        )}
+        {permsLocked && roleLockReason && (
+          <p id={ROLE_LOCK_REASON_ID} className="sr-only">
+            {roleLockReason}
+          </p>
+        )}
+        {editingOwnerRole && (
+          <FormAlert tone="info" icon={Info}>
+            El rol Dueño siempre conserva gestionar usuarios y roles: sin ellos
+            nadie podría volver a abrir estas pantallas.
+          </FormAlert>
+        )}
 
         {/* Los roles que trae el sistema ya se pueden ajustar enteros —un
             "Gerente" no significa lo mismo en una galletería que en un
@@ -692,7 +944,8 @@ function RoleDialog({ open, onOpenChange, mode, role, permissionGroups, onSucces
             cambiarlo a tu gusto. Ten en cuenta una cosa: tal como está ahora,
             cada función nueva de BookiPos le llega sola. Si le ajustas los
             permisos, mandará lo que tú dejes escrito y las funciones que salgan
-            después tendrás que dárselas tú.
+            después tendrás que dárselas tú. Cambiar solo el nombre o la
+            descripción no afecta a esto.
           </FormAlert>
         )}
 
@@ -709,6 +962,7 @@ function RoleDialog({ open, onOpenChange, mode, role, permissionGroups, onSucces
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Cajero"
+                disabled={ownerRoleLocked}
                 required
               />
             </Field>
@@ -718,6 +972,7 @@ function RoleDialog({ open, onOpenChange, mode, role, permissionGroups, onSucces
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Vende y cierra caja, no toca precios"
+                disabled={ownerRoleLocked}
               />
             </Field>
           </FieldGrid>
@@ -734,9 +989,7 @@ function RoleDialog({ open, onOpenChange, mode, role, permissionGroups, onSucces
           }
         >
           {permissionGroups.length === 0 ? (
-            <p className="rounded-2xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
-              Cargando catálogo de permisos…
-            </p>
+            <CatalogPlaceholder state={catalogState} />
           ) : (
             // Dos columnas en escritorio: la lista de permisos es larga y en una
             // sola columna obliga a un scroll interminable dentro de la ficha.
@@ -756,7 +1009,11 @@ function RoleDialog({ open, onOpenChange, mode, role, permissionGroups, onSucces
                     <button
                       type="button"
                       onClick={() => toggleGroup(group.items)}
-                      className="flex w-full items-center gap-2.5 bg-muted/60 px-3.5 py-2.5 text-left transition-colors hover:bg-muted"
+                      aria-disabled={permsLocked}
+                      aria-describedby={
+                        permsLocked && roleLockReason ? ROLE_LOCK_REASON_ID : undefined
+                      }
+                      className="flex w-full aria-disabled:cursor-not-allowed aria-disabled:opacity-70 items-center gap-2.5 bg-muted/60 px-3.5 py-2.5 text-left transition-colors hover:bg-muted"
                     >
                       <span
                         className={cn(
@@ -802,16 +1059,40 @@ function RoleDialog({ open, onOpenChange, mode, role, permissionGroups, onSucces
                       {group.items.map((item) => (
                         <label
                           key={item.key}
-                          className="flex cursor-pointer items-center gap-2.5 px-3.5 py-2 transition-colors hover:bg-primary/[0.04]"
+                          title={
+                            permReason(item.key) === "no lo tienes"
+                              ? "No puedes conceder un permiso que tú no tienes."
+                              : undefined
+                          }
+                          className={cn(
+                            "flex items-center gap-2.5 px-3.5 py-2 transition-colors",
+                            permDisabled(item.key)
+                              ? "cursor-not-allowed opacity-70"
+                              : "cursor-pointer hover:bg-primary/[0.04]",
+                          )}
                         >
                           <Checkbox
                             checked={selectedPerms.has(item.key)}
+                            disabled={permDisabled(item.key)}
                             onCheckedChange={() => togglePerm(item.key)}
                           />
                           <span className="min-w-0 text-sm text-foreground">
                             {item.label}
                           </span>
-                          <span className="ml-auto shrink-0 font-mono text-[0.6875rem] text-muted-foreground">
+                          {permReason(item.key) && (
+                            <Badge
+                              variant="outline"
+                              className="ml-auto shrink-0 text-[0.6875rem]"
+                            >
+                              {permReason(item.key)}
+                            </Badge>
+                          )}
+                          <span
+                            className={cn(
+                              "shrink-0 font-mono text-[0.6875rem] text-muted-foreground",
+                              !permReason(item.key) && "ml-auto",
+                            )}
+                          >
                             {item.key}
                           </span>
                         </label>
@@ -834,10 +1115,16 @@ interface InviteDialogProps {
   open: boolean
   onOpenChange: (v: boolean) => void
   roles: AdminRole[]
+  actor: Actor
   onSuccess: () => void
 }
 
-function InviteDialog({ open, onOpenChange, roles, onSuccess }: InviteDialogProps) {
+function InviteDialog({ open, onOpenChange, roles, actor, onSuccess }: InviteDialogProps) {
+  // Solo el Dueño asigna el rol Dueño y nadie un rol con permisos que no tiene.
+  const assignableRoles = React.useMemo(
+    () => assignableRolesFor(roles, actor),
+    [roles, actor],
+  )
   const [email, setEmail] = React.useState("")
   const [role, setRole] = React.useState("")
   const [saving, setSaving] = React.useState(false)
@@ -845,18 +1132,25 @@ function InviteDialog({ open, onOpenChange, roles, onSuccess }: InviteDialogProp
   const [result, setResult] = React.useState<CreatedInvitation | null>(null)
   const [copied, setCopied] = React.useState(false)
 
+  // Reinicia solo al abrir (false→true), no cuando cambia `actor` o `roles`.
+  const wasOpen = React.useRef(false)
   React.useEffect(() => {
     async function reset() {
+      if (!open) {
+        wasOpen.current = false
+        return
+      }
+      if (wasOpen.current) return
+      wasOpen.current = true
       await Promise.resolve()
-      if (!open) return
       setEmail("")
-      setRole(roles[0]?.key ?? "")
+      setRole(assignableRoles[0]?.key ?? "")
       setError(null)
       setResult(null)
       setCopied(false)
     }
     void reset()
-  }, [open, roles])
+  }, [open, assignableRoles])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -901,7 +1195,7 @@ function InviteDialog({ open, onOpenChange, roles, onSuccess }: InviteDialogProp
               onClick={() => {
                 setResult(null)
                 setEmail("")
-                setRole(roles[0]?.key ?? "")
+                setRole(assignableRoles[0]?.key ?? "")
               }}
               className="sm:min-w-28"
             >
@@ -974,8 +1268,8 @@ function InviteDialog({ open, onOpenChange, roles, onSuccess }: InviteDialogProp
                   id="i-role"
                   value={role}
                   onChange={setRole}
-                  options={roles.map((r) => ({ value: r.key, label: r.name }))}
-                  placeholder={roles.length === 0 ? "Sin roles" : undefined}
+                  options={assignableRoles.map((r) => ({ value: r.key, label: r.name }))}
+                  placeholder={assignableRoles.length === 0 ? "Sin roles que puedas asignar" : undefined}
                 />
               </Field>
             </FieldGrid>
@@ -1047,8 +1341,20 @@ function InvitationBadge({ status }: { status: AdminInvitation["status"] }) {
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function UsuariosPage() {
-  const { hasPermission } = useAuth()
+  const { hasPermission, user: me } = useAuth()
   const confirm = useConfirm()
+  const canManageRoles = hasPermission("roles.manage")
+  // Acción en curso (reenviar/revocar/borrar): evita doble clic y da feedback.
+  const [busy, setBusy] = React.useState<string | null>(null)
+  const actor = React.useMemo<Actor>(
+    () => ({
+      id: me?.id ?? "",
+      role: me?.role ?? "",
+      permissions: me?.permissions ?? [],
+      sedeIds: me?.sedeIds ?? [],
+    }),
+    [me],
+  )
 
   // Tab state
   const [tab, setTab] = React.useState<"usuarios" | "roles">("usuarios")
@@ -1065,6 +1371,7 @@ export default function UsuariosPage() {
 
   // Permission groups (for role editor)
   const [permGroups, setPermGroups] = React.useState<PermissionGroup[]>([])
+  const [catalogState, setCatalogState] = React.useState<CatalogState>("loading")
 
   // Sedes (para asignar a usuarios y mostrarlas en la tabla)
   const [sedes, setSedes] = React.useState<Sede[]>([])
@@ -1113,11 +1420,19 @@ export default function UsuariosPage() {
   }
 
   async function fetchPermGroups() {
+    // GET /permissions exige roles.manage: sin él ni se pide, y la ficha lo dice.
+    if (!canManageRoles) {
+      setCatalogState("denied")
+      return
+    }
     try {
       const data = await listPermissionGroups()
       setPermGroups(data)
-    } catch {
-      // non-critical: catalog may not be ready yet
+      setCatalogState("ready")
+    } catch (err) {
+      setCatalogState(
+        err instanceof ApiError && err.status === 403 ? "denied" : "error",
+      )
     }
   }
 
@@ -1158,21 +1473,31 @@ export default function UsuariosPage() {
   }, [hasPermission])
 
   async function handleResendInvite(inv: AdminInvitation) {
+    if (busy) return
+    setBusy(`resend:${inv.id}`)
     try {
       await resendInvitation(inv.id)
       await fetchInvitations()
+      toast.success(`Invitación reenviada a ${inv.email}`)
     } catch (err) {
-      alert(errorMessage(err))
+      toast.error(errorMessage(err))
+    } finally {
+      setBusy(null)
     }
   }
 
   async function handleRevokeInvite(inv: AdminInvitation) {
+    if (busy) return
     if (!(await confirm({ title: `¿Revocar la invitación de ${inv.email}?`, destructive: true }))) return
+    setBusy(`revoke:${inv.id}`)
     try {
       await revokeInvitation(inv.id)
       await fetchInvitations()
+      toast.success("Invitación revocada")
     } catch (err) {
-      alert(errorMessage(err))
+      toast.error(errorMessage(err))
+    } finally {
+      setBusy(null)
     }
   }
 
@@ -1204,12 +1529,17 @@ export default function UsuariosPage() {
   const sedeNameMap = Object.fromEntries(sedes.map((s) => [s._id, s.name]))
 
   async function handleDeleteRole(r: AdminRole) {
+    if (busy) return
     if (!(await confirm({ title: `¿Eliminar el rol "${r.name}"?`, description: "Esta acción no se puede deshacer.", destructive: true }))) return
+    setBusy(`delete:${r.id}`)
     try {
       await deleteRole(r.id)
       await fetchRoles()
+      toast.success("Rol eliminado")
     } catch (err) {
-      alert(errorMessage(err))
+      toast.error(errorMessage(err))
+    } finally {
+      setBusy(null)
     }
   }
 
@@ -1247,7 +1577,7 @@ export default function UsuariosPage() {
                 Nuevo usuario
               </Button>
             </>
-          ) : (
+          ) : canManageRoles ? (
             <Button
               onClick={() => {
                 setRoleSheetMode("create")
@@ -1258,7 +1588,7 @@ export default function UsuariosPage() {
               <Plus />
               Nuevo rol
             </Button>
-          )
+          ) : null
         }
       />
 
@@ -1419,6 +1749,11 @@ export default function UsuariosPage() {
                   {invitations.map((inv) => {
                     const closed =
                       inv.status === "accepted" || inv.status === "revoked"
+                    // Reenviar/revocar es actuar sobre ese rol: mismas reglas que asignarlo.
+                    const invRole = roles.find((r) => r.key === inv.role)
+                    const canAssignInv = invRole
+                      ? actorCanAssignRole(actor, invRole)
+                      : true
                     return (
                       <TableRow key={inv.id}>
                         <TableCell className="font-medium">
@@ -1431,23 +1766,38 @@ export default function UsuariosPage() {
                           <InvitationBadge status={inv.status} />
                         </TableCell>
                         <TableCell className="text-right">
-                          {!closed && (
+                          {!closed && !canAssignInv && (
+                            <span className="text-xs text-muted-foreground">
+                              Rol que no puedes asignar
+                            </span>
+                          )}
+                          {!closed && canAssignInv && (
                             <div className="flex items-center justify-end gap-1">
                               <Button
                                 variant="ghost"
                                 size="sm"
+                                disabled={busy !== null}
                                 onClick={() => handleResendInvite(inv)}
                               >
-                                <Send />
+                                {busy === `resend:${inv.id}` ? (
+                                  <Loader2 className="animate-spin" />
+                                ) : (
+                                  <Send />
+                                )}
                                 Reenviar
                               </Button>
                               <Button
                                 variant="ghost"
                                 size="icon-sm"
+                                disabled={busy !== null}
                                 className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                                 onClick={() => handleRevokeInvite(inv)}
                               >
-                                <Trash2 />
+                                {busy === `revoke:${inv.id}` ? (
+                                  <Loader2 className="animate-spin" />
+                                ) : (
+                                  <Trash2 />
+                                )}
                                 <span className="sr-only">
                                   Revocar invitación de {inv.email}
                                 </span>
@@ -1522,6 +1872,7 @@ export default function UsuariosPage() {
                     </div>
 
                     <div className="flex shrink-0 items-center gap-1">
+                      {canManageRoles && (
                       <Button
                         variant="ghost"
                         size="icon-sm"
@@ -1534,14 +1885,20 @@ export default function UsuariosPage() {
                         <Pencil />
                         <span className="sr-only">Editar {r.name}</span>
                       </Button>
-                      {!r.isSystem && (
+                      )}
+                      {canManageRoles && !r.isSystem && (
                         <Button
                           variant="ghost"
                           size="icon-sm"
+                          disabled={busy !== null}
                           className="text-destructive hover:text-destructive hover:bg-destructive/10"
                           onClick={() => handleDeleteRole(r)}
                         >
-                          <Trash2 />
+                          {busy === `delete:${r.id}` ? (
+                            <Loader2 className="animate-spin" />
+                          ) : (
+                            <Trash2 />
+                          )}
                           <span className="sr-only">Eliminar {r.name}</span>
                         </Button>
                       )}
@@ -1563,6 +1920,9 @@ export default function UsuariosPage() {
         roles={roles}
         sedes={sedes}
         permissionGroups={permGroups}
+        catalogState={catalogState}
+        activeOwners={users.filter((u) => u.role === OWNER_ROLE && u.active).length}
+        actor={actor}
         onSuccess={fetchUsers}
       />
 
@@ -1572,6 +1932,8 @@ export default function UsuariosPage() {
         mode={roleSheetMode}
         role={editingRole}
         permissionGroups={permGroups}
+        catalogState={catalogState}
+        actor={actor}
         onSuccess={fetchRoles}
       />
 
@@ -1579,6 +1941,7 @@ export default function UsuariosPage() {
         open={inviteSheetOpen}
         onOpenChange={setInviteSheetOpen}
         roles={roles}
+        actor={actor}
         onSuccess={fetchInvitations}
       />
     </>
