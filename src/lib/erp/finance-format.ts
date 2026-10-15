@@ -35,6 +35,9 @@ export function errorMessage(err: unknown): string {
 
 /** Convierte un string de input a número entero seguro. */
 export function numOr(v: string, d = 0): number {
+  // Un campo vacío es "no lo escribió", no cero: `Number("")` da 0 y una
+  // cantidad en blanco se volvía 0 unidades en vez del valor por defecto.
+  if (v.trim() === "") return d
   const n = Number(v)
   return Number.isFinite(n) ? Math.round(n) : d
 }

@@ -91,6 +91,8 @@ function errorMessage(err: unknown): string {
   return "Error desconocido"
 }
 function numOr(v: string, d = 0): number {
+  // Vacío no es cero: "días trabajados" en blanco son los 30 del mes, no 0.
+  if (v.trim() === "") return d
   const n = Number(v)
   return Number.isFinite(n) ? n : d
 }
