@@ -56,6 +56,8 @@ export interface PayrollSettings {
   empresaExoneradaAportes: boolean
   /** La empresa ya respondió si está exonerada (ítem 1.15). */
   exoneracionConfirmada?: boolean
+  /** Semana de 5 o 6 días laborables: decide el domingo remunerado (ítem 1.19). */
+  diasLaborablesSemana?: number
 }
 
 export interface RecargoLinea {
@@ -163,6 +165,8 @@ export interface PayrollSlip {
   diasTrabajados: number
   breakdown: PayrollBreakdown
   otrasDeduccionesDetalle?: { concept: string; amount: number }[]
+  /** Avisos para revisar, p. ej. tope de horas extra (ítem 1.19). */
+  alertas?: string[]
   totalDevengado: number
   totalDeducciones: number
   netoPagar: number

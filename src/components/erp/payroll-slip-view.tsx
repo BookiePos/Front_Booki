@@ -54,11 +54,14 @@ export function PayrollSlipView({
   breakdown: b,
   header,
   otrasDetalle,
+  alertas,
 }: {
   breakdown: PayrollBreakdown
   header?: React.ReactNode
   /** Detalle de "otras deducciones" (consumos de empleado, etc.). */
   otrasDetalle?: { concept: string; amount: number }[]
+  /** Avisos para revisar (tope de horas extra, etc.). */
+  alertas?: string[]
 }) {
   const d = b.devengados
   const de = b.deducciones
@@ -67,6 +70,14 @@ export function PayrollSlipView({
   return (
     <div className="rounded-xl border border-border bg-card p-4 text-foreground">
       {header}
+
+      {alertas && alertas.length > 0 && (
+        <ul className="mb-3 flex flex-col gap-1 rounded-lg bg-warning/10 px-3 py-2 text-sm text-warning-ink">
+          {alertas.map((a) => (
+            <li key={a}>{a}</li>
+          ))}
+        </ul>
+      )}
 
       <SectionTitle>Devengados</SectionTitle>
       <Row label={`Salario (${b.diasTrabajados} días)`} value={d.salario} />

@@ -694,6 +694,7 @@ function RunDetail({
             <PayrollSlipView
               breakdown={slip.breakdown}
               otrasDetalle={slip.otrasDeduccionesDetalle}
+              alertas={slip.alertas}
               header={
                 <div className="invoice-printable mb-2 border-b border-border pb-2 text-sm">
                   <p className="font-semibold">{slip.employeeName}</p>
@@ -1375,6 +1376,9 @@ function Parametros({
       uvtBase: String(t.uvtBase),
     })),
   )
+  const [diasLaborables, setDiasLaborables] = React.useState(
+    String(settings.diasLaborablesSemana ?? 6),
+  )
   const [busy, setBusy] = React.useState(false)
   const [msg, setMsg] = React.useState<string | null>(null)
   const [error, setError] = React.useState<string | null>(null)
@@ -1389,6 +1393,7 @@ function Parametros({
         auxilioTransporte: numOr(aux),
         uvt: numOr(uvt),
         empresaExoneradaAportes: exonera,
+        diasLaborablesSemana: Number(diasLaborables),
         recargos: Object.fromEntries(
           RECARGO_LABELS.map(({ k }) => [k, numOr(rec[k] ?? "0") / 100]),
         ) as unknown as PayrollSettings["recargos"],
@@ -1431,6 +1436,21 @@ function Parametros({
                 onChange={(e) => setExonera(e.target.checked)}
               />
               Empresa exonerada de aportes (art. 114-1), salarios &lt; 10 SMMLV
+            </label>
+            <label className="flex flex-col gap-1 text-sm">
+              Días laborables de la semana
+              <select
+                className="h-9 rounded-md border border-input bg-background px-2"
+                value={diasLaborables}
+                onChange={(e) => setDiasLaborables(e.target.value)}
+              >
+                <option value="6">6 (lunes a sábado)</option>
+                <option value="5">5 (lunes a viernes)</option>
+              </select>
+              <span className="text-muted-foreground">
+                Quien trabaja todos esos días gana el domingo remunerado (CST
+                art. 173).
+              </span>
             </label>
           </CardContent>
         </Card>
