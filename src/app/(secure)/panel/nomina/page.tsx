@@ -21,6 +21,7 @@ import {
 } from "lucide-react"
 
 import { useAuth } from "@/lib/auth-context"
+import { actorSeesAllSedes } from "@/lib/access"
 import { listSedes, type Sede } from "@/lib/erp/api-inventory"
 import { listEmployees, type Employee } from "@/lib/erp/api-employees"
 import {
@@ -255,8 +256,14 @@ function CorrerNomina({
   runs: PayrollRun[]
   onRan: () => void
 }) {
+  const { user } = useAuth()
+  // Quien no ve todas las sedes solo liquida la nómina de una de las suyas: el
+  // backend rechaza la consolidada (ítem 3.9).
+  const veTodas = user ? actorSeesAllSedes(user) : false
   const [period, setPeriod] = React.useState(currentMonth())
-  const [coverage, setCoverage] = React.useState<"all" | "sede">("all")
+  const [coverage, setCoverage] = React.useState<"all" | "sede">(
+    veTodas ? "all" : "sede",
+  )
   const [sedeId, setSedeId] = React.useState("")
   const [label, setLabel] = React.useState("")
   const [busy, setBusy] = React.useState(false)
@@ -356,7 +363,7 @@ function CorrerNomina({
               value={coverage}
               onChange={(e) => setCoverage(e.target.value as "all" | "sede")}
             >
-              <option value="all">Todos los empleados</option>
+              {veTodas && <option value="all">Todos los empleados</option>}
               <option value="sede">Una sede</option>
             </select>
           </div>
