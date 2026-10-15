@@ -280,7 +280,9 @@ function ProductDialog({
   const extras = costoEmpaque + costoManoDeObra
   const costoUnitario =
     hayFuente || extras > 0
-      ? Math.round((costoBase ?? 0) + extras)
+      ? // Suma de los renglones ya redondeados a peso, para que el desglose
+        // de abajo cuadre con el total.
+        Math.round(costoBase ?? 0) + Math.round(costoEmpaque) + costoManoDeObra
       : null
 
   // Un insumo sin costo de compra no se puede distinguir de uno gratis, y

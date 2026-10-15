@@ -914,10 +914,6 @@ function BomDialog({
   const rendimiento = outputQty ?? 0
   const manoDeObra = extraCost ?? 0
   const empaque = packagingCost ?? 0
-  const unitCost =
-    rendimiento > 0
-      ? Math.round((materials + manoDeObra + empaque) / rendimiento)
-      : 0
   // El dueño escribe la mano de obra y el empaque POR LOTE, pero lo que se
   // compara contra el precio de venta es lo que cuesta UNA unidad. Sin esta
   // división a la vista hay que hacerla de cabeza cada vez que se toca la
@@ -925,6 +921,9 @@ function BomDialog({
   const materialsUnit = rendimiento > 0 ? Math.round(materials / rendimiento) : 0
   const extraUnit = rendimiento > 0 ? Math.round(manoDeObra / rendimiento) : 0
   const empaqueUnit = rendimiento > 0 ? Math.round(empaque / rendimiento) : 0
+  // El total es la suma de lo que se ve, no el lote redondeado una sola vez:
+  // si no, tres renglones de pesos enteros pueden no sumar el total (por 1 $).
+  const unitCost = materialsUnit + extraUnit + empaqueUnit
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
