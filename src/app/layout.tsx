@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter, Outfit } from "next/font/google";
 import "./globals.css";
 import { SITE_URL } from "@/lib/env";
+import { PLANS } from "@/lib/site";
 import { AppToaster } from "@/components/ui/app-toaster";
 import { ThemeProvider } from "@/lib/theme/theme-context";
 import { THEME_INIT_SCRIPT } from "@/lib/theme/theme-store";
@@ -28,6 +29,12 @@ const outfit = Outfit({
   display: "swap",
 });
 
+// El precio de entrada sale de los planes: así la meta descripción no diverge
+// de lo que muestra la página de precios.
+const PRECIO_DESDE = new Intl.NumberFormat("es-CO").format(
+  Math.min(...PLANS.flatMap((p) => (p.price == null ? [] : [p.price]))),
+);
+
 export const metadata: Metadata = {
   // Sin esto Next resuelve las imágenes de Open Graph como rutas relativas, y
   // WhatsApp, X o LinkedIn no pueden descargarlas: al compartir un enlace sale
@@ -38,7 +45,7 @@ export const metadata: Metadata = {
     template: "%s · BookiPos",
   },
   description:
-    "POS para restaurante, bar y retail con inventario, caja, cartera, nómina y contabilidad automática. Factura electrónica DIAN y multi-sede. Desde $150.000 al mes.",
+    `POS para restaurante, bar y retail con inventario, caja, cartera, nómina y contabilidad automática. Multi-sede. Desde $${PRECIO_DESDE} al mes.`,
   openGraph: {
     type: "website",
     locale: "es_CO",

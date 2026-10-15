@@ -81,7 +81,19 @@ function readStored(): StoredAuth | null {
   if (typeof window === "undefined") return null
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY)
-    return raw ? (JSON.parse(raw) as StoredAuth) : null
+    if (!raw) return null
+    const stored = JSON.parse(raw) as StoredAuth
+    // Sesiones guardadas por versiones viejas traían también el refresh token:
+    // se reescriben con solo el access para no dejarlo al alcance de un XSS.
+    if (stored?.tokens && Object.keys(stored.tokens).some((k) => k !== "accessToken")) {
+      const clean: StoredAuth = {
+        tokens: { accessToken: stored.tokens.accessToken },
+        user: stored.user,
+      }
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(clean))
+      return clean
+    }
+    return stored
   } catch {
     return null
   }

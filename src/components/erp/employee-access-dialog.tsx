@@ -24,6 +24,7 @@ import {
   type AccessArea,
 } from "@/lib/access"
 import { ApiError } from "@/lib/api"
+import { PASSWORD_REQUISITOS, validarPassword } from "@/lib/password-policy"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -171,8 +172,10 @@ export function EmployeeAccessDialog({
       )
       return
     }
-    if (password.length < 6) {
-      setError("La contraseña debe tener al menos 6 caracteres")
+    // Misma política que el backend (CreateUserDto, ítem 4.9).
+    const motivoPassword = validarPassword(password)
+    if (motivoPassword) {
+      setError(motivoPassword)
       return
     }
     if (!role) {
@@ -328,7 +331,7 @@ export function EmployeeAccessDialog({
               id="acc-password"
               label="Contraseña"
               required
-              hint="Compártela con la persona; podrá cambiarla luego. Mínimo 6 caracteres."
+              hint={`Compártela con la persona; podrá cambiarla luego. ${PASSWORD_REQUISITOS}`}
             >
               {/* `type="text"` a propósito: quien crea el acceso tiene que poder
                   leer la clave para dictársela a la persona en el mostrador. */}
@@ -337,7 +340,7 @@ export function EmployeeAccessDialog({
                 type="text"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Mínimo 6 caracteres"
+                placeholder="Mínimo 8 caracteres"
                 autoComplete="new-password"
                 required
               />

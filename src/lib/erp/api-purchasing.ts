@@ -81,6 +81,8 @@ export interface ReceivePOPayload {
   generatePayable?: boolean
   dueDate?: string
   docNumber?: string
+  /** Solo compras de contado (sin CxP). Sin él, el backend asume efectivo. */
+  paymentMethod?: "cash" | "transfer" | "card"
 }
 
 export async function listPurchaseOrders(query: {

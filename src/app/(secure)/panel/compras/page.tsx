@@ -16,6 +16,7 @@ import {
 import { useAuth } from "@/lib/auth-context"
 import { listSedes, listProducts, type Sede, type InvProduct } from "@/lib/erp/api-inventory"
 import { listSuppliers, type Supplier } from "@/lib/erp/api-suppliers"
+import { PAYMENT_METHOD_LABELS, type PaymentMethod } from "@/lib/erp/api-finance"
 import { listTaxes, type TaxView } from "@/lib/erp/api-tax"
 import {
   listPurchaseOrders,
@@ -633,6 +634,7 @@ function OrderDetailDialog({
   const [expiry, setExpiry] = React.useState<Record<number, string>>({})
   const [generatePayable, setGeneratePayable] = React.useState(true)
   const [dueDate, setDueDate] = React.useState("")
+  const [payMethod, setPayMethod] = React.useState<PaymentMethod>("cash")
   const [busy, setBusy] = React.useState(false)
   const [err, setErr] = React.useState<string | null>(null)
 
@@ -646,6 +648,7 @@ function OrderDetailDialog({
       setExpiry({})
       setGeneratePayable(true)
       setDueDate("")
+      setPayMethod("cash")
       setErr(null)
     }
   }, [po])
@@ -689,6 +692,7 @@ function OrderDetailDialog({
         lines: receiptLines,
         generatePayable,
         dueDate: dueDate || undefined,
+        paymentMethod: generatePayable ? undefined : payMethod,
       }),
     )
   }
@@ -851,6 +855,22 @@ function OrderDetailDialog({
             checked={generatePayable}
             onCheckedChange={setGeneratePayable}
           />
+          {!generatePayable && (
+            <Field
+              id="oc-method"
+              label="Medio de pago"
+              hint="Efectivo sale de Caja; transferencia o tarjeta, de Bancos."
+            >
+              <NativeSelect
+                id="oc-method"
+                value={payMethod}
+                onChange={(v) => setPayMethod(v as PaymentMethod)}
+                options={(
+                  Object.keys(PAYMENT_METHOD_LABELS) as PaymentMethod[]
+                ).map((m) => ({ value: m, label: PAYMENT_METHOD_LABELS[m] }))}
+              />
+            </Field>
+          )}
           {generatePayable && (
             <Field
               id="oc-due"

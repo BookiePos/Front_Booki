@@ -31,7 +31,8 @@ export const FRONTEND_URL = sinBarraFinal(process.env.E2E_BASE_URL || "http://lo
 
 /**
  * Realiza el login vía API directa al backend NestJS.
- * El backend responde con access_token en el body y el refresh_token en cookie.
+ * El backend responde `{ tokens: { accessToken }, user }` en el body; el refresh
+ * token viaja SOLO en la cookie HttpOnly `refresh_token` (nunca en el body).
  * Devuelve el access_token para las llamadas API subsecuentes.
  */
 export async function apiLogin(
@@ -47,8 +48,8 @@ export async function apiLogin(
     );
   }
 
-  const body = (await res.json()) as { access_token?: string };
-  const accessToken = body.access_token ?? "";
+  const body = (await res.json()) as { tokens?: { accessToken?: string } };
+  const accessToken = body.tokens?.accessToken ?? "";
   return { accessToken };
 }
 

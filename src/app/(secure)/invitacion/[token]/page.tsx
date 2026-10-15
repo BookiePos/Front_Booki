@@ -22,6 +22,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
+import { PASSWORD_REQUISITOS, validarPassword } from "@/lib/password-policy"
 
 const STORAGE_KEY = "sistemapos.auth"
 
@@ -140,17 +141,23 @@ export default function AcceptInvitationPage() {
       setError("Las contraseñas no coinciden.")
       return
     }
-    if (password.length < 6) {
-      setError("La contraseña debe tener al menos 6 caracteres.")
+    // Misma política que el backend (AcceptInvitationDto, ítem 4.9).
+    const motivoPassword = validarPassword(password)
+    if (motivoPassword) {
+      setError(motivoPassword)
       return
     }
     setPhase("submitting")
     try {
       const res = await apiAcceptInvitation(token, { name, password })
       // Guarda la sesión y entra al panel (recarga para que AuthProvider la tome).
+      // Solo el access token: el refresh vive en la cookie HttpOnly.
       window.localStorage.setItem(
         STORAGE_KEY,
-        JSON.stringify({ tokens: res.tokens, user: res.user }),
+        JSON.stringify({
+          tokens: { accessToken: res.tokens.accessToken },
+          user: res.user,
+        }),
       )
       window.location.href = "/"
     } catch (err) {
@@ -254,8 +261,12 @@ export default function AcceptInvitationPage() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Mínimo 6 caracteres"
+                  placeholder="Mínimo 8 caracteres"
+                  aria-describedby="i-password-requisitos"
                 />
+                <p id="i-password-requisitos" className="text-xs text-muted-foreground">
+                  {PASSWORD_REQUISITOS}
+                </p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="i-confirm">Confirmar contraseña</Label>

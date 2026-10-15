@@ -38,8 +38,8 @@ function highlightsFor(isRetail: boolean): Highlight[] {
     },
     {
       icon: FileText,
-      title: "Factura electrónica DIAN",
-      body: "Emite la factura del cliente directamente desde el cobro.",
+      title: "Comprobante en cada venta",
+      body: "Entrega el comprobante del cliente desde el cobro. La factura electrónica DIAN está en camino.",
     },
   ]
   const first: Highlight = isRetail

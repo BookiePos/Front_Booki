@@ -84,8 +84,8 @@ export const BENEFITS: Benefit[] = [
   {
     id: "dian",
     icon: "file",
-    title: "DIAN sin sustos",
-    claim: "Factura electrónica con tu resolución.",
+    title: "Impuestos y numeración en orden",
+    claim: "Tu resolución y tu numeración, en el panel.",
     detail: [
       "IVA e INC según el régimen del negocio",
       "Numeración y resolución controladas desde el panel",
@@ -213,9 +213,7 @@ export const PLANS: Plan[] = [
       "Inventario y control de stock",
       "Caja: apertura, arqueo y cierre",
       "Clientes y reportes de venta",
-      "Factura y POS electrónico DIAN",
       "1 sede · 3 usuarios",
-      "400 documentos electrónicos",
       "Soporte por chat y centro de ayuda",
     ],
   },
@@ -235,7 +233,6 @@ export const PLANS: Plan[] = [
       "Compras, órdenes y proveedores",
       "Gastos y flujo de caja",
       "1 sede · usuarios ilimitados",
-      "2.000 documentos electrónicos",
       "Capacitación de arranque + soporte en horario comercial",
     ],
   },
@@ -256,7 +253,7 @@ export const PLANS: Plan[] = [
       "Cuentas por pagar y por cobrar",
       "Presupuestos, tesorería y auditoría",
       "Nómina hasta 10 empleados",
-      "1 sede · 5.000 documentos",
+      "1 sede",
       "Soporte prioritario + capacitación trimestral",
     ],
   },
@@ -275,7 +272,6 @@ export const PLANS: Plan[] = [
       "Traslados de stock entre sedes",
       "Permisos y roles por sede",
       "Nómina hasta 25 empleados",
-      "12.000 documentos electrónicos",
       "Sede adicional: $89.900",
       "Gerente de cuenta + soporte extendido",
     ],
@@ -293,7 +289,6 @@ export interface PlanComparisonRow {
 
 export const PLAN_COMPARISON: PlanComparisonRow[] = [
   { feature: "POS y cajas ilimitadas", punto: "Sí", negocio: "Sí", control: "Sí", cadena: "Sí" },
-  { feature: "Facturación y POS electrónico DIAN", punto: "Sí", negocio: "Sí", control: "Sí", cadena: "Sí" },
   { feature: "Inventario y arqueo de caja", punto: "Sí", negocio: "Sí", control: "Sí", cadena: "Sí" },
   { feature: "Mesas, comandas y propinas", punto: "—", negocio: "Sí", control: "Sí", cadena: "Sí" },
   { feature: "Lotes, vencimientos y trazabilidad", punto: "—", negocio: "Sí", control: "Sí", cadena: "Sí" },
@@ -303,7 +298,6 @@ export const PLAN_COMPARISON: PlanComparisonRow[] = [
   { feature: "Nómina colombiana", punto: "Complemento", negocio: "Complemento", control: "10 empleados", cadena: "25 empleados" },
   { feature: "Multi-sede y traslados", punto: "—", negocio: "—", control: "—", cadena: "3 sedes" },
   { feature: "Auditoría y permisos por rol", punto: "—", negocio: "Básico", control: "Sí", cadena: "Por sede" },
-  { feature: "Documentos electrónicos / mes", punto: "400", negocio: "2.000", control: "5.000", cadena: "12.000" },
 ];
 
 /** Complemento (add-on) contratable sobre cualquier plan. */
@@ -336,12 +330,6 @@ export const ADD_ONS: AddOn[] = [
     note: "Sobre Cadena, sin límite de sedes.",
   },
   {
-    name: "Paquete de 1.000 documentos",
-    price: 29_900,
-    unit: "único",
-    note: "No expira; se consume solo al pasar el cupo del plan.",
-  },
-  {
     name: "Migración desde Siigo, Alegra o Excel",
     price: 0,
     priceLabel: "Sin costo",
@@ -366,8 +354,8 @@ export const FAQS = [
     a: "Hoy no, y no queremos prometerlo. BookiPos es web y requiere conexión; el modo offline está en la hoja de ruta. Si tu local tiene internet inestable, hablemos antes de que compres.",
   },
   {
-    q: "¿La factura es válida ante la DIAN?",
-    a: "Sí, con tu resolución y numeración cargadas en el panel. Calculamos IVA e INC según el régimen del negocio y guardamos el rastro de cada documento.",
+    q: "¿Emite factura electrónica ante la DIAN?",
+    a: "Todavía no. La conexión con la DIAN está en camino y no la damos por hecha hasta que esté probada. Hoy cargas tu resolución y numeración en el panel, calculamos IVA e INC según el régimen del negocio y guardamos el rastro de cada documento. Si la factura electrónica es indispensable para ti hoy, escríbenos antes de comprar.",
   },
   {
     q: "¿Puedo migrar de mi sistema actual?",

@@ -8,9 +8,7 @@ import { CircleCheck, Eye, EyeOff, LoaderCircle, TriangleAlert } from "lucide-re
 import { AuthBrandAside } from "@/components/auth/brand-aside"
 import { BookiPosLogo } from "@/components/marketing/bookipos-logo"
 import { ApiError, apiResetPassword, apiValidatePasswordReset } from "@/lib/api"
-
-/** Mismo mínimo que valida el backend (`ResetPasswordDto`). */
-const MIN_PASSWORD = 6
+import { PASSWORD_REQUISITOS, validarPassword } from "@/lib/password-policy"
 
 type Fase = "validando" | "invalido" | "form" | "guardando" | "listo"
 
@@ -69,8 +67,10 @@ export default function RestablecerPage() {
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setError(null)
-    if (password.length < MIN_PASSWORD) {
-      setError(`La contraseña debe tener al menos ${MIN_PASSWORD} caracteres.`)
+    // Misma política que el backend (`ResetPasswordDto`, ítem 4.9).
+    const motivo = validarPassword(password)
+    if (motivo) {
+      setError(motivo)
       return
     }
     if (password !== confirm) {
@@ -170,7 +170,8 @@ export default function RestablecerPage() {
                       autoFocus
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      placeholder={`Mínimo ${MIN_PASSWORD} caracteres`}
+                      aria-describedby={`${passId}-requisitos`}
+                      placeholder="Mínimo 8 caracteres"
                       className="h-13 w-full rounded-xl border border-hairline bg-white px-4 pr-13 text-base text-ink outline-none transition-colors placeholder:text-ink-faint focus:border-brand-500"
                     />
                     <button
@@ -188,6 +189,9 @@ export default function RestablecerPage() {
                       )}
                     </button>
                   </div>
+                  <p id={`${passId}-requisitos`} className="mt-2 text-sm text-ink-muted">
+                    {PASSWORD_REQUISITOS}
+                  </p>
                 </div>
 
                 <div>

@@ -49,6 +49,12 @@ preflight de CORS entre zonas y permite que la cookie HttpOnly del refresh token
 funcione sin configuración extra. Al añadir superficie nueva, mantenla dentro de esta
 app en vez de crear otro despliegue.
 
+Ojo: el API vive en otro **origen** (`api.bookipos.com`) pero en el mismo **sitio**
+(`bookipos.com`). La cookie del refresh (`SameSite=Lax`, `Domain=.bookipos.com`,
+`path=/auth`) viaja porque ambos son del mismo sitio. Un front servido desde otro
+dominio (p. ej. un preview `*.vercel.app` contra el API de producción) no la recibe:
+el síntoma es un 401 al refrescar sin más error.
+
 - `src/app/(marketing)` — web pública, sin sesión.
 - `src/app/(secure)/login`, `/registro`, `/invitacion/[token]`,
   `/recuperar[/[token]]` — entrada.

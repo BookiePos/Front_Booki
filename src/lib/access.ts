@@ -55,3 +55,40 @@ export function permsAllowOperation(perms: string[]): boolean {
 export function roleFitsArea(perms: string[], area: AccessArea): boolean {
   return area === "pos" ? permsAllowPos(perms) : permsAllowOperation(perms)
 }
+
+// ─── Reglas de jerarquía (espejo de lo que el backend rechaza con 403) ──────
+// La UI no es la barrera —el backend responde 403/400—, pero no debe ofrecer lo
+// que sabe que se va a rechazar. Fuente: users.service.ts y roles.service.ts.
+
+/** Clave del rol Dueño en el backend. */
+export const OWNER_ROLE = "owner"
+
+/** Permiso que habilita ver todas las sedes (el Dueño lo tiene siempre). */
+const SEDE_VIEW_ALL = "sede.view_all"
+
+/** Quien actúa en la pantalla de usuarios y roles. */
+export interface Actor {
+  id: string
+  role: string
+  permissions: string[]
+  sedeIds: string[]
+}
+
+export function isOwnerActor(actor: Actor): boolean {
+  return actor.role === OWNER_ROLE
+}
+
+/** ¿Ve todas las sedes? Dueño o permiso `sede.view_all`. */
+export function actorSeesAllSedes(actor: Actor): boolean {
+  return isOwnerActor(actor) || actor.permissions.includes(SEDE_VIEW_ALL)
+}
+
+/** ¿Puede conceder este permiso? Solo el Dueño concede sin tenerlo. */
+export function actorCanGrant(actor: Actor, permission: string): boolean {
+  return isOwnerActor(actor) || actor.permissions.includes(permission)
+}
+
+/** ¿Puede repartir esta sede? Quien no ve todas solo reparte las suyas. */
+export function actorCanGrantSede(actor: Actor, sedeId: string): boolean {
+  return actorSeesAllSedes(actor) || actor.sedeIds.includes(sedeId)
+}
