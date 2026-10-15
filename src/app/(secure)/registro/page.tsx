@@ -155,7 +155,7 @@ function RegistroForm() {
           formulario baja, con su propia deriva. Ver `auth/brand-panel`. */}
       <AuthBrandPanel
         titulo="Tu negocio, listo para vender en minutos."
-        bajada="Crea la cuenta y empieza los 14 días de prueba. Sin tarjeta. Tu caja, tu inventario y tu factura DIAN, desde el primer día."
+        bajada="Crea la cuenta y empieza los 14 días de prueba. Sin tarjeta. Tu caja y tu inventario, desde el primer día."
       />
 
       <div className="flex items-start justify-center overflow-y-auto px-5 py-14 sm:px-10">

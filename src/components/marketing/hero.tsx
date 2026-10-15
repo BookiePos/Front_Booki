@@ -95,7 +95,7 @@ export function Hero() {
           </div>
 
           <ul className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-sm text-ink-muted">
-            {["Sin tarjeta de crédito", "Factura electrónica DIAN", "Multi-sede"].map(
+            {["Sin tarjeta de crédito", "14 días de prueba", "Multi-sede"].map(
               (item) => (
                 <li key={item} className="inline-flex items-center gap-2">
                   <Check className="size-4 shrink-0 text-brand-600" aria-hidden="true" />
