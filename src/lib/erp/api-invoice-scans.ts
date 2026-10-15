@@ -262,8 +262,14 @@ export async function splitInvoiceScan(
 }
 
 /** Aplica la factura: inventario, gastos, cuenta por pagar y proveedor. */
-export async function applyInvoiceScan(id: string): Promise<InvoiceScan> {
-  const res = await authFetch(`/invoice-scans/${id}/apply`, { method: "POST" })
+export async function applyInvoiceScan(
+  id: string,
+  opts: { paymentMethod?: "cash" | "transfer" | "card" } = {},
+): Promise<InvoiceScan> {
+  const res = await authFetch(`/invoice-scans/${id}/apply`, {
+    method: "POST",
+    body: JSON.stringify(opts),
+  })
   return parseResponse<InvoiceScan>(res)
 }
 

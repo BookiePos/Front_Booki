@@ -391,7 +391,12 @@ export default function FacturasPorFotoPage() {
                                 {revisable ? "Revisar" : "Ver"}
                               </Button>
                             )}
-                            {canManage && scan.status === "extracted" && (
+                            {/* Una factura de contado se aplica desde su detalle,
+                                donde se elige el medio de pago: desde aquí saldría
+                                siempre de Caja aunque se hubiera pagado por banco. */}
+                            {canManage &&
+                              scan.status === "extracted" &&
+                              scan.draft?.invoice.paymentTerms !== "contado" && (
                               <Button size="sm" onClick={() => handleApply(scan)}>
                                 <CheckCircle2 className="size-4" aria-hidden />
                                 Aplicar

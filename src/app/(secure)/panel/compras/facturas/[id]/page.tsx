@@ -69,7 +69,12 @@ import {
 } from "@/lib/erp/sku"
 import { rankBySimilarity } from "@/lib/erp/product-match"
 import { listSuppliers, type Supplier } from "@/lib/erp/api-suppliers"
-import { listCategories as listFinanceCategories, type FinanceCategory } from "@/lib/erp/api-finance"
+import {
+  listCategories as listFinanceCategories,
+  PAYMENT_METHOD_LABELS,
+  type FinanceCategory,
+  type PaymentMethod,
+} from "@/lib/erp/api-finance"
 import { errorMessage, fmtDate, money } from "@/lib/erp/finance-format"
 
 import { Checkbox } from "@/components/ui/checkbox"
@@ -725,6 +730,7 @@ export default function RevisarFacturaPage() {
   const [saving, setSaving] = React.useState(false)
   const [applying, setApplying] = React.useState(false)
   const [expenseOpen, setExpenseOpen] = React.useState(false)
+  const [payMethod, setPayMethod] = React.useState<PaymentMethod>("cash")
 
   const load = React.useCallback(async () => {
     if (!id) return
@@ -925,7 +931,12 @@ export default function RevisarFacturaPage() {
       // Se guarda antes de aplicar: lo que se aplica es lo que está en el
       // servidor, no lo que se ve en pantalla.
       if (!(await handleSave())) return
-      await applyInvoiceScan(scan._id)
+      await applyInvoiceScan(
+        scan._id,
+        draft?.invoice?.paymentTerms === "contado"
+          ? { paymentMethod: payMethod }
+          : {},
+      )
       toast.success("Factura aplicada al inventario y a la contabilidad")
       router.push("/panel/compras/facturas")
     } catch (err) {
@@ -1328,6 +1339,20 @@ export default function RevisarFacturaPage() {
                   </SelectContent>
                 </Select>
               </div>
+              {draft.invoice?.paymentTerms === "contado" && (
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="f-method">Medio de pago</Label>
+                  <NativeSelect
+                    id="f-method"
+                    value={payMethod}
+                    onChange={(v) => setPayMethod(v as PaymentMethod)}
+                    disabled={!editable}
+                    options={(
+                      Object.keys(PAYMENT_METHOD_LABELS) as PaymentMethod[]
+                    ).map((m) => ({ value: m, label: PAYMENT_METHOD_LABELS[m] }))}
+                  />
+                </div>
+              )}
             </CardContent>
           </Card>
 
