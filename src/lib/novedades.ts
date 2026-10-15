@@ -133,6 +133,36 @@ export const NOVEDADES: Novedad = {
         },
       ],
     },
+    {
+      titulo: "Ya sabes cuánto te cuesta cada receta",
+      gancho:
+        "Ingredientes, empaque y mano de obra sumados donde pones el precio.",
+      icono: "cifras",
+      ilustracion: "cifras-claras",
+      puntos: [
+        {
+          donde: "Productos → ficha con receta",
+          texto:
+            "Escribe en pesos lo que cuesta el trabajo y el empaque de una unidad. Abajo te dice cuánto te cuesta y cuánto ganas, con su color.",
+          ruta: "/panel/productos",
+          etiquetaRuta: "Ver mis productos",
+        },
+        {
+          donde: "Producción → Recetas",
+          texto:
+            "El empaque del lote va en su propia casilla, aparte de la mano de obra: así ves subir la bolsa sin confundirla con el trabajo.",
+          ruta: "/panel/produccion",
+          etiquetaRuta: "Abrir Producción",
+        },
+        {
+          donde: "Producción → Recetas",
+          texto:
+            "Y por fin se pueden editar: cambiar un gramo o un precio ya no obliga a borrar la receta y escribirla otra vez.",
+          ruta: "/panel/produccion",
+          etiquetaRuta: "Editar una receta",
+        },
+      ],
+    },
   ],
 }
 

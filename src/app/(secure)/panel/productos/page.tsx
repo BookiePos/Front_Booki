@@ -139,6 +139,26 @@ function TableSkeleton({ cols = 6, rows = 5 }: { cols?: number; rows?: number })
   )
 }
 
+/** Un renglón "concepto … valor" del desglose de costo. */
+function FilaCosto({
+  label,
+  children,
+  fuerte,
+}: {
+  label: string
+  children: React.ReactNode
+  fuerte?: boolean
+}) {
+  return (
+    <div className="flex items-baseline justify-between gap-4">
+      <span className={cn("text-muted-foreground", fuerte && "text-foreground")}>
+        {label}
+      </span>
+      <span className={cn("tnum", fuerte && "font-semibold")}>{children}</span>
+    </div>
+  )
+}
+
 function SourceBadge({ type }: { type: CatalogSourceType }) {
   return (
     <Badge variant="secondary" className="gap-1">
@@ -168,6 +188,8 @@ interface ProductDialogProps {
   categories: InvCategory[]
   /** Existencias de cada ítem de inventario, sumadas entre sedes. */
   stockPorItem: Map<string, number>
+  /** Ítems que son terminado de una receta de lote (tienen BOM). */
+  producedIds: Set<string>
   onSuccess: () => void
   /** Retail no maneja recetas: se oculta el selector de origen. */
   isRetail?: boolean
@@ -181,6 +203,7 @@ function ProductDialog({
   invProducts,
   categories,
   stockPorItem,
+  producedIds,
   onSuccess,
   isRetail = false,
 }: ProductDialogProps) {
@@ -206,6 +229,14 @@ function ProductDialog({
    * compra ya hecha también sale en bolsa, y no tiene receta donde meterla.
    */
   const [packaging, setPackaging] = React.useState<RecipeRow[]>([])
+  /**
+   * Mano de obra y empaque escritos EN DINERO, por unidad vendida.
+   *
+   * Son opcionales y van en `null` mientras estén vacíos —no en cero— para que
+   * la casilla se vea vacía y no como un costo que alguien puso a propósito.
+   */
+  const [laborCost, setLaborCost] = React.useState<number | null>(null)
+  const [packagingCost, setPackagingCost] = React.useState<number | null>(null)
   const [active, setActive] = React.useState(true)
   /** Foto elegida y pendiente de subir (se sube al guardar). */
   const [imageFile, setImageFile] = React.useState<File | Blob | null>(null)
@@ -215,13 +246,64 @@ function ProductDialog({
   const [error, setError] = React.useState<string | null>(null)
 
   const linkedProduct = invProducts.find((p) => p._id === inventoryProductId)
-  // Lo que cuesta UNA unidad vendida del ítem enlazado: su costo por unidad de
-  // consumo por cuánto gasta cada venta. Es lo que hace falta para decirle a
-  // quien pone el precio si le está quedando algo.
+  // Un terminado fabricado ya trae en su costo la mano de obra y el empaque de
+  // la receta de lote: sumarlos otra vez los contaría doble.
+  const costoYaIncluido =
+    sourceType === "inventory" &&
+    Boolean(linkedProduct) &&
+    producedIds.has(linkedProduct!._id)
+
+  /** Suma el costo de una lista de renglones (ingredientes o empaques). */
+  const costoDeFilas = React.useCallback(
+    (filas: RecipeRow[]) =>
+      filas.reduce((suma, fila) => {
+        const item = invProducts.find((p) => p._id === fila.productId)
+        return suma + (item ? item.cost * (fila.qty ?? 0) : 0)
+      }, 0),
+    [invProducts],
+  )
+
+  // Lo que cuesta UNA unidad vendida, sumando todo lo que puede costar: de qué
+  // está hecha, en qué se entrega, y lo que el dueño escribe a mano porque no
+  // está en el inventario. Hasta ahora solo se contaba lo primero, y solo
+  // cuando el producto venía de un ítem del inventario: una receta no mostraba
+  // ningún costo y el semáforo se quedaba mudo justo donde más falta hace, que
+  // es donde hay media docena de números que sumar para saber si se gana.
+  const costoBase =
+    sourceType === "inventory"
+      ? linkedProduct
+        ? linkedProduct.cost * (qtyPerUnit ?? 1)
+        : null
+      : costoDeFilas(recipe)
+  const costoEmpaqueItems = costoDeFilas(packaging)
+  const costoManoDeObra = costoYaIncluido ? 0 : (laborCost ?? 0)
+  const costoEmpaqueDinero = costoYaIncluido ? 0 : (packagingCost ?? 0)
+  const costoEmpaque = costoEmpaqueItems + costoEmpaqueDinero
+
+  // Con la fuente sin resolver (ítem sin elegir, receta sin renglones) no hay
+  // costo que mostrar, salvo que el dueño ya haya escrito algo en dinero.
+  const hayFuente =
+    sourceType === "inventory"
+      ? Boolean(linkedProduct)
+      : recipe.some((r) => r.productId && (r.qty ?? 0) > 0)
+  const extras = costoEmpaque + costoManoDeObra
   const costoUnitario =
-    linkedProduct && sourceType === "inventory"
-      ? linkedProduct.cost * (qtyPerUnit ?? 1)
+    hayFuente || extras > 0
+      ? // Suma de los renglones ya redondeados a peso, para que el desglose
+        // de abajo cuadre con el total.
+        Math.round(costoBase ?? 0) + Math.round(costoEmpaque) + costoManoDeObra
       : null
+
+  // Un insumo sin costo de compra no se puede distinguir de uno gratis, y
+  // callarlo pinta el semáforo más verde de lo que es.
+  const sinCosto = [
+    ...(sourceType === "recipe" ? recipe : []),
+    ...packaging,
+  ].filter((fila) => {
+    if (!fila.productId || !((fila.qty ?? 0) > 0)) return false
+    const item = invProducts.find((p) => p._id === fila.productId)
+    return !item || item.cost <= 0
+  }).length
 
   const invMatches = React.useMemo(() => {
     const q = norm(invQuery)
@@ -285,6 +367,9 @@ function ProductDialog({
             qty: l.qty,
           })),
         )
+        // Cero y "sin escribir" se ven igual en pantalla: la casilla vacía.
+        setLaborCost(product.laborCost || null)
+        setPackagingCost(product.packagingCost || null)
         setActive(product.active)
       } else {
         setSku("")
@@ -299,6 +384,8 @@ function ProductDialog({
         setQtyPerUnit(1)
         setRecipe([{ productId: "", qty: null }])
         setPackaging([])
+        setLaborCost(null)
+        setPackagingCost(null)
         setActive(true)
       }
       setImageFile(null)
@@ -386,6 +473,10 @@ function ProductDialog({
         // Siempre viaja, aunque vaya vacío: así quitar la última bolsa de la
         // ficha de verdad la quita.
         packaging: cleanPackaging,
+        // Lo mismo con los costos en dinero: borrar la casilla tiene que
+        // borrar el costo, y para eso el cero tiene que llegar al backend.
+        laborCost: costoYaIncluido ? 0 : Math.round(laborCost ?? 0),
+        packagingCost: costoYaIncluido ? 0 : Math.round(packagingCost ?? 0),
       }
       // La foto va en una petición aparte (multipart) y DESPUÉS de guardar la
       // ficha: al crear, el id del producto solo existe a partir de aquí.
@@ -874,6 +965,111 @@ function ProductDialog({
             })
           )}
         </FormSection>
+
+        {/* Lo que cuesta y no sale del inventario. Son las dos cosas que
+            faltaban para que el costo de una receta estuviera completo: el
+            trabajo de prepararla y la bolsa que casi nadie carga como insumo.
+            Van en dinero y no en renglones a propósito —es lo que el dueño
+            sabe sin ir a buscarlo— y son opcionales: vacío es cero. */}
+        <FormSection
+          title="Mano de obra y empaque en dinero"
+          description="Lo que te cuesta cada unidad por fuera del inventario. Es opcional: si lo dejas vacío, no suma."
+          boxed
+        >
+          {costoYaIncluido && (
+            <p className="text-xs text-muted-foreground">
+              Ya incluido en el costo de producción: este producto sale de una
+              receta de lote, y su costo ya trae la mano de obra y el empaque de
+              esa receta. Cámbialos en Producción → Recetas.
+            </p>
+          )}
+          <FieldGrid cols={2}>
+            <Field
+              id="c-labor-cost"
+              label={
+                <>
+                  Mano de obra
+                  <span className="ml-1 font-normal text-muted-foreground">
+                    (por unidad)
+                  </span>
+                </>
+              }
+              hint="Lo que calculas que cuesta el trabajo de preparar una. No toca la nómina."
+            >
+              <MoneyInput
+                id="c-labor-cost"
+                value={costoYaIncluido ? null : laborCost}
+                onValueChange={setLaborCost}
+                disabled={costoYaIncluido}
+                placeholder="0"
+              />
+            </Field>
+            <Field
+              id="c-packaging-cost"
+              label={
+                <>
+                  Empaque
+                  <span className="ml-1 font-normal text-muted-foreground">
+                    (por unidad)
+                  </span>
+                </>
+              }
+              hint={
+                packaging.length > 0
+                  ? "Solo lo que NO pusiste arriba: los dos se suman."
+                  : "La bolsa, el vaso o la servilleta que no llevas en el inventario."
+              }
+            >
+              <MoneyInput
+                id="c-packaging-cost"
+                value={costoYaIncluido ? null : packagingCost}
+                onValueChange={setPackagingCost}
+                disabled={costoYaIncluido}
+                placeholder="0"
+              />
+            </Field>
+          </FieldGrid>
+
+          {costoUnitario !== null && (
+            <div className="mt-1 flex flex-col gap-1.5 text-sm">
+              <FilaCosto
+                label={
+                  sourceType === "recipe" ? "Ingredientes" : "Del inventario"
+                }
+              >
+                {money.format(Math.round(costoBase ?? 0))}
+              </FilaCosto>
+              {costoEmpaque > 0 && (
+                <FilaCosto label="Empaque">
+                  {money.format(Math.round(costoEmpaque))}
+                </FilaCosto>
+              )}
+              {costoManoDeObra > 0 && (
+                <FilaCosto label="Mano de obra">
+                  {money.format(costoManoDeObra)}
+                </FilaCosto>
+              )}
+              <div className="mt-1 border-t border-border/70 pt-2">
+                <FilaCosto label="Te cuesta cada unidad" fuerte>
+                  {money.format(costoUnitario)}
+                </FilaCosto>
+              </div>
+              <LineaGanancia
+                precio={salePrice}
+                costo={costoUnitario}
+                className="mt-1"
+              />
+              {sinCosto > 0 && (
+                <p className="mt-1 flex items-start gap-1.5 text-xs text-warning-ink">
+                  <TriangleAlert className="mt-0.5 size-3.5 shrink-0" />
+                  {sinCosto === 1
+                    ? "Hay un ítem sin costo de compra, así que este total sale más barato de lo real. Ponle precio en Inventario."
+                    : `Hay ${sinCosto} ítems sin costo de compra, así que este total sale más barato de lo real. Ponles precio en Inventario.`}
+                </p>
+              )}
+            </div>
+          )}
+        </FormSection>
       </form>
     </FormDialog>
   )
@@ -1316,6 +1512,7 @@ export default function ProductosPage() {
         invProducts={invProducts}
         categories={categories}
         stockPorItem={stockPorItem}
+        producedIds={producedIds}
         onSuccess={fetchProducts}
         isRetail={isRetail}
       />

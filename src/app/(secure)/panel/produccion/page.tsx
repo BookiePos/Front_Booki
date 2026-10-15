@@ -9,6 +9,7 @@ import {
   Factory,
   Loader2,
   Package,
+  Pencil,
   Play,
   Plus,
   RefreshCw,
@@ -37,6 +38,7 @@ import {
   publishOutput,
   refId,
   startProductionOrder,
+  updateBom,
   PRODUCTION_STATUS_LABELS,
   type Bom,
   type ProductionOrder,
@@ -123,6 +125,8 @@ export default function ProduccionPage() {
   const [error, setError] = React.useState<string | null>(null)
 
   const [bomOpen, setBomOpen] = React.useState(false)
+  /** Receta que se está editando. `null` = el diálogo está creando una nueva. */
+  const [bomEdit, setBomEdit] = React.useState<Bom | null>(null)
   const [orderOpen, setOrderOpen] = React.useState(false)
   const [detail, setDetail] = React.useState<ProductionOrder | null>(null)
   const [publishing, setPublishing] = React.useState<ProductionOutput | null>(
@@ -376,15 +380,20 @@ export default function ProduccionPage() {
           rows={boms}
           loading={loading}
           canManage={canManage}
+          onEdit={setBomEdit}
           onDeleted={load}
         />
       )}
 
       {canManage && (
         <>
-          <NewBomDialog
-            open={bomOpen}
-            onClose={() => setBomOpen(false)}
+          <BomDialog
+            open={bomOpen || bomEdit !== null}
+            bom={bomEdit}
+            onClose={() => {
+              setBomOpen(false)
+              setBomEdit(null)
+            }}
             onSaved={load}
             products={products}
           />
@@ -497,6 +506,7 @@ function OutputsTable({
                   row.lines.reduce((suma, l) => suma + l.subtotal, 0),
                 )
                 const manoUnit = porUnidad(row.extraCost)
+                const empaqueUnit = porUnidad(row.packagingCost ?? 0)
                 const pct =
                   row.marginPct ??
                   calcularMargenPct(row.sellable?.salePrice, row.unitCost)
@@ -537,6 +547,12 @@ function OutputsTable({
                       Materiales {money.format(materialesUnit)}
                       <span className="mx-1 opacity-60">·</span>
                       Mano de obra {money.format(manoUnit)}
+                      {empaqueUnit > 0 && (
+                        <>
+                          <span className="mx-1 opacity-60">·</span>
+                          Empaque {money.format(empaqueUnit)}
+                        </>
+                      )}
                     </p>
                   </TableCell>
                   <TableCell className="tnum hidden text-right lg:table-cell">
@@ -693,11 +709,13 @@ function BomsTable({
   rows,
   loading,
   canManage,
+  onEdit,
   onDeleted,
 }: {
   rows: Bom[]
   loading: boolean
   canManage: boolean
+  onEdit: (bom: Bom) => void
   onDeleted: () => void
 }) {
   const [busy, setBusy] = React.useState<string | null>(null)
@@ -725,9 +743,9 @@ function BomsTable({
               <TableHead>Insumos</TableHead>
               <TableHead className="text-right">Rinde</TableHead>
               <TableHead className="hidden text-right md:table-cell">
-                Conversión
+                Mano de obra y empaque
               </TableHead>
-              {canManage && <TableHead className="w-12" />}
+              {canManage && <TableHead className="w-24" />}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -767,10 +785,26 @@ function BomsTable({
                       </span>
                     </TableCell>
                     <TableCell className="tnum hidden text-right md:table-cell">
-                      {money.format(bom.extraCost)}
+                      {money.format(
+                        bom.extraCost + (bom.packagingCost ?? 0),
+                      )}
+                      {(bom.packagingCost ?? 0) > 0 && (
+                        <p className="text-[11px] leading-tight text-muted-foreground">
+                          incluye {money.format(bom.packagingCost ?? 0)} de
+                          empaque
+                        </p>
+                      )}
                     </TableCell>
                     {canManage && (
-                      <TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label={`Editar la receta ${bom.name}`}
+                          onClick={() => onEdit(bom)}
+                        >
+                          <Pencil className="size-4" />
+                        </Button>
                         <Button
                           variant="ghost"
                           size="icon"
@@ -807,28 +841,40 @@ function BomsTable({
   )
 }
 
-// ─── Nueva receta ────────────────────────────────────────────────────────────
+// ─── Receta: crear y editar ──────────────────────────────────────────────────
 
 interface DraftLine {
   productId: string
   qty: number | null
 }
 
-function NewBomDialog({
+/**
+ * Ficha de la receta de lote. Con `bom` edita la que ya existe; sin él, crea.
+ *
+ * Editar hacía falta desde el primer día: el backend siempre supo (una receta
+ * por terminado, "edítala en vez de crear otra") pero la pantalla solo dejaba
+ * crear y borrar, así que cambiar un gramo obligaba a rehacer la receta entera.
+ */
+function BomDialog({
   open,
+  bom,
   onClose,
   onSaved,
   products,
 }: {
   open: boolean
+  bom: Bom | null
   onClose: () => void
   onSaved: () => void
   products: InvProduct[]
 }) {
+  const editando = bom !== null
   const [productId, setProductId] = React.useState("")
   const [name, setName] = React.useState("")
   const [outputQty, setOutputQty] = React.useState<number | null>(1)
   const [extraCost, setExtraCost] = React.useState<number | null>(0)
+  /** Empaque del lote en dinero. Opcional: vacío es cero. */
+  const [packagingCost, setPackagingCost] = React.useState<number | null>(null)
   const [lines, setLines] = React.useState<DraftLine[]>([
     { productId: "", qty: null },
   ])
@@ -837,13 +883,25 @@ function NewBomDialog({
 
   React.useEffect(() => {
     if (!open) return
-    setProductId("")
-    setName("")
-    setOutputQty(1)
-    setExtraCost(0)
-    setLines([{ productId: "", qty: null }])
+    if (bom) {
+      setProductId(refId(bom.productId))
+      setName(bom.name)
+      setOutputQty(bom.outputQty)
+      setExtraCost(bom.extraCost)
+      setPackagingCost(bom.packagingCost || null)
+      setLines(
+        bom.lines.map((l) => ({ productId: refId(l.productId), qty: l.qty })),
+      )
+    } else {
+      setProductId("")
+      setName("")
+      setOutputQty(1)
+      setExtraCost(0)
+      setPackagingCost(null)
+      setLines([{ productId: "", qty: null }])
+    }
     setError(null)
-  }, [open])
+  }, [open, bom])
 
   const output = products.find((p) => p._id === productId)
 
@@ -855,28 +913,42 @@ function NewBomDialog({
   }, 0)
   const rendimiento = outputQty ?? 0
   const manoDeObra = extraCost ?? 0
-  const unitCost =
-    rendimiento > 0 ? Math.round((materials + manoDeObra) / rendimiento) : 0
-  // El dueño escribe la mano de obra POR LOTE, pero lo que se compara contra el
-  // precio de venta es lo que cuesta UNA unidad. Sin esta división a la vista
-  // hay que hacerla de cabeza cada vez que se toca la receta.
+  const empaque = packagingCost ?? 0
+  // El dueño escribe la mano de obra y el empaque POR LOTE, pero lo que se
+  // compara contra el precio de venta es lo que cuesta UNA unidad. Sin esta
+  // división a la vista hay que hacerla de cabeza cada vez que se toca la
+  // receta.
   const materialsUnit = rendimiento > 0 ? Math.round(materials / rendimiento) : 0
   const extraUnit = rendimiento > 0 ? Math.round(manoDeObra / rendimiento) : 0
+  const empaqueUnit = rendimiento > 0 ? Math.round(empaque / rendimiento) : 0
+  // Mismo criterio que el backend (estimatedUnitCost): el lote entero se divide
+  // una sola vez. Así este diálogo y la tabla de Terminados dicen lo mismo; los
+  // renglones de arriba son orientativos y pueden diferir en un peso.
+  const unitCost =
+    rendimiento > 0
+      ? Math.round((materials + manoDeObra + empaque) / rendimiento)
+      : 0
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setSaving(true)
     setError(null)
     try {
-      await createBom({
-        productId,
+      const datos = {
         name: name.trim() || output?.name || "Receta",
         outputQty: rendimiento,
         extraCost: Math.round(manoDeObra),
+        // Siempre viaja, aunque sea cero: es lo que permite borrar un empaque
+        // que se había escrito antes.
+        packagingCost: Math.round(empaque),
         lines: lines
           .filter((l) => l.productId && (l.qty ?? 0) > 0)
           .map((l) => ({ productId: l.productId, qty: l.qty ?? 0 })),
-      })
+      }
+      // El terminado no se cambia al editar: la receta ES la de ese producto.
+      // Cambiarlo sería otra receta, y el backend solo admite una por ítem.
+      if (bom) await updateBom(bom._id, datos)
+      else await createBom({ productId, ...datos })
       onSaved()
       onClose()
     } catch (err) {
@@ -897,7 +969,7 @@ function NewBomDialog({
       onOpenChange={(v) => !v && onClose()}
       size="2xl"
       icon={Boxes}
-      title="Nueva receta de lote"
+      title={editando ? `Editar “${bom.name}”` : "Nueva receta de lote"}
       description="Qué insumos consume un lote y cuántas unidades rinde. Ojo: las cantidades son por lote completo, no por unidad."
       footer={
         <>
@@ -916,7 +988,11 @@ function NewBomDialog({
             className="sm:min-w-36"
           >
             {saving ? <Loader2 className="animate-spin" /> : <Boxes />}
-            {saving ? "Guardando…" : "Crear receta"}
+            {saving
+              ? "Guardando…"
+              : editando
+                ? "Guardar cambios"
+                : "Crear receta"}
           </Button>
         </>
       }
@@ -939,11 +1015,16 @@ function NewBomDialog({
               label="Terminado"
               required
               help={{ term: "montaje" }}
-              hint="Si no existe, créalo primero en Inventario."
+              hint={
+                editando
+                  ? "No se cambia: cada terminado tiene una sola receta."
+                  : "Si no existe, créalo primero en Inventario."
+              }
             >
               <NativeSelect
                 id="bom-product"
                 required
+                disabled={editando}
                 placeholder="Seleccionar…"
                 value={productId}
                 onChange={(v) => {
@@ -973,8 +1054,8 @@ function NewBomDialog({
         </FormSection>
 
         <FormSection
-          title="Rendimiento y mano de obra"
-          description="Cuánto sale de un lote y cuánto cuesta el trabajo de hacerlo."
+          title="Rendimiento, mano de obra y empaque"
+          description="Cuánto sale de un lote, cuánto cuesta el trabajo de hacerlo y cuánto las bolsas o cajas en que sale."
         >
           <FieldGrid cols={2}>
             <Field
@@ -1010,6 +1091,37 @@ function NewBomDialog({
                 id="bom-extra"
                 value={extraCost}
                 onValueChange={setExtraCost}
+              />
+            </Field>
+          </FieldGrid>
+
+          {/* El empaque sale de la mano de obra, donde estaba escondido. Es el
+              costo que más se mueve —la bolsa cambia de precio y de proveedor
+              sin que el trabajo cambie— y mezclado no se podía ver subir. En
+              dinero y no como insumo a propósito: quien lleva las bolsas en el
+              inventario las pone abajo y deja esto en cero. */}
+          <FieldGrid cols={2}>
+            <Field
+              id="bom-packaging"
+              label={
+                <>
+                  Empaque
+                  <span className="ml-1 font-normal text-muted-foreground">
+                    (por lote, opcional)
+                  </span>
+                </>
+              }
+              hint={
+                rendimiento > 0 && empaque > 0
+                  ? `${money.format(empaqueUnit)} por ${unidadNombre(output?.unit, 1)}`
+                  : "Las bolsas, cajas o etiquetas que gasta la tanda. Déjalo vacío si ya los llevas como insumo."
+              }
+            >
+              <MoneyInput
+                id="bom-packaging"
+                value={packagingCost}
+                onValueChange={setPackagingCost}
+                placeholder="0"
               />
             </Field>
           </FieldGrid>
@@ -1104,6 +1216,9 @@ function NewBomDialog({
             <Row label="Mano de obra e indirectos">
               {money.format(extraUnit)}
             </Row>
+            {empaque > 0 && (
+              <Row label="Empaque">{money.format(empaqueUnit)}</Row>
+            )}
             <div className="mt-1 border-t border-border/70 pt-2">
               <Row label={`Total por ${unidadNombre(output?.unit, 1)}`}>
                 <span className="font-semibold">{money.format(unitCost)}</span>
@@ -1352,6 +1467,8 @@ function OrderDetailDialog({
   products: InvProduct[]
 }) {
   const [producedQty, setProducedQty] = React.useState<number | null>(null)
+  /** Empaque real del lote; vacío deja el de la orden. */
+  const [empaqueReal, setEmpaqueReal] = React.useState<number | null>(null)
   const [expiresAt, setExpiresAt] = React.useState("")
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
@@ -1359,6 +1476,7 @@ function OrderDetailDialog({
   React.useEffect(() => {
     if (!order) return
     setProducedQty(order.plannedQty)
+    setEmpaqueReal(null)
     setExpiresAt(order.expiresAt ?? "")
     setError(null)
   }, [order])
@@ -1366,6 +1484,12 @@ function OrderDetailDialog({
   if (!order) return null
 
   const output = products.find((p) => p._id === order.productId)
+  // NIIF para Pymes 13.13(a): el costo de conversión no se reparte sobre
+  // unidades que no existieron; si salió menos, el empaque se ajusta.
+  const salioMenos =
+    (order.packagingCost ?? 0) > 0 &&
+    producedQty !== null &&
+    producedQty < order.plannedQty
   // Se renombró: `open` ahora es la apertura del diálogo. Esto es otra cosa:
   // si la orden todavía admite que la inicien, la anulen o la terminen.
   const puedeOperar =
@@ -1432,6 +1556,10 @@ function OrderDetailDialog({
                   completeProductionOrder(order._id, {
                     producedQty: producedQty ?? 0,
                     expiresAt: expiresAt || undefined,
+                    packagingCost:
+                      salioMenos && empaqueReal !== null
+                        ? Math.round(empaqueReal)
+                        : undefined,
                   }),
                 )
               }
@@ -1503,6 +1631,11 @@ function OrderDetailDialog({
             <Row label="Mano de obra e indirectos">
               {money.format(order.extraCost)}
             </Row>
+            {(order.packagingCost ?? 0) > 0 && (
+              <Row label="Empaque">
+                {money.format(order.packagingCost ?? 0)}
+              </Row>
+            )}
             <Row label="Costo del lote">{money.format(order.totalCost)}</Row>
             <div className="mt-1 border-t border-border/70 pt-2">
               <Row label={`Costo por ${order.unit}`}>
@@ -1550,6 +1683,25 @@ function OrderDetailDialog({
               </Field>
             )}
           </FieldGrid>
+
+          {salioMenos && (
+            <>
+              <FormAlert tone="warning" icon={CheckCircle2}>
+                Salió menos de lo planeado y el empaque de la orden (
+                {money.format(order.packagingCost ?? 0)}) se calculó para la
+                cantidad planeada. Si gastaste menos bolsas, ajústalo aquí: un
+                empaque de más infla el costo de cada unidad.
+              </FormAlert>
+              <Field id="op-packaging" label="Empaque real del lote">
+                <MoneyInput
+                  id="op-packaging"
+                  value={empaqueReal}
+                  onValueChange={setEmpaqueReal}
+                  placeholder={String(order.packagingCost ?? 0)}
+                />
+              </Field>
+            </>
+          )}
 
           <FormAlert tone="warning" icon={CheckCircle2}>
             Al terminar, los insumos salen del inventario y el terminado entra
