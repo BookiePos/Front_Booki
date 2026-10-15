@@ -171,7 +171,7 @@ export default function RestaurantePage() {
       <PageHeader
         section="Operación"
         title="Restaurante"
-        description="Salón, mesas y comandas. INC 8% y propina 10% (rechazable) sobre el consumo."
+        description="Salón, mesas y comandas. Precios con INC incluido y propina sugerida del 10 % (rechazable) sobre el consumo."
         actions={
           <div className="flex items-center gap-2">
             <select
@@ -675,10 +675,12 @@ function OrderDialog({
 
           <FormSection title="Cuenta">
             <div className="flex flex-col gap-1.5 rounded-2xl border border-border bg-muted/35 p-3.5 text-sm">
-              <Row label="Subtotal" value={money.format(order.subtotal)} />
-              <div className="flex items-center justify-between text-muted-foreground">
+              <Row label="Consumo" value={money.format(order.subtotal)} />
+              {/* El INC ya está dentro del precio de la carta: se desglosa, no
+                  se suma (el POS cobra igual). */}
+              <div className="flex items-center justify-between pl-3 text-xs text-muted-foreground">
                 <span className="flex items-center gap-1">
-                  <Termino term="inc">INC</Termino> {order.incRate}%
+                  Incluye <Termino term="inc">INC</Termino> {order.incRate}%
                 </span>
                 <span className="tnum">{money.format(order.incAmount)}</span>
               </div>
