@@ -214,6 +214,9 @@ export default function NominaPage() {
         <p className="py-8 text-center text-sm text-destructive">{error}</p>
       ) : settings ? (
         <>
+          {!settings.exoneracionConfirmada && (
+            <PreguntaExoneracion onRespondida={(s) => setSettings(s)} />
+          )}
           {tab === "correr" && (
             <CorrerNomina
               sedes={sedes}
@@ -1609,3 +1612,73 @@ function Kpi({
   )
 }
 
+/**
+ * Pregunta de la exoneración de aportes (ítem 1.15). No se presume: solo la
+ * tienen las sociedades declarantes de renta y las personas naturales con dos
+ * o más trabajadores (art. 114-1 ET), y de ella depende si el empleador paga
+ * salud, SENA e ICBF. Mientras no se responda, el backend no liquida nóminas.
+ */
+function PreguntaExoneracion({
+  onRespondida,
+}: {
+  onRespondida: (s: PayrollSettings) => void
+}) {
+  const [guardando, setGuardando] = React.useState<boolean | null>(null)
+  const [error, setError] = React.useState<string | null>(null)
+
+  async function responder(exonerada: boolean) {
+    setGuardando(exonerada)
+    setError(null)
+    try {
+      onRespondida(
+        await updatePayrollSettings({ empresaExoneradaAportes: exonerada }),
+      )
+    } catch (err) {
+      setError(errorMessage(err))
+    } finally {
+      setGuardando(null)
+    }
+  }
+
+  return (
+    <Card className="mb-4 border-warning/40 bg-warning/5">
+      <CardContent className="flex flex-col gap-3 p-4">
+        <div className="flex items-start gap-2">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning-ink" aria-hidden />
+          <div className="text-sm">
+            <p className="font-medium text-foreground">
+              ¿La empresa está exonerada de aportes?
+            </p>
+            <p className="mt-1 text-muted-foreground">
+              Aplica a sociedades que declaran renta y a personas naturales con
+              dos o más trabajadores (art. 114-1 del Estatuto Tributario): no
+              pagan salud, SENA ni ICBF por quienes ganan menos de 10 salarios
+              mínimos. Si no estás seguro, pregúntale a tu contador. Hasta que
+              respondas no se puede liquidar la nómina.
+            </p>
+          </div>
+        </div>
+        {error && <p className="text-sm text-destructive">{error}</p>}
+        <div className="flex flex-wrap gap-2">
+          <Button
+            size="sm"
+            disabled={guardando !== null}
+            onClick={() => void responder(true)}
+          >
+            {guardando === true && <Loader2 className="size-4 animate-spin" />}
+            Sí, está exonerada
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={guardando !== null}
+            onClick={() => void responder(false)}
+          >
+            {guardando === false && <Loader2 className="size-4 animate-spin" />}
+            No, paga todos los aportes
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}

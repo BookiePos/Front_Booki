@@ -54,6 +54,8 @@ export interface PayrollSettings {
   }[]
   recargos: RecargoFactores
   empresaExoneradaAportes: boolean
+  /** La empresa ya respondió si está exonerada (ítem 1.15). */
+  exoneracionConfirmada?: boolean
 }
 
 export interface RecargoLinea {
