@@ -30,6 +30,7 @@ export const OPERATION_PERMISSIONS = [
   "users.manage",
   "roles.manage",
   "params.manage",
+  "billing.manage",
   "audit.view",
   "tax.manage",
   "inventory.adjust",

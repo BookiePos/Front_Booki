@@ -1,9 +1,10 @@
 {
   "fuente": "Backend/src/modules/core-auth/domain/permissions.ts",
-  "total": 35,
+  "total": 36,
   "permisos": [
     "attendance.manage",
     "audit.view",
+    "billing.manage",
     "caja.close",
     "caja.movement",
     "caja.open",
