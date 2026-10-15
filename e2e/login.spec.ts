@@ -78,6 +78,16 @@ test.describe("Login — BookiPos", () => {
 
     // La cookie debe tener un valor no vacío
     expect(refreshToken?.value.length).toBeGreaterThan(10);
+    // Y debe ser HttpOnly: el refresh token nunca queda al alcance de JS.
+    expect(refreshToken?.httpOnly).toBe(true);
+
+    // localStorage guarda solo el access token (ítem 4.4).
+    const stored = await page.evaluate(() =>
+      window.localStorage.getItem("sistemapos.auth"),
+    );
+    expect(stored).not.toBeNull();
+    expect(stored).not.toContain("refreshToken");
+    expect(stored).not.toContain(refreshToken?.value ?? "<sin-cookie>");
   });
 
   // ── Caso negativo ──────────────────────────────────────────────────────────

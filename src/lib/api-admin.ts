@@ -138,15 +138,22 @@ export async function authFetch(
   // Happy path
   if (res.ok || res.status !== 401) return res
 
-  // 401 → try refresh once (el refresh token va en la cookie HttpOnly)
+  // 401 → try refresh once (el refresh token va en la cookie HttpOnly).
+  // Si mientras esta petición viajaba otra ya renovó el access, se reintenta
+  // con ese sin gastar otra rotación del refresh. `apiRefresh` además comparte
+  // un único refresh en vuelo entre todas las peticiones (ver api.ts).
   let newTokens: Tokens
-  try {
-    newTokens = await apiRefresh()
-  } catch {
-    throw new ApiError(401, "Sesión expirada. Vuelve a iniciar sesión.")
+  const actual = readStored()?.tokens.accessToken
+  if (actual && actual !== stored.tokens.accessToken) {
+    newTokens = { accessToken: actual }
+  } else {
+    try {
+      newTokens = await apiRefresh()
+    } catch {
+      throw new ApiError(401, "Sesión expirada. Vuelve a iniciar sesión.")
+    }
+    writeTokens(newTokens)
   }
-
-  writeTokens(newTokens)
 
   // Retry with new token
   const retryHeaders = new Headers(init.headers)
