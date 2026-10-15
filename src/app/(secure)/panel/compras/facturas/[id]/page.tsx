@@ -1771,15 +1771,22 @@ export default function RevisarFacturaPage() {
                       : " max-lg:w-full")
                   }
                 >
-                  <a href={page.imageUrl} target="_blank" rel="noreferrer">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={page.imageUrl}
-                      alt={`Página ${index + 1} de la factura`}
-                      loading="lazy"
-                      className="w-full rounded-lg border border-border object-contain max-lg:max-h-[50svh]"
-                    />
-                  </a>
+                  {page.imageUrl ? (
+                    <a href={page.imageUrl} target="_blank" rel="noreferrer">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={page.imageUrl}
+                        alt={`Página ${index + 1} de la factura`}
+                        loading="lazy"
+                        className="w-full rounded-lg border border-border object-contain max-lg:max-h-[50svh]"
+                      />
+                    </a>
+                  ) : (
+                    <p className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
+                      La imagen de la página {index + 1} no está disponible en
+                      este momento. Recarga la página para volver a pedirla.
+                    </p>
+                  )}
                   {editable && scan.pages.length > 1 && (
                     <Button
                       size="sm"

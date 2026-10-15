@@ -34,7 +34,11 @@ export const LINE_TARGET_LABELS: Record<LineTarget, string> = {
 }
 
 export interface ScanPage {
-  imageUrl: string
+  /**
+   * URL firmada que vence (bucket privado, ítem 3.8). Si el API no la pudo
+   * firmar llega vacía; recargar la factura trae una nueva.
+   */
+  imageUrl?: string
   imagePathname: string
   model?: string
   extractedAt?: string
