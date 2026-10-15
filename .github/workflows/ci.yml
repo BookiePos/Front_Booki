@@ -47,3 +47,9 @@ jobs:
 
       - name: Gates (tsc, eslint, permisos, secretos, build)
         run: node scripts/gates.mjs --build
+
+      # El script deja el log del gate que falla en os.tmpdir(); sin esto la
+      # causa no queda visible en GitHub.
+      - name: Log del gate que falló
+        if: failure()
+        run: for f in /tmp/bookipos-gates-*.log; do echo "::group::$f"; tail -n 120 "$f"; echo "::endgroup::"; done
