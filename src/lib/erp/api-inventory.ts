@@ -105,6 +105,12 @@ export interface Sede extends SedeRef {
   nitDv?: string
   tipoPersona?: TipoPersona
   responsabilidadFiscal?: ResponsabilidadFiscal
+  /** Perfil fiscal completo (ítem 1.17). Sin dato, se infiere como antes. */
+  responsableIva?: boolean
+  responsableInc?: boolean
+  franquicia?: boolean
+  regimenRenta?: "ordinario" | "simple"
+  granContribuyente?: boolean
   ciiu?: string
   departamento?: string
   ciudad?: string
@@ -218,6 +224,12 @@ export interface SedeFiscalFields {
   nitDv?: string
   tipoPersona?: TipoPersona
   responsabilidadFiscal?: ResponsabilidadFiscal
+  /** Perfil fiscal completo (ítem 1.17). Sin dato, se infiere como antes. */
+  responsableIva?: boolean
+  responsableInc?: boolean
+  franquicia?: boolean
+  regimenRenta?: "ordinario" | "simple"
+  granContribuyente?: boolean
   ciiu?: string
   departamento?: string
   ciudad?: string

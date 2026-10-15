@@ -43,6 +43,19 @@ const RESP_FISCAL_OPTIONS = (
   Object.entries(RESP_FISCAL_LABELS) as [ResponsabilidadFiscal, string][]
 ).map(([value, label]) => ({ value, label }))
 
+/** Sí / No / sin indicar: sin indicar conserva lo que se infiere del giro. */
+const TRI_OPTIONS = [
+  { value: "si", label: "Sí" },
+  { value: "no", label: "No" },
+]
+const triToBool = (v: string) => (v === "si" ? true : v === "no" ? false : undefined)
+const boolToTri = (b?: boolean) => (b === true ? "si" : b === false ? "no" : "")
+
+const REGIMEN_RENTA_OPTIONS = [
+  { value: "ordinario", label: "Ordinario" },
+  { value: "simple", label: "Régimen Simple (SIMPLE)" },
+]
+
 const TIPO_PERSONA_OPTIONS = [
   { value: "natural", label: "Natural — una persona" },
   { value: "juridica", label: "Jurídica — una empresa" },
@@ -52,6 +65,11 @@ interface FiscalForm {
   nitDv: string
   tipoPersona: string
   responsabilidadFiscal: string
+  responsableIva: string
+  responsableInc: string
+  franquicia: string
+  regimenRenta: string
+  granContribuyente: string
   ciiu: string
   departamento: string
   ciudad: string
@@ -70,6 +88,11 @@ const EMPTY_FISCAL: FiscalForm = {
   nitDv: "",
   tipoPersona: "",
   responsabilidadFiscal: "",
+  responsableIva: "",
+  responsableInc: "",
+  franquicia: "",
+  regimenRenta: "",
+  granContribuyente: "",
   ciiu: "",
   departamento: "",
   ciudad: "",
@@ -105,6 +128,14 @@ function buildFiscalPayload(f: FiscalForm): SedeFiscalFields {
     responsabilidadFiscal: (f.responsabilidadFiscal || undefined) as
       | ResponsabilidadFiscal
       | undefined,
+    responsableIva: triToBool(f.responsableIva),
+    responsableInc: triToBool(f.responsableInc),
+    franquicia: triToBool(f.franquicia),
+    regimenRenta: (f.regimenRenta || undefined) as
+      | "ordinario"
+      | "simple"
+      | undefined,
+    granContribuyente: triToBool(f.granContribuyente),
     ciiu: f.ciiu.trim() || undefined,
     departamento: f.departamento.trim() || undefined,
     ciudad: f.ciudad.trim() || undefined,
@@ -180,6 +211,11 @@ export function SedeDialog({
           nitDv: sede.nitDv ?? "",
           tipoPersona: sede.tipoPersona ?? "",
           responsabilidadFiscal: sede.responsabilidadFiscal ?? "",
+          responsableIva: boolToTri(sede.responsableIva),
+          responsableInc: boolToTri(sede.responsableInc),
+          franquicia: boolToTri(sede.franquicia),
+          regimenRenta: sede.regimenRenta ?? "",
+          granContribuyente: boolToTri(sede.granContribuyente),
           ciiu: sede.ciiu ?? "",
           departamento: sede.departamento ?? "",
           ciudad: sede.ciudad ?? "",
@@ -486,6 +522,64 @@ export function SedeDialog({
                     />
                   </Field>
                 </FieldSpan>
+
+                {/* Responsabilidades del RUT (ítem 1.17). Deciden si la venta
+                    lleva IVA, INC o nada; «sin indicar» conserva lo de antes. */}
+                <Field id="s-resp-iva" label="Responsable de IVA">
+                  <NativeSelect
+                    id="s-resp-iva"
+                    value={fiscal.responsableIva}
+                    onChange={(v) => setF("responsableIva", v)}
+                    options={TRI_OPTIONS}
+                    placeholder="Sin indicar"
+                  />
+                </Field>
+                <Field id="s-resp-inc" label="Responsable de INC (restaurantes)">
+                  <NativeSelect
+                    id="s-resp-inc"
+                    value={fiscal.responsableInc}
+                    onChange={(v) => setF("responsableInc", v)}
+                    options={TRI_OPTIONS}
+                    placeholder="Sin indicar"
+                  />
+                </Field>
+                <Field id="s-franq" label="Opera bajo franquicia">
+                  <NativeSelect
+                    id="s-franq"
+                    value={fiscal.franquicia}
+                    onChange={(v) => setF("franquicia", v)}
+                    options={TRI_OPTIONS}
+                    placeholder="Sin indicar"
+                  />
+                </Field>
+                <Field id="s-renta" label="Régimen de renta">
+                  <NativeSelect
+                    id="s-renta"
+                    value={fiscal.regimenRenta}
+                    onChange={(v) => setF("regimenRenta", v)}
+                    options={REGIMEN_RENTA_OPTIONS}
+                    placeholder="Sin indicar"
+                  />
+                </Field>
+                <Field id="s-gran" label="Gran contribuyente">
+                  <NativeSelect
+                    id="s-gran"
+                    value={fiscal.granContribuyente}
+                    onChange={(v) => setF("granContribuyente", v)}
+                    options={TRI_OPTIONS}
+                    placeholder="Sin indicar"
+                  />
+                </Field>
+                {fiscal.responsableInc === "no" && (
+                  <FieldSpan span={3}>
+                    <p className="text-sm text-muted-foreground">
+                      No ser responsable de INC exige ser persona natural, con un
+                      solo establecimiento e ingresos del año anterior por debajo
+                      de 3.500 UVT (art. 512-13 ET). Con una segunda sede se
+                      pierde esa condición.
+                    </p>
+                  </FieldSpan>
+                )}
 
                 <Field id="s-depto" label="Departamento">
                   <Input
