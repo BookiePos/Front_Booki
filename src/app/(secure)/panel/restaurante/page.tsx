@@ -35,6 +35,7 @@ import {
   type RestaurantOrder,
 } from "@/lib/erp/api-restaurant"
 import { money, errorMessage, numOr } from "@/lib/erp/finance-format"
+import { posProducts, type PosProduct } from "@/lib/erp/api-sales"
 
 import { PageHeader } from "@/components/erp/page-header"
 import { Card, CardContent } from "@/components/ui/card"
@@ -267,6 +268,7 @@ export default function RestaurantePage() {
 
       <OrderDialog
         orderId={activeOrderId}
+        sedeId={sedeId}
         onClose={() => setActiveOrderId(null)}
         onChanged={load}
       />
@@ -384,10 +386,12 @@ function NewTableDialog({
 
 function OrderDialog({
   orderId,
+  sedeId,
   onClose,
   onChanged,
 }: {
   orderId: string | null
+  sedeId: string
   onClose: () => void
   onChanged: () => Promise<void>
 }) {
@@ -402,6 +406,26 @@ function OrderDialog({
   const [itemName, setItemName] = React.useState("")
   const [itemQty, setItemQty] = React.useState("1")
   const [itemPrice, setItemPrice] = React.useState("0")
+  // Menú de la sede: solo lo que está en el catálogo se puede cobrar en caja,
+  // así que el ítem se elige de aquí y viaja con su `productId` y su precio.
+  // Antes era texto libre y ninguna comanda del salón llegaba a caja.
+  const [menu, setMenu] = React.useState<PosProduct[]>([])
+
+  React.useEffect(() => {
+    if (!orderId || !sedeId) return
+    let vivo = true
+    posProducts(sedeId)
+      .then((ps) => vivo && setMenu(ps))
+      .catch(() => vivo && setMenu([]))
+    return () => {
+      vivo = false
+    }
+  }, [orderId, sedeId])
+
+  const delMenu = React.useMemo(
+    () => menu.find((p) => p.name.toLowerCase() === itemName.trim().toLowerCase()),
+    [menu, itemName],
+  )
 
   const refresh = React.useCallback(async () => {
     if (!orderId) return
@@ -443,7 +467,12 @@ function OrderDialog({
     if (!order || !itemName.trim()) return
     await run(() =>
       addOrderItems(order._id, [
-        { name: itemName.trim(), qty: numOr(itemQty, 1), unitPrice: numOr(itemPrice) },
+        {
+          ...(delMenu ? { productId: delMenu._id } : {}),
+          name: delMenu?.name ?? itemName.trim(),
+          qty: numOr(itemQty, 1),
+          unitPrice: numOr(itemPrice) || delMenu?.salePrice || 0,
+        },
       ]),
     )
     setItemName("")
@@ -589,10 +618,27 @@ function OrderDialog({
                   <Input
                     id="cmd-item"
                     placeholder="Bandeja paisa"
+                    list="cmd-menu"
+                    autoComplete="off"
                     value={itemName}
-                    onChange={(e) => setItemName(e.target.value)}
+                    onChange={(e) => {
+                      const nombre = e.target.value
+                      setItemName(nombre)
+                      const p = menu.find((m) => m.name.toLowerCase() === nombre.trim().toLowerCase())
+                      if (p) setItemPrice(String(p.salePrice))
+                    }}
                     onKeyDown={(e) => e.key === "Enter" && void addItem()}
                   />
+                  <datalist id="cmd-menu">
+                    {menu.map((p) => (
+                      <option key={p._id} value={p.name} />
+                    ))}
+                  </datalist>
+                  {itemName.trim() && !delMenu && menu.length > 0 && (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      No está en el menú: se puede anotar, pero no se podrá cobrar en caja.
+                    </p>
+                  )}
                 </Field>
                 <Field id="cmd-qty" label="Cant." className="w-20">
                   <Input
