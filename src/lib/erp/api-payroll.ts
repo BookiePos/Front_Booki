@@ -164,7 +164,7 @@ export interface PayrollSlip {
   arlRiskLevel?: string
   diasTrabajados: number
   breakdown: PayrollBreakdown
-  otrasDeduccionesDetalle?: { concept: string; amount: number }[]
+  otrasDeduccionesDetalle?: { concept: string; amount: number; source?: "arrastre" }[]
   /** Avisos para revisar, p. ej. tope de horas extra (ítem 1.19). */
   alertas?: string[]
   totalDevengado: number
@@ -408,7 +408,8 @@ export interface PayrollDeduction {
   amount: number
   date: string
   status: DeductionStatus
-  source: "sale" | "manual"
+  /** "arrastre": saldo a cargo de una nómina anterior con neto negativo (lo crea el cierre). */
+  source: "sale" | "manual" | "arrastre"
   sourceId?: string
   note?: string
   createdByEmail?: string
