@@ -15,8 +15,6 @@ export type NavItem = {
   icon: LucideIcon
   /** Permiso requerido; si falta, el ítem se muestra deshabilitado. */
   permission?: string
-  /** true → sección aún sin backend ("En construcción"). */
-  wip?: boolean
 }
 
 /** Navegación del punto de venta (lo que maneja el trabajador). */

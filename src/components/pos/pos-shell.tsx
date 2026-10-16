@@ -82,11 +82,6 @@ function NavLinks({ vertical }: { vertical?: boolean }) {
             <span className={cn(!vertical && "leading-none text-center")}>
               {item.title}
             </span>
-            {item.wip && vertical && (
-              <Badge variant="outline" className="ml-auto text-[10px]">
-                pronto
-              </Badge>
-            )}
           </Link>
         )
       })}
