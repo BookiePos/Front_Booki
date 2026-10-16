@@ -1,3 +1,5 @@
+import { SoporteWhatsappRuta } from "@/components/soporte/soporte-whatsapp-ruta";
+
 /**
  * Zona pública (portada). No lleva `RequireAuth`: es la única parte del sitio
  * que se ve sin sesión.
@@ -12,6 +14,8 @@ export default function MarketingLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="zone-marketing min-h-svh bg-surface text-ink">{children}</div>
+    <div className="zone-marketing min-h-svh bg-surface text-ink">{children}
+      <SoporteWhatsappRuta />
+    </div>
   );
 }
