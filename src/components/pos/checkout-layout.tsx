@@ -256,7 +256,7 @@ export function OptionGroup<T extends string>({
             )}
             <span className="max-w-full truncate leading-tight">{o.label}</span>
             {size === "lg" && o.hint && (
-              <span className="max-w-full truncate text-[10px] font-normal opacity-70">
+              <span className="max-w-full truncate text-xs font-normal opacity-70">
                 {o.hint}
               </span>
             )}
