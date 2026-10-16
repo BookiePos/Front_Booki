@@ -20,9 +20,9 @@ import { useSede } from "@/lib/pos/sede-context"
 import {
   listSales,
   voidSale,
-  PAYMENT_METHOD_LABELS,
   type Sale,
 } from "@/lib/pos/api-sales"
+import { paymentLabel } from "@/lib/pos/split-payment"
 import { DevolucionDialog } from "@/components/pos/devolucion-dialog"
 import { money, timeOnly, isToday } from "@/lib/pos/format"
 import { coincide, useBusquedaPendiente } from "@/lib/pos/busqueda"
@@ -310,7 +310,7 @@ export default function VentasPage() {
                           {money(s.total)}
                         </span>
                         <Badge variant="outline" className="text-[11px]">
-                          {PAYMENT_METHOD_LABELS[s.payment.method]}
+                          {paymentLabel(s)}
                         </Badge>
                       </div>
                       {s.status === "void" && (

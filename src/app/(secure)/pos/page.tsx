@@ -105,6 +105,15 @@ import { Field, NativeSelect } from "@/components/ui/field"
 import { FormDialog, FormActions } from "@/components/ui/form-dialog"
 import { AyudaAtajos } from "@/components/pos/ayuda-atajos"
 import { METODOS_ATAJO, useAtajosPos } from "@/hooks/use-atajos-pos"
+import {
+  addSplitRow,
+  applyMethodShortcut,
+  fillRemaining,
+  initialSplitRows,
+  splitSummary,
+  toPaymentsPayload,
+  type SplitRow,
+} from "@/lib/pos/split-payment"
 import { Termino } from "@/components/ui/help-tip"
 import {
   CheckoutColumn,
@@ -354,6 +363,16 @@ export default function VentaPage() {
    * de dar la devuelta.
    */
   const [received, setReceived] = React.useState<number | null>(null)
+  /**
+   * «Dividir pago» (ítem 6.9): varios medios en un mismo tiquete, sin dividir
+   * la cuenta. Apagado, se cobra con `method` como siempre.
+   */
+  const [splitOn, setSplitOn] = React.useState(false)
+  const [splitRows, setSplitRows] = React.useState<SplitRow[]>([])
+  /** Hay fiado en este cobro: el de siempre o una parte del reparto. */
+  const usesCredit = splitOn
+    ? splitRows.some((r) => r.method === "credit")
+    : method === "credit"
   /** Vencimiento del fiado (YYYY-MM-DD). Vacío = vence hoy. */
   const [creditDue, setCreditDue] = React.useState("")
   const [saving, setSaving] = React.useState(false)
@@ -1077,6 +1096,8 @@ export default function VentaPage() {
   function openCheckout() {
     setMethod("cash")
     setReceived(null)
+    setSplitOn(false)
+    setSplitRows([])
     setCreditDue("")
     setShowCustomer(false)
     // El cliente elegido se conserva —ya decide los precios del carrito— y
@@ -1103,8 +1124,8 @@ export default function VentaPage() {
 
   // El fiado exige identificar al cliente: abre esa sección automáticamente.
   React.useEffect(() => {
-    if (method === "credit") setShowCustomer(true)
-  }, [method])
+    if (usesCredit) setShowCustomer(true)
+  }, [usesCredit])
 
   // Ojo: `activeOrder` se declara aquí porque de él salen los totales; más
   // abajo ya no se vuelve a declarar.
@@ -1213,6 +1234,10 @@ export default function VentaPage() {
     () => cashSuggestions(netTotal),
     [netTotal],
   )
+  /** Restante y devuelta del reparto. Lo fiado no cubre la propina. */
+  const split = splitOn
+    ? splitSummary(splitRows, netTotal, chargeTotal + deliveryFee)
+    : null
 
   /** Limpia el cliente: descarta campos vacíos. */
   function cleanCustomer(): Customer | undefined {
@@ -1229,7 +1254,7 @@ export default function VentaPage() {
    */
   const customerToSend =
     cleanCustomer() ??
-    (method !== "credit" && clienteModo === "final"
+    (!usesCredit && clienteModo === "final"
       ? CONSUMIDOR_FINAL
       : undefined)
 
@@ -1264,8 +1289,12 @@ export default function VentaPage() {
     saving ||
     cart.length === 0 ||
     invoiceDataMissing ||
-    (method === "cash" && receivedNum !== undefined && receivedNum < netTotal) ||
-    (method === "credit" &&
+    (!splitOn &&
+      method === "cash" &&
+      receivedNum !== undefined &&
+      receivedNum < netTotal) ||
+    (split !== null && split.error !== null) ||
+    (usesCredit &&
       ((debtorType === "customer" && !custId) ||
         (debtorType === "employee" && !empId))) ||
     // Un domicilio sin dirección se cobraría igual y nadie sabría a dónde
@@ -1284,13 +1313,16 @@ export default function VentaPage() {
       ? null
       : orderType === "domicilio" && !address.trim()
         ? "Escribe la dirección del domicilio para poder cobrar."
-        : method === "credit" &&
+        : usesCredit &&
             ((debtorType === "customer" && !custId) ||
               (debtorType === "employee" && !empId))
           ? "Elige a quién se le fía para poder cobrar."
           : invoiceDataMissing
             ? "Para la factura electrónica hace falta el nombre y la cédula o NIT del cliente."
-            : method === "cash" &&
+            : split?.error
+              ? split.error
+              : !splitOn &&
+                method === "cash" &&
                 receivedNum !== undefined &&
                 receivedNum < netTotal
               ? `Con ${money(receivedNum)} no alcanza: faltan ${money(netTotal - receivedNum)}.`
@@ -1330,7 +1362,13 @@ export default function VentaPage() {
       setLineaSel(lineaActiva.product._id)
       changeQty(lineaActiva.product._id, d)
     },
-    onMetodo: (i) => setMethod(METODOS_ATAJO[i]),
+    // Con «dividir pago» abierto, F6..F9 agregan ese medio con lo que falta.
+    onMetodo: (i) =>
+      splitOn
+        ? setSplitRows((rows) =>
+            applyMethodShortcut(rows, METODOS_ATAJO[i], netTotal),
+          )
+        : setMethod(METODOS_ATAJO[i]),
     onCerrar: () => setAyudaAbierta(false),
     onAyuda: () => setAyudaAbierta((a) => !a),
   })
@@ -1374,6 +1412,17 @@ export default function VentaPage() {
       employeeId:
         method === "credit" && debtorType === "employee" ? empId : undefined,
     }
+    // Cobro mixto: viaja el reparto en vez del pago único, y la parte fiada
+    // lleva el deudor de siempre.
+    const payments = splitOn
+      ? toPaymentsPayload(splitRows, {
+          dueDate: creditDue || undefined,
+          debtorType,
+          customerId: debtorType === "customer" ? custId : undefined,
+          employeeId: debtorType === "employee" ? empId : undefined,
+        })
+      : undefined
+    const pago = splitOn ? { payments } : { payment }
     const customerData = customerToSend
     /** Si tras este cobro la cuenta sigue con algo pendiente. */
     let quedaAbierta = false
@@ -1387,7 +1436,7 @@ export default function VentaPage() {
           lines: cart.map((i) => ({ productId: i.product._id, qty: i.qty })),
         })
         sale = await checkoutOrder(activeOrderId, {
-          payment,
+          ...pago,
           customer: customerData,
           tip: tipAmount || undefined,
           // Sin líneas se cobra todo lo que falte, que es el cobro de siempre.
@@ -1426,7 +1475,7 @@ export default function VentaPage() {
             qty: i.qty,
             discountId: i.discountId,
           })),
-          payment,
+          ...pago,
           customer: customerData,
           seller: sellerPayload,
           packaging: packagingRows,
@@ -2543,8 +2592,12 @@ export default function VentaPage() {
                 <div className="flex flex-col gap-3 px-5 py-4 lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain print:hidden">
                   {/* La devuelta, grande: es lo que el cajero tiene que contar
                       y entregar ya, con el cliente esperando. */}
-                  {completedSale.payment.method === "cash" &&
-                    completedSale.payment.change !== undefined && (
+                  {/* Siempre que hubo devuelta, aunque el backend haya
+                      dejado un solo medio (todo con tarjeta y además se
+                      anotó efectivo: ese efectivo vuelve entero). */}
+                  {completedSale.payment.change !== undefined &&
+                    (completedSale.payment.method === "cash" ||
+                      completedSale.payment.change > 0) && (
                       <div className="flex flex-col items-center gap-1 rounded-2xl bg-success/10 px-4 py-5 text-center text-success-ink">
                         <span className="text-xs font-semibold uppercase tracking-wide">
                           Devuelta
@@ -2799,28 +2852,60 @@ export default function VentaPage() {
                   icon={Banknote}
                   className="max-lg:order-1 lg:bg-muted/20"
                 >
-                  <OptionGroup
-                    ariaLabel="Medio de pago"
-                    value={method}
-                    onChange={setMethod}
-                    size="lg"
-                    columns={2}
-                    options={(
-                      Object.entries(PAYMENT_METHOD_LABELS) as [
-                        PaymentMethod,
-                        string,
-                      ][]
-                    ).map(([key, lbl]) => ({
-                      value: key,
-                      label: lbl,
-                      icon: PAYMENT_ICONS[key],
-                    }))}
-                  />
+                  {!splitOn ? (
+                    <OptionGroup
+                      ariaLabel="Medio de pago"
+                      value={method}
+                      onChange={setMethod}
+                      size="lg"
+                      columns={2}
+                      options={(
+                        Object.entries(PAYMENT_METHOD_LABELS) as [
+                          PaymentMethod,
+                          string,
+                        ][]
+                      ).map(([key, lbl]) => ({
+                        value: key,
+                        label: lbl,
+                        icon: PAYMENT_ICONS[key],
+                      }))}
+                    />
+                  ) : (
+                    <SplitPaymentEditor
+                      rows={splitRows}
+                      onChange={setSplitRows}
+                      due={netTotal}
+                      remaining={split?.remaining ?? 0}
+                      change={split?.change ?? 0}
+                      error={split?.error ?? null}
+                    />
+                  )}
+
+                  {/* Dividir pago (ítem 6.9): efectivo + tarjeta, etc., en el
+                      mismo tiquete. No divide la cuenta: eso es por productos. */}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="self-start"
+                    onClick={() => {
+                      if (splitOn) {
+                        setSplitOn(false)
+                        setSplitRows([])
+                      } else {
+                        setSplitRows(initialSplitRows(method))
+                        setSplitOn(true)
+                      }
+                    }}
+                  >
+                    <Split className="size-4" />
+                    {splitOn ? "Un solo medio de pago" : "Dividir pago"}
+                  </Button>
 
                   {/* ¿Con cuánto paga? Con la devuelta enorme: es la cuenta que
                       el cajero hace de cabeza con el cliente esperando, y antes
                       quedaba al fondo de un formulario de catorce bloques. */}
-                  {method === "cash" && (
+                  {!splitOn && method === "cash" && (
                     <div className="flex flex-col gap-2.5 rounded-2xl border border-border bg-card p-3">
                       <Label htmlFor="pos-received" className="text-[0.8125rem]">
                         ¿Con cuánto paga?
@@ -2892,7 +2977,7 @@ export default function VentaPage() {
                     </div>
                   )}
 
-                  {(method === "card" || method === "transfer") && (
+                  {!splitOn && (method === "card" || method === "transfer") && (
                     <p className="flex items-start gap-2 rounded-xl border border-border bg-card px-3 py-2.5 text-[0.8125rem] text-muted-foreground">
                       <Info className="mt-0.5 size-4 shrink-0 text-primary" />
                       <span>
@@ -2906,7 +2991,7 @@ export default function VentaPage() {
                   {/* Fiado: quién queda debiendo. Va en esta columna y no en la
                       de al lado porque es parte de CÓMO se paga, no un dato de
                       la venta: sin deudor no hay cobro. */}
-                  {method === "credit" && (
+                  {usesCredit && (
                     <div className="flex flex-col gap-2.5 rounded-2xl border border-warning/30 bg-warning/10 p-3">
                       <p className="flex items-center gap-1.5 text-[0.8125rem] font-medium text-warning-ink">
                         <HandCoins className="size-4" />
@@ -3035,7 +3120,7 @@ export default function VentaPage() {
                   icon={ClipboardList}
                   className="max-lg:order-3 max-lg:border-t max-lg:border-border"
                 >
-                  {method !== "credit" ? (
+                  {!usesCredit ? (
                     <CheckoutGroup
                       title="Cliente"
                       icon={UserRound}
@@ -3739,7 +3824,7 @@ export default function VentaPage() {
                   >
                     {saving
                       ? "Registrando…"
-                      : method === "credit"
+                      : !splitOn && method === "credit"
                         ? `Fiar ${money(netTotal)}`
                         : `Confirmar ${money(netTotal)}`}
                   </Button>
@@ -3999,5 +4084,119 @@ function Guard({
         <p className="max-w-xs text-sm text-muted-foreground">{text}</p>
       </CardContent>
     </Card>
+  )
+}
+
+/**
+ * Filas de «dividir pago» (ítem 6.9): un medio y un monto por fila, con el
+ * restante siempre a la vista. La cuenta la hace `lib/pos/split-payment.ts`.
+ */
+function SplitPaymentEditor({
+  rows,
+  onChange,
+  due,
+  remaining,
+  change,
+  error,
+}: {
+  rows: SplitRow[]
+  onChange: (rows: SplitRow[]) => void
+  due: number
+  remaining: number
+  change: number
+  error: string | null
+}) {
+  const metodos = Object.entries(PAYMENT_METHOD_LABELS) as [
+    PaymentMethod,
+    string,
+  ][]
+  return (
+    <div className="flex flex-col gap-2.5 rounded-2xl border border-border bg-card p-3">
+      <p className="text-[0.8125rem] font-medium">Dividir pago</p>
+      <ul className="flex flex-col gap-2">
+        {rows.map((r, i) => (
+          <li key={r.id} className="flex flex-wrap items-center gap-2">
+            <NativeSelect
+              value={r.method}
+              onChange={(v) =>
+                onChange(
+                  rows.map((x) =>
+                    x.id === r.id ? { ...x, method: v as PaymentMethod } : x,
+                  ),
+                )
+              }
+              aria-label={`Medio de pago ${i + 1}`}
+              options={metodos.map(([value, label]) => ({ value, label }))}
+            />
+            <MoneyInput
+              value={r.amount}
+              onValueChange={(v) =>
+                onChange(
+                  rows.map((x) => (x.id === r.id ? { ...x, amount: v } : x)),
+                )
+              }
+              aria-label={`Monto del medio ${i + 1}`}
+              className="h-10 min-w-28 flex-1"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => onChange(fillRemaining(rows, r.id, due))}
+            >
+              Lo que falta
+            </Button>
+            {rows.length > 1 && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                aria-label={`Quitar el medio ${i + 1}`}
+                onClick={() => onChange(rows.filter((x) => x.id !== r.id))}
+              >
+                <Trash2 className="size-4" />
+              </Button>
+            )}
+          </li>
+        ))}
+      </ul>
+      {rows.length < 6 && (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="self-start"
+          onClick={() => onChange(addSplitRow(rows, due))}
+        >
+          <Plus className="size-4" />
+          Agregar medio
+        </Button>
+      )}
+      <div
+        role="status"
+        className={cn(
+          "flex items-center justify-between rounded-xl px-3 py-2.5 text-sm",
+          remaining > 0
+            ? "bg-destructive/10 text-destructive"
+            : change > 0
+              ? "bg-success/10 text-success-ink"
+              : "bg-muted text-muted-foreground",
+        )}
+      >
+        <span className="text-xs font-semibold uppercase tracking-wide">
+          {remaining > 0
+            ? "Restante"
+            : change > 0
+              ? "Devuelta (del efectivo)"
+              : "Cubierto"}
+        </span>
+        <span className="stat-figure text-2xl leading-none">
+          {money(remaining > 0 ? remaining : change)}
+        </span>
+      </div>
+      {error && remaining === 0 && (
+        <p className="text-xs text-destructive">{error}</p>
+      )}
+    </div>
   )
 }

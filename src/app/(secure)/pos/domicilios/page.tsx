@@ -19,6 +19,7 @@ import {
   listDeliveries,
   getCourierSettlement,
   updateDeliveryStatus,
+  cobroEnPuerta,
   DELIVERY_STATUS_LABELS,
   DELIVERY_TRANSITIONS,
   type CourierSettlement,
@@ -286,10 +287,7 @@ export default function DomiciliosPage() {
                     </div>
 
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                      <span className="tnum">
-                        Cobra <strong>{money(r.grandTotal)}</strong>
-                        {r.paymentMethod !== "cash" && " (ya pagado)"}
-                      </span>
+                      <CobroEnPuerta row={r} />
                       {r.fee > 0 && <span>Domicilio {money(r.fee)}</span>}
                       {r.courier && <span>Lleva {r.courier}</span>}
                       {r.deliveredAt && (
@@ -392,5 +390,26 @@ export default function DomiciliosPage() {
         </div>
       </FormDialog>
     </div>
+  )
+}
+
+/**
+ * Lo que el repartidor cobra en la puerta. En un domicilio mixto (ítem 6.9)
+ * solo la parte en efectivo; lo demás ya entró por tarjeta o transferencia.
+ */
+function CobroEnPuerta({ row }: { row: DeliveryRow }) {
+  const { cobra, yaPagado } = cobroEnPuerta(row)
+  if (cobra === 0) {
+    return (
+      <span className="tnum">
+        Cobra <strong>{money(0)}</strong> (ya pagado)
+      </span>
+    )
+  }
+  return (
+    <span className="tnum">
+      Cobra <strong>{money(cobra)}</strong> en efectivo
+      {yaPagado > 0 && ` · ${money(yaPagado)} ya pagado con otro medio`}
+    </span>
   )
 }

@@ -163,7 +163,18 @@ export function Receipt({
 
       {/* Pago */}
       <div className="flex flex-col gap-1">
-        <Row label="Pago" value={PAYMENT_METHOD_LABELS[payment.method]} />
+        {sale.payments && sale.payments.length > 1 ? (
+          // Cobro mixto (ítem 6.9): cuánto cubrió cada medio.
+          sale.payments.map((p) => (
+            <Row
+              key={p.method}
+              label={`Pago ${PAYMENT_METHOD_LABELS[p.method].toLowerCase()}`}
+              value={money(p.amount)}
+            />
+          ))
+        ) : (
+          <Row label="Pago" value={PAYMENT_METHOD_LABELS[payment.method]} />
+        )}
         {payment.received !== undefined && (
           <Row label="Recibido" value={money(payment.received)} muted />
         )}
