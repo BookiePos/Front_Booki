@@ -96,7 +96,7 @@ import {
   type SplitRow,
 } from "@/lib/pos/split-payment"
 import { Termino } from "@/components/ui/help-tip"
-import { CheckoutColumn, SummaryRow } from "@/components/pos/checkout-layout"
+
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -131,6 +131,7 @@ import { NuevaCuentaDialog } from "@/components/pos/nueva-cuenta-dialog"
 import { CobroPie } from "@/components/pos/cobro-pie"
 import { CobroColumnaVenta } from "@/components/pos/cobro-columna-venta"
 import { CobroColumnaPago } from "@/components/pos/cobro-columna-pago"
+import { CobroColumnaDetalle } from "@/components/pos/cobro-columna-detalle"
 
 
 export default function VentaPage() {
@@ -2460,109 +2461,21 @@ export default function VentaPage() {
                   derecha para que el Tab recorra la pantalla como se lee. */}
               <div className="grid min-h-0 flex-1 grid-cols-1 overflow-y-auto overscroll-contain lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.1fr)_minmax(0,0.95fr)] lg:divide-x lg:divide-border lg:overflow-hidden">
                 {/* ── Columna 1: qué se está cobrando ── */}
-                <CheckoutColumn
-                  title="Qué estás cobrando"
-                  icon={ShoppingCart}
-                  hint={`${itemCount} ítem(s)`}
-                  className="max-lg:order-2 max-lg:border-t max-lg:border-border"
-                  footer={
-                    <div className="flex flex-col gap-1.5">
-                      {activeOrder ? (
-                        <>
-                          <SummaryRow
-                            label="Consumo de la cuenta"
-                            value={money(total)}
-                          />
-                          {pagadoAntes > 0 && (
-                            <SummaryRow
-                              label="Ya pagaron"
-                              value={`−${money(pagadoAntes)}`}
-                              tone="positive"
-                            />
-                          )}
-                          {splitLines && (
-                            <SummaryRow
-                              label="Falta por cobrar"
-                              value={money(pendingTotal(activeOrder))}
-                            />
-                          )}
-                        </>
-                      ) : (
-                        <>
-                          <SummaryRow
-                            label="Productos"
-                            value={money(total + lineDiscountTotal)}
-                          />
-                          {lineDiscountTotal > 0 && (
-                            <SummaryRow
-                              label="Descuentos"
-                              value={`−${money(lineDiscountTotal)}`}
-                              tone="positive"
-                            />
-                          )}
-                        </>
-                      )}
-                      {tipAmount > 0 && (
-                        <SummaryRow label="Propina" value={money(tipAmount)} />
-                      )}
-                      {deliveryFee > 0 && (
-                        <SummaryRow label="Domicilio" value={money(deliveryFee)} />
-                      )}
-                      <div className="mt-1 flex items-baseline justify-between gap-3 rounded-xl bg-accent px-3 py-2.5">
-                        <span className="font-display text-[0.9375rem] text-accent-foreground">
-                          Total a cobrar
-                        </span>
-                        <span className="stat-figure text-2xl leading-none text-primary">
-                          {money(netTotal)}
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-muted-foreground">
-                        Los precios ya incluyen impuestos.
-                      </p>
-                    </div>
-                  }
-                >
-                  {cart.length === 0 ? (
-                    <p className="py-8 text-center text-sm text-muted-foreground">
-                      No hay nada en la cuenta.
-                    </p>
-                  ) : (
-                    <ul className="flex flex-col gap-2">
-                      {cart.map((i) => {
-                        const unit = unitPrice(i)
-                        const gross = i.qty * unit
-                        const lineDisc = lineDiscount(i)
-                        const applied = i.discountId
-                          ? discountById.get(i.discountId)
-                          : undefined
-                        return (
-                          <li
-                            key={i.product._id}
-                            className="flex items-start justify-between gap-3 border-b border-border/60 pb-2 last:border-b-0 last:pb-0"
-                          >
-                            <span className="min-w-0 flex-1">
-                              <span className="block text-[0.8125rem] font-medium leading-snug text-foreground">
-                                {i.product.name}
-                              </span>
-                              <span className="block text-xs tabular-nums text-muted-foreground">
-                                {fmtQty(i.qty)} {i.product.unit} × {money(unit)}
-                              </span>
-                              {applied && (
-                                <span className="mt-0.5 inline-flex items-center gap-1 text-[11px] font-medium text-success-ink">
-                                  <Tag className="size-3" />
-                                  {applied.name} −{money(lineDisc)}
-                                </span>
-                              )}
-                            </span>
-                            <span className="shrink-0 text-[0.8125rem] font-medium tabular-nums text-foreground">
-                              {money(gross - lineDisc)}
-                            </span>
-                          </li>
-                        )
-                      })}
-                    </ul>
-                  )}
-                </CheckoutColumn>
+                <CobroColumnaDetalle
+                  cart={cart}
+                  unitPrice={unitPrice}
+                  discountById={discountById}
+                  lineDiscount={lineDiscount}
+                  total={total}
+                  lineDiscountTotal={lineDiscountTotal}
+                  itemCount={itemCount}
+                  tipAmount={tipAmount}
+                  activeOrder={activeOrder}
+                  pagadoAntes={pagadoAntes}
+                  splitLines={splitLines}
+                  deliveryFee={deliveryFee}
+                  netTotal={netTotal}
+                />
 
                 {/* ── Columna 2: cómo paga (lo único que se mira con el cliente
                     enfrente, así que es la más ancha y la más grande) ── */}
