@@ -222,6 +222,15 @@ export default function DeduccionesPage() {
                       {d.source === "sale" && (
                         <Badge variant="outline" className="ml-2 text-[10px]">POS</Badge>
                       )}
+                      {d.source === "arrastre" && (
+                        <Badge
+                          variant="outline"
+                          className="ml-2 text-[10px]"
+                          title="Neto negativo de una nómina anterior: se descuenta en la siguiente"
+                        >
+                          Arrastre
+                        </Badge>
+                      )}
                       {d.appliedPeriod && (
                         <span className="ml-2 text-[11px] text-muted-foreground">→ {d.appliedPeriod}</span>
                       )}
