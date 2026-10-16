@@ -35,6 +35,8 @@ import { getPayrollSettings } from "@/lib/erp/api-payroll"
 import { ApiError } from "@/lib/api"
 
 import { Button } from "@/components/ui/button"
+import { useAuth } from "@/lib/auth-context"
+import { actorSeesAllSedes } from "@/lib/access"
 import { Input, Textarea } from "@/components/ui/input"
 import { MoneyInput } from "@/components/ui/money-input"
 import {
@@ -267,6 +269,9 @@ export function EmployeeDialog({
   onOpenChange: (open: boolean) => void
   onSaved: () => void
 }) {
+  const { user } = useAuth()
+  // Quien no ve todas las sedes no puede dejar a nadie sin sede (ítem 3.9).
+  const veTodas = user ? actorSeesAllSedes(user) : false
   const [form, setForm] = React.useState<Form>(blankForm)
   const [docs, setDocs] = React.useState<DocRow[]>([])
   const [saving, setSaving] = React.useState(false)
@@ -587,7 +592,7 @@ export function EmployeeDialog({
               value={form.sedeId}
               onChange={(v) => set("sedeId", v)}
               options={sedes.map((s) => ({ value: s._id, label: s.name }))}
-              placeholder="Sin sede"
+              placeholder={veTodas ? "Sin sede" : "Elige una de tus sedes"}
             />
           </Field>
           <Field

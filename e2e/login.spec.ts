@@ -13,7 +13,7 @@
  */
 
 import { test, expect } from "@playwright/test";
-import { DEMO_EMAIL, DEMO_PASSWORD, FRONTEND_URL } from "./helpers/auth";
+import { DEMO_EMAIL, DEMO_PASSWORD, BACKEND_URL } from "./helpers/auth";
 
 test.describe("Login — BookiPos", () => {
   test.beforeEach(async ({ page }) => {
@@ -39,11 +39,11 @@ test.describe("Login — BookiPos", () => {
 
     // Las opciones de zona deben existir para el rol Dueño
     await expect(
-      page.getByRole("link", { name: /punto de venta/i }),
+      page.getByRole("button", { name: /punto de venta/i }),
     ).toBeVisible();
 
     await expect(
-      page.getByRole("link", { name: /panel de operación/i }),
+      page.getByRole("button", { name: /panel de operación/i }),
     ).toBeVisible();
 
     // La URL no debe haber cambiado aún (el usuario elige la zona)
@@ -68,7 +68,9 @@ test.describe("Login — BookiPos", () => {
 
     // El backend (NestJS) envía el refresh_token como HttpOnly cookie.
     // context.cookies() incluye todas las cookies del contexto del browser.
-    const cookies = await context.cookies(FRONTEND_URL);
+    // La cookie vive en `path=/auth` del API (ítem 4.4): solo viaja a refresh y
+    // logout, así que se busca ahí y no en la raíz del sitio.
+    const cookies = await context.cookies(`${BACKEND_URL}/auth/refresh`);
     const refreshToken = cookies.find((c) => c.name === "refresh_token");
 
     expect(
@@ -101,7 +103,9 @@ test.describe("Login — BookiPos", () => {
     await page.getByRole("button", { name: /entrar/i }).click();
 
     // El error se muestra en el <p role="alert"> dentro del aria-live="polite"
-    const errorMsg = page.getByRole("alert");
+    // Next también monta un `role="alert"` vacío (el anunciador de rutas): se
+    // busca el que tiene texto.
+    const errorMsg = page.getByRole("alert").filter({ hasText: /\S/ });
     await expect(errorMsg).toBeVisible({ timeout: 10_000 });
 
     // El texto del error debe incluir algo reconocible (el backend devuelve
