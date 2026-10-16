@@ -1,5 +1,11 @@
+import type { Metadata } from "next"
 import { AuthProvider } from "@/lib/auth-context"
 import { ConfirmProvider } from "@/components/ui/confirm-dialog"
+
+// Nada de la zona con sesión debe aparecer en buscadores.
+export const metadata: Metadata = {
+  robots: { index: false, follow: false },
+}
 
 /**
  * Zonas con sesión: /login, /invitacion, /panel y /pos.
