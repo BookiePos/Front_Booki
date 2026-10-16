@@ -169,6 +169,11 @@ export interface Sale {
     courier?: string
   }
   payment: { method: PaymentMethod; received?: number; change?: number }
+  /**
+   * Cobro mixto (ítem 6.9): cuánto cubrió cada medio, el efectivo ya sin la
+   * devuelta. Ausente en las ventas de un solo medio.
+   */
+  payments?: { method: PaymentMethod; amount: number }[]
   customer?: Customer
   orderId?: string
   createdAt: string
@@ -208,10 +213,26 @@ export interface DeliveryInput {
   fee?: number
 }
 
+/**
+ * Una parte de un cobro mixto. En efectivo, `amount` es lo que el cliente
+ * entrega (la devuelta sale de ahí); la parte fiada lleva su deudor.
+ */
+export interface SalePaymentPartInput {
+  method: PaymentMethod
+  amount: number
+  dueDate?: string
+  debtorType?: "customer" | "employee"
+  customerId?: string
+  employeeId?: string
+}
+
 export interface CreateSalePayload {
   sedeId: string
   lines: { productId: string; qty: number; discountId?: string }[]
-  payment: SalePaymentInput
+  /** Un solo medio. Se manda este o `payments`, nunca los dos. */
+  payment?: SalePaymentInput
+  /** Cobro mixto (ítem 6.9). */
+  payments?: SalePaymentPartInput[]
   discount?: { type: DiscountType; value: number }
   customer?: Customer
   /** Propina voluntaria (restaurante), en pesos. */
@@ -307,7 +328,8 @@ export interface UpdateOrderPayload {
 }
 
 export interface CheckoutOrderPayload {
-  payment: SalePaymentInput
+  payment?: SalePaymentInput
+  payments?: SalePaymentPartInput[]
   discount?: { type: DiscountType; value: number }
   customer?: Customer
   /** Propina voluntaria (restaurante), en pesos. */

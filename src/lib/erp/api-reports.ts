@@ -61,7 +61,17 @@ export interface SalesReport {
     tickets: number
     avgTicket: number
   }[]
-  byMethod: { method: string; revenue: number; tickets: number }[]
+  /**
+   * Un tiquete mixto (ítem 6.9) cuenta en cada medio: `revenue` se reparte en
+   * proporción a lo que cubrió cada uno y `collected` es lo que entró por ese
+   * medio, con propina y domicilio.
+   */
+  byMethod: {
+    method: string
+    revenue: number
+    collected?: number
+    tickets: number
+  }[]
   bySede: { sedeId: string | null; revenue: number; tickets: number }[]
   topProducts: {
     productId: string | null
