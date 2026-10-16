@@ -27,6 +27,8 @@ import { listEmployees, type Employee } from "@/lib/erp/api-employees"
 import {
   getPayrollSettings,
   updatePayrollSettings,
+  respuestaExoneracion,
+  exoneracionSiCambio,
   previewPayroll,
   createPayrollRun,
   listPayrollRuns,
@@ -1401,7 +1403,7 @@ function Parametros({
         smmlv: numOr(smmlv),
         auxilioTransporte: numOr(aux),
         uvt: numOr(uvt),
-        empresaExoneradaAportes: exonera,
+        ...exoneracionSiCambio(settings.empresaExoneradaAportes, exonera),
         diasLaborablesSemana: Number(diasLaborables),
         recargos: Object.fromEntries(
           RECARGO_LABELS.map(({ k }) => [k, numOr(rec[k] ?? "0") / 100]),
@@ -1660,7 +1662,7 @@ function PreguntaExoneracion({
     setError(null)
     try {
       onRespondida(
-        await updatePayrollSettings({ empresaExoneradaAportes: exonerada }),
+        await updatePayrollSettings(respuestaExoneracion(exonerada)),
       )
     } catch (err) {
       setError(errorMessage(err))
