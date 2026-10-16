@@ -1342,7 +1342,7 @@ export default function VentaPage() {
         if (!saving && !ayudaAbierta) setCheckoutOpen(false)
         return
       }
-      if (e.key !== "Enter" || e.repeat || confirmBlocked) return
+      if (e.key !== "Enter" || e.repeat || confirmBlocked || ayudaAbierta) return
       const el = e.target as HTMLElement | null
       const tag = el?.tagName
       const enControl =
