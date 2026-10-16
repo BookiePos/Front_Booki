@@ -213,6 +213,9 @@ function ProductDialog({
   const [categoryId, setCategoryId] = React.useState("none")
   const [salePrice, setSalePrice] = React.useState<number | null>(null)
   const [ivaSel, setIvaSel] = React.useState("19")
+  const [tratamiento, setTratamiento] = React.useState<"expendio" | "mercancia">(
+    "expendio",
+  )
   const [sourceType, setSourceType] = React.useState<CatalogSourceType>(
     "inventory",
   )
@@ -339,6 +342,7 @@ function ProductDialog({
         setCategoryId(product.categoryId?._id ?? "none")
         setSalePrice(product.salePrice ?? null)
         setIvaSel(ivaKey(product.ivaRate ?? 19, product.ivaType ?? "gravado"))
+        setTratamiento(product.tratamientoFiscal ?? "expendio")
         // Retail nunca usa receta; si por datos viejos llegara una, se trata
         // como "del inventario" para que la ficha sea coherente con el giro.
         setSourceType(isRetail ? "inventory" : product.sourceType)
@@ -378,6 +382,7 @@ function ProductDialog({
         setCategoryId("none")
         setSalePrice(null)
         setIvaSel("19")
+        setTratamiento("expendio")
         setSourceType("inventory")
         setInventoryProductId("")
         setInvQuery("")
@@ -464,6 +469,7 @@ function ProductDialog({
         salePrice: salePrice ?? 0,
         ivaRate: iva.rate,
         ivaType: iva.type,
+        tratamientoFiscal: tratamiento,
         sourceType,
         inventoryProductId:
           sourceType === "inventory" ? inventoryProductId : undefined,
@@ -666,6 +672,17 @@ function ProductDialog({
                   value: o.key,
                   label: o.label,
                 }))}
+              />
+            </Field>
+            <Field id="c-trat" label="En un restaurante, este producto">
+              <NativeSelect
+                id="c-trat"
+                value={tratamiento}
+                onChange={(v) => setTratamiento(v as "expendio" | "mercancia")}
+                options={[
+                  { value: "expendio", label: "Se sirve (lleva INC)" },
+                  { value: "mercancia", label: "Se revende sin servicio (lleva IVA)" },
+                ]}
               />
             </Field>
             <Field id="c-cat" label="Categoría" help={{ term: "categoria" }}>

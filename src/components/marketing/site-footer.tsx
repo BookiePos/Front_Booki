@@ -1,15 +1,16 @@
 import Link from "next/link";
 import { BookiPosLogo } from "@/components/marketing/bookipos-logo";
 import { APPS } from "@/lib/site";
+import { SOPORTE } from "@/lib/soporte";
 
 const COLUMNS = [
   {
     title: "Producto",
     links: [
-      { label: "Beneficios", href: "#beneficios" },
-      { label: "Módulos", href: "#modulos" },
-      { label: "Novedades", href: "#novedades" },
-      { label: "Precios", href: "#precios" },
+      { label: "Beneficios", href: "/#beneficios" },
+      { label: "Módulos", href: "/#modulos" },
+      { label: "Novedades", href: "/#novedades" },
+      { label: "Precios", href: "/#precios" },
     ],
   },
   {
@@ -23,9 +24,10 @@ const COLUMNS = [
   {
     title: "Empresa",
     links: [
-      { label: "Preguntas frecuentes", href: "#preguntas" },
-      { label: "Hablar con ventas", href: "mailto:hola@bookipos.com" },
-      { label: "Soporte", href: "mailto:soporte@bookipos.com" },
+      { label: "Preguntas frecuentes", href: "/#preguntas" },
+      { label: "Hablar con ventas", href: `mailto:${SOPORTE.ventas}` },
+      { label: "Soporte", href: `mailto:${SOPORTE.email}` },
+      { label: "Estado del servicio", href: "/estado" },
     ],
   },
 ];

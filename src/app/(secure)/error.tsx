@@ -2,6 +2,7 @@
 
 import { useEffect } from "react"
 import { RotateCcw } from "lucide-react"
+import * as Sentry from "@sentry/nextjs"
 
 import { Button } from "@/components/ui/button"
 
@@ -28,6 +29,7 @@ export default function SecureError({
   // excepción puede filtrar rutas internas y no le dice nada a quien atiende.
   useEffect(() => {
     console.error("[BookiPos] error no controlado en la zona con sesión:", error)
+    Sentry.captureException(error)
   }, [error])
 
   return (

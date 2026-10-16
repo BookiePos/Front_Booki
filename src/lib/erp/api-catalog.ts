@@ -59,6 +59,8 @@ export interface CatalogProduct {
   salePrice: number
   ivaRate: IvaRate
   ivaType: IvaType
+  /** En un restaurante: expendio (INC) o mercancía revendida (IVA). Ítem 1.17. */
+  tratamientoFiscal?: "expendio" | "mercancia"
   sourceType: CatalogSourceType
   inventoryProductId?: InvProductRef | null
   qtyPerUnit?: number
@@ -98,6 +100,7 @@ export interface CatalogProductPayload {
   salePrice?: number
   ivaRate?: IvaRate
   ivaType?: IvaType
+  tratamientoFiscal?: "expendio" | "mercancia"
   sourceType?: CatalogSourceType
   inventoryProductId?: string
   qtyPerUnit?: number

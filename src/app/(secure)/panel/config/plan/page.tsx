@@ -60,7 +60,7 @@ function clampInt(raw: string, min: number, max: number): number {
 
 export default function PlanBillingPage() {
   const { hasPermission, plan: currentPlan, entitlements } = useAuth()
-  const authorized = hasPermission("params.manage")
+  const authorized = hasPermission("billing.manage")
 
   const [config, setConfig] = useState<BillingConfig | null>(null)
   const [status, setStatus] = useState<BillingStatus | null>(null)

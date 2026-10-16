@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { headers } from "next/headers";
 import { Inter, Outfit } from "next/font/google";
 import "./globals.css";
 import { SITE_URL } from "@/lib/env";
@@ -73,9 +74,13 @@ export const viewport: Viewport = {
   ],
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  // Nonce de la CSP (ver `src/proxy.ts`). Next se lo pone a sus scripts; el
+  // del tema es nuestro y lo lleva a mano. Leer las cabeceras hace dinámica
+  // cada página, que es lo que exige un nonce por petición.
+  const nonce = (await headers()).get("x-nonce") ?? undefined
   return (
     <html
       lang="es"
@@ -96,6 +101,7 @@ export default function RootLayout({
         */}
         <script
           id="bookipos-theme-init"
+          nonce={nonce}
           dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }}
         />
       </head>

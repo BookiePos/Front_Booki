@@ -54,6 +54,10 @@ export interface PayrollSettings {
   }[]
   recargos: RecargoFactores
   empresaExoneradaAportes: boolean
+  /** La empresa ya respondió si está exonerada (ítem 1.15). */
+  exoneracionConfirmada?: boolean
+  /** Semana de 5 o 6 días laborables: decide el domingo remunerado (ítem 1.19). */
+  diasLaborablesSemana?: number
 }
 
 export interface RecargoLinea {
@@ -161,6 +165,8 @@ export interface PayrollSlip {
   diasTrabajados: number
   breakdown: PayrollBreakdown
   otrasDeduccionesDetalle?: { concept: string; amount: number }[]
+  /** Avisos para revisar, p. ej. tope de horas extra (ítem 1.19). */
+  alertas?: string[]
   totalDevengado: number
   totalDeducciones: number
   netoPagar: number
@@ -267,8 +273,33 @@ export async function getPayrollSettings(): Promise<PayrollSettings> {
   return parseResponse<PayrollSettings>(res)
 }
 
+/**
+ * Lo que se puede mandar a `PUT /payroll/settings`. `confirmarExoneracion` no
+ * es un ajuste: es la respuesta explícita a la pregunta de la exoneración de
+ * aportes (ítem 1.15), y solo con ella el backend la da por confirmada.
+ */
+export type PayrollSettingsUpdate = Partial<PayrollSettings> & {
+  confirmarExoneracion?: boolean
+}
+
+/** Respuesta a la pregunta de la exoneración (`PreguntaExoneracion`). */
+export function respuestaExoneracion(exonerada: boolean): PayrollSettingsUpdate {
+  return { empresaExoneradaAportes: exonerada, confirmarExoneracion: true }
+}
+
+/**
+ * El formulario de Ajustes solo manda la exoneración si el usuario la cambió:
+ * reenviarla igual en cada guardado la tocaba sin que nadie la respondiera.
+ */
+export function exoneracionSiCambio(
+  original: boolean,
+  actual: boolean,
+): Pick<PayrollSettingsUpdate, "empresaExoneradaAportes"> {
+  return original === actual ? {} : { empresaExoneradaAportes: actual }
+}
+
 export async function updatePayrollSettings(
-  payload: Partial<PayrollSettings>,
+  payload: PayrollSettingsUpdate,
 ): Promise<PayrollSettings> {
   const res = await authFetch("/payroll/settings", {
     method: "PUT",
