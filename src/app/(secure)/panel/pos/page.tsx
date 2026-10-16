@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import Image from "next/image"
 import {
   ShieldOff,
   ShoppingCart,
@@ -372,9 +373,9 @@ export default function PosPage() {
                     >
                       {showImages &&
                         (p.imageUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
+                          <Image
                             src={p.imageUrl}
+                            width={200} height={200} sizes="(min-width: 1024px) 160px, 30vw"
                             alt=""
                             loading="lazy"
                             className="mb-1 aspect-square w-full rounded-lg border border-border object-cover"

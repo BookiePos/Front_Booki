@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import Image from "next/image"
 import { SearchParamSync } from "@/components/erp/search-param-sync"
 import Link from "next/link"
 import {
@@ -1383,9 +1384,9 @@ export default function ProductosPage() {
                           {/* Miniatura: se reconoce el producto de un vistazo,
                               sin gastar una columna entera en ello. */}
                           {p.imageUrl ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
+                            <Image
                               src={p.imageUrl}
+                              width={40} height={40} sizes="40px"
                               alt=""
                               loading="lazy"
                               className="size-10 shrink-0 rounded-md border border-border object-cover"

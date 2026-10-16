@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import Image from "next/image"
 import {
   ShieldOff,
   ShoppingCart,
@@ -2036,9 +2037,9 @@ export default function VentaPage() {
                     )}
                     {showImages &&
                       (p.imageUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
+                        <Image
                           src={p.imageUrl}
+                          width={200} height={200} sizes="(min-width: 1024px) 160px, 30vw"
                           alt=""
                           loading="lazy"
                           className="mb-1 aspect-square w-full rounded-lg border border-border object-cover"
@@ -2221,9 +2222,9 @@ export default function VentaPage() {
                           comiéndose el ancho del nombre. */}
                       {cartShowImages &&
                         (i.product.imageUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
+                          <Image
                             src={i.product.imageUrl}
+                            width={36} height={36} sizes="36px"
                             alt=""
                             loading="lazy"
                             className="size-9 shrink-0 rounded-md border border-border object-cover"
@@ -3700,9 +3701,9 @@ export default function VentaPage() {
                                   }
                                 >
                                   {e.imageUrl ? (
-                                    // eslint-disable-next-line @next/next/no-img-element
-                                    <img
+                                    <Image
                                       src={e.imageUrl}
+                                      width={40} height={40} sizes="40px"
                                       alt=""
                                       loading="lazy"
                                       className="size-10 shrink-0 rounded-lg border border-border object-cover"
@@ -4027,9 +4028,9 @@ function VariantGroupCard({
       )}
       {showImages &&
         (foto ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
+          <Image
             src={foto}
+            width={200} height={200} sizes="(min-width: 1024px) 160px, 30vw"
             alt=""
             loading="lazy"
             className="mb-1 aspect-square w-full rounded-lg border border-border object-cover"
