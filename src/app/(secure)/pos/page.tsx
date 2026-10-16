@@ -2592,10 +2592,12 @@ export default function VentaPage() {
                 <div className="flex flex-col gap-3 px-5 py-4 lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain print:hidden">
                   {/* La devuelta, grande: es lo que el cajero tiene que contar
                       y entregar ya, con el cliente esperando. */}
-                  {/* En un cobro mixto también hay devuelta, del efectivo. */}
+                  {/* Siempre que hubo devuelta, aunque el backend haya
+                      dejado un solo medio (todo con tarjeta y además se
+                      anotó efectivo: ese efectivo vuelve entero). */}
                   {completedSale.payment.change !== undefined &&
                     (completedSale.payment.method === "cash" ||
-                      (completedSale.payments?.length ?? 0) > 1) && (
+                      completedSale.payment.change > 0) && (
                       <div className="flex flex-col items-center gap-1 rounded-2xl bg-success/10 px-4 py-5 text-center text-success-ink">
                         <span className="text-xs font-semibold uppercase tracking-wide">
                           Devuelta

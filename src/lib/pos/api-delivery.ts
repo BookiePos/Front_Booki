@@ -115,9 +115,30 @@ export interface DeliveryRow {
   /** Lo que el cliente pagó en total. */
   grandTotal: number
   paymentMethod: string
+  /**
+   * Efectivo que el repartidor recoge: todo en una venta de contado, solo esa
+   * parte en un cobro mixto (ítem 6.9). Es lo mismo que le exige el cuadre.
+   * Puede faltar si el backend es anterior al 6.9.
+   */
+  cashAmount?: number
   dispatchedAt?: string
   deliveredAt?: string
   failureReason?: string
+}
+
+/**
+ * Cuánto tiene que cobrar el repartidor en la puerta y cuánto ya entró por
+ * otro medio. Sale de `cashAmount`, que es lo que le exige el cuadre: mirar
+ * solo `paymentMethod` dejaba un domicilio mixto (tarjeta + efectivo) como
+ * "ya pagado", o le hacía cobrar todo otra vez si el efectivo era la parte
+ * mayor.
+ */
+export function cobroEnPuerta(
+  r: Pick<DeliveryRow, "grandTotal" | "paymentMethod" | "cashAmount">,
+): { cobra: number; yaPagado: number } {
+  const cobra =
+    r.cashAmount ?? (r.paymentMethod === "cash" ? r.grandTotal : 0)
+  return { cobra, yaPagado: Math.max(0, r.grandTotal - cobra) }
 }
 
 /** Lo que un repartidor tiene que entregar al volver. */
