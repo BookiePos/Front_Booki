@@ -103,6 +103,8 @@ import { Separator } from "@/components/ui/separator"
 import { MoneyInput, QuantityInput } from "@/components/ui/money-input"
 import { Field, NativeSelect } from "@/components/ui/field"
 import { FormDialog, FormActions } from "@/components/ui/form-dialog"
+import { AyudaAtajos } from "@/components/pos/ayuda-atajos"
+import { METODOS_ATAJO, useAtajosPos } from "@/hooks/use-atajos-pos"
 import { Termino } from "@/components/ui/help-tip"
 import {
   CheckoutColumn,
@@ -341,6 +343,9 @@ export default function VentaPage() {
 
   // Cobro
   const [checkoutOpen, setCheckoutOpen] = React.useState(false)
+  // Atajos (6.7): ayuda abierta y línea sobre la que actúan + y −.
+  const [ayudaAbierta, setAyudaAbierta] = React.useState(false)
+  const [lineaSel, setLineaSel] = React.useState<string | null>(null)
   const [method, setMethod] = React.useState<PaymentMethod>("cash")
   /**
    * Con cuánto paga el cliente, en pesos. Número y no texto: en una casilla
@@ -747,6 +752,7 @@ export default function VentaPage() {
   }, [products])
 
   function addToCart(p: PosProduct) {
+    setLineaSel(p._id)
     setCart((prev) => {
       const existing = prev.find((i) => i.product._id === p._id)
       if (existing) {
@@ -1310,11 +1316,30 @@ export default function VentaPage() {
    */
   const confirmarRef = React.useRef<() => Promise<void>>(undefined)
 
+  // Atajos de teclado (6.7), ver `hooks/use-atajos-pos.ts`.
+  const lineaActiva = cart.find((i) => i.product._id === lineaSel) ?? cart.at(-1)
+  useAtajosPos({
+    enabled: screen === "sell" && !pickerGroup && !newOrderOpen,
+    cobroAbierto: checkoutOpen && !completedSale,
+    ayudaAbierta,
+    puedeCobrar: !checkoutOpen && cart.length > 0 && !!sedeId,
+    onBuscar: () => searchRef.current?.focus(),
+    onCobrar: openCheckout,
+    onCantidad: (d) => {
+      if (!lineaActiva) return
+      setLineaSel(lineaActiva.product._id)
+      changeQty(lineaActiva.product._id, d)
+    },
+    onMetodo: (i) => setMethod(METODOS_ATAJO[i]),
+    onCerrar: () => setAyudaAbierta(false),
+    onAyuda: () => setAyudaAbierta((a) => !a),
+  })
+
   React.useEffect(() => {
     if (!checkoutOpen || completedSale) return
     function alPulsar(e: KeyboardEvent) {
       if (e.key === "Escape") {
-        if (!saving) setCheckoutOpen(false)
+        if (!saving && !ayudaAbierta) setCheckoutOpen(false)
         return
       }
       if (e.key !== "Enter" || e.repeat || confirmBlocked) return
@@ -1333,7 +1358,7 @@ export default function VentaPage() {
     }
     document.addEventListener("keydown", alPulsar)
     return () => document.removeEventListener("keydown", alPulsar)
-  }, [checkoutOpen, completedSale, saving, confirmBlocked])
+  }, [checkoutOpen, completedSale, saving, confirmBlocked, ayudaAbierta])
 
   async function handleConfirm() {
     if (!sedeId) return
@@ -1873,7 +1898,12 @@ export default function VentaPage() {
             <p className="ml-auto hidden shrink-0 items-center gap-2 text-[11px] text-muted-foreground xl:flex">
               <Atajo tecla="Enter">agrega lo escaneado</Atajo>
               <Atajo tecla="Ctrl K">busca en todo el terminal</Atajo>
+              <Atajo tecla="F2">busca</Atajo>
+              <Atajo tecla="F4">cobra</Atajo>
             </p>
+            <div className="ml-auto shrink-0 xl:ml-0">
+              <AyudaAtajos open={ayudaAbierta} onOpenChange={setAyudaAbierta} />
+            </div>
           </div>
 
           {/* Aviso de existencias (agotados / pocas unidades) */}
@@ -2125,7 +2155,10 @@ export default function VentaPage() {
                   return (
                   <li
                     key={i.product._id}
-                    className="rounded-lg border border-border p-2"
+                    className={cn(
+                      "rounded-lg border border-border p-2",
+                      lineaActiva === i && "ring-2 ring-primary/40",
+                    )}
                   >
                     {/* Dos renglones y no uno: con el nombre, el botón de
                         descuento y el contador peleando por la misma fila, la
