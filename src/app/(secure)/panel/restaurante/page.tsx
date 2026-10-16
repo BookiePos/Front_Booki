@@ -35,6 +35,7 @@ import {
   type RestaurantOrder,
 } from "@/lib/erp/api-restaurant"
 import { money, errorMessage, numOr } from "@/lib/erp/finance-format"
+import { precioAlCambiarNombre, precioDeItem } from "@/lib/erp/restaurante-precio"
 import { posProducts, type PosProduct } from "@/lib/erp/api-sales"
 
 import { PageHeader } from "@/components/erp/page-header"
@@ -405,7 +406,7 @@ function OrderDialog({
 
   const [itemName, setItemName] = React.useState("")
   const [itemQty, setItemQty] = React.useState("1")
-  const [itemPrice, setItemPrice] = React.useState("0")
+  const [itemPrice, setItemPrice] = React.useState("")
   // Menú de la sede: solo lo que está en el catálogo se puede cobrar en caja,
   // así que el ítem se elige de aquí y viaja con su `productId` y su precio.
   // Antes era texto libre y ninguna comanda del salón llegaba a caja.
@@ -471,13 +472,13 @@ function OrderDialog({
           ...(delMenu ? { productId: delMenu._id } : {}),
           name: delMenu?.name ?? itemName.trim(),
           qty: numOr(itemQty, 1),
-          unitPrice: numOr(itemPrice) || delMenu?.salePrice || 0,
+          unitPrice: precioDeItem(itemPrice, delMenu?.salePrice),
         },
       ]),
     )
     setItemName("")
     setItemQty("1")
-    setItemPrice("0")
+    setItemPrice("")
   }
 
   const sentToCaja = !!order?.posOrderId
@@ -625,7 +626,7 @@ function OrderDialog({
                       const nombre = e.target.value
                       setItemName(nombre)
                       const p = menu.find((m) => m.name.toLowerCase() === nombre.trim().toLowerCase())
-                      if (p) setItemPrice(String(p.salePrice))
+                      setItemPrice((actual) => precioAlCambiarNombre(actual, p, !!delMenu))
                     }}
                     onKeyDown={(e) => e.key === "Enter" && void addItem()}
                   />
