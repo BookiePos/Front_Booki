@@ -4,6 +4,7 @@ import { FeatureGuard } from "@/components/erp/feature-guard"
 import { NovedadesCard } from "@/components/erp/novedades-card"
 import { RequireAuth } from "@/components/erp/require-auth"
 import { SuspensionGuard } from "@/components/erp/suspension-guard"
+import { SoporteWhatsapp } from "@/components/soporte/soporte-whatsapp"
 import { TooltipProvider } from "@/components/ui/tooltip"
 
 export const metadata: Metadata = {
@@ -32,6 +33,7 @@ export default function PanelLayout({
         {/* Qué trae la última versión. Va fuera de los guardias a propósito:
             una cuenta suspendida no necesita enterarse de las novedades. */}
         <NovedadesCard />
+        <SoporteWhatsapp />
       </TooltipProvider>
     </RequireAuth>
   )
