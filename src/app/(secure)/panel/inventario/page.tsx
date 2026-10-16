@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import Image from "next/image"
 import { SearchParamSync } from "@/components/erp/search-param-sync"
 import Link from "next/link"
 import {
@@ -1024,9 +1025,9 @@ export default function InventarioPage() {
                     )}
                   >
                     {p.imageUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
+                      <Image
                         src={p.imageUrl}
+                        width={240} height={240} sizes="(min-width: 1024px) 220px, 45vw"
                         alt=""
                         loading="lazy"
                         className="aspect-square w-full border-b border-border object-cover"

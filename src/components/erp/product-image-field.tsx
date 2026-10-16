@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import Image from "next/image"
 import { ImagePlus, Loader2, Trash2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -105,17 +106,17 @@ export function ProductImageField({
       <div className="flex items-center gap-3">
         <div
           className={cn(
-            "flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border bg-muted",
+            "relative flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border bg-muted",
             !shown && "border-dashed",
           )}
         >
           {shown ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
+            <Image
               src={shown}
               alt=""
-              className="size-full object-cover"
-              loading="lazy"
+              fill
+              sizes="80px"
+              className="object-cover"
             />
           ) : (
             <ImagePlus className="size-6 text-muted-foreground" aria-hidden />

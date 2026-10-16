@@ -8,6 +8,21 @@ const nextConfig: NextConfig = {
     root: path.join(__dirname),
   },
 
+  /**
+   * Fotos de producto: viven en el bucket PÚBLICO de Supabase Storage y se sirven
+   * por `/_next/image`. Solo ese host y esa ruta; las facturas de compra (URL
+   * firmada que vence, bucket privado) siguen como <img> y no pasan por aquí.
+   */
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "xiruqmsjyywrhqfmumjt.supabase.co",
+        pathname: "/storage/v1/object/public/**",
+      },
+    ],
+  },
+
   experimental: {
     /**
      * 61 archivos importan del barril de `lucide-react`, que reexporta más de
