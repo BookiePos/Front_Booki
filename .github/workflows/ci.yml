@@ -94,9 +94,22 @@ jobs:
       - name: Mongo (replica set de un nodo)
         run: |
           docker run -d --name mongo -p 27017:27017 mongo:7 --replSet rs0 --bind_ip_all
-          for i in $(seq 1 30); do docker exec mongo mongosh --quiet --eval 'db.runCommand({ping:1})' && break; sleep 1; done
+          # Espera robusta (tope 60 s): primero dentro del contenedor y luego
+          # desde el host, porque la semilla entra por 127.0.0.1:27017 y el
+          # puerto publicado puede tardar más que mongod en responder.
+          listo=0
+          for i in $(seq 1 60); do
+            if docker exec mongo mongosh --quiet --eval 'db.adminCommand({ping:1})' >/dev/null 2>&1; then listo=1; break; fi
+            sleep 1
+          done
+          [ "$listo" = 1 ] || { echo "Mongo no respondió al ping en 60 s"; docker logs mongo; exit 1; }
           docker exec mongo mongosh --quiet --eval 'rs.initiate({_id:"rs0",members:[{_id:0,host:"localhost:27017"}]})'
-          for i in $(seq 1 30); do docker exec mongo mongosh --quiet --eval 'rs.status().myState' | grep -q 1 && break; sleep 1; done
+          listo=0
+          for i in $(seq 1 60); do
+            if docker exec mongo mongosh --quiet --eval 'rs.status().myState' 2>/dev/null | grep -q 1 && (exec 3<>/dev/tcp/127.0.0.1/27017) 2>/dev/null; then listo=1; break; fi
+            sleep 1
+          done
+          [ "$listo" = 1 ] || { echo "Mongo no quedó como primario accesible en 60 s"; docker logs mongo; exit 1; }
 
       - name: Backend (semilla demo y arranque)
         working-directory: ${{ env.BACKEND_DIR }}
