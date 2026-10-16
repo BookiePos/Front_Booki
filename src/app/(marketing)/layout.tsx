@@ -1,4 +1,4 @@
-import { SoporteWhatsapp } from "@/components/soporte/soporte-whatsapp";
+import { SoporteWhatsappRuta } from "@/components/soporte/soporte-whatsapp-ruta";
 
 /**
  * Zona pública (portada). No lleva `RequireAuth`: es la única parte del sitio
@@ -15,7 +15,7 @@ export default function MarketingLayout({
 }) {
   return (
     <div className="zone-marketing min-h-svh bg-surface text-ink">{children}
-      <SoporteWhatsapp />
+      <SoporteWhatsappRuta />
     </div>
   );
 }

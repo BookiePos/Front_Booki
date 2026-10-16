@@ -28,7 +28,7 @@ export function SoporteWhatsapp({
       aria-label={`Soporte por WhatsApp${detalle ? `. ${detalle}` : ""}`}
       title={detalle || undefined}
       data-testid="soporte-whatsapp"
-      className="fixed bottom-4 right-4 z-40 inline-flex items-center gap-2 rounded-full bg-[#128C7E] px-4 py-2.5 text-sm font-medium text-white shadow-lg transition-colors hover:bg-[#0e7266] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#128C7E] print:hidden"
+      className="fixed bottom-20 right-4 z-40 md:bottom-4 inline-flex items-center gap-2 rounded-full bg-[#0e7266] px-4 py-2.5 text-sm font-medium text-white shadow-lg transition-colors hover:bg-[#0a5a50] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0e7266] print:hidden"
     >
       <MessageCircle className="size-4" aria-hidden="true" />
       <span>Soporte por WhatsApp</span>
