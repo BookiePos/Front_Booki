@@ -2496,7 +2496,7 @@ export default function VentaPage() {
               <span className="relative shrink-0">
                 <ShoppingCart className="size-5 text-muted-foreground" />
                 {cart.length > 0 && (
-                  <span className="absolute -right-2 -top-2 flex size-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
+                  <span className="absolute -right-2 -top-2 flex size-5 items-center justify-center rounded-full bg-primary text-xs leading-none font-bold text-primary-foreground">
                     {cart.length}
                   </span>
                 )}
@@ -3942,7 +3942,7 @@ function Atajo({
 }) {
   return (
     <span className="inline-flex items-center gap-1">
-      <kbd className="rounded-md border border-border bg-card px-1.5 py-0.5 font-mono text-[10px] text-foreground">
+      <kbd className="rounded-md border border-border bg-card px-1.5 py-0.5 font-mono text-xs text-foreground">
         {tecla}
       </kbd>
       {children}

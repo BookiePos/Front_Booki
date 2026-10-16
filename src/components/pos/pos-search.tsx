@@ -392,7 +392,7 @@ export function PosSearch() {
       >
         <Search className="size-4 shrink-0" />
         <span className="truncate">Buscar productos, ventas, clientes…</span>
-        <kbd className="ml-auto hidden rounded-md border border-border bg-background px-1.5 py-0.5 font-mono text-[10px] lg:inline">
+        <kbd className="ml-auto hidden rounded-md border border-border bg-background px-1.5 py-0.5 font-mono text-xs lg:inline">
           Ctrl K
         </kbd>
       </button>

@@ -26,7 +26,7 @@ export function AyudaAtajos({
       >
         <Keyboard className="size-4" aria-hidden />
         Atajos
-        <kbd className="rounded border border-border bg-card px-1 font-mono text-[10px]">
+        <kbd className="rounded border border-border bg-card px-1 font-mono text-xs">
           ?
         </kbd>
       </Button>
