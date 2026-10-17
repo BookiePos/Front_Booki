@@ -10,6 +10,11 @@ export interface ResumenPlantilla {
   mesas: number
   ejemplos: string[]
   cargados: number
+  /** Productos ajenos (propios u otras plantillas) a los que se sumaría: exige confirmar. */
+  ajenos: number
+  /** Si aplica al giro de la empresa; si no, `motivo` lo explica. */
+  aplica: boolean
+  motivo: string | null
 }
 
 export interface EstadoOnboarding {
@@ -26,7 +31,16 @@ export interface ResultadoPlantilla {
   productos: { creados: number; omitidos: number }
   mesas: { creadas: number; omitidas: number }
   impuestos: { conInc: number; conIva: number; excluidos: number }
+  /** Unidades de ejemplo por producto: sin costo y fuera de la valorización. */
   stockInicial: number
+  omitidosPorGiro: number
+  aviso?: string
+}
+
+export interface ResultadoQuitar {
+  vendiblesQuitados: number
+  inventarioDesactivado: number
+  conservados: number
 }
 
 export async function getEstadoOnboarding(): Promise<EstadoOnboarding> {
@@ -45,4 +59,11 @@ export async function aplicarPlantilla(payload: {
     body: JSON.stringify(payload),
   })
   return parseResponse<ResultadoPlantilla>(res)
+}
+
+export async function quitarPlantilla(tipo: string): Promise<ResultadoQuitar> {
+  const res = await authFetch(`/onboarding/plantilla/${encodeURIComponent(tipo)}`, {
+    method: "DELETE",
+  })
+  return parseResponse<ResultadoQuitar>(res)
 }
