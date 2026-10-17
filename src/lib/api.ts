@@ -178,16 +178,39 @@ export interface RegisterResponse extends LoginResponse {
   plan: BusinessPlan
 }
 
-/** Crea la empresa + su dueño y devuelve la sesión (auto-login). */
+/**
+ * Respuesta del paso 1 del registro. Es la misma exista o no el correo: el
+ * backend no revela si ya hay cuenta (ítem 4.11). La diferencia llega al buzón.
+ */
+export interface RegisterRequestResponse {
+  ok: true
+  message: string
+}
+
+/** Paso 1: pide el alta. No crea la empresa ni abre sesión. */
 export async function apiRegister(
   payload: RegisterPayload,
-): Promise<RegisterResponse> {
+): Promise<RegisterRequestResponse> {
   const res = await fetch(`${API_URL}/auth/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    credentials: "include", // recibe la cookie HttpOnly del refresh token
     body: JSON.stringify(payload),
   })
+  if (!res.ok) return parseError(res)
+  return res.json() as Promise<RegisterRequestResponse>
+}
+
+/** Paso 2: el enlace del correo crea la empresa y devuelve la sesión. */
+export async function apiConfirmRegister(
+  token: string,
+): Promise<RegisterResponse> {
+  const res = await fetch(
+    `${API_URL}/auth/register/confirm/${encodeURIComponent(token)}`,
+    {
+      method: "POST",
+      credentials: "include", // recibe la cookie HttpOnly del refresh token
+    },
+  )
   if (!res.ok) return parseError(res)
   return res.json() as Promise<RegisterResponse>
 }

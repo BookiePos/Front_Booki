@@ -70,9 +70,13 @@ export interface AdminInvitation {
   invitedByName?: string
 }
 
-/** Respuesta al crear/reenviar: incluye el enlace (útil en modo de pruebas). */
+/**
+ * Respuesta al crear/reenviar. El enlace solo llega si el correo NO salió,
+ * para compartirlo a mano (ítem 4.11): con el correo enviado, solo lo tiene el
+ * buzón del invitado.
+ */
 export interface CreatedInvitation extends AdminInvitation {
-  inviteUrl: string
+  inviteUrl?: string
   emailSent: boolean
 }
 
