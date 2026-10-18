@@ -27,6 +27,7 @@ import {
 import { Field, FieldGrid, NativeSelect } from "@/components/ui/field"
 import { Termino } from "@/components/ui/help-tip"
 import { useLoadEffect } from "@/hooks/use-load-effect"
+import { useResetOnChange } from "@/hooks/use-reset-on-change"
 
 function formatValue(p: ParameterView): string {
   const v = p.current?.value
@@ -176,7 +177,7 @@ function ParamDetailDialog({
   const [saving, setSaving] = React.useState(false)
   const [err, setErr] = React.useState<string | null>(null)
 
-  React.useEffect(() => {
+  useResetOnChange(() => {
     if (param) {
       setValue(param.current ? String(param.current.value) : "")
       setErr(null)

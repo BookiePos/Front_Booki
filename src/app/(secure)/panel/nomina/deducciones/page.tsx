@@ -53,6 +53,7 @@ import {
 import { MoneyInput } from "@/components/ui/money-input"
 import { Termino } from "@/components/ui/help-tip"
 import { useLoadEffect } from "@/hooks/use-load-effect"
+import { useResetOnChange } from "@/hooks/use-reset-on-change"
 
 const ALL = "all"
 
@@ -313,13 +314,17 @@ function NewDeductionDialog({
   const [busy, setBusy] = React.useState(false)
   const [err, setErr] = React.useState<string | null>(null)
 
-  React.useEffect(() => {
+  useResetOnChange(() => {
     if (!open) return
     setEmployeeId("")
     setConcept("")
     setAmount("")
     setDate(todayLocal())
     setErr(null)
+  }, [open])
+
+  React.useEffect(() => {
+    if (!open) return
     listEmployees()
       .then((e) => setEmployees(e.filter((x) => x.status === "activo")))
       .catch(() => setEmployees([]))

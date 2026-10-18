@@ -440,14 +440,12 @@ function OrderDialog({
     }
   }, [orderId])
 
-  React.useEffect(() => {
-    if (orderId) {
-      setErr(null)
-      void refresh()
-    } else {
-      setOrder(null)
-    }
+  useResetOnChange(() => {
+    if (orderId) setErr(null)
+    else setOrder(null)
   }, [orderId, refresh])
+
+  useLoadEffect(refresh, Boolean(orderId))
 
   async function run(fn: () => Promise<RestaurantOrder>, close = false) {
     setBusy(true)

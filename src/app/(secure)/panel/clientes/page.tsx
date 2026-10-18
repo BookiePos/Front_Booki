@@ -478,7 +478,7 @@ function NewReceivableDialog({
     }
   }, [])
 
-  React.useEffect(() => {
+  useResetOnChange(() => {
     if (!open) return
     setError(null)
     setSedeId(sedes[0]?._id ?? "")
@@ -489,7 +489,10 @@ function NewReceivableDialog({
     setAmount("")
     setNote("")
     setShowNewCustomer(false)
-    void loadCustomers()
+  }, [open])
+
+  React.useEffect(() => {
+    if (open) void loadCustomers()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
 

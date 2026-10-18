@@ -302,8 +302,7 @@ export default function InventarioPage() {
     }
   }, [movSede, movProduct, movPage])
 
-  React.useEffect(() => {
-    if (!canView) return
+  const loadAuxiliares = React.useCallback(() => {
     void listSedes()
       .then(setSedes)
       .catch(() => {})
@@ -315,7 +314,9 @@ export default function InventarioPage() {
       .catch(() => {})
     void fetchAlerts()
     fetchAllStock()
-  }, [canView, fetchAlerts, fetchAllStock])
+  }, [fetchAlerts, fetchAllStock])
+
+  useLoadEffect(loadAuxiliares, canView)
 
   useLoadEffect(fetchProducts, canView)
 

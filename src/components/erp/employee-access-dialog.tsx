@@ -135,12 +135,16 @@ export function EmployeeAccessDialog({
   const [saving, setSaving] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
-  React.useEffect(() => {
+  useResetOnChange(() => {
     if (!open || !employee) return
     setUsername(suggestUsername(employee.firstName, employee.lastName))
     setPassword("")
     setArea(areaProp)
     setError(null)
+  }, [open, employee, areaProp])
+
+  React.useEffect(() => {
+    if (!open || !employee) return
     listRoles()
       .then(setRoles)
       .catch(() => setRoles([]))

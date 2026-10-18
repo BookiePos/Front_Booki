@@ -362,7 +362,7 @@ function TaxDetailDialog({
   const [saving, setSaving] = React.useState(false)
   const [err, setErr] = React.useState<string | null>(null)
 
-  React.useEffect(() => {
+  useResetOnChange(() => {
     if (tax) {
       setRate(tax.currentRate !== null ? String(tax.currentRate) : "0")
       setErr(null)
