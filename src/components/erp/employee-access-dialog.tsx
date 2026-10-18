@@ -35,6 +35,7 @@ import {
   FormAlert,
 } from "@/components/ui/form-dialog"
 import { Field, NativeSelect } from "@/components/ui/field"
+import { useResetOnChange } from "@/hooks/use-reset-on-change"
 
 function errorMessage(err: unknown): string {
   if (err instanceof ApiError) return err.message
@@ -148,7 +149,7 @@ export function EmployeeAccessDialog({
   // Al cambiar de área (o al cargar roles) se propone un rol habitual para esa
   // área, pero solo si el elegido ya no existe: si la persona escogió uno a
   // mano, se respeta.
-  React.useEffect(() => {
+  useResetOnChange(() => {
     setRole((prev) =>
       roles.some((r) => r.key === prev) ? prev : defaultRoleFor(area, roles),
     )

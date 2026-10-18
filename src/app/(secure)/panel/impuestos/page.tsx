@@ -41,6 +41,7 @@ import {
 } from "@/components/ui/field"
 import { HelpTip, Termino } from "@/components/ui/help-tip"
 import { useLoadEffect } from "@/hooks/use-load-effect"
+import { useResetOnChange } from "@/hooks/use-reset-on-change"
 
 const KIND_OPTIONS: { v: TaxKind; l: string }[] = [
   { v: "iva", l: "IVA" },
@@ -229,7 +230,7 @@ function NewTaxDialog({
   const [saving, setSaving] = React.useState(false)
   const [err, setErr] = React.useState<string | null>(null)
 
-  React.useEffect(() => {
+  useResetOnChange(() => {
     if (open) {
       setCode("")
       setName("")

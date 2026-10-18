@@ -55,6 +55,7 @@ import { Field, FieldGrid, FieldSpan } from "@/components/ui/field"
 import { Termino } from "@/components/ui/help-tip"
 import { Checkbox } from "@/components/ui/checkbox"
 import { useLoadEffect } from "@/hooks/use-load-effect"
+import { useResetOnChange } from "@/hooks/use-reset-on-change"
 
 const tableTone: Record<string, string> = {
   free: "border-border bg-card hover:border-primary",
@@ -301,7 +302,7 @@ function NewTableDialog({
   const [saving, setSaving] = React.useState(false)
   const [err, setErr] = React.useState<string | null>(null)
 
-  React.useEffect(() => {
+  useResetOnChange(() => {
     if (open) {
       setName("")
       setZone("Principal")

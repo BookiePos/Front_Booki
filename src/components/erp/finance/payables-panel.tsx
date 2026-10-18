@@ -60,6 +60,7 @@ import {
 } from "@/components/ui/field"
 import { Termino } from "@/components/ui/help-tip"
 import { useLoadEffect } from "@/hooks/use-load-effect"
+import { useResetOnChange } from "@/hooks/use-reset-on-change"
 
 const ALL = "all"
 
@@ -340,7 +341,7 @@ function NewPayableDialog({
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
-  React.useEffect(() => {
+  useResetOnChange(() => {
     if (!open) return
     setError(null)
     setSedeId(sedes[0]?._id ?? "")
@@ -493,7 +494,7 @@ function PaymentDialog({
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
-  React.useEffect(() => {
+  useResetOnChange(() => {
     if (!payable) return
     setError(null)
     setDate(todayLocal())

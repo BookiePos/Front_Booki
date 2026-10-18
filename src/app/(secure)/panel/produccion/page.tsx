@@ -79,6 +79,7 @@ import {
 import { Field, FieldGrid, NativeSelect } from "@/components/ui/field"
 import { cn } from "@/lib/utils"
 import { useLoadEffect } from "@/hooks/use-load-effect"
+import { useResetOnChange } from "@/hooks/use-reset-on-change"
 
 const ALL = "all"
 
@@ -880,7 +881,7 @@ function BomDialog({
   const [saving, setSaving] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
-  React.useEffect(() => {
+  useResetOnChange(() => {
     if (!open) return
     if (bom) {
       setProductId(refId(bom.productId))
@@ -1255,7 +1256,7 @@ function NewOrderDialog({
   const [saving, setSaving] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
-  React.useEffect(() => {
+  useResetOnChange(() => {
     if (!open) return
     setSedeId(sedes.length === 1 ? (sedes[0]?._id ?? "") : "")
     setProductId("")
@@ -1472,7 +1473,7 @@ function OrderDetailDialog({
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
-  React.useEffect(() => {
+  useResetOnChange(() => {
     if (!order) return
     setProducedQty(order.plannedQty)
     setEmpaqueReal(null)
@@ -1751,7 +1752,7 @@ function PublishDialog({
   const [saving, setSaving] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
-  React.useEffect(() => {
+  useResetOnChange(() => {
     if (!output) return
     // Sugerencia de arranque: costo con un margen del 40%, redondeado a peso.
     setSalePrice(Math.round(output.unitCost * 1.4))

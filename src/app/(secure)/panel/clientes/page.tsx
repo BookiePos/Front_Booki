@@ -69,6 +69,7 @@ import {
 import { Termino } from "@/components/ui/help-tip"
 import { cn } from "@/lib/utils"
 import { useLoadEffect } from "@/hooks/use-load-effect"
+import { useResetOnChange } from "@/hooks/use-reset-on-change"
 
 const ALL = "all"
 
@@ -739,7 +740,7 @@ function PaymentDialog({
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
-  React.useEffect(() => {
+  useResetOnChange(() => {
     if (!receivable) return
     setError(null)
     setDate(todayLocal())

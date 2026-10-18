@@ -55,6 +55,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { useLoadEffect } from "@/hooks/use-load-effect"
+import { useResetOnChange } from "@/hooks/use-reset-on-change"
 
 const ALL = "all"
 
@@ -437,7 +438,7 @@ function DayEditor({
   const [error, setError] = React.useState<string | null>(null)
 
   // Primera sede activa por defecto.
-  React.useEffect(() => {
+  useResetOnChange(() => {
     if (!sedeId && sedes[0]) setSedeId(sedes[0]._id)
   }, [sedes, sedeId])
 

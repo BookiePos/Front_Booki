@@ -60,6 +60,7 @@ import {
 } from "@/components/ui/field"
 import { Termino } from "@/components/ui/help-tip"
 import { useLoadEffect } from "@/hooks/use-load-effect"
+import { useResetOnChange } from "@/hooks/use-reset-on-change"
 
 const ALL = "all"
 
@@ -340,7 +341,7 @@ function NewOrderDialog({
   const [saving, setSaving] = React.useState(false)
   const [err, setErr] = React.useState<string | null>(null)
 
-  React.useEffect(() => {
+  useResetOnChange(() => {
     if (open) {
       setSedeId(sedes[0]?._id ?? "")
       setSupplierId("")
@@ -637,7 +638,7 @@ function OrderDetailDialog({
   const [busy, setBusy] = React.useState(false)
   const [err, setErr] = React.useState<string | null>(null)
 
-  React.useEffect(() => {
+  useResetOnChange(() => {
     if (po) {
       const q: Record<number, string> = {}
       po.lines.forEach((l, i) => {

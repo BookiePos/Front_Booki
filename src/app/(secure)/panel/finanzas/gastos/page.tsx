@@ -86,6 +86,7 @@ import {
 import { Termino } from "@/components/ui/help-tip"
 import { X } from "lucide-react"
 import { useLoadEffect } from "@/hooks/use-load-effect"
+import { useResetOnChange } from "@/hooks/use-reset-on-change"
 
 const ALL = "all"
 
@@ -934,7 +935,7 @@ function RecurringDialog({
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
-  React.useEffect(() => {
+  useResetOnChange(() => {
     if (!open) return
     setError(null)
     if (editing) {
@@ -1238,7 +1239,7 @@ function ExpenseDialog({
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
-  React.useEffect(() => {
+  useResetOnChange(() => {
     if (!open) return
     setError(null)
     if (editing) {
