@@ -62,14 +62,14 @@ describe("SedeProvider chosen", () => {
     await waitFor(() => expect(listSedes).toHaveBeenCalledTimes(2))
     await waitFor(() => expect(box.ctx.sedes.map((s) => s._id)).toEqual(["a", "c"]))
     expect(box.ctx.chosen).toBe(false)
-    expect(window.sessionStorage.getItem("pos.sedeElegida")).toBeNull()
+    expect(window.sessionStorage.getItem("pos:sedeElegida")).toBeNull()
   })
 
   it("la marca persiste en la pestaña y se limpia al cambiar de sede", async () => {
     const first = render(ui())
     await waitFor(() => expect(box.ctx.loading).toBe(false))
     act(() => box.ctx.chooseSede("b"))
-    expect(window.sessionStorage.getItem("pos.sedeElegida")).toBe(
+    expect(window.sessionStorage.getItem("pos:sedeElegida")).toBe(
       JSON.stringify({ userId: "u1", sedeId: "b" }),
     )
     first.unmount()
@@ -81,12 +81,12 @@ describe("SedeProvider chosen", () => {
 
     act(() => box.ctx.changeSede())
     expect(box.ctx.chosen).toBe(false)
-    expect(window.sessionStorage.getItem("pos.sedeElegida")).toBeNull()
+    expect(window.sessionStorage.getItem("pos:sedeElegida")).toBeNull()
   })
 
   it("una carga con user=null al inicio no borra la marca", async () => {
     window.sessionStorage.setItem(
-      "pos.sedeElegida",
+      "pos:sedeElegida",
       JSON.stringify({ userId: "u1", sedeId: "b" }),
     )
     mockUser = null
@@ -102,11 +102,11 @@ describe("SedeProvider chosen", () => {
     const { rerender } = render(ui())
     await waitFor(() => expect(box.ctx.loading).toBe(false))
     act(() => box.ctx.chooseSede("b"))
-    expect(window.sessionStorage.getItem("pos.sedeElegida")).not.toBeNull()
+    expect(window.sessionStorage.getItem("pos:sedeElegida")).not.toBeNull()
     mockUser = null
     rerender(ui())
     await act(async () => {})
-    expect(window.sessionStorage.getItem("pos.sedeElegida")).toBeNull()
+    expect(window.sessionStorage.getItem("pos:sedeElegida")).toBeNull()
   })
 
   it("otro usuario no hereda la elección", async () => {
@@ -118,6 +118,6 @@ describe("SedeProvider chosen", () => {
     await waitFor(() => expect(box.ctx.loading).toBe(true))
     await waitFor(() => expect(box.ctx.loading).toBe(false))
     expect(box.ctx.chosen).toBe(false)
-    expect(window.sessionStorage.getItem("pos.sedeElegida")).toBeNull()
+    expect(window.sessionStorage.getItem("pos:sedeElegida")).toBeNull()
   })
 })

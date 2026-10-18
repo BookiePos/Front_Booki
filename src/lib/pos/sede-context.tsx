@@ -31,7 +31,7 @@ const SedeContext = createContext<SedeContextValue | null>(null)
 
 const STORAGE_KEY = "pos.sedeId"
 /** Marca por pestaña: sede ya elegida en este turno (sessionStorage). */
-const CHOSEN_KEY = "pos.sedeElegida"
+const CHOSEN_KEY = "pos:sedeElegida"
 
 /** Devuelve la sede marcada solo si la marca es del usuario indicado. */
 function readChosen(userId: string): string | null {
