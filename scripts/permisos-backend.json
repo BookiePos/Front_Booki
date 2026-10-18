@@ -1,6 +1,6 @@
 {
   "fuente": "Backend/src/modules/core-auth/domain/permissions.ts",
-  "total": 36,
+  "total": 37,
   "permisos": [
     "attendance.manage",
     "audit.view",
@@ -20,6 +20,7 @@
     "inventory.adjust",
     "inventory.transfer",
     "inventory.view",
+    "onboarding.template",
     "params.manage",
     "payroll.deduction.approve",
     "payroll.manage",

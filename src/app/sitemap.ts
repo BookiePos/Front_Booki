@@ -5,6 +5,7 @@ import { SITE_URL } from "@/lib/env"
 // quedan fuera a propósito (ver robots.ts y el noindex de (secure)/layout).
 const RUTAS_PUBLICAS = [
   { path: "", changeFrequency: "weekly", priority: 1 },
+  { path: "/comparativa", changeFrequency: "monthly", priority: 0.6 },
   { path: "/estado", changeFrequency: "daily", priority: 0.3 },
 ] as const
 

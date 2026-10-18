@@ -17,6 +17,7 @@ import type { LucideIcon } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
 import { useOnboarding } from "@/lib/onboarding/onboarding-context"
 import { Button } from "@/components/ui/button"
+import { CatalogoEjemplo } from "@/components/onboarding/catalogo-ejemplo"
 
 interface Highlight {
   icon: LucideIcon
@@ -138,6 +139,8 @@ export function WelcomeDialog() {
               </div>
             </div>
           ))}
+          {/* Solo se ofrece a quien puede cargarlo (Dueño y Administrador). */}
+          <CatalogoEjemplo onDone={dismissWelcome} />
         </div>
 
         {/* Acciones. Van en el pie fijo junto con la nota de "puedes volver a

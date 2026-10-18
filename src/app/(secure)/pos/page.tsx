@@ -1,44 +1,13 @@
 "use client"
 
 import * as React from "react"
-import Image from "next/image"
+
 import {
   ShieldOff,
-  ShoppingCart,
-  Search,
-  Plus,
-  Minus,
-  Trash2,
-  Banknote,
-  CreditCard,
-  ArrowLeftRight,
-  CheckCircle2,
   MapPin,
-  PackageX,
-  Printer,
-  AlertTriangle,
-  FileText,
   ClipboardList,
-  Check,
   Loader2,
-  X,
-  UserRound,
-  Users,
-  ChevronDown,
   ChevronLeft,
-  Lock,
-  Coins,
-  Info,
-  Tag,
-  HandCoins,
-  CalendarClock,
-  ImageOff,
-  Layers,
-  UserPlus,
-  Package,
-  Split,
-  Truck,
-  ReceiptText,
 } from "lucide-react"
 
 import { useAuth } from "@/lib/auth-context"
@@ -55,7 +24,6 @@ import {
   voidOrder,
   listDiscounts,
   sugerirEmpaque,
-  PAYMENT_METHOD_LABELS,
   type SugerenciaEmpaque,
   type PosProduct,
   type PaymentMethod,
@@ -80,13 +48,12 @@ import { listPriceLists, type PriceList } from "@/lib/erp/api-catalog"
 import { resolveUnitPrice } from "@/lib/erp/price-list"
 import {
   listDeliveryZones,
-  ORDER_TYPE_LABELS,
   type DeliveryZone,
   type OrderType,
 } from "@/lib/pos/api-delivery"
 import { createInvoiceFromSale } from "@/lib/pos/api-einvoicing"
-import { money, qty as fmtQty } from "@/lib/pos/format"
-import { Receipt } from "@/components/pos/receipt"
+import { money } from "@/lib/pos/format"
+
 import { coincide, useBusquedaPendiente } from "@/lib/pos/busqueda"
 import {
   listProducts as listInvItems,
@@ -94,177 +61,61 @@ import {
 } from "@/lib/pos/api-inventory"
 
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
+
 import { Card, CardContent } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Skeleton } from "@/components/ui/skeleton"
+
+
+
 import { useConfirm } from "@/components/ui/confirm-dialog"
-import { Separator } from "@/components/ui/separator"
-import { MoneyInput, QuantityInput } from "@/components/ui/money-input"
-import { Field, NativeSelect } from "@/components/ui/field"
-import { FormDialog, FormActions } from "@/components/ui/form-dialog"
-import { AyudaAtajos } from "@/components/pos/ayuda-atajos"
+
+
+
+
+
 import { METODOS_ATAJO, useAtajosPos } from "@/hooks/use-atajos-pos"
 import {
-  addSplitRow,
   applyMethodShortcut,
-  fillRemaining,
-  initialSplitRows,
   splitSummary,
   toPaymentsPayload,
   type SplitRow,
 } from "@/lib/pos/split-payment"
-import { Termino } from "@/components/ui/help-tip"
-import {
-  CheckoutColumn,
-  CheckoutGroup,
-  OptionGroup,
-  SummaryRow,
-} from "@/components/pos/checkout-layout"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+
+
+
 import {
   VariantPicker,
-  axesOf,
-  axisLabel,
-  sortVariants,
-  variantLabel,
   type VariantGroup,
 } from "@/components/pos/variant-picker"
 import { cn } from "@/lib/utils"
-
-function errorMessage(err: unknown): string {
-  if (err instanceof Error) return err.message
-  return "Error inesperado"
-}
-
-interface CartItem {
-  product: PosProduct
-  qty: number
-  /** Descuento predefinido aplicado a esta línea (id del descuento de la sede). */
-  discountId?: string
-}
-
-const ALL = "__all__"
-const UNCAT = "__uncat__"
-/** Umbral para avisar "pocas unidades": solo se muestra el stock si es menor. */
-const LOW_STOCK = 10
-
-/** Cantidades de una cuenta dividida: pueden salir fraccionarias al repartir. */
-const nfCantidad = new Intl.NumberFormat("es-CO", { maximumFractionDigits: 3 })
-
-const PAYMENT_ICONS: Record<PaymentMethod, React.ElementType> = {
-  cash: Banknote,
-  card: CreditCard,
-  transfer: ArrowLeftRight,
-  credit: HandCoins,
-}
-
-type SaveState = "idle" | "saving" | "saved" | "error"
-
-/**
- * Una casilla de la rejilla: o un producto suelto, o un grupo de variantes
- * (las tallas de una misma camisa) que se abre en el selector.
- */
-type GridEntry =
-  | { kind: "single"; product: PosProduct }
-  | { kind: "group"; group: VariantGroup }
-
-/**
- * Agrupa el catálogo para la rejilla: las variantes de un mismo producto (las
- * tallas de una camisa) se juntan en una sola entrada y el resto pasa tal cual.
- *
- * Sin esto, una tienda de ropa con diez modelos en cinco tallas veía cincuenta
- * tarjetas que solo se distinguen por la última letra del nombre.
- *
- * Va suelta y sin `useMemo`: el compilador de React memoriza la llamada solo, y
- * un memo escrito a mano que él no pueda preservar apagaría la optimización de
- * toda la pantalla.
- */
-function buildGridEntries(filtered: PosProduct[]): GridEntry[] {
-  const puestos = new Set<string>()
-  return filtered.flatMap<GridEntry>((p) => {
-    const groupId = p.variantGroupId
-    if (!groupId) return [{ kind: "single", product: p }]
-    // El grupo ocupa la posición de su primera variante; las demás ya están
-    // dentro de esa tarjeta.
-    if (puestos.has(groupId)) return []
-    puestos.add(groupId)
-    const variants = filtered.filter((v) => v.variantGroupId === groupId)
-    // Un "grupo" de una sola variante no es un grupo: pedir talla cuando solo
-    // hay una es un toque de más.
-    return [
-      variants.length === 1
-        ? { kind: "single", product: variants[0] }
-        : {
-            kind: "group",
-            group: {
-              groupId,
-              name: p.variantGroupName ?? p.name,
-              variants,
-            },
-          },
-    ]
-  })
-}
+import {
+  errorMessage,
+  CartItem,
+  ALL,
+  UNCAT,
+  LOW_STOCK,
+  SaveState,
+  buildGridEntries,
+  orderToCart,
+  cashSuggestions,
+  CONSUMIDOR_FINAL,
+  QUIEN_COBRA,
+} from "@/components/pos/venta-helpers"
+import { Guard } from "@/components/pos/venta-ui"
 
 
-/** Convierte las líneas de una cuenta en ítems del carrito (usa el stock real
- * cuando el producto sigue vendible; si no, sintetiza uno mínimo). */
-function orderToCart(order: Order, products: PosProduct[]): CartItem[] {
-  return order.lines.map((l) => {
-    const p = products.find((pp) => pp._id === l.productId)
-    if (p) {
-      return { product: { ...p, stock: Math.max(p.stock, l.qty) }, qty: l.qty }
-    }
-    return {
-      product: {
-        _id: l.productId,
-        sku: l.sku,
-        name: l.name,
-        unit: l.unit,
-        salePrice: l.unitPrice,
-        stock: l.qty,
-        categoryId: null,
-        categoryName: null,
-      },
-      qty: l.qty,
-    }
-  })
-}
+import { CuentasAbiertas } from "@/components/pos/cuentas-abiertas"
+import { CajaCerrada } from "@/components/pos/caja-cerrada"
+import { NuevaCuentaDialog } from "@/components/pos/nueva-cuenta-dialog"
+import { CobroPie } from "@/components/pos/cobro-pie"
+import { CobroColumnaVenta } from "@/components/pos/cobro-columna-venta"
+import { CobroColumnaPago } from "@/components/pos/cobro-columna-pago"
+import { CobroColumnaDetalle } from "@/components/pos/cobro-columna-detalle"
+import { CobroCabecera } from "@/components/pos/cobro-cabecera"
+import { CobroCompletado } from "@/components/pos/cobro-completado"
+import { BarraResumenCuenta } from "@/components/pos/barra-resumen-cuenta"
+import { CuentaVenta } from "@/components/pos/cuenta-venta"
+import { CatalogoVenta } from "@/components/pos/catalogo-venta"
 
-/** Montos de efectivo sugeridos, mayores al total (para cobrar rápido). */
-function cashSuggestions(total: number): number[] {
-  if (total <= 0) return []
-  const set = new Set<number>()
-  for (const step of [1000, 5000, 10000, 20000, 50000]) {
-    const up = Math.ceil(total / step) * step
-    if (up > total) set.add(up)
-  }
-  for (const bill of [2000, 5000, 10000, 20000, 50000, 100000]) {
-    if (bill > total) set.add(bill)
-  }
-  return [...set].sort((a, b) => a - b).slice(0, 4)
-}
-
-/**
- * "Consumidor final" es como la DIAN llama a quien compra sin dar sus datos, y
- * 222222222222 el documento que se usa para él. Con esto una venta de mostrador
- * puede salir con factura electrónica sin inventarse una cédula.
- */
-const CONSUMIDOR_FINAL: Customer = {
-  name: "Consumidor final",
-  idNumber: "222222222222",
-}
-
-/** Valor del selector de vendedor cuando vende el mismo que cobra. */
-const QUIEN_COBRA = "__quien_cobra__"
 
 export default function VentaPage() {
   const { user, hasPermission, isRetail, isRestaurant } = useAuth()
@@ -1648,98 +1499,16 @@ export default function VentaPage() {
 
   if (sedeId && !caja) {
     return (
-      <Card className="mx-auto max-w-md overflow-hidden p-0">
-        {/* Barra violeta de estado: el cajero llega con prisa y necesita saber
-            de un vistazo por qué no puede vender. Un icono ámbar centrado en
-            medio de una tarjeta blanca no comunica "bloqueado". */}
-        <div className="flex items-center gap-3 gradient-brand-r px-5 py-4 text-primary-foreground">
-          <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary-foreground/15">
-            <Lock className="size-5" />
-          </span>
-          <div className="min-w-0">
-            <p className="font-display text-lg leading-tight">Caja cerrada</p>
-            <p className="truncate text-sm text-primary-foreground/80">
-              {sede ? sede.name : "Esta sede"} · aún no puedes vender
-            </p>
-          </div>
-        </div>
-
-        <CardContent className="flex flex-col items-center gap-4 px-5 pb-6 pt-5 text-center">
-          <p className="text-sm text-muted-foreground">
-            Cuenta la base con la que arrancas el turno y abre la caja para
-            empezar a vender.
-          </p>
-          <div className="flex w-full flex-col gap-2 text-left">
-            <p className="text-sm font-medium text-foreground">
-              Base inicial en efectivo
-            </p>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="opening-bills" className="gap-1.5">
-                <Banknote className="size-4 text-muted-foreground" />
-                Billetes
-              </Label>
-              <MoneyInput
-                id="opening-bills"
-                value={openingBills}
-                onValueChange={setOpeningBills}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault()
-                    void handleOpenCaja()
-                  }
-                }}
-                placeholder="$0"
-                autoFocus
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="opening-coins" className="gap-1.5">
-                <Coins className="size-4 text-muted-foreground" />
-                Monedas
-              </Label>
-              <MoneyInput
-                id="opening-coins"
-                value={openingCoins}
-                onValueChange={setOpeningCoins}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault()
-                    void handleOpenCaja()
-                  }
-                }}
-                placeholder="$0"
-              />
-            </div>
-            <div className="mt-1 flex items-center justify-between rounded-xl bg-accent px-4 py-3">
-              <span className="text-sm font-medium text-accent-foreground">
-                Total base
-              </span>
-              <span className="stat-figure text-xl text-primary">
-                {money((openingBills ?? 0) + (openingCoins ?? 0))}
-              </span>
-            </div>
-            {openCajaError && (
-              <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                {openCajaError}
-              </p>
-            )}
-            <Button
-              size="lg"
-              className="mt-1 h-13 gap-2 text-base font-semibold shadow-[0_10px_26px_-12px_var(--primary)]"
-              disabled={
-                openingBusy ||
-                (openingBills === null && openingCoins === null)
-              }
-              onClick={() => void handleOpenCaja()}
-            >
-              {openingBusy ? "Abriendo…" : "Abrir caja y vender"}
-            </Button>
-            <p className="text-center text-xs text-muted-foreground">
-              El arqueo y el cierre se gestionan en la pestaña Caja.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+      <CajaCerrada
+        sede={sede}
+        openingBills={openingBills}
+        setOpeningBills={setOpeningBills}
+        openingCoins={openingCoins}
+        setOpeningCoins={setOpeningCoins}
+        openingBusy={openingBusy}
+        openCajaError={openCajaError}
+        handleOpenCaja={handleOpenCaja}
+      />
     )
   }
 
@@ -1749,83 +1518,16 @@ export default function VentaPage() {
     <>
       {/* ── Lista de cuentas activas (vista inicial) ── */}
       {screen === "list" && (
-        <div className="flex flex-col gap-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h1 className="font-display text-2xl">Cuentas abiertas</h1>
-              <p className="text-sm text-muted-foreground">
-                {sede ? `${sede.name} · ` : ""}
-                Consumos que quedaron pendientes de cobrar (mesas o clientes).
-              </p>
-            </div>
-            <div className="flex gap-2">
-              <Button
-                className="gap-2"
-                disabled={!sedeId}
-                onClick={() => void selectDirect()}
-              >
-                <ShoppingCart className="size-4" />
-                Vender
-              </Button>
-              <Button
-                variant="outline"
-                className="gap-2"
-                disabled={orderBusy || !sedeId}
-                onClick={() => {
-                  setNewOrderName("")
-                  setNewOrderOpen(true)
-                }}
-              >
-                <Plus className="size-4" />
-                Abrir cuenta
-              </Button>
-            </div>
-          </div>
-
-          {orders.length === 0 ? (
-            <Card>
-              <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
-                <ClipboardList className="size-10 text-muted-foreground" />
-                <p className="font-display text-lg">No hay cuentas abiertas</p>
-                <p className="max-w-sm text-sm text-muted-foreground">
-                  Todo está cobrado. Usa <strong>Vender</strong> para una venta
-                  normal, o abre una cuenta si necesitas dejar el consumo de una
-                  mesa pendiente.
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {orders.map((o) => {
-                const count = o.lines.reduce((a, l) => a + l.qty, 0)
-                const oTotal = o.lines.reduce((a, l) => a + l.lineTotal, 0)
-                return (
-                  <button
-                    key={o._id}
-                    type="button"
-                    onClick={() => void selectOrder(o)}
-                    className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 text-left shadow-xs transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-sm"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="min-w-0 flex-1 truncate font-medium">
-                        {o.label?.trim() || o.orderNumber}
-                      </span>
-                      <Badge variant="secondary">{count} ítem(s)</Badge>
-                    </div>
-                    <div className="flex items-end justify-between gap-2">
-                      <span className="font-mono text-xs text-muted-foreground">
-                        {o.orderNumber}
-                      </span>
-                      <span className="font-display text-lg">
-                        {money(oTotal)}
-                      </span>
-                    </div>
-                  </button>
-                )
-              })}
-            </div>
-          )}
-        </div>
+        <CuentasAbiertas
+          sedeId={sedeId}
+          sede={sede}
+          orders={orders}
+          orderBusy={orderBusy}
+          setNewOrderOpen={setNewOrderOpen}
+          setNewOrderName={setNewOrderName}
+          selectDirect={selectDirect}
+          selectOrder={selectOrder}
+        />
       )}
 
       {/* ── Encabezado de la pantalla de venta ──
@@ -1894,196 +1596,28 @@ export default function VentaPage() {
       // productos justo cuando el catálogo es más largo.
       <div className="grid grid-cols-1 gap-4 max-lg:pb-16 lg:grid-cols-3 2xl:grid-cols-4">
         {/* ── Catálogo ── */}
-        <div className="flex flex-col gap-3 lg:col-span-2 2xl:col-span-3">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              ref={searchRef}
-              data-tour="pos-buscar"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault()
-                  handleScan()
-                }
-              }}
-              placeholder="Escanea un código o busca por nombre / SKU…"
-              className="h-11 pl-9"
-              aria-label="Buscar o escanear producto"
-            />
-            {flash && (
-              <span
-                role="status"
-                className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary"
-              >
-                {flash}
-              </span>
-            )}
-          </div>
-
-          {/* Filtro por categoría, y a su derecha —donde antes solo había aire
-              en un monitor ancho— los dos atajos que ya existen y que casi
-              nadie descubre solo. */}
-          <div className="flex items-center gap-3">
-            {categories.length > 0 && (
-              <div className="-mx-1 flex min-w-0 flex-1 gap-1.5 overflow-x-auto px-1 pb-1">
-                <CategoryChip
-                  active={category === ALL}
-                  onClick={() => setCategory(ALL)}
-                >
-                  Todos
-                </CategoryChip>
-                {categories.map((c) => (
-                  <CategoryChip
-                    key={c.id}
-                    active={category === c.id}
-                    onClick={() => setCategory(c.id)}
-                  >
-                    {c.name}
-                  </CategoryChip>
-                ))}
-              </div>
-            )}
-            <p className="ml-auto hidden shrink-0 items-center gap-2 text-[11px] text-muted-foreground xl:flex">
-              <Atajo tecla="Enter">agrega lo escaneado</Atajo>
-              <Atajo tecla="Ctrl K">busca en todo el terminal</Atajo>
-              <Atajo tecla="F2">busca</Atajo>
-              <Atajo tecla="F4">cobra</Atajo>
-            </p>
-            <div className="ml-auto shrink-0 xl:ml-0">
-              <AyudaAtajos open={ayudaAbierta} onOpenChange={setAyudaAbierta} />
-            </div>
-          </div>
-
-          {/* Aviso de existencias (agotados / pocas unidades) */}
-          {!loading && !error && (stockSummary.out > 0 || stockSummary.low > 0) && (
-            <div className="flex items-center gap-2 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning-ink">
-              <AlertTriangle className="size-4 shrink-0" />
-              <span>
-                {stockSummary.out > 0 &&
-                  `${stockSummary.out} producto(s) sin stock`}
-                {stockSummary.out > 0 && stockSummary.low > 0 && " · "}
-                {stockSummary.low > 0 &&
-                  `${stockSummary.low} con pocas unidades`}
-              </span>
-            </div>
-          )}
-
-          {loading ? (
-            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 min-[1800px]:grid-cols-6">
-              {Array.from({ length: 12 }).map((_, i) => (
-                <Skeleton key={i} className="h-28 rounded-xl" />
-              ))}
-            </div>
-          ) : error ? (
-            <Card>
-              <CardContent className="py-10 text-center text-sm text-destructive">
-                {error}
-              </CardContent>
-            </Card>
-          ) : filtered.length === 0 ? (
-            <Card>
-              <CardContent className="flex flex-col items-center gap-2 py-14 text-center">
-                <PackageX className="size-9 text-muted-foreground" />
-                <p className="text-sm text-muted-foreground">
-                  {products.length === 0
-                    ? "No hay productos con precio de venta en esta sede."
-                    : "Sin resultados para esta búsqueda o categoría."}
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 min-[1800px]:grid-cols-6">
-              {gridEntries.map((entry) => {
-                // Un grupo de variantes ocupa UNA casilla y abre el selector de
-                // talla; el resto de productos se pintan como siempre.
-                if (entry.kind === "group") {
-                  return (
-                    <VariantGroupCard
-                      key={entry.group.groupId}
-                      group={entry.group}
-                      showImages={showImages}
-                      inCart={entry.group.variants.reduce(
-                        (n, v) =>
-                          n +
-                          (cart.find((i) => i.product._id === v._id)?.qty ?? 0),
-                        0,
-                      )}
-                      onOpen={() => setPickerGroup(entry.group)}
-                    />
-                  )
-                }
-                const p = entry.product
-                const inCart =
-                  cart.find((i) => i.product._id === p._id)?.qty ?? 0
-                const out = p.stock <= 0 || inCart >= p.stock
-                return (
-                  <button
-                    key={p._id}
-                    type="button"
-                    disabled={out}
-                    onClick={() => addToCart(p)}
-                    className={cn(
-                      "group relative flex flex-col items-start gap-0.5 rounded-xl border border-border bg-card p-2.5 text-left shadow-xs transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-sm active:translate-y-0",
-                      out &&
-                        "cursor-not-allowed opacity-50 hover:translate-y-0 hover:border-border hover:shadow-xs",
-                    )}
-                  >
-                    {inCart > 0 && (
-                      <span className="absolute right-2 top-2 z-10 flex size-5 items-center justify-center rounded-full bg-primary text-[11px] font-bold text-primary-foreground">
-                        {inCart}
-                      </span>
-                    )}
-                    {showImages &&
-                      (p.imageUrl ? (
-                        <Image
-                          src={p.imageUrl}
-                          width={200} height={200} sizes="(min-width: 1024px) 160px, 30vw"
-                          alt=""
-                          loading="lazy"
-                          className="mb-1 aspect-square w-full rounded-lg border border-border object-cover"
-                        />
-                      ) : (
-                        <span className="mb-1 flex aspect-square w-full items-center justify-center rounded-lg border border-dashed border-border text-muted-foreground">
-                          <ImageOff className="size-6" aria-hidden />
-                        </span>
-                      ))}
-                    {/* `text-balance` reparte el nombre entre los dos renglones
-                        en vez de dejar la primera palabra sola arriba, que es
-                        lo que pasaba con las tarjetas anchas. */}
-                    <span className="line-clamp-2 w-full pr-5 text-[0.8125rem] font-medium leading-snug text-balance">
-                      {p.name}
-                    </span>
-                    <span className="flex w-full min-w-0 items-baseline gap-1.5 font-mono text-[11px] text-muted-foreground">
-                      <span className="truncate">{p.sku}</span>
-                      {/* Las existencias que no son aviso solo caben en pantalla
-                          ancha; ahí es dato útil, en móvil sería ruido. */}
-                      {p.stock >= LOW_STOCK && (
-                        <span className="ml-auto hidden shrink-0 tabular-nums xl:inline">
-                          {fmtQty(p.stock)} {p.unit}
-                        </span>
-                      )}
-                    </span>
-                    <span className="mt-1 flex w-full flex-wrap items-center justify-between gap-1">
-                      <span className="font-display text-lg">
-                        {money(p.salePrice)}
-                      </span>
-                      {/* Solo se avisa el stock si quedan pocas unidades (<10). */}
-                      {p.stock <= 0 ? (
-                        <Badge variant="destructive">Agotado</Badge>
-                      ) : p.stock < LOW_STOCK ? (
-                        <Badge className="border-transparent bg-warning/15 text-warning-ink">
-                          Quedan {fmtQty(p.stock)}
-                        </Badge>
-                      ) : null}
-                    </span>
-                  </button>
-                )
-              })}
-            </div>
-          )}
-        </div>
+        <CatalogoVenta
+          products={products}
+          loading={loading}
+          error={error}
+          search={search}
+          setSearch={setSearch}
+          category={category}
+          setCategory={setCategory}
+          searchRef={searchRef}
+          flash={flash}
+          cart={cart}
+          ayudaAbierta={ayudaAbierta}
+          setAyudaAbierta={setAyudaAbierta}
+          stockSummary={stockSummary}
+          categories={categories}
+          addToCart={addToCart}
+          handleScan={handleScan}
+          filtered={filtered}
+          showImages={showImages}
+          gridEntries={gridEntries}
+          setPickerGroup={setPickerGroup}
+        />
 
         {/* ── Cuenta ──
             En PC ocupa todo el alto libre y es la LISTA la que scrollea: el
@@ -2097,383 +1631,40 @@ export default function VentaPage() {
             barra resumen siempre visible —artículos y total— que se despliega a
             la cuenta completa al tocarla. Es el mismo marcado y el mismo estado;
             solo cambia dónde vive. */}
-        <div
-          className={cn(
-            "max-lg:fixed max-lg:inset-x-0 max-lg:bottom-14 max-lg:z-40",
-            "max-lg:max-h-[80dvh] max-lg:overflow-y-auto max-lg:overscroll-contain",
-            "max-lg:transition-transform max-lg:duration-200",
-            // Cerrada, la hoja se aparta entera hacia abajo: la barra resumen
-            // de más abajo ocupa su sitio.
-            !cuentaAbierta && "max-lg:pointer-events-none max-lg:translate-y-[110%]",
-          )}
-        >
-          <Card
-            data-tour="pos-carrito"
-            className="h-fit max-lg:rounded-b-none max-lg:shadow-xl lg:sticky lg:top-20 lg:max-h-[calc(100svh-6rem)]"
-          >
-          <CardContent className="flex flex-col gap-3 p-4 lg:min-h-0 lg:flex-1 lg:overflow-hidden">
-            <div className="flex shrink-0 items-center gap-2">
-              <ShoppingCart className="size-5 text-muted-foreground" />
-              <p className="font-display text-lg">
-                {isOrder ? "Cuenta" : "Venta"}
-              </p>
-              {/* Cierra la hoja para volver al catálogo. Solo existe cuando la
-                  cuenta ES una hoja; en escritorio es una columna fija y no
-                  hay nada que cerrar. */}
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="ml-auto size-11 lg:hidden"
-                aria-label="Ocultar la cuenta y volver al catálogo"
-                onClick={() => setCuentaAbierta(false)}
-              >
-                <ChevronDown className="size-5" />
-              </Button>
-              {isOrder && activeOrder && (
-                <Badge variant="outline" className="font-mono text-[11px]">
-                  {activeOrder.orderNumber}
-                </Badge>
-              )}
-              {cart.length > 0 && (
-                <Badge variant="secondary" className="ml-auto">
-                  {itemCount} ítem(s)
-                </Badge>
-              )}
-              {cart.length > 0 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 gap-1 px-2 text-xs text-muted-foreground hover:text-destructive"
-                  onClick={clearCart}
-                >
-                  <Trash2 className="size-3.5" />
-                  Vaciar
-                </Button>
-              )}
-            </div>
-
-            {/* Cabecera de la cuenta abierta: etiqueta editable + estado */}
-            {isOrder && (
-              <div className="flex shrink-0 flex-col gap-2">
-                <Input
-                  value={label}
-                  onChange={(e) => setLabel(e.target.value)}
-                  placeholder="Nombre de la cuenta (mesa / cliente)"
-                  className="h-9"
-                  aria-label="Nombre de la cuenta"
-                />
-                <div className="flex items-center justify-between">
-                  <SaveIndicator state={saveState} />
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 gap-1 px-2 text-xs text-muted-foreground hover:text-destructive"
-                    disabled={orderBusy}
-                    onClick={() => void closeActiveOrder()}
-                  >
-                    <X className="size-3.5" />
-                    Cerrar cuenta
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {cart.length === 0 ? (
-              <div className="flex flex-col items-center gap-2 py-10 text-center lg:min-h-0 lg:flex-1 lg:justify-center">
-                <ShoppingCart className="size-8 text-muted-foreground/50" />
-                <p className="text-sm text-muted-foreground">
-                  {isOrder
-                    ? "Cuenta abierta sin ítems. Agrega productos; se guardan solos."
-                    : "Toca un producto o escanea su código para agregarlo."}
-                </p>
-              </div>
-            ) : (
-              // El `-mr-1 pr-1` deja la barra de scroll fuera de las tarjetas,
-              // que si no se comía el borde derecho de cada línea.
-              <ul className="flex flex-col gap-2 lg:-mr-1 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:overscroll-contain lg:pr-1">
-                {cart.map((i) => {
-                  const unit = unitPrice(i)
-                  const gross = i.qty * unit
-                  // Se tacha el de mostrador cuando la lista lo bajó: si no se
-                  // ve la diferencia, nadie nota que se está cobrando pactado.
-                  const conLista = unit !== Math.round(i.product.salePrice)
-                  const lineDisc = lineDiscount(i)
-                  const applied = i.discountId
-                    ? discountById.get(i.discountId)
-                    : undefined
-                  return (
-                  <li
-                    key={i.product._id}
-                    className={cn(
-                      "rounded-lg border border-border p-2",
-                      lineaActiva === i && "ring-2 ring-primary/40",
-                    )}
-                  >
-                    {/* Dos renglones y no uno: con el nombre, el botón de
-                        descuento y el contador peleando por la misma fila, la
-                        columna del carrito se desbordaba en un portátil de
-                        1366 px y el "+" se salía de la tarjeta. */}
-                    <div className="flex items-start gap-2">
-                      {/* Miniatura: a esta columna se le mira de reojo mientras
-                          se atiende, y la foto se reconoce más rápido que el
-                          nombre. Solo aparece si algún producto del carrito
-                          tiene foto; si no, sería una fila de cuadros vacíos
-                          comiéndose el ancho del nombre. */}
-                      {cartShowImages &&
-                        (i.product.imageUrl ? (
-                          <Image
-                            src={i.product.imageUrl}
-                            width={36} height={36} sizes="36px"
-                            alt=""
-                            loading="lazy"
-                            className="size-9 shrink-0 rounded-md border border-border object-cover"
-                          />
-                        ) : (
-                          <span
-                            className="flex size-9 shrink-0 items-center justify-center rounded-md border border-dashed border-border text-muted-foreground"
-                            aria-hidden
-                          >
-                            <ImageOff className="size-4" />
-                          </span>
-                        ))}
-                      <div className="min-w-0 flex-1">
-                        <p className="line-clamp-2 text-[0.8125rem] font-medium leading-snug">
-                          {i.product.name}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {conLista && (
-                            <span className="mr-1 line-through">
-                              {money(i.product.salePrice)}
-                            </span>
-                          )}
-                          {money(unit)} ·{" "}
-                          {lineDisc > 0 ? (
-                            <>
-                              <span className="text-muted-foreground line-through">
-                                {money(gross)}
-                              </span>{" "}
-                              <span className="font-medium text-foreground">
-                                {money(gross - lineDisc)}
-                              </span>
-                            </>
-                          ) : (
-                            <span className="font-medium text-foreground">
-                              {money(gross)}
-                            </span>
-                          )}
-                        </p>
-                        {applied && (
-                          <p className="mt-0.5 inline-flex items-center gap-1 text-[11px] font-medium text-success-ink">
-                            <Tag className="size-3" />
-                            {applied.name} (−{money(lineDisc)})
-                          </p>
-                        )}
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        className="shrink-0 text-muted-foreground hover:text-destructive"
-                        aria-label={`Quitar ${i.product.name}`}
-                        onClick={() => removeFromCart(i.product._id)}
-                      >
-                        <Trash2 />
-                      </Button>
-                    </div>
-
-                    <div className="mt-1.5 flex items-center gap-1">
-                      <Button
-                        variant="outline"
-                        size="icon-sm"
-                        aria-label="Restar uno"
-                        onClick={() => changeQty(i.product._id, -1)}
-                      >
-                        <Minus />
-                      </Button>
-                      <QuantityInput
-                        value={i.qty}
-                        onValueChange={(v) => setQty(i.product._id, v ?? 0)}
-                        aria-label={`Cantidad de ${i.product.name}`}
-                        className="h-8 w-14 px-1 text-center text-sm"
-                      />
-                      <Button
-                        variant="outline"
-                        size="icon-sm"
-                        aria-label="Sumar uno"
-                        disabled={i.qty >= i.product.stock}
-                        onClick={() => changeQty(i.product._id, 1)}
-                      >
-                        <Plus />
-                      </Button>
-                      {discounts.length > 0 && (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger
-                            render={
-                              <Button
-                                variant={applied ? "default" : "outline"}
-                                size="sm"
-                                className="ml-auto gap-1"
-                                aria-label={`Descuento para ${i.product.name}`}
-                              />
-                            }
-                          >
-                            <Tag />
-                            {applied ? "Desc." : "Descuento"}
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-56">
-                            <div className="px-1.5 py-1 text-xs font-medium text-muted-foreground">
-                              Descuento
-                            </div>
-                            <DropdownMenuItem
-                              onClick={() =>
-                                setLineDiscount(i.product._id, null)
-                              }
-                            >
-                              Sin descuento
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            {discounts.map((d) => (
-                              <DropdownMenuItem
-                                key={d._id}
-                                onClick={() =>
-                                  setLineDiscount(i.product._id, d._id)
-                                }
-                              >
-                                <span className="flex-1 truncate">{d.name}</span>
-                                <span className="text-xs text-muted-foreground">
-                                  {d.type === "percent"
-                                    ? `${d.value}%`
-                                    : money(d.value)}
-                                </span>
-                              </DropdownMenuItem>
-                            ))}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      )}
-                    </div>
-                  </li>
-                  )
-                })}
-              </ul>
-            )}
-
-            {/* Pie de la cuenta: propina, total y cobrar. Va aparte y sin
-                encoger para que la lista de arriba sea la única que se mueve:
-                el botón de cobrar no puede salirse de la pantalla nunca. */}
-            <div className="flex shrink-0 flex-col gap-3">
-              <Separator />
-
-              {/* Propina (restaurante): voluntaria, se cobra encima del total. Se
-                  pone/quita con el 10% sugerido o un monto libre. Va arriba del
-                  total para que el cliente decida antes de ver el total a pagar. */}
-              {isRestaurant && cart.length > 0 && (
-                <div className="rounded-xl border border-dashed border-border p-3">
-                  <div className="flex items-center justify-between">
-                    <span className="flex items-center gap-1.5 text-sm font-medium text-foreground">
-                      <HandCoins className="size-4 text-muted-foreground" />
-                      <Termino>Propina</Termino>
-                      <span className="text-xs font-normal text-muted-foreground">
-                        (opcional)
-                      </span>
-                    </span>
-                    {tip !== null && (
-                      <button
-                        type="button"
-                        onClick={() => setTip(null)}
-                        className="text-xs font-medium text-muted-foreground transition-colors hover:text-destructive"
-                      >
-                        Quitar
-                      </button>
-                    )}
-                  </div>
-                  {tip === null ? (
-                    <div className="mt-2 flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex-1"
-                        disabled={total <= 0}
-                        onClick={() => setTip(suggestedTip)}
-                      >
-                        10% · {money(suggestedTip)}
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex-1"
-                        onClick={() => setTip(0)}
-                      >
-                        Otro monto
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="mt-2 flex items-center gap-2">
-                      <MoneyInput
-                        value={tip}
-                        onValueChange={(v) => setTip(v ?? 0)}
-                        placeholder="$0"
-                        className="flex-1"
-                      />
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        disabled={total <= 0}
-                        onClick={() => setTip(suggestedTip)}
-                      >
-                        10%
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* El total es la cifra que el cajero canta en voz alta y que el
-                  cliente mira: va en panel violeta y grande, no como una fila
-                  más de la lista. Con propina, el grande es el total a pagar. */}
-              <div className="flex items-baseline justify-between rounded-xl bg-accent px-4 py-3">
-                <div className="flex flex-col">
-                  <span className="font-display text-lg text-accent-foreground">
-                    {tipAmount > 0 ? "Total a pagar" : "Total"}
-                  </span>
-                  {tipAmount > 0 && (
-                    <span className="text-xs text-accent-foreground/70">
-                      Bienes {money(total)} · Propina {money(tipAmount)}
-                    </span>
-                  )}
-                </div>
-                <span className="stat-figure text-[1.75rem] leading-none text-primary">
-                  {money(netTotal)}
-                </span>
-              </div>
-
-              {/* 56px de alto: es el objetivo táctil que fija nuestro sistema de
-                  diseño para la acción principal del POS, y se pulsa con prisa. */}
-              <Button
-                data-tour="pos-cobrar"
-                size="lg"
-                className="h-14 text-base font-semibold shadow-[0_10px_26px_-12px_var(--primary)]"
-                disabled={cart.length === 0 || !sedeId}
-                onClick={openCheckout}
-              >
-                Cobrar {netTotal > 0 ? money(netTotal) : ""}
-              </Button>
-
-              {/* En venta directa se puede aparcar el carrito como cuenta. */}
-              {!isOrder && cart.length > 0 && (
-                <Button
-                  variant="outline"
-                  className="gap-2"
-                  disabled={orderBusy}
-                  onClick={() => void saveAsOrder()}
-                >
-                  <ClipboardList className="size-4" />
-                  Guardar como cuenta
-                </Button>
-              )}
-            </div>
-          </CardContent>
-          </Card>
-        </div>
+        <CuentaVenta
+          isRestaurant={isRestaurant}
+          sedeId={sedeId}
+          cart={cart}
+          tip={tip}
+          setTip={setTip}
+          discounts={discounts}
+          cuentaAbierta={cuentaAbierta}
+          setCuentaAbierta={setCuentaAbierta}
+          label={label}
+          setLabel={setLabel}
+          saveState={saveState}
+          orderBusy={orderBusy}
+          setQty={setQty}
+          changeQty={changeQty}
+          removeFromCart={removeFromCart}
+          setLineDiscount={setLineDiscount}
+          clearCart={clearCart}
+          saveAsOrder={saveAsOrder}
+          closeActiveOrder={closeActiveOrder}
+          unitPrice={unitPrice}
+          discountById={discountById}
+          lineDiscount={lineDiscount}
+          total={total}
+          itemCount={itemCount}
+          cartShowImages={cartShowImages}
+          tipAmount={tipAmount}
+          suggestedTip={suggestedTip}
+          openCheckout={openCheckout}
+          activeOrder={activeOrder}
+          netTotal={netTotal}
+          lineaActiva={lineaActiva}
+          isOrder={isOrder}
+        />
 
         {/* Barra resumen de la cuenta — solo por debajo de lg.
             Es el ancla que hace usable la hoja: el cajero ve siempre cuántos
@@ -2481,48 +1672,14 @@ export default function VentaPage() {
             toque. Se apoya sobre la navegación inferior (`bottom-14`, que es su
             alto exacto). Se oculta con la hoja desplegada para no duplicar el
             total ni tapar el botón de Cobrar que ya está dentro. */}
-        <div
-          className={cn(
-            "fixed inset-x-0 bottom-14 z-30 border-t border-border bg-card/95 px-3 py-2 shadow-lg backdrop-blur lg:hidden",
-            cuentaAbierta && "hidden",
-          )}
-        >
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => setCuentaAbierta(true)}
-              className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-xl px-2 text-left focus-visible:ring-3 focus-visible:ring-ring/50"
-              aria-label="Ver el detalle de la cuenta"
-            >
-              <span className="relative shrink-0">
-                <ShoppingCart className="size-5 text-muted-foreground" />
-                {cart.length > 0 && (
-                  <span className="absolute -right-2 -top-2 flex size-5 items-center justify-center rounded-full bg-primary text-xs leading-none font-bold text-primary-foreground">
-                    {cart.length}
-                  </span>
-                )}
-              </span>
-              <span className="grid min-w-0 leading-tight">
-                <span className="truncate text-[11px] text-muted-foreground">
-                  {cart.length === 0
-                    ? "Sin artículos"
-                    : `${cart.length} ${cart.length === 1 ? "artículo" : "artículos"}`}
-                </span>
-                <span className="stat-figure truncate text-base text-foreground">
-                  {money(netTotal)}
-                </span>
-              </span>
-            </button>
-            <Button
-              size="lg"
-              className="h-11 shrink-0 px-4 font-semibold"
-              disabled={cart.length === 0 || !sedeId}
-              onClick={openCheckout}
-            >
-              Cobrar
-            </Button>
-          </div>
-        </div>
+        <BarraResumenCuenta
+          sedeId={sedeId}
+          cart={cart}
+          cuentaAbierta={cuentaAbierta}
+          setCuentaAbierta={setCuentaAbierta}
+          openCheckout={openCheckout}
+          netTotal={netTotal}
+        />
       </div>
       )}
 
@@ -2563,178 +1720,32 @@ export default function VentaPage() {
           >
           {completedSale ? (
             <>
-              <header className="no-print flex shrink-0 items-center gap-3 border-b border-border bg-success/10 px-5 py-4">
-                <CheckCircle2 className="size-9 shrink-0 text-success-ink" />
-                <div className="min-w-0 flex-1">
-                  <p className="font-display text-xl leading-tight">
-                    Venta registrada
-                  </p>
-                  <p className="font-mono text-xs text-muted-foreground">
-                    {completedSale.saleNumber}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  aria-label="Cerrar"
-                  onClick={() => {
-                    setCheckoutOpen(false)
-                    void backToList()
-                  }}
-                  className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-foreground/6 hover:text-foreground"
-                >
-                  <X className="size-5" />
-                </button>
-              </header>
-
-              {/* Recibo a un lado, lo que hay que hacer ya al otro. La devuelta
-                  es lo urgente —el cliente está esperando su vuelto—, así que
-                  va primero y en grande; el recibo se consulta, no se cuenta. */}
-              <div className="grid min-h-0 flex-1 grid-cols-1 overflow-y-auto overscroll-contain lg:grid-cols-2 lg:overflow-hidden print:overflow-visible">
-                <div className="flex flex-col gap-3 px-5 py-4 lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain print:hidden">
-                  {/* La devuelta, grande: es lo que el cajero tiene que contar
-                      y entregar ya, con el cliente esperando. */}
-                  {/* Siempre que hubo devuelta, aunque el backend haya
-                      dejado un solo medio (todo con tarjeta y además se
-                      anotó efectivo: ese efectivo vuelve entero). */}
-                  {completedSale.payment.change !== undefined &&
-                    (completedSale.payment.method === "cash" ||
-                      completedSale.payment.change > 0) && (
-                      <div className="flex flex-col items-center gap-1 rounded-2xl bg-success/10 px-4 py-5 text-center text-success-ink">
-                        <span className="text-xs font-semibold uppercase tracking-wide">
-                          Devuelta
-                        </span>
-                        <span className="stat-figure text-4xl leading-none sm:text-5xl">
-                          {money(completedSale.payment.change)}
-                        </span>
-                        {completedSale.payment.received !== undefined && (
-                          <span className="text-xs opacity-80">
-                            Pagó con {money(completedSale.payment.received)}
-                          </span>
-                        )}
-                      </div>
-                    )}
-
-                  {/* Estado de la factura electrónica. Se muestra aparte del
-                      éxito de la venta a propósito: la venta está hecha aunque
-                      la DIAN falle, y mezclarlo haría dudar al cajero de si
-                      cobró o no. */}
-                  {invoiceState !== "idle" && (
-                    <div
-                      className={cn(
-                        "flex items-start gap-2 rounded-xl px-4 py-3 text-sm",
-                        invoiceState === "done" && "bg-success/10 text-success-ink",
-                        invoiceState === "emitting" && "bg-accent text-accent-foreground",
-                        invoiceState === "error" &&
-                          "bg-destructive/10 text-destructive",
-                      )}
-                    >
-                      {invoiceState === "emitting" && (
-                        <Loader2 className="mt-0.5 size-4 shrink-0 animate-spin" />
-                      )}
-                      {invoiceState === "done" && (
-                        <FileText className="mt-0.5 size-4 shrink-0" />
-                      )}
-                      {invoiceState === "error" && (
-                        <AlertTriangle className="mt-0.5 size-4 shrink-0" />
-                      )}
-                      <span>
-                        {invoiceState === "emitting" && "Emitiendo factura electrónica…"}
-                        {invoiceState === "done" &&
-                          `Factura electrónica emitida${invoiceNumber ? ` · ${invoiceNumber}` : ""}`}
-                        {invoiceState === "error" && (
-                          <>
-                            La venta quedó registrada, pero la factura no se pudo
-                            emitir: {invoiceError}. Puedes emitirla desde{" "}
-                            <strong>Factura electrónica</strong>.
-                          </>
-                        )}
-                      </span>
-                    </div>
-                  )}
-
-                  {!printConfigured && (
-                    <div className="rounded-xl border border-dashed border-primary/40 bg-primary/5 p-3 text-xs">
-                      <p className="mb-1 flex items-center gap-1.5 font-medium text-foreground">
-                        <Info className="size-3.5 text-primary" />
-                        Configura la impresión (solo esta vez)
-                      </p>
-                      <p className="text-muted-foreground">
-                        Al pulsar <span className="font-medium">Imprimir</span>,
-                        elige tu impresora de recibos y márcala como
-                        predeterminada. Para que las próximas ventas salgan sin
-                        diálogo, activa la impresión automática (modo kiosco) del
-                        navegador. Esta ayuda no volverá a aparecer.
-                      </p>
-                    </div>
-                  )}
-
-                  {completedSale.customer?.name && (
-                    <p className="text-sm text-muted-foreground">
-                      A nombre de{" "}
-                      <span className="font-medium text-foreground">
-                        {completedSale.customer.name}
-                      </span>
-                    </p>
-                  )}
-                </div>
-
-                <div className="flex flex-col border-t border-border bg-muted/25 px-5 py-4 lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain lg:border-l lg:border-t-0 print:overflow-visible print:border-0 print:bg-transparent print:p-0">
-                  <Receipt sale={completedSale} sede={sede} />
-                </div>
-              </div>
-
-              <footer className="no-print flex shrink-0 gap-2 border-t border-border bg-muted/40 px-5 py-3">
-                <Button
-                  variant="outline"
-                  className="flex-1 gap-2"
-                  onClick={handlePrintReceipt}
-                >
-                  <Printer className="size-4" />
-                  Imprimir
-                </Button>
-                <Button
-                  className="h-12 flex-1 text-base font-semibold"
-                  onClick={() => {
-                    setCheckoutOpen(false)
-                    void backToList()
-                  }}
-                >
-                  Listo
-                </Button>
-              </footer>
+              <CobroCompletado
+                sede={sede}
+                setCheckoutOpen={setCheckoutOpen}
+                completedSale={completedSale}
+                printConfigured={printConfigured}
+                invoiceState={invoiceState}
+                invoiceNumber={invoiceNumber}
+                invoiceError={invoiceError}
+                handlePrintReceipt={handlePrintReceipt}
+                backToList={backToList}
+              />
             </>
           ) : (
             <>
               {/* Cabecera fija: el título y la cifra que se lee en voz alta y
                   que el cliente comprueba. No se mueve con el scroll. */}
-              <header className="shrink-0 gradient-brand px-4 py-3.5 text-primary-foreground sm:px-5 sm:py-4">
-                <div className="flex items-center gap-3 sm:gap-4">
-                  <div className="min-w-0 flex-1">
-                    <p className="font-display text-lg leading-tight">Cobrar</p>
-                    <p className="truncate text-xs text-primary-foreground/80 sm:text-sm">
-                      {sede ? `${sede.name} · ` : ""}
-                      {itemCount} ítem(s)
-                      {lineDiscountTotal > 0 && (
-                        <> · −{money(lineDiscountTotal)} de descuento</>
-                      )}
-                      {tipAmount > 0 && <> · Propina {money(tipAmount)}</>}
-                      {deliveryFee > 0 && <> · Domicilio {money(deliveryFee)}</>}
-                    </p>
-                  </div>
-                  <p className="stat-figure shrink-0 text-3xl leading-none sm:text-4xl">
-                    {money(netTotal)}
-                  </p>
-                  <button
-                    type="button"
-                    aria-label="Cerrar"
-                    disabled={saving}
-                    onClick={() => setCheckoutOpen(false)}
-                    className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg text-primary-foreground/80 transition-colors hover:bg-primary-foreground/15 hover:text-primary-foreground disabled:opacity-40"
-                  >
-                    <X className="size-5" />
-                  </button>
-                </div>
-              </header>
+              <CobroCabecera
+                sede={sede}
+                setCheckoutOpen={setCheckoutOpen}
+                saving={saving}
+                lineDiscountTotal={lineDiscountTotal}
+                itemCount={itemCount}
+                tipAmount={tipAmount}
+                deliveryFee={deliveryFee}
+                netTotal={netTotal}
+              />
 
               {/* En móvil el cuerpo entero scrollea y las columnas se apilan con
                   "Cómo paga" arriba; en PC no scrollea nada aquí, scrollea cada
@@ -2742,1095 +1753,152 @@ export default function VentaPage() {
                   derecha para que el Tab recorra la pantalla como se lee. */}
               <div className="grid min-h-0 flex-1 grid-cols-1 overflow-y-auto overscroll-contain lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.1fr)_minmax(0,0.95fr)] lg:divide-x lg:divide-border lg:overflow-hidden">
                 {/* ── Columna 1: qué se está cobrando ── */}
-                <CheckoutColumn
-                  title="Qué estás cobrando"
-                  icon={ShoppingCart}
-                  hint={`${itemCount} ítem(s)`}
-                  className="max-lg:order-2 max-lg:border-t max-lg:border-border"
-                  footer={
-                    <div className="flex flex-col gap-1.5">
-                      {activeOrder ? (
-                        <>
-                          <SummaryRow
-                            label="Consumo de la cuenta"
-                            value={money(total)}
-                          />
-                          {pagadoAntes > 0 && (
-                            <SummaryRow
-                              label="Ya pagaron"
-                              value={`−${money(pagadoAntes)}`}
-                              tone="positive"
-                            />
-                          )}
-                          {splitLines && (
-                            <SummaryRow
-                              label="Falta por cobrar"
-                              value={money(pendingTotal(activeOrder))}
-                            />
-                          )}
-                        </>
-                      ) : (
-                        <>
-                          <SummaryRow
-                            label="Productos"
-                            value={money(total + lineDiscountTotal)}
-                          />
-                          {lineDiscountTotal > 0 && (
-                            <SummaryRow
-                              label="Descuentos"
-                              value={`−${money(lineDiscountTotal)}`}
-                              tone="positive"
-                            />
-                          )}
-                        </>
-                      )}
-                      {tipAmount > 0 && (
-                        <SummaryRow label="Propina" value={money(tipAmount)} />
-                      )}
-                      {deliveryFee > 0 && (
-                        <SummaryRow label="Domicilio" value={money(deliveryFee)} />
-                      )}
-                      <div className="mt-1 flex items-baseline justify-between gap-3 rounded-xl bg-accent px-3 py-2.5">
-                        <span className="font-display text-[0.9375rem] text-accent-foreground">
-                          Total a cobrar
-                        </span>
-                        <span className="stat-figure text-2xl leading-none text-primary">
-                          {money(netTotal)}
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-muted-foreground">
-                        Los precios ya incluyen impuestos.
-                      </p>
-                    </div>
-                  }
-                >
-                  {cart.length === 0 ? (
-                    <p className="py-8 text-center text-sm text-muted-foreground">
-                      No hay nada en la cuenta.
-                    </p>
-                  ) : (
-                    <ul className="flex flex-col gap-2">
-                      {cart.map((i) => {
-                        const unit = unitPrice(i)
-                        const gross = i.qty * unit
-                        const lineDisc = lineDiscount(i)
-                        const applied = i.discountId
-                          ? discountById.get(i.discountId)
-                          : undefined
-                        return (
-                          <li
-                            key={i.product._id}
-                            className="flex items-start justify-between gap-3 border-b border-border/60 pb-2 last:border-b-0 last:pb-0"
-                          >
-                            <span className="min-w-0 flex-1">
-                              <span className="block text-[0.8125rem] font-medium leading-snug text-foreground">
-                                {i.product.name}
-                              </span>
-                              <span className="block text-xs tabular-nums text-muted-foreground">
-                                {fmtQty(i.qty)} {i.product.unit} × {money(unit)}
-                              </span>
-                              {applied && (
-                                <span className="mt-0.5 inline-flex items-center gap-1 text-[11px] font-medium text-success-ink">
-                                  <Tag className="size-3" />
-                                  {applied.name} −{money(lineDisc)}
-                                </span>
-                              )}
-                            </span>
-                            <span className="shrink-0 text-[0.8125rem] font-medium tabular-nums text-foreground">
-                              {money(gross - lineDisc)}
-                            </span>
-                          </li>
-                        )
-                      })}
-                    </ul>
-                  )}
-                </CheckoutColumn>
+                <CobroColumnaDetalle
+                  cart={cart}
+                  unitPrice={unitPrice}
+                  discountById={discountById}
+                  lineDiscount={lineDiscount}
+                  total={total}
+                  lineDiscountTotal={lineDiscountTotal}
+                  itemCount={itemCount}
+                  tipAmount={tipAmount}
+                  activeOrder={activeOrder}
+                  pagadoAntes={pagadoAntes}
+                  splitLines={splitLines}
+                  deliveryFee={deliveryFee}
+                  netTotal={netTotal}
+                />
 
                 {/* ── Columna 2: cómo paga (lo único que se mira con el cliente
                     enfrente, así que es la más ancha y la más grande) ── */}
-                <CheckoutColumn
-                  title="Cómo paga"
-                  icon={Banknote}
-                  className="max-lg:order-1 lg:bg-muted/20"
-                >
-                  {!splitOn ? (
-                    <OptionGroup
-                      ariaLabel="Medio de pago"
-                      value={method}
-                      onChange={setMethod}
-                      size="lg"
-                      columns={2}
-                      options={(
-                        Object.entries(PAYMENT_METHOD_LABELS) as [
-                          PaymentMethod,
-                          string,
-                        ][]
-                      ).map(([key, lbl]) => ({
-                        value: key,
-                        label: lbl,
-                        icon: PAYMENT_ICONS[key],
-                      }))}
-                    />
-                  ) : (
-                    <SplitPaymentEditor
-                      rows={splitRows}
-                      onChange={setSplitRows}
-                      due={netTotal}
-                      remaining={split?.remaining ?? 0}
-                      change={split?.change ?? 0}
-                      error={split?.error ?? null}
-                    />
-                  )}
-
-                  {/* Dividir pago (ítem 6.9): efectivo + tarjeta, etc., en el
-                      mismo tiquete. No divide la cuenta: eso es por productos. */}
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="self-start"
-                    onClick={() => {
-                      if (splitOn) {
-                        setSplitOn(false)
-                        setSplitRows([])
-                      } else {
-                        setSplitRows(initialSplitRows(method))
-                        setSplitOn(true)
-                      }
-                    }}
-                  >
-                    <Split className="size-4" />
-                    {splitOn ? "Un solo medio de pago" : "Dividir pago"}
-                  </Button>
-
-                  {/* ¿Con cuánto paga? Con la devuelta enorme: es la cuenta que
-                      el cajero hace de cabeza con el cliente esperando, y antes
-                      quedaba al fondo de un formulario de catorce bloques. */}
-                  {!splitOn && method === "cash" && (
-                    <div className="flex flex-col gap-2.5 rounded-2xl border border-border bg-card p-3">
-                      <Label htmlFor="pos-received" className="text-[0.8125rem]">
-                        ¿Con cuánto paga?
-                      </Label>
-                      <MoneyInput
-                        id="pos-received"
-                        value={received}
-                        onValueChange={setReceived}
-                        placeholder={new Intl.NumberFormat("es-CO").format(netTotal)}
-                        className="h-14 text-xl"
-                        autoFocus
-                      />
-                      <div className="flex flex-wrap gap-1.5">
-                        <Button
-                          type="button"
-                          variant={receivedNum === netTotal ? "default" : "outline"}
-                          size="sm"
-                          onClick={() => setReceived(netTotal)}
-                        >
-                          Exacto
-                        </Button>
-                        {suggestions.map((s) => (
-                          <Button
-                            key={s}
-                            type="button"
-                            variant={receivedNum === s ? "default" : "outline"}
-                            size="sm"
-                            onClick={() => setReceived(s)}
-                          >
-                            {money(s)}
-                          </Button>
-                        ))}
-                      </div>
-                      <div
-                        role="status"
-                        className={cn(
-                          "flex flex-col items-center justify-center gap-1 rounded-xl px-4 py-5 text-center",
-                          change !== undefined
-                            ? "bg-success/10 text-success-ink"
-                            : receivedNum !== undefined && receivedNum < netTotal
-                              ? "bg-destructive/10 text-destructive"
-                              : "bg-muted text-muted-foreground",
-                        )}
-                      >
-                        {change !== undefined ? (
-                          <>
-                            <span className="text-xs font-semibold uppercase tracking-wide">
-                              Devuelta
-                            </span>
-                            <span className="stat-figure text-4xl leading-none sm:text-5xl">
-                              {money(change)}
-                            </span>
-                          </>
-                        ) : receivedNum !== undefined && receivedNum < netTotal ? (
-                          <>
-                            <span className="text-xs font-semibold uppercase tracking-wide">
-                              Faltan
-                            </span>
-                            <span className="stat-figure text-3xl leading-none">
-                              {money(netTotal - receivedNum)}
-                            </span>
-                          </>
-                        ) : (
-                          <span className="text-sm">
-                            Escribe con cuánto paga y aquí sale la devuelta.
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {!splitOn && (method === "card" || method === "transfer") && (
-                    <p className="flex items-start gap-2 rounded-xl border border-border bg-card px-3 py-2.5 text-[0.8125rem] text-muted-foreground">
-                      <Info className="mt-0.5 size-4 shrink-0 text-primary" />
-                      <span>
-                        {method === "card"
-                          ? "Pasa la tarjeta por el datáfono y confirma aquí cuando la transacción quede aprobada."
-                          : "Confirma aquí cuando veas la transferencia recibida. No hay devuelta que entregar."}
-                      </span>
-                    </p>
-                  )}
-
-                  {/* Fiado: quién queda debiendo. Va en esta columna y no en la
-                      de al lado porque es parte de CÓMO se paga, no un dato de
-                      la venta: sin deudor no hay cobro. */}
-                  {usesCredit && (
-                    <div className="flex flex-col gap-2.5 rounded-2xl border border-warning/30 bg-warning/10 p-3">
-                      <p className="flex items-center gap-1.5 text-[0.8125rem] font-medium text-warning-ink">
-                        <HandCoins className="size-4" />
-                        <Termino term="credito">Venta a crédito (fiado)</Termino>
-                      </p>
-
-                      <OptionGroup
-                        ariaLabel="Quién queda debiendo"
-                        value={debtorType}
-                        onChange={setDebtorType}
-                        columns={2}
-                        className="bg-warning/15"
-                        options={[
-                          { value: "customer" as const, label: "Cliente" },
-                          { value: "employee" as const, label: "Empleado (nómina)" },
-                        ]}
-                      />
-
-                      {debtorType === "customer" ? (
-                        <div className="flex flex-col gap-1.5">
-                          <div className="flex items-center justify-between gap-2">
-                            <Label className="text-xs text-warning-ink">
-                              Cliente registrado
-                            </Label>
-                            <button
-                              type="button"
-                              className="text-xs font-medium text-warning-ink underline"
-                              onClick={() => setNcOpen((v) => !v)}
-                            >
-                              {ncOpen ? "Cancelar" : "+ Registrar"}
-                            </button>
-                          </div>
-                          {!ncOpen ? (
-                            <NativeSelect
-                              value={custId}
-                              onChange={(v) => elegirCliente(v)}
-                              placeholder="Selecciona un cliente…"
-                              aria-label="Cliente al que se le fía"
-                              options={regCustomers.map((c) => ({
-                                value: c._id,
-                                label: `${c.name} · ${c.docType} ${c.docNumber}`,
-                              }))}
-                            />
-                          ) : (
-                            <div className="flex flex-col gap-1.5 rounded-xl border border-warning/30 bg-background p-2">
-                              <Input
-                                placeholder="Nombre"
-                                aria-label="Nombre del cliente nuevo"
-                                value={ncName}
-                                onChange={(e) => setNcName(e.target.value)}
-                              />
-                              <div className="grid grid-cols-2 gap-1.5">
-                                <Input
-                                  placeholder="Cédula / NIT"
-                                  aria-label="Documento del cliente nuevo"
-                                  value={ncDoc}
-                                  onChange={(e) => setNcDoc(e.target.value)}
-                                />
-                                <Input
-                                  placeholder="Teléfono"
-                                  aria-label="Teléfono del cliente nuevo"
-                                  inputMode="tel"
-                                  value={ncPhone}
-                                  onChange={(e) => setNcPhone(e.target.value)}
-                                />
-                              </div>
-                              <Button
-                                size="sm"
-                                disabled={ncBusy || !ncName.trim() || !ncDoc.trim()}
-                                onClick={() => void quickAddCustomer()}
-                              >
-                                {ncBusy ? "Guardando…" : "Registrar y usar"}
-                              </Button>
-                            </div>
-                          )}
-                          <p className="text-[11px] text-warning-ink">
-                            Queda como cuenta por cobrar (CxC) del cliente.
-                          </p>
-                        </div>
-                      ) : (
-                        <div className="flex flex-col gap-1.5">
-                          <Label className="text-xs text-warning-ink">Empleado</Label>
-                          <NativeSelect
-                            value={empId}
-                            onChange={setEmpId}
-                            placeholder="Selecciona un empleado…"
-                            aria-label="Empleado al que se le fía"
-                            options={empList.map((e) => ({
-                              value: e._id,
-                              label: `${e.firstName} ${e.lastName} · ${e.docNumber}`,
-                            }))}
-                          />
-                          <p className="text-[11px] text-warning-ink">
-                            Se descuenta por nómina (pendiente de aprobación) y
-                            aparece en la colilla.
-                          </p>
-                        </div>
-                      )}
-
-                      <div className="flex flex-col gap-1.5">
-                        <Label
-                          htmlFor="pos-credit-due"
-                          className="gap-1.5 text-xs text-warning-ink"
-                        >
-                          <CalendarClock className="size-3.5" />
-                          Vence (opcional)
-                        </Label>
-                        <Input
-                          id="pos-credit-due"
-                          type="date"
-                          value={creditDue}
-                          onChange={(e) => setCreditDue(e.target.value)}
-                          className="bg-background"
-                        />
-                      </div>
-                    </div>
-                  )}
-                </CheckoutColumn>
+                <CobroColumnaPago
+                  method={method}
+                  setMethod={setMethod}
+                  received={received}
+                  setReceived={setReceived}
+                  splitOn={splitOn}
+                  setSplitOn={setSplitOn}
+                  splitRows={splitRows}
+                  setSplitRows={setSplitRows}
+                  usesCredit={usesCredit}
+                  creditDue={creditDue}
+                  setCreditDue={setCreditDue}
+                  debtorType={debtorType}
+                  setDebtorType={setDebtorType}
+                  custId={custId}
+                  empId={empId}
+                  setEmpId={setEmpId}
+                  regCustomers={regCustomers}
+                  empList={empList}
+                  ncOpen={ncOpen}
+                  setNcOpen={setNcOpen}
+                  ncName={ncName}
+                  setNcName={setNcName}
+                  ncDoc={ncDoc}
+                  setNcDoc={setNcDoc}
+                  ncPhone={ncPhone}
+                  setNcPhone={setNcPhone}
+                  ncBusy={ncBusy}
+                  elegirCliente={elegirCliente}
+                  quickAddCustomer={quickAddCustomer}
+                  netTotal={netTotal}
+                  receivedNum={receivedNum}
+                  change={change}
+                  suggestions={suggestions}
+                  split={split}
+                />
 
                 {/* ── Columna 3: lo que no se toca en cada venta ──
                     Plegado por defecto y con el estado resumido en un renglón:
                     las opciones siguen estando todas, pero solo grita la que
                     esta venta necesita. */}
-                <CheckoutColumn
-                  title="De la venta"
-                  icon={ClipboardList}
-                  className="max-lg:order-3 max-lg:border-t max-lg:border-border"
-                >
-                  {!usesCredit ? (
-                    <CheckoutGroup
-                      title="Cliente"
-                      icon={UserRound}
-                      defaultOpen={clienteModo === "registrado"}
-                      summary={
-                        clienteModo === "final"
-                          ? "Consumidor final"
-                          : customer.name
-                            ? listaActiva
-                              ? `${customer.name} · lista ${listaActiva.name}`
-                              : customer.name
-                            : "Sin elegir"
-                      }
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <Label className="text-xs">A quién se le vende</Label>
-                        <button
-                          type="button"
-                          className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
-                          onClick={() => {
-                            setClienteModo("registrado")
-                            setNcOpen((v) => !v)
-                          }}
-                        >
-                          {ncOpen ? (
-                            "Cancelar"
-                          ) : (
-                            <>
-                              <UserPlus className="size-3.5" />
-                              Agregar cliente
-                            </>
-                          )}
-                        </button>
-                      </div>
-                      <OptionGroup
-                        ariaLabel="A quién se le vende"
-                        value={clienteModo}
-                        onChange={(v) => {
-                          setClienteModo(v)
-                          if (v === "final") {
-                            setNcOpen(false)
-                            elegirCliente("")
-                          }
-                        }}
-                        columns={2}
-                        options={[
-                          { value: "final" as const, label: "Consumidor final" },
-                          { value: "registrado" as const, label: "Cliente registrado" },
-                        ]}
-                      />
-
-                      {ncOpen ? (
-                        <div className="flex flex-col gap-1.5 rounded-xl border border-border bg-muted/40 p-2">
-                          <Input
-                            placeholder="Nombre"
-                            aria-label="Nombre del cliente nuevo"
-                            value={ncName}
-                            onChange={(e) => setNcName(e.target.value)}
-                          />
-                          <div className="grid grid-cols-2 gap-1.5">
-                            <Input
-                              placeholder="Cédula / NIT"
-                              aria-label="Documento del cliente nuevo"
-                              value={ncDoc}
-                              onChange={(e) => setNcDoc(e.target.value)}
-                            />
-                            <Input
-                              placeholder="Teléfono"
-                              aria-label="Teléfono del cliente nuevo"
-                              inputMode="tel"
-                              value={ncPhone}
-                              onChange={(e) => setNcPhone(e.target.value)}
-                            />
-                          </div>
-                          <Button
-                            size="sm"
-                            disabled={ncBusy || !ncName.trim() || !ncDoc.trim()}
-                            onClick={() => void quickAddCustomer()}
-                          >
-                            {ncBusy ? "Guardando…" : "Guardar y usar en esta venta"}
-                          </Button>
-                        </div>
-                      ) : clienteModo === "registrado" ? (
-                        <NativeSelect
-                          value={custId}
-                          onChange={(v) => elegirCliente(v)}
-                          placeholder="Selecciona un cliente…"
-                          aria-label="Cliente registrado"
-                          options={regCustomers.map((c) => ({
-                            value: c._id,
-                            label: `${c.name} · ${c.docType} ${c.docNumber}`,
-                          }))}
-                        />
-                      ) : (
-                        <p className="text-[11px] text-muted-foreground">
-                          Venta sin datos del cliente. El recibo y la factura
-                          salen a nombre de consumidor final.
-                        </p>
-                      )}
-
-                      {/* Sin cliente registrado, el cajero puede elegir la lista
-                          a mano. Es decidir cobrar menos, así que va con el
-                          mismo permiso que un descuento. */}
-                      {!custId && canDiscount && priceLists.length > 0 && (
-                        <NativeSelect
-                          value={manualListId}
-                          onChange={setManualListId}
-                          placeholder="Precio de mostrador"
-                          aria-label="Lista de precios"
-                          options={priceLists.map((l) => ({
-                            value: l._id,
-                            label: `Lista: ${l.name}`,
-                          }))}
-                        />
-                      )}
-
-                      {listaActiva && (
-                        <p className="inline-flex items-center gap-1 text-[11px] font-medium text-success-ink">
-                          <Tag className="size-3" />
-                          Se cobra con la lista {listaActiva.name}.
-                        </p>
-                      )}
-                    </CheckoutGroup>
-                  ) : (
-                    <p className="rounded-xl border border-dashed border-border px-3 py-2.5 text-xs text-muted-foreground">
-                      En el fiado el cliente se elige junto al medio de pago: es
-                      quien queda debiendo.
-                    </p>
-                  )}
-
-                  {/* Quién vendió. Por omisión, quien cobra; si atendió otra
-                      persona se escoge aquí y la venta queda a su nombre. */}
-                  <CheckoutGroup
-                    title="Vendedor"
-                    icon={Users}
-                    summary={
-                      vendedor
-                        ? `${vendedor.firstName} ${vendedor.lastName}`
-                        : user?.name
-                          ? `${user.name} (quien cobra)`
-                          : "Quien cobra"
-                    }
-                  >
-                    <NativeSelect
-                      id="pos-seller"
-                      value={vendedor ? sellerKey : QUIEN_COBRA}
-                      onChange={setSellerKey}
-                      aria-label="Vendedor"
-                      options={[
-                        {
-                          value: QUIEN_COBRA,
-                          label: user?.name
-                            ? `${user.name} (quien cobra)`
-                            : "Quien cobra",
-                        },
-                        ...empList.map((e) => ({
-                          value: e._id,
-                          label: `${e.firstName} ${e.lastName}`,
-                        })),
-                      ]}
-                    />
-                    {empList.length === 0 && (
-                      <p className="text-[11px] text-muted-foreground">
-                        Para escoger a otra persona, regístrala primero como
-                        empleado.
-                      </p>
-                    )}
-                  </CheckoutGroup>
-
-                  {/* Cómo sale el pedido. Con domicilio aparece a dónde va y
-                      cuánto se cobra por llevarlo, que se suma ENCIMA del total
-                      y sin IVA — igual que la propina. El bloque deja de
-                      plegarse mientras falte la dirección: esconder el campo que
-                      bloquea el botón de cobrar deja al cajero adivinando. */}
-                  <CheckoutGroup
-                    title="Tipo de pedido"
-                    icon={Truck}
-                    forceOpen={orderType === "domicilio" && !address.trim()}
-                    requiredHint="Falta la dirección"
-                    summary={
-                      orderType === "domicilio"
-                        ? `Domicilio · ${address.trim() || "sin dirección"}`
-                        : ORDER_TYPE_LABELS[orderType]
-                    }
-                  >
-                    <OptionGroup
-                      ariaLabel="Tipo de pedido"
-                      value={orderType}
-                      onChange={setOrderType}
-                      columns={4}
-                      options={(
-                        Object.entries(ORDER_TYPE_LABELS) as [OrderType, string][]
-                      ).map(([key, lbl]) => ({ value: key, label: lbl }))}
-                    />
-
-                    {orderType === "domicilio" && (
-                      <div className="flex flex-col gap-2 rounded-xl border border-border bg-muted/40 p-2.5">
-                        <div className="flex flex-col gap-1.5">
-                          <Label className="text-xs">Dirección de entrega</Label>
-                          <Input
-                            value={address}
-                            onChange={(e) => setAddress(e.target.value)}
-                            placeholder="Calle 33 #70-20, apto 302"
-                          />
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-2">
-                          <div className="flex flex-col gap-1.5">
-                            <Label className="text-xs">Teléfono</Label>
-                            <Input
-                              value={deliveryPhone}
-                              onChange={(e) => setDeliveryPhone(e.target.value)}
-                              placeholder="300 123 4567"
-                              inputMode="tel"
-                            />
-                          </div>
-                          <div className="flex flex-col gap-1.5">
-                            <Label className="text-xs">Quién lo lleva</Label>
-                            <Input
-                              value={courier}
-                              onChange={(e) => setCourier(e.target.value)}
-                              placeholder="Nombre del repartidor"
-                            />
-                          </div>
-                        </div>
-
-                        <div className="flex flex-col gap-1.5">
-                          <Label className="text-xs">Indicaciones</Label>
-                          <Input
-                            value={deliveryNotes}
-                            onChange={(e) => setDeliveryNotes(e.target.value)}
-                            placeholder="Timbre dañado, llamar al llegar"
-                          />
-                        </div>
-
-                        <div className="flex flex-col gap-1.5">
-                          <Label className="text-xs">Zona</Label>
-                          <NativeSelect
-                            value={zoneId}
-                            onChange={setZoneId}
-                            aria-label="Zona del domicilio"
-                            placeholder={
-                              zones.length === 0
-                                ? "No hay zonas configuradas"
-                                : "Otra zona (escribo el valor)"
-                            }
-                            options={zones.map((z) => ({
-                              value: z._id,
-                              label: `${z.name} · ${money(z.fee)}`,
-                            }))}
-                          />
-                          {/* El valor a mano es para el pedido que no cae en
-                              ninguna zona: es lo que se acordó en vez de
-                              calcular por kilómetros. */}
-                          {!zoneId && (
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs text-muted-foreground">
-                                Cobro del domicilio
-                              </span>
-                              <MoneyInput
-                                value={manualFee === "" ? null : Number(manualFee)}
-                                onValueChange={(v) =>
-                                  setManualFee(v === null ? "" : String(v))
-                                }
-                                aria-label="Valor del domicilio"
-                                placeholder="0"
-                                className="h-9 w-32 text-right"
-                              />
-                            </div>
-                          )}
-                        </div>
-
-                        <p className="text-[11px] text-muted-foreground">
-                          {deliveryFee > 0
-                            ? `Se cobran ${money(deliveryFee)} encima del total. El domicilio no lleva IVA.`
-                            : "Domicilio sin costo para el cliente."}
-                        </p>
-                      </div>
-                    )}
-                  </CheckoutGroup>
-
-                  {/* Dividir la cuenta de una mesa. Solo aparece con una cuenta
-                      abierta: una venta directa se cobra completa siempre. */}
-                  {activeOrder && (
-                    <CheckoutGroup
-                      title="Dividir la cuenta"
-                      icon={Split}
-                      summary={
-                        splitMode === "todo"
-                          ? pagadoAntes > 0
-                            ? `Completa · ya pagaron ${money(pagadoAntes)}`
-                            : "Completa"
-                          : splitMode === "items"
-                            ? "Por ítem"
-                            : `Entre ${splitParts || "?"} partes`
-                      }
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <Label className="text-xs">Cómo se paga la cuenta</Label>
-                        {pagadoAntes > 0 && (
-                          <span className="text-[11px] text-muted-foreground">
-                            ya pagaron {money(pagadoAntes)}
-                          </span>
-                        )}
-                      </div>
-                      <OptionGroup
-                        ariaLabel="Cómo se paga la cuenta"
-                        value={splitMode}
-                        onChange={setSplitMode}
-                        columns={3}
-                        options={[
-                          { value: "todo" as const, label: "Completa" },
-                          { value: "items" as const, label: "Por ítem" },
-                          { value: "partes" as const, label: "Partes iguales" },
-                        ]}
-                      />
-
-                      {splitMode === "partes" && (
-                        <div className="flex flex-col gap-1.5">
-                          <Label className="text-xs">
-                            ¿Entre cuántos se divide lo que falta?
-                          </Label>
-                          <QuantityInput
-                            value={splitParts === "" ? null : Number(splitParts)}
-                            onValueChange={(v) =>
-                              setSplitParts(v === null ? "" : String(v))
-                            }
-                            decimales={0}
-                            aria-label="Entre cuántos se divide la cuenta"
-                            className="h-9 w-24 text-right"
-                          />
-                          <p className="text-[11px] text-muted-foreground">
-                            {Number(splitParts) > 1
-                              ? "Se cobra una parte y la cuenta queda abierta con el resto. Al último ponle 1: se lleva lo que sobre."
-                              : "Con 1 se cobra todo lo que falta."}
-                          </p>
-                        </div>
-                      )}
-
-                      {splitMode === "items" && (
-                        <div className="flex flex-col gap-1.5">
-                          <Label className="text-xs">Qué paga esta persona</Label>
-                          {[...pendiente.entries()]
-                            .filter(([, falta]) => falta > 0.0005)
-                            .map(([productId, falta]) => {
-                              const l = activeOrder.lines.find(
-                                (x) => x.productId === productId,
-                              )
-                              const texto = splitQty[productId] ?? ""
-                              return (
-                                <div
-                                  key={productId}
-                                  className="flex items-center gap-2"
-                                >
-                                  <span className="min-w-0 flex-1 truncate text-xs">
-                                    {l?.name ?? productId}
-                                    <span className="text-muted-foreground">
-                                      {" "}
-                                      · faltan {nfCantidad.format(falta)}
-                                    </span>
-                                  </span>
-                                  <QuantityInput
-                                    value={texto === "" ? null : Number(texto)}
-                                    onValueChange={(v) =>
-                                      setSplitQty((prev) => ({
-                                        ...prev,
-                                        [productId]: v === null ? "" : String(v),
-                                      }))
-                                    }
-                                    aria-label={`Cuánto paga de ${l?.name ?? ""}`}
-                                    placeholder="—"
-                                    className="h-8 w-20 text-right"
-                                  />
-                                </div>
-                              )
-                            })}
-                          <p className="text-[11px] text-muted-foreground">
-                            Lo que dejes en blanco se queda pendiente para el
-                            siguiente.
-                          </p>
-                        </div>
-                      )}
-
-                      {splitLines && (
-                        <p className="text-[11px] font-medium text-success-ink">
-                          Este pago cubre {money(chargeTotal)} de{" "}
-                          {money(pendingTotal(activeOrder))} que faltan. La cuenta
-                          queda abierta.
-                        </p>
-                      )}
-                    </CheckoutGroup>
-                  )}
-
-                  {/* ── Factura electrónica ──
-                      Interruptor explícito, no un trámite aparte: si el cliente
-                      la pide, se marca aquí y sale con la venta. */}
-                  <CheckoutGroup
-                    title="Factura electrónica DIAN"
-                    icon={FileText}
-                    defaultOpen={emitInvoice}
-                    summary={
-                      emitInvoice
-                        ? "Se emite al confirmar"
-                        : "Sin factura electrónica"
-                    }
-                  >
-                    <label className="flex cursor-pointer items-start gap-3">
-                      <input
-                        type="checkbox"
-                        checked={emitInvoice}
-                        onChange={(e) => {
-                          setEmitInvoice(e.target.checked)
-                          if (e.target.checked) setShowCustomer(true)
-                        }}
-                        className="mt-0.5 size-5 shrink-0 accent-[var(--primary)]"
-                      />
-                      <span className="min-w-0 text-[0.8125rem]">
-                        <span className="block font-medium text-foreground">
-                          Emitir factura electrónica
-                        </span>
-                        <span className="mt-0.5 block text-muted-foreground">
-                          {emitInvoice
-                            ? "Se emite al confirmar. Necesitamos nombre y documento del cliente."
-                            : "Márcala si el cliente pide factura."}
-                        </span>
-                      </span>
-                    </label>
-
-                    {emitInvoice && (
-                      <label className="flex cursor-pointer items-center gap-3 border-t border-border pt-2.5">
-                        <input
-                          type="checkbox"
-                          checked={saveCustomer}
-                          onChange={(e) => setSaveCustomer(e.target.checked)}
-                          className="size-5 shrink-0 accent-[var(--primary)]"
-                        />
-                        <span className="text-[0.8125rem] text-foreground">
-                          Guardar el cliente para próximas facturas
-                        </span>
-                      </label>
-                    )}
-                  </CheckoutGroup>
-
-                  {/* Datos del cliente para el papel. Se abren solos al pedir
-                      factura y dejan de plegarse mientras falten: descubrirlo
-                      después de cobrar obligaría a anular la venta. */}
-                  <CheckoutGroup
-                    title="Datos para la factura"
-                    icon={ReceiptText}
-                    open={showCustomer}
-                    onOpenChange={setShowCustomer}
-                    forceOpen={invoiceDataMissing}
-                    requiredHint="Faltan datos"
-                    summary={
-                      customer.name
-                        ? `${customer.name}${customer.idNumber ? ` · ${customer.idNumber}` : ""}`
-                        : "Sin datos del cliente"
-                    }
-                  >
-                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                      <Input
-                        value={customer.name ?? ""}
-                        onChange={(e) =>
-                          setCustomer((c) => ({ ...c, name: e.target.value }))
-                        }
-                        placeholder="Nombre"
-                        aria-label="Nombre del cliente"
-                      />
-                      <Input
-                        value={customer.idNumber ?? ""}
-                        onChange={(e) =>
-                          setCustomer((c) => ({
-                            ...c,
-                            idNumber: e.target.value,
-                          }))
-                        }
-                        placeholder="Cédula / NIT"
-                        aria-label="Identificación del cliente"
-                      />
-                      <Input
-                        value={customer.phone ?? ""}
-                        onChange={(e) =>
-                          setCustomer((c) => ({ ...c, phone: e.target.value }))
-                        }
-                        placeholder="Teléfono"
-                        aria-label="Teléfono del cliente"
-                      />
-                      <Input
-                        value={customer.email ?? ""}
-                        onChange={(e) =>
-                          setCustomer((c) => ({ ...c, email: e.target.value }))
-                        }
-                        placeholder="Correo"
-                        aria-label="Correo del cliente"
-                      />
-                    </div>
-                    {invoiceDataMissing && (
-                      <p className="flex items-start gap-2 rounded-xl bg-accent px-3 py-2 text-xs text-accent-foreground">
-                        <Info className="mt-0.5 size-4 shrink-0" />
-                        Para la factura electrónica hace falta el nombre y la
-                        cédula o NIT del cliente.
-                      </p>
-                    )}
-                  </CheckoutGroup>
-
-                  {/* Con qué empaque sale la venta. Lo que quede marcado aquí
-                      es EXACTAMENTE lo que baja del inventario: la ficha del
-                      producto ya no descuenta por su cuenta. Por eso abre con
-                      la sugerencia puesta y no vacío. */}
-                  <CheckoutGroup
-                    title="Empaques"
-                    icon={Package}
-                    open={empaqueAbierto}
-                    onOpenChange={setEmpaqueAbierto}
-                    summary={
-                      packagingRows.length > 0
-                        ? packagingRows
-                            .map((r) => {
-                              const e = empaques.find(
-                                (p) => p._id === r.productId,
-                              )
-                              return `${r.qty} ${e?.name ?? "empaque"}`
-                            })
-                            .join(" · ")
-                        : "Sin empaques"
-                    }
-                  >
-                    <p className="text-[11px] text-muted-foreground">
-                      Lo que quede marcado sale del inventario y suma al costo
-                      de la venta; al cliente no se le cobra.
-                    </p>
-
-                    {/* De dónde salió lo que está marcado. Importa decirlo: es
-                        la diferencia entre "el sistema se acordó" y "el sistema
-                        se lo inventó", y quien cobra decide distinto según
-                        cuál de las dos sea. */}
-                    {sugerencia && sugerencia.origen !== "ninguno" && (
-                      <p className="flex items-start gap-1.5 text-[11px] text-muted-foreground">
-                        <Info className="mt-px size-3.5 shrink-0" aria-hidden />
-                        {sugerencia.origen === "historial"
-                          ? `Como las últimas ${sugerencia.apoyo} ${
-                              sugerencia.apoyo === 1 ? "vez" : "veces"
-                            } que vendiste esto.`
-                          : "Según el empaque de la ficha de cada producto."}
-                      </p>
-                    )}
-
-                    {empaques.length === 0 ? (
-                      <p className="text-[11px] text-muted-foreground">
-                        Todavía no hay empaques registrados. Se cargan en
-                        Inventario → Empaques.
-                      </p>
-                    ) : (
-                      <>
-                        <div className="grid grid-cols-2 gap-2">
-                          {empaques.map((e) => {
-                            const qty = empaqueSel[e._id] ?? 0
-                            return (
-                              <div
-                                key={e._id}
-                                className={cn(
-                                  "flex flex-col gap-1.5 rounded-xl border p-2 transition-colors",
-                                  qty > 0
-                                    ? "border-primary/50 bg-primary/5"
-                                    : "border-border",
-                                )}
-                              >
-                                <button
-                                  type="button"
-                                  className="flex min-w-0 items-center gap-2 text-left"
-                                  aria-label={`Agregar ${e.name}`}
-                                  onClick={() =>
-                                    setEmpaqueSel((s) => ({
-                                      ...s,
-                                      [e._id]: (s[e._id] ?? 0) + 1,
-                                    }))
-                                  }
-                                >
-                                  {e.imageUrl ? (
-                                    <Image
-                                      src={e.imageUrl}
-                                      width={40} height={40} sizes="40px"
-                                      alt=""
-                                      loading="lazy"
-                                      className="size-10 shrink-0 rounded-lg border border-border object-cover"
-                                    />
-                                  ) : (
-                                    <span
-                                      className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-dashed border-border text-muted-foreground"
-                                      aria-hidden
-                                    >
-                                      <ImageOff className="size-4" />
-                                    </span>
-                                  )}
-                                  <span className="line-clamp-2 min-w-0 text-[0.8125rem] leading-snug font-medium text-balance">
-                                    {e.name}
-                                  </span>
-                                </button>
-                                <div className="flex items-center gap-1">
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="icon-sm"
-                                    disabled={qty === 0}
-                                    aria-label={`Quitar uno de ${e.name}`}
-                                    onClick={() =>
-                                      setEmpaqueSel((s) => ({
-                                        ...s,
-                                        [e._id]: Math.max((s[e._id] ?? 0) - 1, 0),
-                                      }))
-                                    }
-                                  >
-                                    <Minus />
-                                  </Button>
-                                  <QuantityInput
-                                    value={qty}
-                                    decimales={0}
-                                    aria-label={`Cantidad de ${e.name}`}
-                                    className="h-8 flex-1 text-center"
-                                    onValueChange={(v) =>
-                                      setEmpaqueSel((s) => ({
-                                        ...s,
-                                        [e._id]: Math.max(v ?? 0, 0),
-                                      }))
-                                    }
-                                  />
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="icon-sm"
-                                    aria-label={`Agregar uno de ${e.name}`}
-                                    onClick={() =>
-                                      setEmpaqueSel((s) => ({
-                                        ...s,
-                                        [e._id]: (s[e._id] ?? 0) + 1,
-                                      }))
-                                    }
-                                  >
-                                    <Plus />
-                                  </Button>
-                                </div>
-                              </div>
-                            )
-                          })}
-                        </div>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="self-start"
-                          disabled={packagingRows.length === 0}
-                          onClick={() => setEmpaqueSel({})}
-                        >
-                          <X className="size-4" />
-                          Sin empaques
-                        </Button>
-                      </>
-                    )}
-                  </CheckoutGroup>
-                </CheckoutColumn>
+                <CobroColumnaVenta
+                  user={user}
+                  canDiscount={canDiscount}
+                  splitMode={splitMode}
+                  setSplitMode={setSplitMode}
+                  splitParts={splitParts}
+                  setSplitParts={setSplitParts}
+                  splitQty={splitQty}
+                  setSplitQty={setSplitQty}
+                  orderType={orderType}
+                  setOrderType={setOrderType}
+                  zones={zones}
+                  zoneId={zoneId}
+                  setZoneId={setZoneId}
+                  manualFee={manualFee}
+                  setManualFee={setManualFee}
+                  address={address}
+                  setAddress={setAddress}
+                  deliveryPhone={deliveryPhone}
+                  setDeliveryPhone={setDeliveryPhone}
+                  deliveryNotes={deliveryNotes}
+                  setDeliveryNotes={setDeliveryNotes}
+                  courier={courier}
+                  setCourier={setCourier}
+                  usesCredit={usesCredit}
+                  showCustomer={showCustomer}
+                  setShowCustomer={setShowCustomer}
+                  customer={customer}
+                  setCustomer={setCustomer}
+                  clienteModo={clienteModo}
+                  setClienteModo={setClienteModo}
+                  sellerKey={sellerKey}
+                  setSellerKey={setSellerKey}
+                  empaqueAbierto={empaqueAbierto}
+                  setEmpaqueAbierto={setEmpaqueAbierto}
+                  empaques={empaques}
+                  empaqueSel={empaqueSel}
+                  setEmpaqueSel={setEmpaqueSel}
+                  sugerencia={sugerencia}
+                  emitInvoice={emitInvoice}
+                  setEmitInvoice={setEmitInvoice}
+                  saveCustomer={saveCustomer}
+                  setSaveCustomer={setSaveCustomer}
+                  custId={custId}
+                  regCustomers={regCustomers}
+                  empList={empList}
+                  ncOpen={ncOpen}
+                  setNcOpen={setNcOpen}
+                  ncName={ncName}
+                  setNcName={setNcName}
+                  ncDoc={ncDoc}
+                  setNcDoc={setNcDoc}
+                  ncPhone={ncPhone}
+                  setNcPhone={setNcPhone}
+                  ncBusy={ncBusy}
+                  priceLists={priceLists}
+                  manualListId={manualListId}
+                  setManualListId={setManualListId}
+                  elegirCliente={elegirCliente}
+                  quickAddCustomer={quickAddCustomer}
+                  listaActiva={listaActiva}
+                  activeOrder={activeOrder}
+                  pagadoAntes={pagadoAntes}
+                  pendiente={pendiente}
+                  splitLines={splitLines}
+                  chargeTotal={chargeTotal}
+                  deliveryFee={deliveryFee}
+                  invoiceDataMissing={invoiceDataMissing}
+                  vendedor={vendedor}
+                  packagingRows={packagingRows}
+                />
               </div>
 
               {/* Pie fijo. Además de los botones, dice por qué NO se puede
                   cobrar todavía: el botón apagado sin explicación era el motivo
                   número uno de llamada al soporte. */}
-              <footer className="flex shrink-0 flex-col gap-2 border-t border-border bg-muted/40 px-4 py-3 sm:flex-row sm:items-center sm:px-5">
-                <div className="min-w-0 flex-1 text-xs sm:text-[0.8125rem]">
-                  {checkoutError ? (
-                    <p className="flex items-start gap-1.5 font-medium text-destructive">
-                      <AlertTriangle className="mt-px size-4 shrink-0" />
-                      {checkoutError}
-                    </p>
-                  ) : (
-                    <p className="flex items-start gap-1.5 text-muted-foreground">
-                      {motivoBloqueo ? (
-                        <>
-                          <Info className="mt-px size-4 shrink-0 text-primary" />
-                          {motivoBloqueo}
-                        </>
-                      ) : (
-                        <span className="hidden sm:inline">
-                          Enter cobra · Esc cierra
-                        </span>
-                      )}
-                    </p>
-                  )}
-                </div>
-                <div className="flex shrink-0 gap-2">
-                  <Button
-                    variant="outline"
-                    disabled={saving}
-                    className="flex-1 sm:min-w-28 sm:flex-none"
-                    onClick={() => setCheckoutOpen(false)}
-                  >
-                    Cancelar
-                  </Button>
-                  <Button
-                    className="h-12 flex-1 px-6 text-base font-semibold sm:flex-none"
-                    disabled={confirmBlocked}
-                    onClick={() => void handleConfirm()}
-                  >
-                    {saving
-                      ? "Registrando…"
-                      : !splitOn && method === "credit"
-                        ? `Fiar ${money(netTotal)}`
-                        : `Confirmar ${money(netTotal)}`}
-                  </Button>
-                </div>
-              </footer>
+              <CobroPie
+                setCheckoutOpen={setCheckoutOpen}
+                method={method}
+                splitOn={splitOn}
+                saving={saving}
+                checkoutError={checkoutError}
+                netTotal={netTotal}
+                confirmBlocked={confirmBlocked}
+                motivoBloqueo={motivoBloqueo}
+                handleConfirm={handleConfirm}
+              />
             </>
           )}
           </div>
@@ -3854,350 +1922,20 @@ export default function VentaPage() {
           Antes era un velo a mano con una `Card` dentro: sin scroll propio, sin
           Escape y sin atrapar el Tab. Al ser una ficha corriente de un solo
           campo, `FormDialog` lo resuelve entero y además deja el pie fijo. */}
-      <FormDialog
-        open={newOrderOpen}
-        onOpenChange={(abierto) => {
-          if (!abierto && orderBusy) return
-          setNewOrderOpen(abierto)
-        }}
-        title="Nueva cuenta"
-        description="Para dejar el consumo de una mesa o un cliente pendiente de cobrar."
-        icon={ClipboardList}
-        size="md"
-        footer={
-          <FormActions
-            onCancel={() => setNewOrderOpen(false)}
-            onSubmit={() => void newOrder(newOrderName)}
-            submitLabel="Crear cuenta"
-            busy={orderBusy}
-            disabled={!sedeId}
-          />
-        }
-      >
-        <Field
-          id="new-order-name"
-          label="Nombre de la cuenta"
-          hint="Puedes dejarlo en blanco y usar el número consecutivo."
-        >
-          <Input
-            id="new-order-name"
-            ref={newOrderRef}
-            value={newOrderName}
-            onChange={(e) => setNewOrderName(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault()
-                void newOrder(newOrderName)
-              }
-            }}
-            placeholder="Mesa 5, Juan, Terraza…"
-          />
-        </Field>
-      </FormDialog>
+      <NuevaCuentaDialog
+        sedeId={sedeId}
+        orderBusy={orderBusy}
+        newOrderOpen={newOrderOpen}
+        setNewOrderOpen={setNewOrderOpen}
+        newOrderName={newOrderName}
+        setNewOrderName={setNewOrderName}
+        newOrderRef={newOrderRef}
+        newOrder={newOrder}
+      />
     </>
   )
 }
 
-function SaveIndicator({ state }: { state: SaveState }) {
-  if (state === "saving") {
-    return (
-      <span className="flex items-center gap-1 text-xs text-muted-foreground">
-        <Loader2 className="size-3.5 animate-spin" />
-        Guardando
-      </span>
-    )
-  }
-  if (state === "saved") {
-    return (
-      <span className="flex items-center gap-1 text-xs text-success-ink">
-        <Check className="size-3.5" />
-        Guardado
-      </span>
-    )
-  }
-  if (state === "error") {
-    return (
-      <span className="flex items-center gap-1 text-xs text-destructive">
-        <AlertTriangle className="size-3.5" />
-        Sin guardar
-      </span>
-    )
-  }
-  return null
-}
 
-/**
- * Atajo de teclado, escrito donde se usa.
- *
- * Los dos que hay —Enter para agregar lo escaneado y Ctrl K para buscar en todo
- * el terminal— ya existían y no los descubría nadie. En un monitor ancho sobra
- * sitio a la derecha del filtro de categorías, así que se dicen ahí en vez de
- * dejar el hueco en blanco.
- */
-function Atajo({
-  tecla,
-  children,
-}: {
-  tecla: string
-  children: React.ReactNode
-}) {
-  return (
-    <span className="inline-flex items-center gap-1">
-      <kbd className="rounded-md border border-border bg-card px-1.5 py-0.5 font-mono text-xs text-foreground">
-        {tecla}
-      </kbd>
-      {children}
-    </span>
-  )
-}
 
-function CategoryChip({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean
-  onClick: () => void
-  children: React.ReactNode
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "shrink-0 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
-        active
-          ? "border-primary bg-primary text-primary-foreground"
-          : "border-border bg-card text-muted-foreground hover:text-foreground",
-      )}
-    >
-      {children}
-    </button>
-  )
-}
 
-/**
- * Tarjeta de un producto con variantes (una camisa y sus tallas).
- *
- * Enseña de qué producto se trata, cuántas tallas quedan con existencias y
- * desde qué precio; el detalle se elige en el selector. Se distingue de una
- * tarjeta normal por el galón de "tallas" y el borde teñido: pulsarla NO
- * agrega nada a la cuenta todavía, y eso hay que verlo antes de tocarla.
- *
- * Comparte maquetación con las tarjetas sueltas de la rejilla a propósito: en
- * una caja, dos tarjetas que se comportan distinto pero se ven iguales son un
- * error esperando a pasar.
- */
-function VariantGroupCard({
-  group,
-  inCart,
-  showImages,
-  onOpen,
-}: {
-  group: VariantGroup
-  /** Unidades de cualquier talla de este grupo ya en la cuenta. */
-  inCart: number
-  showImages: boolean
-  onOpen: () => void
-}) {
-  const ordenadas = sortVariants(group.variants)
-  const disponibles = ordenadas.filter((v) => v.stock > 0)
-  const agotado = disponibles.length === 0
-  const desde = Math.min(...group.variants.map((v) => v.salePrice))
-  const variosPrecios = new Set(group.variants.map((v) => v.salePrice)).size > 1
-  const foto = group.variants.find((v) => v.imageUrl)?.imageUrl ?? null
-  const ejes = axesOf(group.variants)
-  const eje = ejes.length === 1 ? ejes[0] : "variante"
-
-  return (
-    <button
-      type="button"
-      disabled={agotado}
-      onClick={onOpen}
-      aria-label={`${group.name}: elegir ${eje.toLowerCase()}`}
-      className={cn(
-        "group relative flex flex-col items-start gap-0.5 rounded-xl border border-primary/30 bg-card p-2.5 text-left shadow-xs transition-all hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-sm active:translate-y-0",
-        agotado &&
-          "cursor-not-allowed opacity-50 hover:translate-y-0 hover:border-border hover:shadow-xs",
-      )}
-    >
-      {inCart > 0 && (
-        <span className="absolute right-2 top-2 z-10 flex size-5 items-center justify-center rounded-full bg-primary text-[11px] font-bold text-primary-foreground">
-          {inCart}
-        </span>
-      )}
-      {showImages &&
-        (foto ? (
-          <Image
-            src={foto}
-            width={200} height={200} sizes="(min-width: 1024px) 160px, 30vw"
-            alt=""
-            loading="lazy"
-            className="mb-1 aspect-square w-full rounded-lg border border-border object-cover"
-          />
-        ) : (
-          <span className="mb-1 flex aspect-square w-full items-center justify-center rounded-lg border border-dashed border-border text-muted-foreground">
-            <Layers className="size-6" aria-hidden />
-          </span>
-        ))}
-      <span className="flex items-center gap-1 rounded-full bg-primary/12 px-2 py-0.5 text-[11px] font-bold text-primary">
-        <Layers className="size-3" aria-hidden />
-        {group.variants.length} {axisLabel(eje, group.variants.length)}
-      </span>
-      <span className="line-clamp-2 w-full pr-5 text-[0.8125rem] font-medium leading-snug text-balance">
-        {group.name}
-      </span>
-      <span className="line-clamp-1 w-full text-[11px] text-muted-foreground">
-        {disponibles.length > 0
-          ? disponibles.slice(0, 6).map(variantLabel).join(" · ")
-          : "Sin existencias"}
-      </span>
-      <span className="mt-1 flex w-full flex-wrap items-center justify-between gap-1">
-        <span className="font-display text-lg">
-          {variosPrecios ? `desde ${money(desde)}` : money(desde)}
-        </span>
-        {agotado ? (
-          <Badge variant="destructive">Agotado</Badge>
-        ) : disponibles.length < group.variants.length ? (
-          <Badge className="border-transparent bg-warning/15 text-warning-ink">
-            {disponibles.length}/{group.variants.length}
-          </Badge>
-        ) : null}
-      </span>
-    </button>
-  )
-}
-
-function Guard({
-  icon: Icon,
-  title,
-  text,
-}: {
-  icon: React.ElementType
-  title: string
-  text: string
-}) {
-  return (
-    <Card className="mx-auto max-w-lg">
-      <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
-        <Icon className="size-10 text-muted-foreground" />
-        <p className="font-display text-lg text-foreground">{title}</p>
-        <p className="max-w-xs text-sm text-muted-foreground">{text}</p>
-      </CardContent>
-    </Card>
-  )
-}
-
-/**
- * Filas de «dividir pago» (ítem 6.9): un medio y un monto por fila, con el
- * restante siempre a la vista. La cuenta la hace `lib/pos/split-payment.ts`.
- */
-function SplitPaymentEditor({
-  rows,
-  onChange,
-  due,
-  remaining,
-  change,
-  error,
-}: {
-  rows: SplitRow[]
-  onChange: (rows: SplitRow[]) => void
-  due: number
-  remaining: number
-  change: number
-  error: string | null
-}) {
-  const metodos = Object.entries(PAYMENT_METHOD_LABELS) as [
-    PaymentMethod,
-    string,
-  ][]
-  return (
-    <div className="flex flex-col gap-2.5 rounded-2xl border border-border bg-card p-3">
-      <p className="text-[0.8125rem] font-medium">Dividir pago</p>
-      <ul className="flex flex-col gap-2">
-        {rows.map((r, i) => (
-          <li key={r.id} className="flex flex-wrap items-center gap-2">
-            <NativeSelect
-              value={r.method}
-              onChange={(v) =>
-                onChange(
-                  rows.map((x) =>
-                    x.id === r.id ? { ...x, method: v as PaymentMethod } : x,
-                  ),
-                )
-              }
-              aria-label={`Medio de pago ${i + 1}`}
-              options={metodos.map(([value, label]) => ({ value, label }))}
-            />
-            <MoneyInput
-              value={r.amount}
-              onValueChange={(v) =>
-                onChange(
-                  rows.map((x) => (x.id === r.id ? { ...x, amount: v } : x)),
-                )
-              }
-              aria-label={`Monto del medio ${i + 1}`}
-              className="h-10 min-w-28 flex-1"
-            />
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => onChange(fillRemaining(rows, r.id, due))}
-            >
-              Lo que falta
-            </Button>
-            {rows.length > 1 && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                aria-label={`Quitar el medio ${i + 1}`}
-                onClick={() => onChange(rows.filter((x) => x.id !== r.id))}
-              >
-                <Trash2 className="size-4" />
-              </Button>
-            )}
-          </li>
-        ))}
-      </ul>
-      {rows.length < 6 && (
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="self-start"
-          onClick={() => onChange(addSplitRow(rows, due))}
-        >
-          <Plus className="size-4" />
-          Agregar medio
-        </Button>
-      )}
-      <div
-        role="status"
-        className={cn(
-          "flex items-center justify-between rounded-xl px-3 py-2.5 text-sm",
-          remaining > 0
-            ? "bg-destructive/10 text-destructive"
-            : change > 0
-              ? "bg-success/10 text-success-ink"
-              : "bg-muted text-muted-foreground",
-        )}
-      >
-        <span className="text-xs font-semibold uppercase tracking-wide">
-          {remaining > 0
-            ? "Restante"
-            : change > 0
-              ? "Devuelta (del efectivo)"
-              : "Cubierto"}
-        </span>
-        <span className="stat-figure text-2xl leading-none">
-          {money(remaining > 0 ? remaining : change)}
-        </span>
-      </div>
-      {error && remaining === 0 && (
-        <p className="text-xs text-destructive">{error}</p>
-      )}
-    </div>
-  )
-}
