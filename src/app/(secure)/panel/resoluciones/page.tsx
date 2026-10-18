@@ -43,8 +43,6 @@ import { Field, FieldGrid } from "@/components/ui/field"
 import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
-import { useLoadEffect } from "@/hooks/use-load-effect"
-import { useResetOnChange } from "@/hooks/use-reset-on-change"
 
 /** Qué tan grave es cada estado, para el color y para el orden de la lista. */
 const GRAVEDAD: Record<EstadoResolucion, number> = {
@@ -135,7 +133,7 @@ function ResolutionSheet({ open, onOpenChange, row, onSaved }: ResolutionSheetPr
   const [saving, setSaving] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
-  useResetOnChange(() => {
+  React.useEffect(() => {
     if (!open || !row) return
     const r = row.resolucion
     setF({
@@ -381,7 +379,9 @@ export default function ResolucionesPage() {
     }
   }, [])
 
-  useLoadEffect(load, canIssue)
+  React.useEffect(() => {
+    if (canIssue) void load()
+  }, [canIssue, load])
 
   if (!canIssue) {
     return (

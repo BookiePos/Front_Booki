@@ -73,6 +73,8 @@ export function FacturaElectronica({
       QRCode.toDataURL(doc.qrUrl, { margin: 1, width: 160 })
         .then((url) => active && setQrImg(url))
         .catch(() => active && setQrImg(null))
+    } else {
+      setQrImg(null)
     }
     return () => {
       active = false
@@ -226,7 +228,7 @@ export function FacturaElectronica({
       {/* Totales + QR */}
       <div className="mt-4 flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
-          {doc.qrUrl && qrImg ? (
+          {qrImg ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={qrImg}

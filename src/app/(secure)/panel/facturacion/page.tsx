@@ -40,7 +40,6 @@ import {
 } from "@/components/ui/select"
 import { FormDialog } from "@/components/ui/form-dialog"
 import { Termino } from "@/components/ui/help-tip"
-import { useLoadEffect } from "@/hooks/use-load-effect"
 
 const money = new Intl.NumberFormat("es-CO", {
   style: "currency",
@@ -124,7 +123,9 @@ export default function FacturacionPage() {
     }
   }, [sedeId])
 
-  useLoadEffect(load, canView)
+  React.useEffect(() => {
+    if (canView) void load()
+  }, [canView, load])
 
   async function handleGenerate(sale: Sale) {
     setBusyId(sale._id)
