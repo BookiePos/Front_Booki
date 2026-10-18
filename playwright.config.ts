@@ -31,8 +31,12 @@ import { FRONTEND_URL } from "./e2e/helpers/auth";
 export default defineConfig({
   testDir: "./e2e",
 
-  /** Timeout por test (ms). 30 s es suficiente para flujos con login + navegación. */
-  timeout: 30_000,
+  /**
+   * Timeout por test (ms). 30 s basta contra el stack local; contra un stack remoto
+   * (e2e:prod) el arranque en frío y la latencia se comen ~25 s solo en el beforeEach
+   * y la venta, así que se da 90 s.
+   */
+  timeout: /^https?:\/\/(localhost|127\.0\.0\.1)/.test(FRONTEND_URL) ? 30_000 : 90_000,
 
   /** Timeout para cada expect/assertion. */
   expect: {
