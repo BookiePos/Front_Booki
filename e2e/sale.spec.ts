@@ -31,6 +31,7 @@ async function venderPrimerProducto(page: Page, veces = 1): Promise<string> {
   const numero = (await cobro.getByText(/^FV-\d+$/).first().textContent())?.trim() ?? ""
   expect(numero).toMatch(/^FV-\d+$/)
   await cobro.getByRole("button", { name: "Cerrar" }).first().click()
+  await expect(cobro).toBeHidden()
   return numero
 }
 
@@ -76,14 +77,14 @@ test.describe("POS — venta, devolución y anulación", () => {
     const detalle = await abrirVenta(page, numero)
 
     await detalle.getByRole("button", { name: "Anular venta" }).click()
-    await page
-      .getByRole("dialog")
-      .filter({ hasText: `¿Anular la venta ${numero}?` })
-      .getByRole("button", { name: "Confirmar" })
-      .click()
+    const confirmar = page.getByRole("dialog").filter({ hasText: `¿Anular la venta ${numero}?` })
+    await confirmar.getByRole("button", { name: "Confirmar" }).click()
+    await expect(confirmar).toBeHidden({ timeout: 15_000 })
     await expect(detalle.getByRole("button", { name: "Anular venta" })).toBeHidden({ timeout: 15_000 })
 
-    await detalle.getByRole("button", { name: "Cerrar" }).first().click()
+    // Dos botones "Cerrar": la X del encabezado y el del pie; el del pie es el último.
+    await detalle.getByRole("button", { name: "Cerrar" }).last().click()
+    await expect(detalle).toBeHidden()
     await page.getByRole("button", { name: "Anuladas" }).click()
     await expect(page.getByRole("button", { name: new RegExp(`^${numero} `) })).toBeVisible()
   })
