@@ -51,6 +51,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { useConfirm } from "@/components/ui/confirm-dialog"
 import { Separator } from "@/components/ui/separator"
 import { cn } from "@/lib/utils"
+import { useLoadEffect } from "@/hooks/use-load-effect"
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -141,10 +142,7 @@ export default function PosPage() {
     }
   }, [sedeId])
 
-  React.useEffect(() => {
-    if (!canSell) return
-    void fetchProducts()
-  }, [canSell, fetchProducts])
+  useLoadEffect(fetchProducts, canSell)
 
   // ── Carrito ────────────────────────────────────────────────────────────────
 

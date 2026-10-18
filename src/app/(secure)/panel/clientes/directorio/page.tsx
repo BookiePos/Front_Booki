@@ -44,6 +44,8 @@ import {
   CheckboxField,
 } from "@/components/ui/field"
 import { Termino } from "@/components/ui/help-tip"
+import { useLoadEffect } from "@/hooks/use-load-effect"
+import { useResetOnChange } from "@/hooks/use-reset-on-change"
 
 const DOC_TYPES: CustomerDocType[] = ["CC", "NIT", "CE", "PAS"]
 
@@ -71,9 +73,7 @@ export default function DirectorioClientesPage() {
     }
   }, [search])
 
-  React.useEffect(() => {
-    if (canView) void load()
-  }, [canView, load])
+  useLoadEffect(load, canView)
 
   if (!canView) {
     return (
@@ -251,7 +251,7 @@ function CustomerDialog({
   const [busy, setBusy] = React.useState(false)
   const [err, setErr] = React.useState<string | null>(null)
 
-  React.useEffect(() => {
+  useResetOnChange(() => {
     if (!customer) return
     setErr(null)
     if (editing) {

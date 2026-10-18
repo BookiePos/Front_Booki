@@ -32,6 +32,7 @@ import {
 import { Field, FieldGrid } from "@/components/ui/field"
 import { VARIANTS_FORM_ID, errorMessage } from "@/components/inventario/helpers"
 import { FormError } from "@/components/inventario/ui-comunes"
+import { useResetOnChange } from "@/hooks/use-reset-on-change"
 
 // ─── Tallas y variantes (comercio sin recetas) ───────────────────────────────
 
@@ -122,7 +123,7 @@ export function VariantsSheet({
   const [error, setError] = React.useState<string | null>(null)
   const [doneMsg, setDoneMsg] = React.useState<string | null>(null)
 
-  React.useEffect(() => {
+  useResetOnChange(() => {
     if (!open) return
     setSkuPrefix("")
     setName("")

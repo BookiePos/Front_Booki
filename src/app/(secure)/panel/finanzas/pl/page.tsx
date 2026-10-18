@@ -34,6 +34,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import { CalendarRange } from "lucide-react"
+import { useLoadEffect } from "@/hooks/use-load-effect"
 
 const ALL = "all"
 const inputClass =
@@ -189,9 +190,7 @@ function PLView({
     }
   }, [from, to, sedeId])
 
-  React.useEffect(() => {
-    void load()
-  }, [load])
+  useLoadEffect(load)
 
   return (
     <div className="flex flex-col gap-4">
@@ -347,9 +346,7 @@ function MonthlyView({ sedeId }: { sedeId?: string }) {
     }
   }, [year, sedeId])
 
-  React.useEffect(() => {
-    void load()
-  }, [load])
+  useLoadEffect(load)
 
   const years = [nowYear + 1, nowYear, nowYear - 1, nowYear - 2]
   const compact = new Intl.NumberFormat("es-CO", {
@@ -536,9 +533,7 @@ function VsActualView({ sedeId }: { sedeId?: string }) {
     }
   }, [budgetId, sedeId])
 
-  React.useEffect(() => {
-    void load()
-  }, [load])
+  useLoadEffect(load)
 
   const years = [nowYear + 1, nowYear, nowYear - 1, nowYear - 2]
 

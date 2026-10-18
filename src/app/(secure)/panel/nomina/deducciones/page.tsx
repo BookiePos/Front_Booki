@@ -52,6 +52,8 @@ import {
 } from "@/components/ui/field"
 import { MoneyInput } from "@/components/ui/money-input"
 import { Termino } from "@/components/ui/help-tip"
+import { useLoadEffect } from "@/hooks/use-load-effect"
+import { useResetOnChange } from "@/hooks/use-reset-on-change"
 
 const ALL = "all"
 
@@ -93,9 +95,7 @@ export default function DeduccionesPage() {
     }
   }, [status])
 
-  React.useEffect(() => {
-    if (canView) void load()
-  }, [canView, load])
+  useLoadEffect(load, canView)
 
   async function act(id: string, fn: () => Promise<unknown>) {
     setBusyId(id)
@@ -314,13 +314,17 @@ function NewDeductionDialog({
   const [busy, setBusy] = React.useState(false)
   const [err, setErr] = React.useState<string | null>(null)
 
-  React.useEffect(() => {
+  useResetOnChange(() => {
     if (!open) return
     setEmployeeId("")
     setConcept("")
     setAmount("")
     setDate(todayLocal())
     setErr(null)
+  }, [open])
+
+  React.useEffect(() => {
+    if (!open) return
     listEmployees()
       .then((e) => setEmployees(e.filter((x) => x.status === "activo")))
       .catch(() => setEmployees([]))

@@ -12,6 +12,7 @@ import { listOrders } from "@/lib/erp/api-restaurant"
 import { getAlerts } from "@/lib/erp/api-inventory"
 import { todayLocal } from "@/lib/erp/finance-format"
 import type { DashboardData } from "./types"
+import { useLoadEffect } from "@/hooks/use-load-effect"
 
 function daysAgo(n: number): string {
   const d = new Date()
@@ -111,9 +112,7 @@ export function useDashboardData() {
     setLoading(false)
   }, [canFinance, canReports, canInventory, canPos, isRestaurant])
 
-  React.useEffect(() => {
-    void reload()
-  }, [reload])
+  useLoadEffect(reload)
 
   return { data, loading, reload }
 }
