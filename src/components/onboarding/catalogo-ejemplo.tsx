@@ -40,14 +40,31 @@ export function CatalogoEjemplo({ onDone }: { onDone: () => void }) {
   const [cargando, setCargando] = React.useState(false)
   const [resultado, setResultado] = React.useState<ResultadoPlantilla | null>(null)
 
+  // El estado se lee al montar para saber si ya hay una plantilla cargada y
+  // ofrecer «Quitar datos de ejemplo» aunque ya no estemos en el flujo de carga.
+  React.useEffect(() => {
+    if (!puede || estado) return
+    let vivo = true
+    getEstadoOnboarding()
+      .then((e) => vivo && setEstado(e))
+      .catch(() => undefined)
+    return () => {
+      vivo = false
+    }
+  }, [puede, estado])
+
+  const sugerirTipo = (e: EstadoOnboarding) => {
+    const sugerida = e.tipoNegocio ? SUGERIDA[e.tipoNegocio] : null
+    setTipo((t) => t ?? sugerida)
+  }
+
   const abrir = async () => {
     setAbierto(true)
-    if (estado) return
+    if (estado) return sugerirTipo(estado)
     try {
       const e = await getEstadoOnboarding()
       setEstado(e)
-      const sugerida = e.tipoNegocio ? SUGERIDA[e.tipoNegocio] : null
-      setTipo((t) => t ?? sugerida)
+      sugerirTipo(e)
     } catch (err) {
       toast.error(errorMessage(err))
       setAbierto(false)
@@ -83,11 +100,10 @@ export function CatalogoEjemplo({ onDone }: { onDone: () => void }) {
     }
   }
 
-  const quitar = async () => {
-    if (!resultado) return
+  const quitar = async (tipoAQuitar: string) => {
     setCargando(true)
     try {
-      const r = await quitarPlantilla(resultado.tipo)
+      const r = await quitarPlantilla(tipoAQuitar)
       toast.success(
         r.conservados > 0
           ? `Quitados ${r.vendiblesQuitados} productos de ejemplo; ${r.conservados} se conservan porque ya tienen compras`
@@ -131,7 +147,7 @@ export function CatalogoEjemplo({ onDone }: { onDone: () => void }) {
           <Button render={<Link href="/pos" />} className="sm:flex-1" onClick={onDone}>
             Ir a vender
           </Button>
-          <Button variant="outline" className="sm:flex-1" disabled={cargando} onClick={quitar}>
+          <Button variant="outline" className="sm:flex-1" disabled={cargando} onClick={() => quitar(resultado.tipo)}>
             Quitar datos de ejemplo
           </Button>
         </div>
@@ -140,7 +156,9 @@ export function CatalogoEjemplo({ onDone }: { onDone: () => void }) {
   }
 
   if (!abierto) {
+    const cargadas = estado?.plantillas.filter((p) => p.cargados > 0) ?? []
     return (
+      <div className="flex flex-col gap-2">
       <button
         type="button"
         onClick={abrir}
@@ -159,6 +177,20 @@ export function CatalogoEjemplo({ onDone }: { onDone: () => void }) {
           </span>
         </span>
       </button>
+      {cargadas.map((p) => (
+        <p key={p.tipo} className="px-1 text-xs text-muted-foreground">
+          Cargaste el catálogo de ejemplo de {p.nombre}.{" "}
+          <button
+            type="button"
+            disabled={cargando}
+            onClick={() => quitar(p.tipo)}
+            className="font-medium text-primary underline disabled:opacity-60"
+          >
+            Quitar datos de ejemplo
+          </button>
+        </p>
+      ))}
+      </div>
     )
   }
 
