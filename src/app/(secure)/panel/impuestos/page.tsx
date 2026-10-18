@@ -40,6 +40,7 @@ import {
   NativeSelect,
 } from "@/components/ui/field"
 import { HelpTip, Termino } from "@/components/ui/help-tip"
+import { useLoadEffect } from "@/hooks/use-load-effect"
 
 const KIND_OPTIONS: { v: TaxKind; l: string }[] = [
   { v: "iva", l: "IVA" },
@@ -78,9 +79,7 @@ export default function ImpuestosPage() {
     }
   }, [])
 
-  React.useEffect(() => {
-    if (canManage) void load()
-  }, [canManage, load])
+  useLoadEffect(load, canManage)
 
   if (!canManage) {
     return (

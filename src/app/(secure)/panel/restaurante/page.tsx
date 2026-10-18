@@ -54,6 +54,7 @@ import {
 import { Field, FieldGrid, FieldSpan } from "@/components/ui/field"
 import { Termino } from "@/components/ui/help-tip"
 import { Checkbox } from "@/components/ui/checkbox"
+import { useLoadEffect } from "@/hooks/use-load-effect"
 
 const tableTone: Record<string, string> = {
   free: "border-border bg-card hover:border-primary",
@@ -105,9 +106,7 @@ export default function RestaurantePage() {
     }
   }, [sedeId])
 
-  React.useEffect(() => {
-    if (canOperate && sedeId) void load()
-  }, [canOperate, sedeId, load])
+  useLoadEffect(load, Boolean(canOperate && sedeId))
 
   // Retail no usa mesas/comandas: la ruta existe pero no es aplicable.
   if (isRetail) {

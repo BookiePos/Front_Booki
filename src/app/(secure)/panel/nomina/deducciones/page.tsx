@@ -52,6 +52,7 @@ import {
 } from "@/components/ui/field"
 import { MoneyInput } from "@/components/ui/money-input"
 import { Termino } from "@/components/ui/help-tip"
+import { useLoadEffect } from "@/hooks/use-load-effect"
 
 const ALL = "all"
 
@@ -93,9 +94,7 @@ export default function DeduccionesPage() {
     }
   }, [status])
 
-  React.useEffect(() => {
-    if (canView) void load()
-  }, [canView, load])
+  useLoadEffect(load, canView)
 
   async function act(id: string, fn: () => Promise<unknown>) {
     setBusyId(id)

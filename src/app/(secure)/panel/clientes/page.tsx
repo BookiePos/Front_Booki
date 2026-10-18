@@ -68,6 +68,7 @@ import {
 } from "@/components/ui/field"
 import { Termino } from "@/components/ui/help-tip"
 import { cn } from "@/lib/utils"
+import { useLoadEffect } from "@/hooks/use-load-effect"
 
 const ALL = "all"
 
@@ -160,9 +161,7 @@ export default function ClientesPage() {
     }
   }, [sedeId, status])
 
-  React.useEffect(() => {
-    if (canView) void load()
-  }, [canView, load])
+  useLoadEffect(load, canView)
 
   if (!canView) {
     return (

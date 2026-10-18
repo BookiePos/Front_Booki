@@ -72,6 +72,7 @@ import {
   CheckboxField,
 } from "@/components/ui/field"
 import { Termino } from "@/components/ui/help-tip"
+import { useLoadEffect } from "@/hooks/use-load-effect"
 
 /** Medios que pueden auto-alimentar una cuenta (el efectivo vive en la caja del POS). */
 const AUTO_METHODS: PaymentMethod[] = ["card", "transfer"]
@@ -134,9 +135,7 @@ export default function BancosPage() {
     }
   }, [])
 
-  React.useEffect(() => {
-    if (canView) void load()
-  }, [canView, load])
+  useLoadEffect(load, canView)
 
   if (!canView) {
     return (

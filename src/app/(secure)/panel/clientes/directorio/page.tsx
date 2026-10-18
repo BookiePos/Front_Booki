@@ -44,6 +44,7 @@ import {
   CheckboxField,
 } from "@/components/ui/field"
 import { Termino } from "@/components/ui/help-tip"
+import { useLoadEffect } from "@/hooks/use-load-effect"
 
 const DOC_TYPES: CustomerDocType[] = ["CC", "NIT", "CE", "PAS"]
 
@@ -71,9 +72,7 @@ export default function DirectorioClientesPage() {
     }
   }, [search])
 
-  React.useEffect(() => {
-    if (canView) void load()
-  }, [canView, load])
+  useLoadEffect(load, canView)
 
   if (!canView) {
     return (

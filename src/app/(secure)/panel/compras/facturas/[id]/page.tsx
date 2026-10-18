@@ -119,6 +119,7 @@ import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 
 import { ApplyExpenseDialog } from "./apply-expense-dialog"
+import { useLoadEffect } from "@/hooks/use-load-effect"
 
 /** Diferencia aceptable entre la suma de las líneas y el total impreso. */
 const TOLERANCIA = 100
@@ -771,9 +772,7 @@ export default function RevisarFacturaPage() {
     }
   }, [id])
 
-  React.useEffect(() => {
-    if (canView) void load()
-  }, [canView, load])
+  useLoadEffect(load, canView)
 
   // ─── Edición local ────────────────────────────────────────────────────────
 

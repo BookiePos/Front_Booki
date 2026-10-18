@@ -43,6 +43,7 @@ import { Field, FieldGrid } from "@/components/ui/field"
 import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
+import { useLoadEffect } from "@/hooks/use-load-effect"
 
 /** Qué tan grave es cada estado, para el color y para el orden de la lista. */
 const GRAVEDAD: Record<EstadoResolucion, number> = {
@@ -379,9 +380,7 @@ export default function ResolucionesPage() {
     }
   }, [])
 
-  React.useEffect(() => {
-    if (canIssue) void load()
-  }, [canIssue, load])
+  useLoadEffect(load, canIssue)
 
   if (!canIssue) {
     return (

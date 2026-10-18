@@ -59,6 +59,7 @@ import {
   NativeSelect,
 } from "@/components/ui/field"
 import { Termino } from "@/components/ui/help-tip"
+import { useLoadEffect } from "@/hooks/use-load-effect"
 
 const ALL = "all"
 
@@ -121,9 +122,7 @@ export function PayablesPanel({ showKpis = true }: { showKpis?: boolean }) {
     }
   }, [sedeId, status])
 
-  React.useEffect(() => {
-    void load()
-  }, [load])
+  useLoadEffect(load)
 
   const openRows = rows.filter((r) => r.status === "open" || r.status === "partial")
   const totalAbierto = openRows.reduce((s, r) => s + (r.amount - r.paidAmount), 0)

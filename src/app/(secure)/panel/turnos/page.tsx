@@ -54,6 +54,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { useLoadEffect } from "@/hooks/use-load-effect"
 
 const ALL = "all"
 
@@ -123,9 +124,7 @@ export default function TurnosPage() {
     }
   }, [from, to, sedeId])
 
-  React.useEffect(() => {
-    if (canView) void load()
-  }, [canView, load])
+  useLoadEffect(load, canView)
 
   const totalHours = rows.reduce((s, r) => s + r.hours, 0)
   const totalDays = rows.reduce((s, r) => s + r.days, 0)
@@ -327,9 +326,7 @@ function EditRequestsPanel({ onResolved }: { onResolved: () => void }) {
     }
   }, [])
 
-  React.useEffect(() => {
-    void load()
-  }, [load])
+  useLoadEffect(load)
 
   async function resolve(id: string, approve: boolean) {
     setBusyId(id)
@@ -467,9 +464,7 @@ function DayEditor({
     }
   }, [sedeId, date])
 
-  React.useEffect(() => {
-    void load()
-  }, [load])
+  useLoadEffect(load)
 
   async function save(w: Worker) {
     const d = draft[w.id] ?? { checkIn: "", checkOut: "" }

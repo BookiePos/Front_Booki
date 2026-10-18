@@ -85,6 +85,7 @@ import {
 } from "@/components/ui/field"
 import { Termino } from "@/components/ui/help-tip"
 import { X } from "lucide-react"
+import { useLoadEffect } from "@/hooks/use-load-effect"
 
 const ALL = "all"
 
@@ -164,9 +165,7 @@ export default function GastosPage() {
     }
   }, [])
 
-  React.useEffect(() => {
-    if (canView) void loadCxpKpi()
-  }, [canView, loadCxpKpi])
+  useLoadEffect(loadCxpKpi, canView)
 
   const load = React.useCallback(async () => {
     setLoading(true)
@@ -186,9 +185,7 @@ export default function GastosPage() {
     }
   }, [sedeId, from, to, status])
 
-  React.useEffect(() => {
-    if (canView) void load()
-  }, [canView, load])
+  useLoadEffect(load, canView)
 
   // Antes del return temprano: un hook no puede quedar detrás de un `if` (React
   // exige el mismo orden de hooks en cada render).
@@ -685,9 +682,7 @@ function RecurringPanel({
     }
   }, [])
 
-  React.useEffect(() => {
-    void load()
-  }, [load])
+  useLoadEffect(load)
 
   const sedeName = (id: string) => sedes.find((s) => s._id === id)?.name ?? "—"
 

@@ -35,6 +35,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { useLoadEffect } from "@/hooks/use-load-effect"
 
 const ALL = "all"
 const inputClass =
@@ -153,9 +154,7 @@ export default function FlujoCajaPage() {
     }
   }, [days, sedeId, includeProjections])
 
-  React.useEffect(() => {
-    if (canView) void load()
-  }, [canView, load])
+  useLoadEffect(load, canView)
 
   if (!canView) {
     return (

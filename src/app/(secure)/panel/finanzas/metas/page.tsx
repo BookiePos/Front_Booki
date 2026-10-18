@@ -64,6 +64,7 @@ import {
   NativeSelect,
 } from "@/components/ui/field"
 import { Termino } from "@/components/ui/help-tip"
+import { useLoadEffect } from "@/hooks/use-load-effect"
 
 function emptyMonths(): number[] {
   return Array.from({ length: 12 }, () => 0)
@@ -112,9 +113,7 @@ export default function MetasPage() {
     }
   }, [year])
 
-  React.useEffect(() => {
-    if (canView) void load()
-  }, [canView, load])
+  useLoadEffect(load, canView)
 
   if (!canView) {
     return (
@@ -792,9 +791,7 @@ function BudgetVsActualView({
     }
   }, [budgetId, sedeId])
 
-  React.useEffect(() => {
-    void load()
-  }, [load])
+  useLoadEffect(load)
 
   const totalBudget = data?.totals.budget ?? 0
   const totalActual = data?.totals.actual ?? 0

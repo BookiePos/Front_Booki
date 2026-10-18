@@ -129,6 +129,7 @@ import { ActualizarPreciosDialog } from "@/components/inventario/precios-dialog"
 import { ConteoFisicoDialog } from "@/components/inventario/conteo-dialog"
 import { ImportProductsSheet } from "@/components/inventario/import-products-sheet"
 import { StockImportSheet } from "@/components/inventario/stock-import-sheet"
+import { useLoadEffect } from "@/hooks/use-load-effect"
 
 export default function InventarioPage() {
   // Las tallas son cosa del comercio que NO trabaja con recetas (ropa,
@@ -316,20 +317,11 @@ export default function InventarioPage() {
     fetchAllStock()
   }, [canView, fetchAlerts, fetchAllStock])
 
-  React.useEffect(() => {
-    if (!canView) return
-    void fetchProducts()
-  }, [canView, fetchProducts])
+  useLoadEffect(fetchProducts, canView)
 
-  React.useEffect(() => {
-    if (!canView) return
-    void fetchStock()
-  }, [canView, fetchStock])
+  useLoadEffect(fetchStock, canView)
 
-  React.useEffect(() => {
-    if (!canView) return
-    void fetchMovements()
-  }, [canView, fetchMovements])
+  useLoadEffect(fetchMovements, canView)
 
   /** Tras cualquier operación de stock se refresca todo lo afectado. */
   function refreshAfterOperation() {
