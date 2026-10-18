@@ -50,6 +50,8 @@ export default function ConfirmarRegistroPage() {
   const [sesion, setSesion] = useState<RegisterResponse | null>(null)
 
   const [password, setPassword] = useState("")
+  // Contraseña equivocada (400): se reintenta con el mismo enlace.
+  const [errorPassword, setErrorPassword] = useState("")
   const [email, setEmail] = useState("")
   const [reenvio, setReenvio] = useState<"idle" | "enviando" | "enviado">("idle")
   const [reenvioError, setReenvioError] = useState("")
@@ -57,12 +59,22 @@ export default function ConfirmarRegistroPage() {
   function confirmar() {
     if (!token || !password || fase === "confirmando") return
     setFase("confirmando")
+    setErrorPassword("")
     confirmRegister(token, password)
       .then((res) => {
+        setPassword("")
         setSesion(res)
         setFase("listo")
       })
       .catch((err: unknown) => {
+        setPassword("")
+        // Un 400 es contraseña equivocada: el enlace sigue vivo. Mandarlo a la
+        // fase «error» (donde solo queda reenviar) invalidaría el token.
+        if (err instanceof ApiError && err.status === 400) {
+          setErrorPassword(err.message)
+          setFase("pendiente")
+          return
+        }
         setMotivo(
           err instanceof ApiError
             ? err.message
@@ -155,8 +167,15 @@ export default function ConfirmarRegistroPage() {
                   autoComplete="current-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  aria-invalid={errorPassword ? true : undefined}
+                  aria-describedby={errorPassword ? "confirmar-password-error" : undefined}
                   required
                 />
+                {errorPassword && (
+                  <p id="confirmar-password-error" role="alert" className="text-sm text-red-700">
+                    {errorPassword}
+                  </p>
+                )}
                 <Button type="submit" size="lg" disabled={!password}>
                   Confirmar
                 </Button>

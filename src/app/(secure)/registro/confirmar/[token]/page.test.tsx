@@ -68,6 +68,37 @@ describe("confirmar registro · página", () => {
   })
 })
 
+describe("confirmar registro · contraseña equivocada", () => {
+  it("un 400 vuelve a «pendiente» con el error, limpia el campo y deja reintentar con el mismo enlace", async () => {
+    confirmRegister.mockReset()
+    confirmRegister.mockRejectedValueOnce(
+      new ApiError(400, "Los datos de confirmación no son correctos."),
+    )
+    confirmRegister.mockResolvedValueOnce({
+      plan: "negocio",
+      user: { name: "Ana Pérez", permissions: [] },
+    })
+    render(<ConfirmarRegistroPage />)
+    const campo = screen.getByLabelText("Contraseña") as HTMLInputElement
+    fireEvent.change(campo, { target: { value: "Mala#2026" } })
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar" }))
+
+    const alerta = await screen.findByRole("alert")
+    expect(alerta.textContent).toContain("no son correctos")
+    const input = screen.getByLabelText("Contraseña") as HTMLInputElement
+    expect(input.value).toBe("")
+    expect(input.getAttribute("aria-describedby")).toBe(alerta.id)
+    // No cayó en la fase de error: no se ofrece reenviar.
+    expect(screen.queryByRole("button", { name: "Reenviar correo" })).toBeNull()
+
+    fireEvent.change(input, { target: { value: "Buena#2026" } })
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar" }))
+    await waitFor(() => expect(confirmRegister).toHaveBeenCalledTimes(2))
+    expect(confirmRegister).toHaveBeenLastCalledWith("tok-de-la-ruta-0123456789", "Buena#2026")
+    expect(await screen.findByText(/Listo, Ana/)).toBeTruthy()
+  })
+})
+
 describe("confirmar registro · cabeceras", () => {
   it("la ruta del enlace sale con Referrer-Policy: no-referrer, después de la regla general", async () => {
     const reglas = await nextConfig.headers!()
