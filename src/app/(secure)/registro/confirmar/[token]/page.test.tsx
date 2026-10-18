@@ -35,9 +35,15 @@ describe("confirmar registro · página", () => {
     render(<ConfirmarRegistroPage />)
     expect(confirmRegister).not.toHaveBeenCalled()
 
-    fireEvent.click(screen.getByRole("button", { name: "Confirmar" }))
+    const boton = screen.getByRole("button", { name: "Confirmar" }) as HTMLButtonElement
+    // Sin contraseña no se puede confirmar.
+    expect(boton.disabled).toBe(true)
+    fireEvent.change(screen.getByLabelText("Contraseña"), {
+      target: { value: "Clave#2026" },
+    })
+    fireEvent.click(boton)
     await waitFor(() =>
-      expect(confirmRegister).toHaveBeenCalledWith("tok-de-la-ruta-0123456789"),
+      expect(confirmRegister).toHaveBeenCalledWith("tok-de-la-ruta-0123456789", "Clave#2026"),
     )
     expect(await screen.findByText(/Listo, Ana/)).toBeTruthy()
   })
@@ -46,6 +52,9 @@ describe("confirmar registro · página", () => {
     confirmRegister.mockRejectedValue(new ApiError(404, "El enlace venció"))
     apiResendRegister.mockResolvedValue({ ok: true, message: "x" })
     render(<ConfirmarRegistroPage />)
+    fireEvent.change(screen.getByLabelText("Contraseña"), {
+      target: { value: "Otra#2026" },
+    })
     fireEvent.click(screen.getByRole("button", { name: "Confirmar" }))
 
     const campo = await screen.findByPlaceholderText("tu@correo.com")

@@ -49,14 +49,15 @@ export default function ConfirmarRegistroPage() {
   const [motivo, setMotivo] = useState("")
   const [sesion, setSesion] = useState<RegisterResponse | null>(null)
 
+  const [password, setPassword] = useState("")
   const [email, setEmail] = useState("")
   const [reenvio, setReenvio] = useState<"idle" | "enviando" | "enviado">("idle")
   const [reenvioError, setReenvioError] = useState("")
 
   function confirmar() {
-    if (!token || fase === "confirmando") return
+    if (!token || !password || fase === "confirmando") return
     setFase("confirmando")
-    confirmRegister(token)
+    confirmRegister(token, password)
       .then((res) => {
         setSesion(res)
         setFase("listo")
@@ -135,11 +136,31 @@ export default function ConfirmarRegistroPage() {
                 Confirma tu correo
               </h1>
               <p className="mt-3 leading-relaxed text-ink-muted">
-                Un clic y creamos tu negocio con los 14 días de prueba.
+                Escribe la contraseña que elegiste al registrarte y confirma. Creamos tu
+                negocio con los 14 días de prueba.
               </p>
-              <Button type="button" size="lg" className="mt-8" onClick={confirmar}>
-                Confirmar
-              </Button>
+              <form
+                className="mt-8 space-y-3"
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  confirmar()
+                }}
+              >
+                <label htmlFor="confirmar-password" className="text-sm font-semibold text-ink">
+                  Contraseña
+                </label>
+                <Input
+                  id="confirmar-password"
+                  type="password"
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+                <Button type="submit" size="lg" disabled={!password}>
+                  Confirmar
+                </Button>
+              </form>
             </div>
           )}
 

@@ -203,15 +203,17 @@ export async function apiRegister(
 /**
  * Paso 2: el enlace del correo crea la empresa y devuelve la sesión. El token
  * va en el body y no en la ruta, para que no quede en logs de proxy ni de acceso.
+ * Lleva también la contraseña del formulario: prueba que confirma quien se registró.
  */
 export async function apiConfirmRegister(
   token: string,
+  password: string,
 ): Promise<RegisterResponse> {
   const res = await fetch(`${API_URL}/auth/register/confirm`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include", // recibe la cookie HttpOnly del refresh token
-    body: JSON.stringify({ token }),
+    body: JSON.stringify({ token, password }),
   })
   if (!res.ok) return parseError(res)
   return res.json() as Promise<RegisterResponse>

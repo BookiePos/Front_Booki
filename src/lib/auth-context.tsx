@@ -47,7 +47,7 @@ interface AuthContextValue {
   /** Paso 1 del alta: no abre sesión; el enlace llega por correo. */
   register: (payload: RegisterPayload) => Promise<RegisterRequestResponse>
   /** Paso 2: confirma el enlace del correo, crea la empresa y abre sesión. */
-  confirmRegister: (token: string) => Promise<RegisterResponse>
+  confirmRegister: (token: string, password: string) => Promise<RegisterResponse>
   logout: () => Promise<void>
   hasPermission: (permission: string) => boolean
   /** Plan comercial activo (undefined mientras carga o si el token es viejo). */
@@ -194,8 +194,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [],
   )
 
-  const confirmRegister = useCallback(async (token: string) => {
-    const res = await apiConfirmRegister(token)
+  const confirmRegister = useCallback(async (token: string, password: string) => {
+    const res = await apiConfirmRegister(token, password)
     // Confirmar el alta = auto-login: guarda la sesión igual que login().
     writeStored({ tokens: { accessToken: res.tokens.accessToken }, user: res.user })
     setUser(res.user)

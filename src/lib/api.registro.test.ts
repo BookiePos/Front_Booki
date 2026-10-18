@@ -17,14 +17,14 @@ describe("registro · confirmar y reenviar", () => {
     const fetchMock = vi.fn().mockResolvedValue(respuesta({ plan: "negocio" }))
     vi.stubGlobal("fetch", fetchMock)
 
-    await apiConfirmRegister("tok/ABC 123")
+    await apiConfirmRegister("tok/ABC 123", "Clave#2026")
 
     const [url, init] = fetchMock.mock.calls[0]!
     expect(String(url)).toMatch(/\/auth\/register\/confirm$/)
     expect(String(url)).not.toContain("tok")
     expect(init.method).toBe("POST")
     expect(init.credentials).toBe("include")
-    expect(JSON.parse(init.body)).toEqual({ token: "tok/ABC 123" })
+    expect(JSON.parse(init.body)).toEqual({ token: "tok/ABC 123", password: "Clave#2026" })
   })
 
   it("apiResendRegister pega a /auth/register/resend con el correo", async () => {
