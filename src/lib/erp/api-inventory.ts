@@ -157,6 +157,7 @@ export type MovementType =
   | "production_in"
   | "merge_out"
   | "merge_in"
+  | "sample"
 
 export interface InvMovement {
   _id: string
@@ -210,6 +211,7 @@ export const MOVEMENT_TYPE_LABELS: Record<MovementType, string> = {
   production_in: "Producción",
   merge_out: "Fusión (salida)",
   merge_in: "Fusión (entrada)",
+  sample: "Existencias de ejemplo",
 }
 
 // ─── Sedes ───────────────────────────────────────────────────────────────────

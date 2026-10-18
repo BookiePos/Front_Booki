@@ -86,6 +86,7 @@ import { Input } from "@/components/ui/input"
 import { MoneyInput, QuantityInput } from "@/components/ui/money-input"
 import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
+import { CatalogoEjemplo } from "@/components/onboarding/catalogo-ejemplo"
 import { useConfirm } from "@/components/ui/confirm-dialog"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
@@ -1263,6 +1264,9 @@ export default function ProductosPage() {
       />
 
       <PasosFlujo activo="productos" />
+
+      {/* Sigue disponible tras cerrar la bienvenida (6.6): solo si hay datos de ejemplo. */}
+      <CatalogoEjemplo soloQuitar />
 
       <PriceListsDialog
         open={priceListsOpen}
