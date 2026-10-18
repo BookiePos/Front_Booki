@@ -1,5 +1,3 @@
-"use client"
-
 import { ShoppingCart, Tag } from "lucide-react"
 import { pendingTotal, type Order, type Discount } from "@/lib/pos/api-sales"
 import { money, qty as fmtQty } from "@/lib/pos/format"

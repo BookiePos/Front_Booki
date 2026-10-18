@@ -1,5 +1,3 @@
-"use client"
-
 import { PAYMENT_METHOD_LABELS, type Sale } from "@/lib/pos/api-sales"
 import type { Sede } from "@/lib/pos/api-inventory"
 import { money, qty, dateTime } from "@/lib/pos/format"

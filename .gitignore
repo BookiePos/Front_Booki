@@ -141,3 +141,6 @@ temp/
 
 # Grafo local de code-review-graph (índice de la herramienta, no del proyecto)
 .code-review-graph/
+
+# Informes de scripts/lighthouse-pos.mjs
+/lighthouse-pos.report.*
