@@ -47,6 +47,8 @@ export const metadata: Metadata = {
   },
   description:
     `POS para restaurante, bar y retail con inventario, caja, cartera, nómina y contabilidad automática. Multi-sede. Desde $${PRECIO_DESDE} al mes.`,
+  // PWA del dueño (7.10): en iOS la instalación lee esto, no el manifiesto.
+  appleWebApp: { capable: true, title: "BookiPos", statusBarStyle: "black-translucent" },
   openGraph: {
     type: "website",
     locale: "es_CO",
