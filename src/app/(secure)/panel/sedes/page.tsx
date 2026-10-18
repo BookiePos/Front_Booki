@@ -24,6 +24,7 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useConfirm } from "@/components/ui/confirm-dialog"
+import { useLoadEffect } from "@/hooks/use-load-effect"
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -62,10 +63,7 @@ export default function SedesPage() {
     }
   }, [])
 
-  React.useEffect(() => {
-    if (!canManage) return
-    void fetchSedes()
-  }, [canManage, fetchSedes])
+  useLoadEffect(fetchSedes, canManage)
 
   async function handleToggle(sede: Sede) {
     if (

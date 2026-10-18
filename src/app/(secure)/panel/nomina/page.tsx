@@ -67,6 +67,7 @@ import {
 } from "@/components/ui/table"
 import { FormDialog, FormAlert } from "@/components/ui/form-dialog"
 import { Termino } from "@/components/ui/help-tip"
+import { useLoadEffect } from "@/hooks/use-load-effect"
 
 const money = new Intl.NumberFormat("es-CO", {
   style: "currency",
@@ -146,9 +147,7 @@ export default function NominaPage() {
     }
   }, [canManage])
 
-  React.useEffect(() => {
-    void load()
-  }, [load])
+  useLoadEffect(load)
 
   if (!canManage) {
     return (

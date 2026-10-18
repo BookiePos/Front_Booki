@@ -72,6 +72,8 @@ import {
   CheckboxField,
 } from "@/components/ui/field"
 import { Termino } from "@/components/ui/help-tip"
+import { useLoadEffect } from "@/hooks/use-load-effect"
+import { useResetOnChange } from "@/hooks/use-reset-on-change"
 
 /** Medios que pueden auto-alimentar una cuenta (el efectivo vive en la caja del POS). */
 const AUTO_METHODS: PaymentMethod[] = ["card", "transfer"]
@@ -134,9 +136,7 @@ export default function BancosPage() {
     }
   }, [])
 
-  React.useEffect(() => {
-    if (canView) void load()
-  }, [canView, load])
+  useLoadEffect(load, canView)
 
   if (!canView) {
     return (
@@ -449,7 +449,7 @@ function AccountDialog({
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
-  React.useEffect(() => {
+  useResetOnChange(() => {
     if (!open) return
     setError(null)
     if (editing) {
@@ -806,7 +806,7 @@ function NewMovementDialog({
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
-  React.useEffect(() => {
+  useResetOnChange(() => {
     if (!open) return
     setError(null)
     setDate(todayLocal())

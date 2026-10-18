@@ -12,6 +12,7 @@ import {
   type TourStep,
 } from "@/lib/onboarding/guides"
 import { Button } from "@/components/ui/button"
+import { useResetOnChange } from "@/hooks/use-reset-on-change"
 
 /** Rectángulo del elemento resaltado (coordenadas de viewport). */
 interface Rect {
@@ -44,7 +45,7 @@ export function ProductTour() {
   const [bubbleH, setBubbleH] = React.useState(180)
 
   // Al abrir (o cambiar de recorrido), arranca desde el principio.
-  React.useEffect(() => {
+  useResetOnChange(() => {
     if (tourOpen) setIndex(0)
   }, [tourOpen, guide])
 

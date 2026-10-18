@@ -51,6 +51,7 @@ import {
   FieldSpan,
   NativeSelect,
 } from "@/components/ui/field"
+import { useResetOnChange } from "@/hooks/use-reset-on-change"
 
 const DOC_TYPES: { value: EmpDocType; label: string }[] = [
   { value: "CC", label: "CC — Cédula de ciudadanía" },
@@ -297,7 +298,7 @@ export function EmployeeDialog({
   }, [open, smmlv])
 
   // Reinicia el formulario cada vez que se abre.
-  React.useEffect(() => {
+  useResetOnChange(() => {
     if (!open) return
     setError(null)
     if (employee) {

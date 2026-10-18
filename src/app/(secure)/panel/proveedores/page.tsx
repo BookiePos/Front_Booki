@@ -58,6 +58,7 @@ import { Termino } from "@/components/ui/help-tip"
 import { Input, Textarea } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Checkbox } from "@/components/ui/checkbox"
+import { useLoadEffect } from "@/hooks/use-load-effect"
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -402,10 +403,7 @@ export default function ProveedoresPage() {
     }
   }, [includeInactive])
 
-  React.useEffect(() => {
-    if (!canView) return
-    void fetchSuppliers()
-  }, [canView, fetchSuppliers])
+  useLoadEffect(fetchSuppliers, canView)
 
   async function handleToggleStatus(s: Supplier) {
     try {

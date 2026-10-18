@@ -33,6 +33,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { useLoadEffect } from "@/hooks/use-load-effect"
 
 const ALL = "all"
 type ReportKey = "income-statement" | "balance-sheet" | "trial-balance" | "sales"
@@ -83,9 +84,7 @@ export default function ReportesPage() {
     }
   }, [report, from, to, sedeId])
 
-  React.useEffect(() => {
-    if (canView) void load()
-  }, [canView, load])
+  useLoadEffect(load, canView)
 
   if (!canView) {
     return (

@@ -37,6 +37,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
+import { useLoadEffect } from "@/hooks/use-load-effect"
 
 const inputClass =
   "h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
@@ -182,9 +183,7 @@ export default function ConciliarPage() {
     }
   }, [accountId])
 
-  React.useEffect(() => {
-    if (canManage) void load()
-  }, [canManage, load])
+  useLoadEffect(load, canManage)
 
   function handleAnalyze() {
     const lines = parseStatement(statementText)

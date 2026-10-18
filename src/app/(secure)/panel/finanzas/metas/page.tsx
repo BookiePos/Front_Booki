@@ -64,6 +64,8 @@ import {
   NativeSelect,
 } from "@/components/ui/field"
 import { Termino } from "@/components/ui/help-tip"
+import { useLoadEffect } from "@/hooks/use-load-effect"
+import { useResetOnChange } from "@/hooks/use-reset-on-change"
 
 function emptyMonths(): number[] {
   return Array.from({ length: 12 }, () => 0)
@@ -112,9 +114,7 @@ export default function MetasPage() {
     }
   }, [year])
 
-  React.useEffect(() => {
-    if (canView) void load()
-  }, [canView, load])
+  useLoadEffect(load, canView)
 
   if (!canView) {
     return (
@@ -351,7 +351,7 @@ function NewBudgetDialog({
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
-  React.useEffect(() => {
+  useResetOnChange(() => {
     if (!open) return
     setError(null)
     setName("")
@@ -792,9 +792,7 @@ function BudgetVsActualView({
     }
   }, [budgetId, sedeId])
 
-  React.useEffect(() => {
-    void load()
-  }, [load])
+  useLoadEffect(load)
 
   const totalBudget = data?.totals.budget ?? 0
   const totalActual = data?.totals.actual ?? 0

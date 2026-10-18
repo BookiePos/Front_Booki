@@ -54,6 +54,8 @@ import {
 import { Field, FieldGrid, FieldSpan } from "@/components/ui/field"
 import { Termino } from "@/components/ui/help-tip"
 import { Checkbox } from "@/components/ui/checkbox"
+import { useLoadEffect } from "@/hooks/use-load-effect"
+import { useResetOnChange } from "@/hooks/use-reset-on-change"
 
 const tableTone: Record<string, string> = {
   free: "border-border bg-card hover:border-primary",
@@ -105,9 +107,7 @@ export default function RestaurantePage() {
     }
   }, [sedeId])
 
-  React.useEffect(() => {
-    if (canOperate && sedeId) void load()
-  }, [canOperate, sedeId, load])
+  useLoadEffect(load, Boolean(canOperate && sedeId))
 
   // Retail no usa mesas/comandas: la ruta existe pero no es aplicable.
   if (isRetail) {
@@ -302,7 +302,7 @@ function NewTableDialog({
   const [saving, setSaving] = React.useState(false)
   const [err, setErr] = React.useState<string | null>(null)
 
-  React.useEffect(() => {
+  useResetOnChange(() => {
     if (open) {
       setName("")
       setZone("Principal")
@@ -440,14 +440,12 @@ function OrderDialog({
     }
   }, [orderId])
 
-  React.useEffect(() => {
-    if (orderId) {
-      setErr(null)
-      void refresh()
-    } else {
-      setOrder(null)
-    }
+  useResetOnChange(() => {
+    if (orderId) setErr(null)
+    else setOrder(null)
   }, [orderId, refresh])
+
+  useLoadEffect(refresh, Boolean(orderId))
 
   async function run(fn: () => Promise<RestaurantOrder>, close = false) {
     setBusy(true)

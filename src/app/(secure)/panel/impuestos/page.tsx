@@ -40,6 +40,8 @@ import {
   NativeSelect,
 } from "@/components/ui/field"
 import { HelpTip, Termino } from "@/components/ui/help-tip"
+import { useLoadEffect } from "@/hooks/use-load-effect"
+import { useResetOnChange } from "@/hooks/use-reset-on-change"
 
 const KIND_OPTIONS: { v: TaxKind; l: string }[] = [
   { v: "iva", l: "IVA" },
@@ -78,9 +80,7 @@ export default function ImpuestosPage() {
     }
   }, [])
 
-  React.useEffect(() => {
-    if (canManage) void load()
-  }, [canManage, load])
+  useLoadEffect(load, canManage)
 
   if (!canManage) {
     return (
@@ -230,7 +230,7 @@ function NewTaxDialog({
   const [saving, setSaving] = React.useState(false)
   const [err, setErr] = React.useState<string | null>(null)
 
-  React.useEffect(() => {
+  useResetOnChange(() => {
     if (open) {
       setCode("")
       setName("")
@@ -362,7 +362,7 @@ function TaxDetailDialog({
   const [saving, setSaving] = React.useState(false)
   const [err, setErr] = React.useState<string | null>(null)
 
-  React.useEffect(() => {
+  useResetOnChange(() => {
     if (tax) {
       setRate(tax.currentRate !== null ? String(tax.currentRate) : "0")
       setErr(null)
