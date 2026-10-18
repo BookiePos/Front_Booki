@@ -33,17 +33,21 @@ const STORAGE_KEY = "pos.sedeId"
 /** Marca por pestaña: sede ya elegida en este turno (sessionStorage). */
 const CHOSEN_KEY = "pos.sedeElegida"
 
-function readChosen(): string | null {
+/** Devuelve la sede marcada solo si la marca es del usuario indicado. */
+function readChosen(userId: string): string | null {
   try {
-    return window.sessionStorage.getItem(CHOSEN_KEY)
+    const raw = window.sessionStorage.getItem(CHOSEN_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as { userId?: string; sedeId?: string }
+    return parsed.userId === userId && parsed.sedeId ? parsed.sedeId : null
   } catch {
     return null
   }
 }
 
-function writeChosen(id: string | null) {
+function writeChosen(mark: { userId: string; sedeId: string } | null) {
   try {
-    if (id) window.sessionStorage.setItem(CHOSEN_KEY, id)
+    if (mark) window.sessionStorage.setItem(CHOSEN_KEY, JSON.stringify(mark))
     else window.sessionStorage.removeItem(CHOSEN_KEY)
   } catch {
     // sessionStorage no disponible: la marca vive solo en memoria.
@@ -70,7 +74,8 @@ export function SedeProvider({ children }: { children: React.ReactNode }) {
     () => (userSedeKey ? userSedeKey.split(",") : []),
     [userSedeKey],
   )
-  const hasUser = !!user
+  const userId = user?.id ?? ""
+  const userIdRef = useRef("")
   const chosenRef = useRef(false)
   const sedeIdRef = useRef("")
 
@@ -79,12 +84,19 @@ export function SedeProvider({ children }: { children: React.ReactNode }) {
     sedeIdRef.current = sedeId
   }, [chosen, sedeId])
 
-  // Cerrar sesión limpia la marca de sede elegida.
+  // Cerrar sesión (transición de haber usuario a no haberlo) limpia la marca.
+  // Mientras auth-context carga, user es null sin ser un cierre de sesión.
   useEffect(() => {
-    if (!hasUser) writeChosen(null)
-  }, [hasUser])
+    if (!userId && userIdRef.current) writeChosen(null)
+  }, [userId])
 
   useEffect(() => {
+    // Otro usuario no hereda la elección del anterior.
+    if (userIdRef.current && userIdRef.current !== userId) {
+      chosenRef.current = false
+      sedeIdRef.current = ""
+    }
+    userIdRef.current = userId
     let active = true
     setLoading(true)
     listSedes()
@@ -101,7 +113,7 @@ export function SedeProvider({ children }: { children: React.ReactNode }) {
         const valid = (id: string | null | undefined): id is string =>
           !!id && mine.some((s) => s._id === id)
         const current = sedeIdRef.current
-        const marker = readChosen()
+        const marker = readChosen(userId)
         // La sede ya elegida (en memoria o marca de la pestaña) se conserva
         // mientras siga siendo válida; solo si dejó de serlo se vuelve a pedir.
         const keepCurrent = chosenRef.current && valid(current)
@@ -128,7 +140,7 @@ export function SedeProvider({ children }: { children: React.ReactNode }) {
     return () => {
       active = false
     }
-  }, [userSedeIds])
+  }, [userSedeIds, userId])
 
   function setSedeId(id: string) {
     setSedeIdState(id)
@@ -139,7 +151,7 @@ export function SedeProvider({ children }: { children: React.ReactNode }) {
 
   function chooseSede(id: string) {
     setSedeId(id)
-    writeChosen(id)
+    if (userId) writeChosen({ userId, sedeId: id })
     setChosen(true)
   }
 
