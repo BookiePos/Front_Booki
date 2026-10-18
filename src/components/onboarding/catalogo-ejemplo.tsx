@@ -6,6 +6,7 @@ import { Check, Loader2, PackagePlus } from "lucide-react"
 import { toast } from "sonner"
 
 import { useAuth } from "@/lib/auth-context"
+import { actorSeesAllSedes } from "@/lib/access"
 import { ApiError } from "@/lib/api"
 import {
   aplicarPlantilla,
@@ -27,9 +28,18 @@ const SUGERIDA = { restaurante: "restaurante", retail: "tienda" } as const
  * todo se edita o se borra después, que las existencias son de ejemplo y SIN
  * costo (no son una compra), y permite quitar los datos de ejemplo.
  */
-export function CatalogoEjemplo({ onDone }: { onDone: () => void }) {
-  const { hasPermission } = useAuth()
-  const puede = hasPermission("onboarding.template")
+export function CatalogoEjemplo({
+  onDone,
+  soloQuitar = false,
+}: {
+  onDone?: () => void
+  /** Solo la tarjeta «Quitar datos de ejemplo», y únicamente si hay datos cargados. */
+  soloQuitar?: boolean
+}) {
+  const { hasPermission, user } = useAuth()
+  // El DELETE del backend exige ver todas las sedes, además del permiso.
+  const puede =
+    hasPermission("onboarding.template") && !!user && actorSeesAllSedes(user)
 
   const [abierto, setAbierto] = React.useState(false)
   const [estado, setEstado] = React.useState<EstadoOnboarding | null>(null)
@@ -151,6 +161,28 @@ export function CatalogoEjemplo({ onDone }: { onDone: () => void }) {
             Quitar datos de ejemplo
           </Button>
         </div>
+      </div>
+    )
+  }
+
+  if (soloQuitar) {
+    const cargadas = estado?.plantillas.filter((p) => p.cargados > 0) ?? []
+    if (cargadas.length === 0) return null
+    return (
+      <div className="flex flex-col gap-1 rounded-xl border border-border bg-accent/40 p-3">
+        {cargadas.map((p) => (
+          <p key={p.tipo} className="text-sm text-muted-foreground">
+            Tienes cargado el catálogo de ejemplo de {p.nombre}.{" "}
+            <button
+              type="button"
+              disabled={cargando}
+              onClick={() => quitar(p.tipo)}
+              className="font-medium text-primary underline disabled:opacity-60"
+            >
+              Quitar datos de ejemplo
+            </button>
+          </p>
+        ))}
       </div>
     )
   }
