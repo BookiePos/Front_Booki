@@ -150,7 +150,9 @@ export default function VentasPage() {
     setVoidError(null)
     try {
       const updated = await voidSale(selected._id)
-      setSelected(updated)
+      // Solo refresca el detalle si sigue abierto en esta venta: si la persona lo
+      // cerró mientras se anulaba, la respuesta tardía no debe volver a abrirlo.
+      setSelected((prev) => (prev?._id === updated._id ? updated : prev))
       setRows((prev) => prev.map((s) => (s._id === updated._id ? updated : s)))
     } catch (err) {
       setVoidError(errorMessage(err))
