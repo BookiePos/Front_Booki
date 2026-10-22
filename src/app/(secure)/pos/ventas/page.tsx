@@ -1,6 +1,8 @@
 "use client"
 
 import * as React from "react"
+import { useLoadEffect } from "@/hooks/use-load-effect"
+import { useResetOnChange } from "@/hooks/use-reset-on-change"
 import {
   Receipt as ReceiptIcon,
   Banknote,
@@ -97,11 +99,13 @@ export default function VentasPage() {
     [sedeId],
   )
 
-  React.useEffect(() => {
-    if (!canView || !sedeId) return
-    setRows([])
-    void load(1)
+  // Al cambiar de sede se vacía la lista antes de pedir la primera página.
+  useResetOnChange(() => {
+    if (canView && sedeId) setRows([])
   }, [canView, sedeId, load])
+
+  const loadFirstPage = React.useCallback(() => load(1), [load])
+  useLoadEffect(loadFirstPage, canView && Boolean(sedeId))
 
   // Resumen del turno (ventas de hoy, sin contar las anuladas).
   const today = React.useMemo(() => {

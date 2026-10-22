@@ -491,10 +491,7 @@ function NewReceivableDialog({
     setShowNewCustomer(false)
   }, [open])
 
-  React.useEffect(() => {
-    if (open) void loadCustomers()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open])
+  useLoadEffect(loadCustomers, open)
 
   async function quickAddCustomer() {
     if (!ncName.trim() || !ncDoc.trim()) return

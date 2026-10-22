@@ -638,7 +638,8 @@ function AccountMovementsDialog({
   movOpen: boolean
   setMovOpen: (v: boolean) => void
 }) {
-  const [movements, setMovements] = React.useState<FinanceMovement[]>([])
+  const [loadedMovements, setMovements] = React.useState<FinanceMovement[]>([])
+  const movements = account ? loadedMovements : []
   const [loading, setLoading] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
@@ -655,10 +656,7 @@ function AccountMovementsDialog({
     }
   }, [account])
 
-  React.useEffect(() => {
-    if (account) void reload()
-    else setMovements([])
-  }, [account, reload])
+  useLoadEffect(reload, account !== null)
 
   return (
     <>
