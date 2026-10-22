@@ -14,6 +14,10 @@ import { type Sale } from "@/lib/pos/api-sales"
 import { money } from "@/lib/pos/format"
 import { Receipt } from "@/components/pos/receipt"
 import { Button } from "@/components/ui/button"
+import {
+  AbrirCajonButton,
+  ImpresoraTermicaButton,
+} from "@/components/pos/impresora-termica"
 import { cn } from "@/lib/utils"
 import { type Sede } from "@/lib/pos/api-inventory"
 
@@ -171,6 +175,8 @@ export function CobroCompletado({
           <Printer className="size-4" />
           Imprimir
         </Button>
+        <ImpresoraTermicaButton />
+        <AbrirCajonButton />
         <Button
           className="h-12 flex-1 text-base font-semibold"
           onClick={() => {

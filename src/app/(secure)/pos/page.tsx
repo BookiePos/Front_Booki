@@ -115,6 +115,7 @@ import { CobroCompletado } from "@/components/pos/cobro-completado"
 import { BarraResumenCuenta } from "@/components/pos/barra-resumen-cuenta"
 import { CuentaVenta } from "@/components/pos/cuenta-venta"
 import { CatalogoVenta } from "@/components/pos/catalogo-venta"
+import { imprimirComprobante } from "@/components/pos/impresora-termica"
 
 
 export default function VentaPage() {
@@ -523,7 +524,9 @@ export default function VentaPage() {
   // Imprime el recibo. La primera vez marca la impresión como configurada,
   // así la ayuda inicial deja de aparecer en las siguientes ventas.
   function handlePrintReceipt() {
-    window.print()
+    // Térmica directa si está elegida; si no, el diálogo del navegador.
+    if (completedSale) void imprimirComprobante(completedSale, sede)
+    else window.print()
     if (!printConfigured) {
       setPrintConfigured(true)
       if (typeof window !== "undefined") {
