@@ -54,6 +54,7 @@ const PALABRAS_SECCION: Record<string, string> = {
   "/pos/ventas":
     "historial ventas recibos facturas devolucion devolver anular reimprimir vendedor",
   "/pos/domicilios": "domicilios entregas repartidor mensajero envios pedidos",
+  "/pos/plataformas": "plataformas rappi didi uber eats pedidos domicilios liquidacion comision",
   "/pos/caja":
     "caja abrir cerrar cuadre arqueo efectivo sangria turno base gastos",
   "/pos/inventario":
