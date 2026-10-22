@@ -12,12 +12,11 @@ export const CONTADORES = {
   intro:
     "Tu cliente lleva su negocio en BookiPos y tú entras a revisar su contabilidad con tu propio usuario, sin pedirle exportes ni pantallazos.",
   ve: [
-    "Libro contable: asientos, plan de cuentas y balance de prueba",
-    "Conciliación: asientos pendientes que el sistema no alcanzó a registrar",
-    "Reportes y estados financieros: estado de resultados y balance general",
-    "Compras, gastos, cuentas por pagar y por cobrar",
-    "Facturas de proveedor escaneadas",
-    "Nómina en lectura: corridas, colillas y liquidaciones",
+    "Reportes y estados financieros: estado de resultados, balance general y balance de prueba",
+    "P&L y flujo de caja",
+    "Gastos, cuentas por pagar y cuentas por cobrar de clientes",
+    "Caja y bancos",
+    "Compras y facturas de proveedor escaneadas",
   ],
   noHace: [
     "Vender ni abrir o cerrar caja",
@@ -43,6 +42,9 @@ export const CONTADORES = {
         "Ves solo lo contable de esa empresa y de las sedes que el dueño te asignó. Puedes salir cuando quieras y él puede retirarte el acceso.",
     },
   ],
+  /** Nota de alcance: depende del plan, sin nombrar precios. */
+  nota:
+    "Qué pantallas están disponibles depende del plan que tenga contratado tu cliente: si un módulo no está en su plan, tampoco aparece para ti.",
   demo: {
     titulo: "Pide una demo",
     texto:

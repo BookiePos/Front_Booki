@@ -52,6 +52,7 @@ export default function ContadoresPage() {
             </ul>
           </div>
         </section>
+        <p className="mt-4 max-w-3xl text-sm text-ink-muted">{CONTADORES.nota}</p>
 
         <section className="mt-14" aria-labelledby="como">
           <h2 id="como" className="text-2xl font-bold text-ink">

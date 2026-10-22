@@ -22,6 +22,11 @@ describe("programa para contadores (ítem 7.8)", () => {
     expect(CONTADORES.demo.asunto).toBeTruthy()
   })
 
+  it("no promete lo que el panel no le muestra: nómina ni conciliación", () => {
+    expect(JSON.stringify(CONTADORES.ve).toLowerCase()).not.toMatch(/nómina|conciliaci|libro/)
+    expect(CONTADORES.nota).toMatch(/plan/)
+  })
+
   it("/contadores está en el sitemap y enlazada desde el pie", () => {
     expect(sitemap().some((r) => r.url.endsWith("/contadores"))).toBe(true)
     const pie = readFileSync(
