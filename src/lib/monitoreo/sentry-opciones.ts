@@ -28,6 +28,17 @@ export function censurar(texto: string): string {
 }
 
 /**
+ * Páginas con un secreto de un solo uso en la ruta: restablecer contraseña,
+ * aceptar invitación y confirmar el registro. El token se cambia por `:token`
+ * para que un error en esas pantallas no lo deje legible en Sentry (4.11).
+ */
+const RUTAS_CON_TOKEN = /(\/(?:recuperar|invitacion|registro\/confirmar)\/)[^/]+/g
+
+export function sinTokensEnRuta(url: string): string {
+  return url.replace(RUTAS_CON_TOKEN, "$1:token")
+}
+
+/**
  * Quita del evento todo lo que pueda llevar datos personales: lista blanca de
  * cabeceras, URL sin query, sin cuerpo/cookies/usuario, breadcrumbs reducidos a
  * categoría + mensaje recortado + nivel, sin `extra`, y emails y documentos
@@ -39,7 +50,9 @@ export function limpiarEvento<T extends ErrorEvent>(evento: T): T {
     delete req.data
     delete req.cookies
     delete req.query_string
-    if (typeof req.url === "string") req.url = req.url.split(/[?#]/)[0]
+    if (typeof req.url === "string") {
+      req.url = sinTokensEnRuta(req.url.split(/[?#]/)[0])
+    }
     if (req.headers) {
       for (const h of Object.keys(req.headers)) {
         if (!CABECERAS_PERMITIDAS.has(h.toLowerCase())) delete req.headers[h]

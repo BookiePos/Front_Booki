@@ -49,6 +49,12 @@ const nextConfig: NextConfig = {
           { key: "X-Frame-Options", value: "SAMEORIGIN" },
         ],
       },
+      // El enlace de confirmación lleva un token de un solo uso en la URL: la
+      // página no debe filtrarlo en el Referer de nada (4.11).
+      {
+        source: "/registro/confirmar/:token*",
+        headers: [{ key: "Referrer-Policy", value: "no-referrer" }],
+      },
       // Service worker de la PWA (7.10): el navegador debe revalidarlo siempre
       // para que una versión nueva no quede atascada en caché.
       {

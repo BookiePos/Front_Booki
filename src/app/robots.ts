@@ -12,6 +12,7 @@ export default function robots(): MetadataRoute.Robots {
         "/login",
         "/recuperar",
         "/invitacion",
+        "/registro/confirmar",
         "/api/",
       ],
     },

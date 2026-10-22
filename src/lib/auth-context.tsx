@@ -17,6 +17,7 @@ import {
   Entitlements,
   PlanFeature,
   RegisterPayload,
+  RegisterRequestResponse,
   RegisterResponse,
   SuspensionReason,
   Tokens,
@@ -24,6 +25,7 @@ import {
   apiLogout,
   apiMe,
   apiRefresh,
+  apiConfirmRegister,
   apiRegister,
 } from "@/lib/api"
 import { OPERATION_PERMISSIONS } from "@/lib/access"
@@ -42,7 +44,10 @@ interface AuthContextValue {
   user: AuthUser | null
   status: Status
   login: (email: string, password: string) => Promise<void>
-  register: (payload: RegisterPayload) => Promise<RegisterResponse>
+  /** Paso 1 del alta: no abre sesión; el enlace llega por correo. */
+  register: (payload: RegisterPayload) => Promise<RegisterRequestResponse>
+  /** Paso 2: confirma el enlace del correo, crea la empresa y abre sesión. */
+  confirmRegister: (token: string, password: string) => Promise<RegisterResponse>
   logout: () => Promise<void>
   hasPermission: (permission: string) => boolean
   /** Plan comercial activo (undefined mientras carga o si el token es viejo). */
@@ -184,9 +189,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setStatus("authenticated")
   }, [])
 
-  const register = useCallback(async (payload: RegisterPayload) => {
-    const res = await apiRegister(payload)
-    // Alta = auto-login: guarda la sesión igual que login().
+  const register = useCallback(
+    (payload: RegisterPayload) => apiRegister(payload),
+    [],
+  )
+
+  const confirmRegister = useCallback(async (token: string, password: string) => {
+    const res = await apiConfirmRegister(token, password)
+    // Confirmar el alta = auto-login: guarda la sesión igual que login().
     writeStored({ tokens: { accessToken: res.tokens.accessToken }, user: res.user })
     setUser(res.user)
     setStatus("authenticated")
@@ -232,6 +242,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         status,
         login,
         register,
+        confirmRegister,
         logout,
         hasPermission,
         plan,

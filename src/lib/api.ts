@@ -178,18 +178,61 @@ export interface RegisterResponse extends LoginResponse {
   plan: BusinessPlan
 }
 
-/** Crea la empresa + su dueño y devuelve la sesión (auto-login). */
+/**
+ * Respuesta del paso 1 del registro. Es la misma exista o no el correo: el
+ * backend no revela si ya hay cuenta (ítem 4.11). La diferencia llega al buzón.
+ */
+export interface RegisterRequestResponse {
+  ok: true
+  message: string
+}
+
+/** Paso 1: pide el alta. No crea la empresa ni abre sesión. */
 export async function apiRegister(
   payload: RegisterPayload,
-): Promise<RegisterResponse> {
+): Promise<RegisterRequestResponse> {
   const res = await fetch(`${API_URL}/auth/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    credentials: "include", // recibe la cookie HttpOnly del refresh token
     body: JSON.stringify(payload),
   })
   if (!res.ok) return parseError(res)
+  return res.json() as Promise<RegisterRequestResponse>
+}
+
+/**
+ * Paso 2: el enlace del correo crea la empresa y devuelve la sesión. El token
+ * va en el body y no en la ruta, para que no quede en logs de proxy ni de acceso.
+ * Lleva también la contraseña del formulario: prueba que confirma quien se registró.
+ */
+export async function apiConfirmRegister(
+  token: string,
+  password: string,
+): Promise<RegisterResponse> {
+  const res = await fetch(`${API_URL}/auth/register/confirm`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include", // recibe la cookie HttpOnly del refresh token
+    body: JSON.stringify({ token, password }),
+  })
+  if (!res.ok) return parseError(res)
   return res.json() as Promise<RegisterResponse>
+}
+
+/**
+ * Pide otro correo de confirmación (el enlace anterior deja de valer). La
+ * respuesta es la misma haya o no un registro pendiente.
+ */
+export async function apiResendRegister(
+  email: string,
+): Promise<RegisterRequestResponse> {
+  const res = await fetch(`${API_URL}/auth/register/resend`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  })
+  if (!res.ok) return parseError(res)
+  return res.json() as Promise<RegisterRequestResponse>
 }
 
 export async function apiMe(accessToken: string): Promise<AuthUser> {
