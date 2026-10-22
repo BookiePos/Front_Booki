@@ -61,7 +61,7 @@ function RegistroForm() {
   const [tipoNegocio, setTipoNegocio] = useState<BusinessType>("restaurante");
 
   const [businessName, setBusinessName] = useState("");
-  const [cobraIva, setCobraIva] = useState("");
+  const [cobraIva, setCobraIva] = useState("no_se");
 
   const [ownerName, setOwnerName] = useState("");
   const [ownerEmail, setOwnerEmail] = useState("");
@@ -222,7 +222,6 @@ function RegistroForm() {
                       onChange={(e) => setCobraIva(e.target.value)}
                       className="mt-2 h-13 w-full rounded-xl border border-hairline bg-white px-4 text-base text-ink outline-none transition-colors focus:border-brand-500"
                     >
-                      <option value="">Sin responder</option>
                       <option value="si">Sí</option>
                       <option value="no">No</option>
                       <option value="no_se">No sé</option>

@@ -34,6 +34,8 @@ interface Step {
   icon: LucideIcon
   /** Si se define, el CTA ejecuta esta acción en vez de navegar a `href`. */
   action?: () => void
+  /** Recorrido guiado opcional, junto al enlace del CTA. */
+  guide?: () => void
   /** Comprobación automática de "hecho" contra datos reales (opcional). */
   derive?: () => Promise<boolean>
 }
@@ -52,6 +54,7 @@ export function OnboardingChecklist() {
     isStepCompleted,
     markStepCompleted,
     openGuide,
+    startSedeGuide,
   } = useOnboarding()
 
   // Primera sede con datos fiscales pendientes: a ella lleva el paso «sede».
@@ -72,6 +75,7 @@ export function OnboardingChecklist() {
         href: "/panel/sedes",
         cta: "Completar",
         icon: Store,
+        guide: startSedeGuide,
         derive: async () => {
           const sedes = await listSedes()
           const pendiente = primeraSedeConDatosPendientes(sedes)
@@ -134,7 +138,7 @@ export function OnboardingChecklist() {
     }
 
     return list
-  }, [isRetail, isRestaurant, hasPermission])
+  }, [isRetail, isRestaurant, hasPermission, startSedeGuide])
 
   // Estado "hecho" derivado de datos (best-effort, no bloquea el render).
   const [derived, setDerived] = React.useState<Record<string, boolean>>({})
@@ -296,11 +300,24 @@ export function OnboardingChecklist() {
                       <ChevronRight className="size-4" />
                     </Button>
                   ) : (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="shrink-0 gap-1"
-                      render={
+                    <div className="flex shrink-0 items-center gap-1">
+                      {step.guide && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            markStepCompleted(step.id)
+                            step.guide?.()
+                          }}
+                        >
+                          Guía
+                        </Button>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="shrink-0 gap-1"
+                        render={
                         <Link
                           href={
                             step.id === "sede" && sedePendiente
@@ -312,8 +329,9 @@ export function OnboardingChecklist() {
                       onClick={() => markStepCompleted(step.id)}
                     >
                       {step.cta}
-                      <ChevronRight className="size-4" />
-                    </Button>
+                        <ChevronRight className="size-4" />
+                      </Button>
+                    </div>
                   )}
                 </div>
               </li>
