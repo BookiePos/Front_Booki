@@ -647,6 +647,7 @@ function AccountMovementsDialog({
     if (!account) return
     setLoading(true)
     setError(null)
+    setMovements([])
     try {
       setMovements(await listAccountMovements(account._id))
     } catch (err) {
