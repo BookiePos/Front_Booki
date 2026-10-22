@@ -131,8 +131,7 @@ function GuideButton() {
 function SedePicker() {
   const { sedes, chooseSede, error } = useSede()
   return (
-    <div
-      role="main"
+    <main
       className="flex min-h-screen items-center justify-center bg-muted p-6"
     >
       <div className="w-full max-w-md rounded-2xl border border-border bg-background p-6 shadow-sm">
@@ -180,7 +179,7 @@ function SedePicker() {
           ))}
         </div>
       </div>
-    </div>
+    </main>
   )
 }
 
@@ -264,13 +263,10 @@ export function PosShell({ children }: { children: React.ReactNode }) {
 
   if (loading) {
     return (
-      <div
-        role="main"
-        className="flex min-h-screen items-center justify-center gap-2 bg-muted text-sm text-muted-foreground"
-      >
+      <main className="flex min-h-screen items-center justify-center gap-2 bg-muted text-sm text-muted-foreground">
         <Loader2 className="size-4 animate-spin" />
         Cargando…
-      </div>
+      </main>
     )
   }
 
