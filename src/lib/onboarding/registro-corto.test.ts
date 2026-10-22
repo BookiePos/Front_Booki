@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest"
 import {
   armarPayloadRegistro,
   datosFiscalesPendientes,
+  primeraSedeConDatosPendientes,
+  sinResponsabilidadFiscal,
 } from "./registro-corto"
 
 /**
@@ -34,6 +36,13 @@ describe("armarPayloadRegistro", () => {
     expect(payload.businessName).toBe("Café Aurora")
     expect(payload.ownerEmail).toBe("ana@aurora.co")
     expect(payload.ownerName).toBe("Ana Ruiz")
+  })
+
+  it("«¿Cobras IVA?»: manda Sí y No; «No sé» o vacío no mandan nada", () => {
+    expect(armarPayloadRegistro({ ...base, cobraIva: "no" }).cobraIva).toBe("no")
+    expect(armarPayloadRegistro({ ...base, cobraIva: "si" }).cobraIva).toBe("si")
+    expect(armarPayloadRegistro({ ...base, cobraIva: "no_se" })).not.toHaveProperty("cobraIva")
+    expect(armarPayloadRegistro({ ...base, cobraIva: "" })).not.toHaveProperty("cobraIva")
   })
 
   it("descarta campos fiscales aunque el llamador los cuele", () => {
@@ -77,5 +86,24 @@ describe("datosFiscalesPendientes", () => {
         ciudad: "Cali",
       }),
     ).toEqual([])
+  })
+})
+
+describe("aviso de responsabilidad fiscal", () => {
+  it("avisa solo mientras la sede no declara su responsabilidad", () => {
+    expect(sinResponsabilidadFiscal({})).toBe(true)
+    expect(sinResponsabilidadFiscal({ responsabilidadFiscal: " " })).toBe(true)
+    expect(sinResponsabilidadFiscal({ responsabilidadFiscal: "no_responsable_iva" })).toBe(false)
+    expect(sinResponsabilidadFiscal(undefined)).toBe(false)
+  })
+
+  it("elige la primera sede con datos pendientes", () => {
+    const sedes = [
+      { _id: "a", nit: "1", responsabilidadFiscal: "responsable_iva", address: "x", ciudad: "y" },
+      { _id: "b" },
+      { _id: "c" },
+    ]
+    expect(primeraSedeConDatosPendientes(sedes)?._id).toBe("b")
+    expect(primeraSedeConDatosPendientes([sedes[0]])).toBeUndefined()
   })
 })

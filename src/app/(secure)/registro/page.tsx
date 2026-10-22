@@ -61,6 +61,7 @@ function RegistroForm() {
   const [tipoNegocio, setTipoNegocio] = useState<BusinessType>("restaurante");
 
   const [businessName, setBusinessName] = useState("");
+  const [cobraIva, setCobraIva] = useState("");
 
   const [ownerName, setOwnerName] = useState("");
   const [ownerEmail, setOwnerEmail] = useState("");
@@ -98,6 +99,7 @@ function RegistroForm() {
       ownerName,
       ownerEmail,
       password,
+      cobraIva,
     });
 
     setPending(true);
@@ -204,6 +206,28 @@ function RegistroForm() {
                     required
                     autoComplete="organization"
                   />
+                  <div>
+                    <label
+                      htmlFor="cobra-iva"
+                      className="flex items-baseline justify-between text-sm font-semibold text-ink"
+                    >
+                      ¿Cobras IVA?
+                      <span className="text-xs font-normal text-ink-faint">
+                        opcional
+                      </span>
+                    </label>
+                    <select
+                      id="cobra-iva"
+                      value={cobraIva}
+                      onChange={(e) => setCobraIva(e.target.value)}
+                      className="mt-2 h-13 w-full rounded-xl border border-hairline bg-white px-4 text-base text-ink outline-none transition-colors focus:border-brand-500"
+                    >
+                      <option value="">Sin responder</option>
+                      <option value="si">Sí</option>
+                      <option value="no">No</option>
+                      <option value="no_se">No sé</option>
+                    </select>
+                  </div>
                   <p className="text-sm text-ink-muted">
                     El NIT, el régimen y la dirección los completas después, en
                     los primeros pasos de tu panel.

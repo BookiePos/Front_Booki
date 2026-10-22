@@ -13,14 +13,13 @@ import {
   X,
   PartyPopper,
   Compass,
-  FileText,
 } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 
 import { useAuth } from "@/lib/auth-context"
 import { useOnboarding } from "@/lib/onboarding/onboarding-context"
 import { listProducts, listSedes } from "@/lib/erp/api-inventory"
-import { datosFiscalesPendientes } from "@/lib/onboarding/registro-corto"
+import { primeraSedeConDatosPendientes } from "@/lib/onboarding/registro-corto"
 import { getSalesReport } from "@/lib/erp/api-reports"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -53,36 +52,36 @@ export function OnboardingChecklist() {
     isStepCompleted,
     markStepCompleted,
     openGuide,
-    startSedeGuide,
   } = useOnboarding()
 
+  // Primera sede con datos fiscales pendientes: a ella lleva el paso «sede».
+  const [sedePendiente, setSedePendiente] = React.useState<string | null>(null)
+
   const steps = React.useMemo<Step[]>(() => {
-    const list: Step[] = [
-      {
+    const list: Step[] = []
+
+    // Un solo paso para la sede y sus datos fiscales (ítem 6.5): el registro
+    // ya no los pide. Solo lo ve quien puede editar sedes; enlaza a la primera
+    // sede con datos pendientes. «Hecho» = todas las sedes tienen NIT,
+    // responsabilidad fiscal, dirección y ciudad, que es lo que dice el texto.
+    if (hasPermission("sede.manage")) {
+      list.push({
         id: "sede",
-        title: "Personaliza tu sede",
-        body: "Te guío paso a paso para editar el nombre, la dirección y los datos fiscales.",
-        href: "/panel/sedes",
-        cta: "Personalizar",
-        icon: Store,
-        action: startSedeGuide,
-      },
-      {
-        // El registro ya no pide datos fiscales (ítem 6.5): se piden aquí.
-        id: "fiscal",
-        title: "Completa tus datos fiscales",
-        body: "NIT, responsabilidad fiscal, dirección y ciudad. Con ellos tus comprobantes y los impuestos de la venta salen bien.",
+        title: "Completa los datos de tu sede",
+        body: "NIT, responsabilidad fiscal, dirección y ciudad. Con ellos los impuestos y los comprobantes salen bien.",
         href: "/panel/sedes",
         cta: "Completar",
-        icon: FileText,
+        icon: Store,
         derive: async () => {
           const sedes = await listSedes()
-          return (
-            sedes.length > 0 &&
-            sedes.every((s) => datosFiscalesPendientes(s).length === 0)
-          )
+          const pendiente = primeraSedeConDatosPendientes(sedes)
+          setSedePendiente(pendiente?._id ?? null)
+          return sedes.length > 0 && !pendiente
         },
-      },
+      })
+    }
+
+    list.push(
       {
         id: "productos",
         title: isRetail ? "Carga tus productos" : "Carga productos y recetas",
@@ -110,7 +109,7 @@ export function OnboardingChecklist() {
           return report.totalRevenue > 0
         },
       },
-    ]
+    )
 
     if (isRestaurant) {
       list.push({
@@ -135,7 +134,7 @@ export function OnboardingChecklist() {
     }
 
     return list
-  }, [isRetail, isRestaurant, hasPermission, startSedeGuide])
+  }, [isRetail, isRestaurant, hasPermission])
 
   // Estado "hecho" derivado de datos (best-effort, no bloquea el render).
   const [derived, setDerived] = React.useState<Record<string, boolean>>({})
@@ -301,7 +300,15 @@ export function OnboardingChecklist() {
                       size="sm"
                       variant="outline"
                       className="shrink-0 gap-1"
-                      render={<Link href={step.href} />}
+                      render={
+                        <Link
+                          href={
+                            step.id === "sede" && sedePendiente
+                              ? `/panel/sedes/${sedePendiente}`
+                              : step.href
+                          }
+                        />
+                      }
                       onClick={() => markStepCompleted(step.id)}
                     >
                       {step.cta}

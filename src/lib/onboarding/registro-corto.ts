@@ -14,6 +14,8 @@ export interface RegistroCortoForm {
   ownerName: string
   ownerEmail: string
   password: string
+  /** «¿Cobras IVA?»: "si", "no", "no_se" o vacío (sin responder). */
+  cobraIva?: string
 }
 
 export function armarPayloadRegistro(form: RegistroCortoForm): RegisterPayload {
@@ -24,10 +26,15 @@ export function armarPayloadRegistro(form: RegistroCortoForm): RegisterPayload {
     ownerName: form.ownerName.trim(),
     ownerEmail: form.ownerEmail.trim(),
     password: form.password,
+    // «No sé» o vacío no se manda: la sede queda con el default del backend.
+    ...(form.cobraIva === "si" || form.cobraIva === "no"
+      ? { cobraIva: form.cobraIva }
+      : {}),
   }
 }
 
-interface SedeFiscal {
+export interface SedeFiscal {
+  _id?: string
   nit?: string
   responsabilidadFiscal?: string
   address?: string
@@ -44,4 +51,16 @@ export function datosFiscalesPendientes(sede: SedeFiscal): string[] {
   if (vacio(sede.address)) falta.push("Dirección")
   if (vacio(sede.ciudad)) falta.push("Ciudad")
   return falta
+}
+
+/** ¿La sede aún no declara su responsabilidad fiscal? (`undefined`: no hay sede). */
+export function sinResponsabilidadFiscal(sede?: SedeFiscal): boolean {
+  return !!sede && vacio(sede.responsabilidadFiscal)
+}
+
+/** Primera sede a la que le faltan datos fiscales. */
+export function primeraSedeConDatosPendientes<T extends SedeFiscal>(
+  sedes: T[],
+): T | undefined {
+  return sedes.find((s) => datosFiscalesPendientes(s).length > 0)
 }
