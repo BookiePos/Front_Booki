@@ -19,9 +19,9 @@ import {
   ApiError,
   BusinessPlan,
   BusinessType,
-  RegisterPayload,
 } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
+import { armarPayloadRegistro } from "@/lib/onboarding/registro-corto";
 import { PASSWORD_REQUISITOS, validarPassword } from "@/lib/password-policy";
 
 const PLANS: Record<BusinessPlan, { name: string; blurb: string }> = {
@@ -43,13 +43,6 @@ const PLANS: Record<BusinessPlan, { name: string; blurb: string }> = {
   },
 };
 
-const RESPONSABILIDAD_FISCAL: { value: string; label: string }[] = [
-  { value: "responsable_iva", label: "Responsable de IVA" },
-  { value: "no_responsable_iva", label: "No responsable de IVA" },
-  { value: "regimen_simple", label: "Régimen simple" },
-  { value: "gran_contribuyente", label: "Gran contribuyente" },
-];
-
 function RegistroForm() {
   const router = useRouter();
   const params = useSearchParams();
@@ -68,14 +61,6 @@ function RegistroForm() {
   const [tipoNegocio, setTipoNegocio] = useState<BusinessType>("restaurante");
 
   const [businessName, setBusinessName] = useState("");
-  const [nit, setNit] = useState("");
-  const [nitDv, setNitDv] = useState("");
-  const [responsabilidadFiscal, setResponsabilidadFiscal] = useState("");
-  const [ciudad, setCiudad] = useState("");
-  const [departamento, setDepartamento] = useState("");
-  const [address, setAddress] = useState("");
-  const [phone, setPhone] = useState("");
-  const [emailFacturacion, setEmailFacturacion] = useState("");
 
   const [ownerName, setOwnerName] = useState("");
   const [ownerEmail, setOwnerEmail] = useState("");
@@ -106,28 +91,14 @@ function RegistroForm() {
       return;
     }
 
-    const clean = (v: string) => {
-      const t = v.trim();
-      return t.length > 0 ? t : undefined;
-    };
-
-    const payload: RegisterPayload = {
-      businessName: businessName.trim(),
+    const payload = armarPayloadRegistro({
+      businessName,
       plan,
       tipoNegocio,
-      nit: clean(nit),
-      nitDv: clean(nitDv),
-      responsabilidadFiscal: clean(responsabilidadFiscal) as
-        | RegisterPayload["responsabilidadFiscal"],
-      ciudad: clean(ciudad),
-      departamento: clean(departamento),
-      address: clean(address),
-      phone: clean(phone),
-      emailFacturacion: clean(emailFacturacion),
-      ownerName: ownerName.trim(),
-      ownerEmail: ownerEmail.trim(),
+      ownerName,
+      ownerEmail,
       password,
-    };
+    });
 
     setPending(true);
     try {
@@ -233,78 +204,10 @@ function RegistroForm() {
                     required
                     autoComplete="organization"
                   />
-
-                  <div className="grid grid-cols-[1fr_auto] gap-3">
-                    <Field
-                      label="NIT / identificación"
-                      value={nit}
-                      onChange={setNit}
-                      placeholder="900123456"
-                      optional
-                    />
-                    <Field
-                      label="DV"
-                      value={nitDv}
-                      onChange={setNitDv}
-                      placeholder="7"
-                      optional
-                      className="w-20"
-                    />
-                  </div>
-
-                  <SelectField
-                    label="Responsabilidad fiscal"
-                    value={responsabilidadFiscal}
-                    onChange={setResponsabilidadFiscal}
-                    optional
-                    options={RESPONSABILIDAD_FISCAL}
-                    placeholder="Selecciona…"
-                  />
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <Field
-                      label="Ciudad"
-                      value={ciudad}
-                      onChange={setCiudad}
-                      placeholder="Bogotá"
-                      optional
-                    />
-                    <Field
-                      label="Departamento"
-                      value={departamento}
-                      onChange={setDepartamento}
-                      placeholder="Cundinamarca"
-                      optional
-                    />
-                  </div>
-
-                  <Field
-                    label="Dirección"
-                    value={address}
-                    onChange={setAddress}
-                    placeholder="Calle 123 #45-67"
-                    optional
-                  />
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <Field
-                      label="Teléfono"
-                      value={phone}
-                      onChange={setPhone}
-                      placeholder="3001234567"
-                      optional
-                      inputMode="tel"
-                    />
-                    <Field
-                      label="Correo de facturación"
-                      value={emailFacturacion}
-                      onChange={setEmailFacturacion}
-                      placeholder="facturas@negocio.com"
-                      optional
-                      type="email"
-                      inputMode="email"
-                    />
-                  </div>
+                  <p className="text-sm text-ink-muted">
+                    El NIT, el régimen y la dirección los completas después, en
+                    los primeros pasos de tu panel.
+                  </p>
                 </section>
 
                 {/* Dueño */}
@@ -527,50 +430,6 @@ function Field({
         placeholder={placeholder}
         className={`mt-2 h-13 w-full rounded-xl border border-hairline bg-white px-4 text-base text-ink outline-none transition-colors placeholder:text-ink-faint focus:border-brand-500 ${className ?? ""}`}
       />
-    </div>
-  );
-}
-
-function SelectField({
-  label,
-  value,
-  onChange,
-  options,
-  placeholder,
-  optional = false,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  options: { value: string; label: string }[];
-  placeholder?: string;
-  optional?: boolean;
-}) {
-  const id = useId();
-  return (
-    <div>
-      <label
-        htmlFor={id}
-        className="flex items-baseline justify-between text-sm font-semibold text-ink"
-      >
-        {label}
-        {optional && (
-          <span className="text-xs font-normal text-ink-faint">opcional</span>
-        )}
-      </label>
-      <select
-        id={id}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="mt-2 h-13 w-full rounded-xl border border-hairline bg-white px-4 text-base text-ink outline-none transition-colors focus:border-brand-500"
-      >
-        <option value="">{placeholder ?? "Selecciona…"}</option>
-        {options.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>
     </div>
   );
 }

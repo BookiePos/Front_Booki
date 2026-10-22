@@ -13,12 +13,14 @@ import {
   X,
   PartyPopper,
   Compass,
+  FileText,
 } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 
 import { useAuth } from "@/lib/auth-context"
 import { useOnboarding } from "@/lib/onboarding/onboarding-context"
-import { listProducts } from "@/lib/erp/api-inventory"
+import { listProducts, listSedes } from "@/lib/erp/api-inventory"
+import { datosFiscalesPendientes } from "@/lib/onboarding/registro-corto"
 import { getSalesReport } from "@/lib/erp/api-reports"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -64,6 +66,22 @@ export function OnboardingChecklist() {
         cta: "Personalizar",
         icon: Store,
         action: startSedeGuide,
+      },
+      {
+        // El registro ya no pide datos fiscales (ítem 6.5): se piden aquí.
+        id: "fiscal",
+        title: "Completa tus datos fiscales",
+        body: "NIT, responsabilidad fiscal, dirección y ciudad. Con ellos tus comprobantes y los impuestos de la venta salen bien.",
+        href: "/panel/sedes",
+        cta: "Completar",
+        icon: FileText,
+        derive: async () => {
+          const sedes = await listSedes()
+          return (
+            sedes.length > 0 &&
+            sedes.every((s) => datosFiscalesPendientes(s).length === 0)
+          )
+        },
       },
       {
         id: "productos",
