@@ -116,6 +116,7 @@ import { BarraResumenCuenta } from "@/components/pos/barra-resumen-cuenta"
 import { CuentaVenta } from "@/components/pos/cuenta-venta"
 import { CatalogoVenta } from "@/components/pos/catalogo-venta"
 import { imprimirComprobante } from "@/components/pos/impresora-termica"
+import { ventaConEfectivo } from "@/lib/impresion/servicio"
 
 
 export default function VentaPage() {
@@ -523,10 +524,17 @@ export default function VentaPage() {
 
   // Imprime el recibo. La primera vez marca la impresión como configurada,
   // así la ayuda inicial deja de aparecer en las siguientes ventas.
-  function handlePrintReceipt() {
+  const cajonYaAbierto = React.useRef<string | null>(null)
+  async function handlePrintReceipt() {
     // Térmica directa si está elegida; si no, el diálogo del navegador.
-    if (completedSale) void imprimirComprobante(completedSale, sede)
-    else window.print()
+    // El cajón se abre solo en la primera impresión de esta venta.
+    if (completedSale) {
+      const primera = cajonYaAbierto.current !== completedSale._id
+      cajonYaAbierto.current = completedSale._id
+      await imprimirComprobante(completedSale, sede, {
+        abrirCajon: primera && ventaConEfectivo(completedSale),
+      })
+    } else window.print()
     if (!printConfigured) {
       setPrintConfigured(true)
       if (typeof window !== "undefined") {

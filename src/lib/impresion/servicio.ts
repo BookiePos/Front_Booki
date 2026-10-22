@@ -23,17 +23,37 @@ export class ImpresoraNoVinculada extends Error {
   }
 }
 
-async function enviar(
+// Cola a nivel de módulo: dos envíos a la vez pelearían por el mismo
+// dispositivo (un USB no se puede reclamar dos veces).
+let cola: Promise<unknown> = Promise.resolve()
+
+function enviar(
   c: ConfigImpresion,
   bytes: Uint8Array,
   resolver: ResolverTransporte,
-) {
-  const t = await resolver(c)
-  if (!t) throw new ImpresoraNoVinculada()
-  await imprimirBytes(t, bytes)
+): Promise<void> {
+  const trabajo = cola.then(async () => {
+    const t = await resolver(c)
+    if (!t) throw new ImpresoraNoVinculada()
+    await imprimirBytes(t, bytes)
+  })
+  // Un fallo no debe envenenar la cola de los siguientes.
+  cola = trabajo.catch(() => {})
+  return trabajo
 }
 
-/** Imprime el comprobante; abre el cajón si fue en efectivo y así se configuró. */
+/** ¿La venta entró dinero en efectivo (solo o en cobro mixto)? */
+export function ventaConEfectivo(sale: Sale): boolean {
+  return (
+    sale.payment.method === "cash" ||
+    !!sale.payments?.some((p) => p.method === "cash")
+  )
+}
+
+/**
+ * Imprime el comprobante. El cajón se abre solo si quien llama lo pide
+ * (`abrirCajon`): la reimpresión de una venta vieja jamás debe abrirlo.
+ */
 export function imprimirVentaTermica(
   sale: Sale,
   sede: Pick<
@@ -41,15 +61,13 @@ export function imprimirVentaTermica(
     "businessName" | "name" | "nit" | "address" | "phone" | "legalNote"
   > | undefined,
   c: ConfigImpresion,
+  { abrirCajon }: { abrirCajon: boolean },
   resolver: ResolverTransporte = transporteGuardado,
 ) {
-  const hayEfectivo =
-    sale.payment.method === "cash" ||
-    !!sale.payments?.some((p) => p.method === "cash")
   const bytes = reciboEscpos(sale, sede, {
     ancho: c.ancho,
     paginaCodigos: c.paginaCodigos,
-    abrirCajon: c.cajonAlCobrar && hayEfectivo,
+    abrirCajon,
   })
   return enviar(c, bytes, resolver)
 }

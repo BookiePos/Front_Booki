@@ -378,7 +378,10 @@ export default function VentasPage() {
               onClick={() =>
                 detailView === "factura"
                   ? window.print()
-                  : selected && void imprimirComprobante(selected, sede)
+                  : selected &&
+                    void imprimirComprobante(selected, sede, {
+                      abrirCajon: false, // reimpresión: nunca abre el cajón
+                    })
               }
             >
               <Printer />

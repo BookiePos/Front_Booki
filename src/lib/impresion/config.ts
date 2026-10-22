@@ -31,6 +31,7 @@ export const CONFIG_POR_DEFECTO: ConfigImpresion = {
 }
 
 const CLAVE = "bookipos.impresion"
+export const EVENTO_CONFIG = "bookipos:impresion-config"
 
 export function leerConfig(): ConfigImpresion {
   try {
@@ -58,6 +59,8 @@ export function leerConfig(): ConfigImpresion {
 export function guardarConfig(c: ConfigImpresion): void {
   try {
     window.localStorage.setItem(CLAVE, JSON.stringify(c))
+    // Avisa a otros componentes de esta pestaña (`storage` solo llega a las demás).
+    window.dispatchEvent(new Event(EVENTO_CONFIG))
   } catch {
     // Sin almacenamiento (modo privado): la config vale solo esta sesión.
   }

@@ -29,7 +29,7 @@ interface CobroCompletadoProps {
   invoiceState: "idle" | "emitting" | "done" | "error"
   invoiceNumber: string | null
   invoiceError: string | null
-  handlePrintReceipt: () => void
+  handlePrintReceipt: () => void | Promise<void>
   backToList: () => Promise<void>
 }
 
@@ -44,6 +44,8 @@ export function CobroCompletado({
   handlePrintReceipt,
   backToList,
 }: CobroCompletadoProps) {
+  // Evita el doble clic mientras la tirilla viaja a la impresora.
+  const [imprimiendo, setImprimiendo] = React.useState(false)
   return (
     <>
       <header className="no-print flex shrink-0 items-center gap-3 border-b border-border bg-success/10 px-5 py-4">
@@ -169,8 +171,16 @@ export function CobroCompletado({
       <footer className="no-print flex shrink-0 gap-2 border-t border-border bg-muted/40 px-5 py-3">
         <Button
           variant="outline"
-          className="flex-1 gap-2"
-          onClick={handlePrintReceipt}
+          className="h-12 flex-1 gap-2"
+          disabled={imprimiendo}
+          onClick={async () => {
+            setImprimiendo(true)
+            try {
+              await handlePrintReceipt()
+            } finally {
+              setImprimiendo(false)
+            }
+          }}
         >
           <Printer className="size-4" />
           Imprimir

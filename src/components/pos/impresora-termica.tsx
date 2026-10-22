@@ -8,6 +8,7 @@ import { useAuth } from "@/lib/auth-context"
 import type { Sale } from "@/lib/pos/api-sales"
 import type { Sede } from "@/lib/pos/api-inventory"
 import {
+  EVENTO_CONFIG,
   guardarConfig,
   leerConfig,
   type ConfigImpresion,
@@ -23,6 +24,7 @@ import {
   soporteTermico,
   vincularImpresora,
 } from "@/lib/impresion/transporte"
+import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Segmented } from "@/components/ui/segmented"
 import { CheckboxField, Field, NativeSelect } from "@/components/ui/field"
@@ -38,15 +40,21 @@ function mensaje(err: unknown): string {
  * térmica envía ESC/POS directo, sin diálogo. Si no hay soporte, no hay
  * impresora vinculada o la escritura falla, cae al diálogo del navegador
  * (el comportamiento de siempre) para que la venta nunca se quede sin tirilla.
+ *
+ * `abrirCajon` es solo para la primera impresión tras cobrar; las
+ * reimpresiones pasan false. Aun así se respeta el ajuste «cajón al cobrar».
  */
 export async function imprimirComprobante(
   sale: Sale,
   sede: Sede | undefined,
+  { abrirCajon }: { abrirCajon: boolean },
 ): Promise<void> {
   const c = leerConfig()
   if (c.modo === "termica" && hayTermica()) {
     try {
-      await imprimirVentaTermica(sale, sede, c)
+      await imprimirVentaTermica(sale, sede, c, {
+        abrirCajon: abrirCajon && c.cajonAlCobrar && sale.status !== "void",
+      })
       return
     } catch (err) {
       toast.error(
@@ -65,8 +73,9 @@ export function ImpresoraTermicaButton({ className }: { className?: string }) {
       <Button
         variant="outline"
         size="icon"
-        className={className}
+        className={cn("size-12", className)}
         aria-label="Ajustes de impresora"
+        title="Ajustes de impresora"
         onClick={() => setOpen(true)}
       >
         <Settings2 className="size-4" />
@@ -80,14 +89,20 @@ export function ImpresoraTermicaButton({ className }: { className?: string }) {
 export function AbrirCajonButton({ className }: { className?: string }) {
   const { hasPermission } = useAuth()
   const [busy, setBusy] = React.useState(false)
-  const [config] = React.useState<ConfigImpresion>(() => leerConfig())
+  const [config, setConfig] = React.useState<ConfigImpresion>(() => leerConfig())
+  // Si se cambia la config en el diálogo de ajustes, el botón lo refleja.
+  React.useEffect(() => {
+    const releer = () => setConfig(leerConfig())
+    window.addEventListener(EVENTO_CONFIG, releer)
+    return () => window.removeEventListener(EVENTO_CONFIG, releer)
+  }, [])
   // Sin impresora térmica elegida no hay a quién mandarle el pulso.
   if (!hasPermission("caja.movement")) return null
   if (config.modo !== "termica" || !hayTermica()) return null
   return (
     <Button
       variant="outline"
-      className={className}
+      className={cn("h-12 gap-2", className)}
       disabled={busy}
       onClick={async () => {
         setBusy(true)

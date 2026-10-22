@@ -22,14 +22,32 @@ export interface TransporteImpresora {
   cerrar(): Promise<void>
 }
 
-/** Abre, escribe y cierra siempre, aunque la escritura falle. */
+/** Tiempo máximo para abrir o escribir: una impresora apagada no debe colgar el cobro. */
+export const TIEMPO_ESPERA_MS = 10_000
+
+function conTiempo<T>(p: Promise<T>, ms: number): Promise<T> {
+  let id: ReturnType<typeof setTimeout>
+  const vence = new Promise<never>((_, rej) => {
+    id = setTimeout(
+      () => rej(new Error("La impresora no respondió a tiempo.")),
+      ms,
+    )
+  })
+  return Promise.race([p, vence]).finally(() => clearTimeout(id))
+}
+
+/**
+ * Abre, escribe y cierra siempre, aunque abrir o escribir fallen o se
+ * cuelguen (vencen a los `timeoutMs`).
+ */
 export async function imprimirBytes(
   transporte: TransporteImpresora,
   bytes: Uint8Array,
+  { timeoutMs = TIEMPO_ESPERA_MS }: { timeoutMs?: number } = {},
 ): Promise<void> {
-  await transporte.abrir()
   try {
-    await transporte.escribir(bytes)
+    await conTiempo(transporte.abrir(), timeoutMs)
+    await conTiempo(transporte.escribir(bytes), timeoutMs)
   } finally {
     try {
       await transporte.cerrar()
@@ -115,9 +133,14 @@ export class TransporteSerial implements TransporteImpresora {
     const w = this.puerto.writable?.getWriter()
     if (!w) throw new Error("El puerto de la impresora no es escribible.")
     try {
+      await w.ready
       await w.write(bytes)
+      // close() vacía lo pendiente antes de que cerremos el puerto.
+      await w.close()
     } finally {
-      w.releaseLock()
+      try {
+        w.releaseLock()
+      } catch {}
     }
   }
 
@@ -140,6 +163,20 @@ export class TransporteUsb implements TransporteImpresora {
   async abrir() {
     const d = this.dispositivo
     if (!d.opened) await d.open()
+    try {
+      await this.preparar()
+    } catch (err) {
+      // Falló tras open(): sin esto el dispositivo queda abierto y el
+      // siguiente intento (o el driver) lo encuentra ocupado.
+      try {
+        await d.close()
+      } catch {}
+      throw err
+    }
+  }
+
+  private async preparar() {
+    const d = this.dispositivo
     if (!d.configuration) await d.selectConfiguration(1)
     const ifaces = d.configuration?.interfaces ?? []
     // Preferimos la clase 7 (impresora); si no, cualquiera con bulk OUT.
@@ -223,20 +260,26 @@ export async function transporteGuardado(
 ): Promise<TransporteImpresora | null> {
   if (!c.transporte) return null
   const n = nav()
+  // Sin identificación guardada no hay forma fiable de saber cuál era:
+  // se pide vincular de nuevo en vez de imprimir en cualquier dispositivo.
+  if (c.vendorId === undefined || c.productId === undefined) return null
   const coincide = (v?: number, p?: number) =>
-    c.vendorId === undefined || (v === c.vendorId && p === c.productId)
+    v === c.vendorId && p === c.productId
   if (c.transporte === "serial" && n.serial) {
     const puertos = await n.serial.getPorts()
-    const puerto = puertos.find((x) => {
+    const candidatos = puertos.filter((x) => {
       const i = x.getInfo()
       return coincide(i.usbVendorId, i.usbProductId)
     })
-    return puerto ? new TransporteSerial(puerto, c.baudios) : null
+    // Dos puertos idénticos (dos impresoras del mismo modelo): ambiguo.
+    return candidatos.length === 1
+      ? new TransporteSerial(candidatos[0], c.baudios)
+      : null
   }
   if (c.transporte === "usb" && n.usb) {
     const ds = await n.usb.getDevices()
-    const d = ds.find((x) => coincide(x.vendorId, x.productId))
-    return d ? new TransporteUsb(d) : null
+    const candidatos = ds.filter((x) => coincide(x.vendorId, x.productId))
+    return candidatos.length === 1 ? new TransporteUsb(candidatos[0]) : null
   }
   return null
 }
