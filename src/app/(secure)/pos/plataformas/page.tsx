@@ -59,9 +59,11 @@ export default function PlataformasPage() {
   const { hasPermission } = useAuth()
   const canSell = hasPermission("pos.sell")
   const canFinance = hasPermission("finance.view")
-  const [vista, setVista] = React.useState<Vista>("registrar")
+  const [elegida, setVista] = React.useState<Vista | null>(null)
+  // Quien solo ve finanzas (el Contador) entra directo a «Por cobrar».
+  const vista: Vista = elegida ?? (canSell ? "registrar" : "cobrar")
 
-  if (!canSell) {
+  if (!canSell && !canFinance) {
     return (
       <Card>
         <CardContent className="flex flex-col items-center gap-3 py-14 text-center">
@@ -75,8 +77,12 @@ export default function PlataformasPage() {
   }
 
   const options = [
-    { value: "registrar", label: "Registrar pedido" },
-    { value: "importar", label: "Importar CSV" },
+    ...(canSell
+      ? [
+          { value: "registrar", label: "Registrar pedido" },
+          { value: "importar", label: "Importar CSV" },
+        ]
+      : []),
     ...(canFinance ? [{ value: "cobrar", label: "Por cobrar" }] : []),
   ]
 
@@ -95,8 +101,8 @@ export default function PlataformasPage() {
         onValueChange={(v) => setVista(v as Vista)}
         options={options}
       />
-      {vista === "registrar" && <RegistrarPedido />}
-      {vista === "importar" && <ImportarCsv />}
+      {vista === "registrar" && canSell && <RegistrarPedido />}
+      {vista === "importar" && canSell && <ImportarCsv />}
       {vista === "cobrar" && canFinance && <PorCobrar />}
     </div>
   )
@@ -266,7 +272,7 @@ function RegistrarPedido() {
 
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-muted-foreground">
-            Total con precios del POS: <span className="tnum font-medium text-foreground">{money(total)}</span>
+            Total con precios del POS: <span className="tnum font-medium text-foreground">{money(total)}</span>. Si el menú de la plataforma cobra distinto, la diferencia se ajusta al liquidar.
           </p>
           <Button onClick={() => void registrar()} disabled={!listo}>
             {guardando ? <Loader2 className="animate-spin" /> : <Smartphone />}
@@ -456,6 +462,13 @@ function PorCobrar() {
   const [nota, setNota] = React.useState("")
   const [cargando, setCargando] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+  const [exito, setExito] = React.useState<string | null>(null)
+  const [retefuente, setRetefuente] = React.useState<number | null>(null)
+  const [reteIca, setReteIca] = React.useState<number | null>(null)
+  const [reteIva, setReteIva] = React.useState<number | null>(null)
+  const [ajusteSigno, setAjusteSigno] = React.useState<"mas" | "menos">("mas")
+  const [ajusteMonto, setAjusteMonto] = React.useState<number | null>(null)
+  const hoy = new Date().toLocaleDateString("en-CA", { timeZone: "America/Bogota" })
 
   const cargar = React.useCallback(async () => {
     if (!sedeId) return
@@ -492,7 +505,20 @@ function PorCobrar() {
 
   const bruto = pedidos.filter((p) => elegidos.has(p.id)).reduce((a, p) => a + p.amount, 0)
   const estimada = pedidos.filter((p) => elegidos.has(p.id)).reduce((a, p) => a + p.commissionEstimate, 0)
-  const problema = settlementProblem(bruto, recibido ?? 0, comision ?? 0, ivaComision ?? 0)
+  const retenciones = (retefuente ?? 0) + (reteIca ?? 0) + (reteIva ?? 0)
+  const ajuste = (ajusteMonto ?? 0) * (ajusteSigno === "mas" ? 1 : -1)
+  const problema = settlementProblem(
+    bruto,
+    recibido ?? 0,
+    comision ?? 0,
+    ivaComision ?? 0,
+    retenciones,
+    ajuste,
+  )
+
+  function todos() {
+    setElegidos((s) => (s.size === pedidos.length ? new Set() : new Set(pedidos.map((p) => p.id))))
+  }
 
   function alternar(id: string) {
     setElegidos((s) => {
@@ -507,6 +533,7 @@ function PorCobrar() {
     if (!sedeId) return
     setCargando(true)
     setError(null)
+    setExito(null)
     try {
       await createPlatformSettlement({
         sedeId,
@@ -515,14 +542,24 @@ function PorCobrar() {
         received: recibido ?? 0,
         commission: comision ?? 0,
         commissionIva: ivaComision ?? 0,
+        retefuente: retefuente ?? 0,
+        reteIca: reteIca ?? 0,
+        reteIva: reteIva ?? 0,
+        ajustePrecio: ajuste,
         date: fecha || undefined,
         note: nota.trim() || undefined,
       })
+      const total = bruto
       setRecibido(null)
       setComision(null)
       setIvaComision(null)
+      setRetefuente(null)
+      setReteIca(null)
+      setReteIva(null)
+      setAjusteMonto(null)
       setNota("")
       await cargar()
+      setExito(`Liquidación registrada: se cobraron ${money(total)} a ${PLATFORM_LABELS[plataforma]}.`)
     } catch (err) {
       setError(errorMessage(err))
       setCargando(false)
@@ -548,6 +585,7 @@ function PorCobrar() {
   return (
     <div className="flex flex-col gap-4">
       {error && <FormAlert>{error}</FormAlert>}
+      {exito && <FormAlert tone="success">{exito}</FormAlert>}
       <Card>
         <CardContent className="flex flex-col gap-3 p-4">
           <p className="text-sm font-medium">Saldo por cobrar a cada plataforma</p>
@@ -583,6 +621,12 @@ function PorCobrar() {
           {pedidos.length === 0 ? (
             <p className="text-sm text-muted-foreground">No hay pedidos pendientes con esta plataforma.</p>
           ) : (
+            <>
+              {canManage && (
+                <Button variant="ghost" size="sm" className="self-start" onClick={todos}>
+                  {elegidos.size === pedidos.length ? "Quitar todos" : `Seleccionar todos (${pedidos.length})`}
+                </Button>
+              )}
             <ul className="flex flex-col gap-1">
               {pedidos.map((p) => (
                 <li key={p.id} className="flex items-center gap-3 rounded-lg border border-border px-3 py-2 text-sm">
@@ -598,6 +642,7 @@ function PorCobrar() {
                 </li>
               ))}
             </ul>
+            </>
           )}
 
           {canManage && elegidos.size > 0 && (
@@ -607,22 +652,58 @@ function PorCobrar() {
                 {estimada > 0 && (
                   <span className="text-muted-foreground"> (el portal estimó {money(estimada)} de comisión)</span>
                 )}
-                . Lo consignado + la comisión + su IVA tienen que sumar eso.
+                . Lo consignado + la comisión + su IVA + las retenciones tienen que sumar eso
+                {ajuste !== 0 ? ` ${ajuste > 0 ? "más" : "menos"} ${money(Math.abs(ajuste))} de diferencia de precio` : ""}.
               </p>
               <div className="grid gap-3 sm:grid-cols-3">
-                <Field id="lq-recibido" label="Consignado">
+                <Field id="lq-recibido" label="Consignado" hint="Lo que entró al banco.">
                   <MoneyInput id="lq-recibido" value={recibido} onValueChange={setRecibido} />
                 </Field>
-                <Field id="lq-comision" label="Comisión" hint="Sin IVA. Incluye ajustes o descuentos de la plataforma.">
+                <Field id="lq-comision" label="Comisión" hint="Sin IVA. Incluye otros descuentos de la plataforma.">
                   <MoneyInput id="lq-comision" value={comision} onValueChange={setComision} />
                 </Field>
-                <Field id="lq-iva" label="IVA de la comisión" hint="Solo si lo descuentas.">
+                <Field
+                  id="lq-iva"
+                  label="IVA de la comisión"
+                  hint="Si tu sede es responsable de IVA se descuenta (cuenta 2408); si no, se suma al gasto de la comisión. Lo decide el sistema."
+                >
                   <MoneyInput id="lq-iva" value={ivaComision} onValueChange={setIvaComision} />
                 </Field>
               </div>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <Field id="lq-rtf" label="Retención en la fuente" hint="Si la plataforma te la practicó (queda a tu favor).">
+                  <MoneyInput id="lq-rtf" value={retefuente} onValueChange={setRetefuente} />
+                </Field>
+                <Field id="lq-rica" label="ReteICA" hint="Retención de industria y comercio, si aplica.">
+                  <MoneyInput id="lq-rica" value={reteIca} onValueChange={setReteIca} />
+                </Field>
+                <Field id="lq-riva" label="ReteIVA" hint="Retención de IVA, si aplica.">
+                  <MoneyInput id="lq-riva" value={reteIva} onValueChange={setReteIva} />
+                </Field>
+              </div>
               <div className="grid gap-3 sm:grid-cols-2">
-                <Field id="lq-fecha" label="Fecha de la consignación" hint="Hoy si lo dejas vacío.">
-                  <Input id="lq-fecha" type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} />
+                <Field
+                  id="lq-ajuste-signo"
+                  label="Diferencia de precio con el POS"
+                  hint="Si el menú de la plataforma es más caro o más barato que el tuyo, lo cobrado al cliente difiere de lo registrado."
+                >
+                  <NativeSelect
+                    id="lq-ajuste-signo"
+                    value={ajusteSigno}
+                    onChange={(v) => setAjusteSigno(v as "mas" | "menos")}
+                    options={[
+                      { value: "mas", label: "La plataforma cobró más" },
+                      { value: "menos", label: "La plataforma cobró menos" },
+                    ]}
+                  />
+                </Field>
+                <Field id="lq-ajuste" label="Valor de la diferencia" hint="Déjalo vacío si no hay diferencia.">
+                  <MoneyInput id="lq-ajuste" value={ajusteMonto} onValueChange={setAjusteMonto} />
+                </Field>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field id="lq-fecha" label="Fecha de la consignación" hint="Hoy si lo dejas vacío. No puede ser anterior a los pedidos.">
+                  <Input id="lq-fecha" type="date" max={hoy} value={fecha} onChange={(e) => setFecha(e.target.value)} />
                 </Field>
                 <Field id="lq-nota" label="Nota">
                   <Input id="lq-nota" value={nota} maxLength={240} onChange={(e) => setNota(e.target.value)} />

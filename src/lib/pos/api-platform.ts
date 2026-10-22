@@ -123,6 +123,8 @@ export interface PlatformSummaryRow {
   received: number
   commission: number
   commissionIva: number
+  retenciones: number
+  ajustePrecio: number
 }
 
 export interface PlatformSummary {
@@ -172,9 +174,14 @@ export interface PlatformSettlement {
   received: number
   commission: number
   commissionIva: number
+  ivaDescontable?: boolean
+  retefuente?: number
+  reteIca?: number
+  reteIva?: number
+  ajustePrecio?: number
   date: string
   note?: string
-  status: "active" | "void"
+  status: "active" | "voiding" | "void"
   saleIds: string[]
 }
 
@@ -195,6 +202,11 @@ export interface SettlementInput {
   received: number
   commission: number
   commissionIva?: number
+  retefuente?: number
+  reteIca?: number
+  reteIva?: number
+  /** Con signo: >0 la plataforma cobró más que el POS, <0 menos. */
+  ajustePrecio?: number
   date?: string
   note?: string
 }
@@ -213,19 +225,23 @@ export async function voidPlatformSettlement(id: string): Promise<PlatformSettle
 }
 
 /**
- * La liquidación tiene que cuadrar: lo consignado + comisión + IVA de la
- * comisión = lo que la plataforma debía. Devuelve el mensaje si no cuadra.
+ * La liquidación tiene que cuadrar: consignado + comisión + IVA de la comisión +
+ * retenciones = lo que la plataforma debía + ajuste de precio. Devuelve el
+ * mensaje si no cuadra.
  */
 export function settlementProblem(
   gross: number,
   received: number,
   commission: number,
   commissionIva: number,
+  retenciones = 0,
+  ajustePrecio = 0,
 ): string | null {
   if (gross <= 0) return "Elige al menos un pedido"
-  const diff = gross - (received + commission + commissionIva)
+  const objetivo = gross + ajustePrecio
+  const diff = objetivo - (received + commission + commissionIva + retenciones)
   if (diff === 0) return null
   return diff > 0
-    ? `Faltan $${diff.toLocaleString("es-CO")} para cuadrar con lo que la plataforma debía`
-    : `Sobran $${(-diff).toLocaleString("es-CO")} frente a lo que la plataforma debía`
+    ? `Faltan $${diff.toLocaleString("es-CO")} para cuadrar con $${objetivo.toLocaleString("es-CO")}`
+    : `Sobran $${(-diff).toLocaleString("es-CO")} frente a $${objetivo.toLocaleString("es-CO")}`
 }
