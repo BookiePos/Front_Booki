@@ -64,7 +64,9 @@ export default function PlanBillingPage() {
 
   const [config, setConfig] = useState<BillingConfig | null>(null)
   const [status, setStatus] = useState<BillingStatus | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [loadingData, setLoading] = useState(true)
+  // Sin permiso no se pide nada, así que no hay nada que esperar.
+  const loading = loadingData && authorized
 
   const [selectedPlan, setSelectedPlan] = useState<BusinessPlan>("negocio")
   const [cycle, setCycle] = useState<"monthly" | "annual">("monthly")
@@ -98,10 +100,7 @@ export default function PlanBillingPage() {
   }, [])
 
   useEffect(() => {
-    if (!authorized) {
-      setLoading(false)
-      return
-    }
+    if (!authorized) return
     let active = true
     void (async () => {
       try {

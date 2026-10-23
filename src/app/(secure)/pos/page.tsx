@@ -73,6 +73,8 @@ import { useConfirm } from "@/components/ui/confirm-dialog"
 
 
 import { METODOS_ATAJO, useAtajosPos } from "@/hooks/use-atajos-pos"
+import { useLoadEffect } from "@/hooks/use-load-effect"
+import { useResetOnChange } from "@/hooks/use-reset-on-change"
 import {
   applyMethodShortcut,
   splitSummary,
@@ -117,7 +119,6 @@ import { CuentaVenta } from "@/components/pos/cuenta-venta"
 import { CatalogoVenta } from "@/components/pos/catalogo-venta"
 import { imprimirComprobante } from "@/components/pos/impresora-termica"
 import { ventaConEfectivo } from "@/lib/impresion/servicio"
-
 
 export default function VentaPage() {
   const { user, hasPermission, isRetail, isRestaurant } = useAuth()
@@ -467,8 +468,7 @@ export default function VentaPage() {
   }, [sedeId])
 
   // Al cambiar de sede se reinicia todo (cuenta, catálogo y cuentas abiertas).
-  React.useEffect(() => {
-    if (!canSell) return
+  const reiniciarPorSede = React.useCallback(() => {
     setCart([])
     setTip(null)
     setActiveOrderId(null)
@@ -482,7 +482,8 @@ export default function VentaPage() {
     void refreshOrders()
     void refreshCaja()
     void fetchDiscounts()
-  }, [canSell, fetchProducts, refreshOrders, refreshCaja, fetchDiscounts])
+  }, [fetchProducts, refreshOrders, refreshCaja, fetchDiscounts])
+  useLoadEffect(reiniciarPorSede, canSell)
 
   async function handleOpenCaja() {
     if (!sedeId) return
@@ -513,7 +514,7 @@ export default function VentaPage() {
   }
 
   // Recuerda si ya se configuró la impresión (para ocultar la ayuda inicial).
-  React.useEffect(() => {
+  const leerImpresionConfigurada = React.useCallback(() => {
     if (
       typeof window !== "undefined" &&
       window.localStorage.getItem("pos.printConfigured") === "1"
@@ -521,6 +522,7 @@ export default function VentaPage() {
       setPrintConfigured(true)
     }
   }, [])
+  useLoadEffect(leerImpresionConfigurada)
 
   // Imprime el recibo. La primera vez marca la impresión como configurada,
   // así la ayuda inicial deja de aparecer en las siguientes ventas.
@@ -811,6 +813,25 @@ export default function VentaPage() {
     }
   }
 
+  const filtered = React.useMemo(() => {
+    return products.filter((p) => {
+      const inCat =
+        category === ALL ||
+        (category === UNCAT ? !p.categoryId : p.categoryId === category)
+      if (!inCat) return false
+      // Por palabras y sin tildes: "galleta chocolate" tiene que encontrar
+      // "Galleta de chocolate". Con la frase entera no aparecía nada.
+      return coincide(
+        search,
+        p.name,
+        p.sku,
+        p.barcode,
+        p.categoryName,
+        p.variantGroupName,
+      )
+    })
+  }, [products, search, category])
+
   // Escáner de código de barras / SKU: al presionar Enter agrega la coincidencia.
   function handleScan() {
     const q = search.trim().toLowerCase()
@@ -907,24 +928,6 @@ export default function VentaPage() {
   const tipAmount = tip ?? 0
   const suggestedTip = Math.round(total * 0.1)
 
-  const filtered = React.useMemo(() => {
-    return products.filter((p) => {
-      const inCat =
-        category === ALL ||
-        (category === UNCAT ? !p.categoryId : p.categoryId === category)
-      if (!inCat) return false
-      // Por palabras y sin tildes: "galleta chocolate" tiene que encontrar
-      // "Galleta de chocolate". Con la frase entera no aparecía nada.
-      return coincide(
-        search,
-        p.name,
-        p.sku,
-        p.barcode,
-        p.categoryName,
-        p.variantGroupName,
-      )
-    })
-  }, [products, search, category])
 
   /**
    * La rejilla enseña fotos solo si al menos un producto a la vista tiene una.
@@ -986,7 +989,7 @@ export default function VentaPage() {
   }
 
   // El fiado exige identificar al cliente: abre esa sección automáticamente.
-  React.useEffect(() => {
+  useResetOnChange(() => {
     if (usesCredit) setShowCustomer(true)
   }, [usesCredit])
 
