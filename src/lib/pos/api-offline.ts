@@ -20,6 +20,7 @@ import {
   type VentaOffline,
 } from "@/lib/offline/cola"
 import { hayIndexedDb } from "@/lib/offline/idb"
+import { API_URL } from "@/lib/env"
 import { posProducts, type PosProduct, type Sale } from "@/lib/pos/api-sales"
 import { getCurrentCaja, type CurrentCaja } from "@/lib/pos/api-caja"
 import { listSedes, type Sede } from "@/lib/pos/api-inventory"
@@ -70,6 +71,42 @@ export async function enviarVentaOffline(
   }
   if (res.status === 400) throw new ConflictoOffline("RECHAZADA", msg ?? "Venta rechazada")
   return parseResponse(res)
+}
+
+/**
+ * ¿Contesta el servidor? Cualquier respuesta HTTP (aun un 401 o un 503) prueba
+ * que volvió la red; solo un fallo de `fetch` (TypeError) dice que no. Es el
+ * sondeo de cuando el POS quedó «Sin conexión» y el navegador no avisó con el
+ * evento `online` (wifi conectado sin salida a internet).
+ */
+export async function sondearRed(f: typeof fetch = fetch): Promise<boolean> {
+  try {
+    await f(`${API_URL}/health`, { method: "GET", cache: "no-store" })
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** Conflicto offline guardado en el servidor (bandeja por sede). */
+export interface ConflictoServidor {
+  _id: string
+  saleNumber: string
+  reason: MotivoConflicto
+  message: string
+  userEmail?: string
+  soldAt?: string
+  expectedGrandTotal?: number
+  payload: SyncDto
+  updatedAt?: string
+}
+
+/** Bandeja del servidor: la ve quien autoriza anulaciones (`pos.void.authorize`). */
+export async function listarConflictosServidor(sedeId: string): Promise<ConflictoServidor[]> {
+  const res = await authFetch(
+    `/sales/offline/conflicts?sedeId=${encodeURIComponent(sedeId)}`,
+  )
+  return parseResponse<ConflictoServidor[]>(res)
 }
 
 export interface ConOrigen<T> {
@@ -129,8 +166,10 @@ export async function ultimaSincronizacion(sedeId: string): Promise<string | nul
 
 /**
  * La venta encolada con la forma de `Sale`, para el comprobante de siempre. El
- * número es el definitivo (`FVC-`); el IVA lo liquida el servidor al
- * sincronizar (los precios ya lo incluyen), por eso aquí va en cero.
+ * número es el definitivo (`FVC-`). La copia local del catálogo no trae la
+ * tarifa de cada producto ni el régimen de la sede (IVA, INC o ninguno), así
+ * que no se discrimina aquí: el comprobante dice «Impuestos incluidos» con la
+ * leyenda de contingencia y el servidor liquida el impuesto al sincronizar.
  */
 export function ventaOfflineComoSale(
   v: VentaOffline,
@@ -169,5 +208,6 @@ export function ventaOfflineComoSale(
     },
     customer: v.sale.customer,
     createdAt: v.soldAt,
+    contingencia: true,
   } as Sale
 }

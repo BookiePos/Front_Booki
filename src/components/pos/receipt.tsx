@@ -2,6 +2,7 @@ import { PAYMENT_METHOD_LABELS, type Sale } from "@/lib/pos/api-sales"
 import type { Sede } from "@/lib/pos/api-inventory"
 import { money, qty, dateTime } from "@/lib/pos/format"
 import { cn } from "@/lib/utils"
+import { LEYENDA_CONTINGENCIA } from "@/lib/offline/cola"
 
 /**
  * Comprobante estilo tirilla térmica. Se usa tras cobrar y en el detalle del
@@ -123,7 +124,7 @@ export function Receipt({
 
       {/* Totales */}
       <div className="flex flex-col gap-1">
-        {(sale.discountTotal > 0 || sale.taxTotal > 0) && (
+        {(sale.discountTotal > 0 || sale.taxTotal > 0 || sale.contingencia) && (
           <Row label="Subtotal" value={money(sale.subtotal)} muted />
         )}
         {sale.discountTotal > 0 && (
@@ -137,8 +138,12 @@ export function Receipt({
             muted
           />
         )}
-        {sale.taxTotal > 0 && (
-          <Row label="Impuestos" value={money(sale.taxTotal)} muted />
+        {sale.contingencia ? (
+          <Row label="Impuestos" value="Incluidos" muted />
+        ) : (
+          sale.taxTotal > 0 && (
+            <Row label="Impuestos" value={money(sale.taxTotal)} muted />
+          )
         )}
         <div className="flex justify-between text-sm font-semibold">
           <span>TOTAL</span>
@@ -187,6 +192,9 @@ export function Receipt({
         <p className="mb-2 text-center text-[11px] leading-snug text-muted-foreground">
           {sede.legalNote}
         </p>
+      )}
+      {sale.contingencia && (
+        <p className="text-center text-muted-foreground">{LEYENDA_CONTINGENCIA}</p>
       )}
       <p className="text-center text-muted-foreground">¡Gracias por su compra!</p>
     </div>

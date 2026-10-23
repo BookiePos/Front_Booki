@@ -140,6 +140,12 @@ export interface Customer {
 export interface Sale {
   _id: string
   saleNumber: string
+  /**
+   * Solo en el comprobante de una venta cobrada sin conexión (ítem 6.3): el
+   * impuesto lo discrimina el servidor al sincronizar, así que se imprime
+   * «Impuestos incluidos» con la leyenda de contingencia. Nunca viene del API.
+   */
+  contingencia?: boolean
   sedeId: SedeRef
   cashierEmail: string
   cashierName?: string

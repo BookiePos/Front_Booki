@@ -1,6 +1,7 @@
 import { PAYMENT_METHOD_LABELS, type Sale } from "@/lib/pos/api-sales"
 import type { Sede } from "@/lib/pos/api-inventory"
 import { dateTime, money, qty } from "@/lib/pos/format"
+import { LEYENDA_CONTINGENCIA } from "@/lib/offline/cola"
 import {
   EscposBuilder,
   type AnchoPapel,
@@ -77,7 +78,8 @@ export function reciboEscpos(
       `-${money(sale.discountTotal)}`,
     )
   }
-  if (sale.taxTotal > 0) b.fila("Impuestos", money(sale.taxTotal))
+  if (sale.contingencia) b.fila("Impuestos", "Incluidos")
+  else if (sale.taxTotal > 0) b.fila("Impuestos", money(sale.taxTotal))
   b.negrita(true).fila("TOTAL", money(sale.total)).negrita(false)
   if (propina > 0) {
     b.fila("Propina", money(propina))
@@ -101,6 +103,7 @@ export function reciboEscpos(
   }
 
   b.separador().alinear("centro")
+  if (sale.contingencia) b.texto(LEYENDA_CONTINGENCIA)
   if (sede?.legalNote) b.texto(sede.legalNote)
   b.texto("¡Gracias por su compra!")
   b.alinear("izquierda").avanzar(3)

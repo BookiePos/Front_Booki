@@ -93,6 +93,28 @@ describe("consecutivos reservados", () => {
     expect(await ventasEnCola(A)).toHaveLength(0)
   })
 
+  it("un bloque vencido (48 h) no numera ventas", async () => {
+    await guardarReserva(A, {
+      reservationId: "res-viejo",
+      sedeId: SEDE,
+      cajaSessionId: TURNO,
+      prefix: "FVC",
+      from: 1,
+      to: 5,
+      expiresAt: new Date(Date.now() - 60_000).toISOString(),
+    })
+    expect(restantes(await leerReserva(A, SEDE))).toBe(0)
+    await expect(encolarVenta(A, venta())).rejects.toBeInstanceOf(SinNumerosError)
+    expect(await ventasEnCola(A)).toHaveLength(0)
+  })
+
+  it("si el cobro en línea se cayó, la venta offline reusa su llave como UUID", async () => {
+    await reservar(A)
+    const llave = "3f1c2d4e-5a6b-4c7d-8e9f-0a1b2c3d4e5f"
+    const v = await encolarVenta(A, venta({ offlineId: llave }))
+    expect(v.offlineId).toBe(llave)
+  })
+
   it("el total tiene que ser un entero en pesos", async () => {
     await reservar(A)
     await expect(encolarVenta(A, venta({ expectedGrandTotal: 100.5 }))).rejects.toThrow()
@@ -159,6 +181,24 @@ describe("sincronización", () => {
       expect.objectContaining({ offlineId: v.offlineId, useOpenShift: true }),
     )
     expect(await ventasEnCola(A)).toHaveLength(0)
+  })
+
+  it("registrar con lo cobrado manda override y el precio de cada línea", async () => {
+    await reservar(A)
+    const v = await encolarVenta(A, venta())
+    await sincronizar(A, async () => {
+      throw new ConflictoOffline("TOTAL_DISTINTO", "cambió el precio")
+    })
+    await reintentar(A, v.offlineId, { override: true })
+    const enviar = vi.fn(async () => ({ status: "creada" as const }))
+    await sincronizar(A, enviar)
+    expect(enviar).toHaveBeenCalledWith(
+      expect.objectContaining({
+        offlineId: v.offlineId,
+        override: true,
+        chargedLines: [{ productId: "p1", unitPrice: 11_900 }],
+      }),
+    )
   })
 
   it("EN_PROCESO deja la venta pendiente", async () => {

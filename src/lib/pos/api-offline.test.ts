@@ -9,7 +9,13 @@ vi.mock("@/lib/api-admin", async (orig) => ({
 
 import { ConflictoOffline, type SyncDto } from "@/lib/offline/cola"
 import { borrarTodo } from "@/lib/offline/idb"
-import { conRespaldo, enviarVentaOffline } from "@/lib/pos/api-offline"
+import {
+  conRespaldo,
+  enviarVentaOffline,
+  sondearRed,
+  ventaOfflineComoSale,
+} from "@/lib/pos/api-offline"
+import type { VentaOffline } from "@/lib/offline/cola"
 
 const dto = { offlineId: "x" } as SyncDto
 
@@ -83,5 +89,39 @@ describe("conRespaldo", () => {
         throw new ApiError(403, "sin permiso")
       }),
     ).rejects.toBeInstanceOf(ApiError)
+  })
+})
+
+describe("comprobante offline", () => {
+  it("sin tarifas en la copia local va como contingencia con impuestos incluidos", () => {
+    const v = {
+      offlineId: "x",
+      sedeId: "s1",
+      reservationId: "r",
+      saleNumber: "FVC-000001",
+      soldAt: "2026-10-22T15:00:00.000Z",
+      expectedGrandTotal: 23_800,
+      sale: { sedeId: "s1", lines: [], payment: { method: "cash", received: 30_000 } },
+      lineas: [{ productId: "p1", name: "Arepa", sku: "A", unit: "und", qty: 2, unitPrice: 11_900 }],
+      cashierEmail: "c@x",
+      estado: "pendiente",
+      intentos: 0,
+    } as unknown as VentaOffline
+    const s = ventaOfflineComoSale(v, undefined)
+    expect(s.contingencia).toBe(true)
+    expect(s.taxTotal).toBe(0)
+    expect(s.total).toBe(23_800)
+    expect(s.payment.change).toBe(6_200)
+  })
+})
+
+describe("sondeo de la red", () => {
+  it("cualquier respuesta del servidor prueba que volvió; un TypeError no", async () => {
+    const ok = vi.fn(async () => new Response("", { status: 401 }))
+    expect(await sondearRed(ok as unknown as typeof fetch)).toBe(true)
+    const caida = vi.fn(async () => {
+      throw new TypeError("Failed to fetch")
+    })
+    expect(await sondearRed(caida as unknown as typeof fetch)).toBe(false)
   })
 })

@@ -28,6 +28,10 @@ import {
 
 export const OFFLINE_PREFIX = "FVC"
 
+/** Leyenda del comprobante cobrado sin conexión (serie `FVC-`). */
+export const LEYENDA_CONTINGENCIA =
+  "Venta en contingencia (sin conexión). Precios con impuestos incluidos; el impuesto se discrimina al registrarla en el sistema."
+
 export function formatearNumero(n: number): string {
   return `${OFFLINE_PREFIX}-${String(n).padStart(6, "0")}`
 }
@@ -43,6 +47,13 @@ export interface ReservaOffline {
   /** Siguiente número sin usar del bloque. */
   next: number
   createdAt?: string
+  /** Desde esta hora (48 h tras reservar) el bloque ya no numera ventas. */
+  expiresAt?: string
+}
+
+/** ¿El bloque sigue vigente? Sin fecha (bloque viejo) se toma como vigente. */
+export function reservaVigente(r: ReservaOffline, ahora = new Date()): boolean {
+  return !r.expiresAt || new Date(r.expiresAt).getTime() > ahora.getTime()
 }
 
 export interface LineaOffline {
@@ -109,6 +120,8 @@ export interface VentaOffline {
   motivo?: { reason: MotivoConflicto; message: string }
   /** El usuario decidió registrarla en el turno abierto (turno cerrado). */
   useOpenShift?: boolean
+  /** Quien autoriza anulaciones decidió registrarla con lo cobrado. */
+  override?: boolean
   intentos: number
 }
 
@@ -158,7 +171,7 @@ export function leerReserva(a: Alcance, sedeId: string) {
 }
 
 export function restantes(r: ReservaOffline | undefined): number {
-  return r ? Math.max(0, r.to - r.next + 1) : 0
+  return r && reservaVigente(r) ? Math.max(0, r.to - r.next + 1) : 0
 }
 
 export class SinNumerosError extends Error {
@@ -179,6 +192,11 @@ export interface NuevaVentaOffline {
   expectedGrandTotal: number
   cashierEmail: string
   soldAt?: Date
+  /**
+   * Llave de idempotencia del cobro en línea que se cayó: si ya llegó al
+   * servidor, la sincronización la reconoce y no la registra dos veces.
+   */
+  offlineId?: string
 }
 
 /**
@@ -191,10 +209,10 @@ export async function encolarVenta(a: Alcance, v: NuevaVentaOffline): Promise<Ve
   }
   return transaccion(a, [STORES.reservas, STORES.cola], async (tx, get) => {
     const r = await get<ReservaOffline>(STORES.reservas, v.sedeId)
-    if (!r || r.next > r.to) throw new SinNumerosError()
+    if (!r || r.next > r.to || !reservaVigente(r)) throw new SinNumerosError()
     if (v.cajaSessionId && r.cajaSessionId !== v.cajaSessionId) throw new SinNumerosError()
     const venta: VentaOffline = {
-      offlineId: crypto.randomUUID(),
+      offlineId: v.offlineId ?? crypto.randomUUID(),
       sedeId: v.sedeId,
       reservationId: r.reservationId,
       saleNumber: formatearNumero(r.next),
@@ -225,7 +243,18 @@ export interface SyncDto {
   soldAt: string
   expectedGrandTotal: number
   useOpenShift?: boolean
+  /** Registrar con lo cobrado (exige `pos.void.authorize` en el servidor). */
+  override?: boolean
+  /** Precio unitario de cada producto según el comprobante. */
+  chargedLines?: { productId: string; unitPrice: number }[]
   sale: VentaOfflinePayload
+}
+
+/** Lo que el comprobante cobró por unidad de cada producto. */
+export function precioCobrado(v: VentaOffline): { productId: string; unitPrice: number }[] {
+  const porProducto = new Map<string, number>()
+  for (const l of v.lineas) porProducto.set(l.productId, l.unitPrice)
+  return [...porProducto].map(([productId, unitPrice]) => ({ productId, unitPrice }))
 }
 
 /** El servidor rechazó la venta con un motivo (409 OFFLINE_CONFLICT o 400). */
@@ -281,6 +310,8 @@ async function sincronizarAhora(a: Alcance, enviar: Enviar): Promise<ResultadoSy
         soldAt: v.soldAt,
         expectedGrandTotal: v.expectedGrandTotal,
         useOpenShift: v.useOpenShift || undefined,
+        override: v.override || undefined,
+        chargedLines: precioCobrado(v),
         sale: v.sale,
       })
       // Registrada (o ya lo estaba): sale de la cola.
@@ -314,7 +345,7 @@ async function sincronizarAhora(a: Alcance, enviar: Enviar): Promise<ResultadoSy
 export async function reintentar(
   a: Alcance,
   offlineId: string,
-  opts: { useOpenShift?: boolean } = {},
+  opts: { useOpenShift?: boolean; override?: boolean } = {},
 ): Promise<void> {
   const v = await leer<VentaOffline>(a, STORES.cola, offlineId)
   if (!v) return
@@ -323,6 +354,7 @@ export async function reintentar(
     estado: "pendiente",
     motivo: undefined,
     useOpenShift: opts.useOpenShift ?? v.useOpenShift,
+    override: opts.override ?? v.override,
   } satisfies VentaOffline)
 }
 
