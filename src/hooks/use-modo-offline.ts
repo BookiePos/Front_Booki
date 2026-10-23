@@ -97,7 +97,8 @@ export function useModoOffline(
     const a = alcanceDeSesion()
     if (!activo || !a) return
     const res = await sincronizar(a, enviarVentaOffline).catch(() => null)
-    if (res && !res.interrumpida) marcarConRed()
+    // Solo una respuesta real del servidor prueba que volvió la red.
+    if (res && !res.interrumpida && res.enviadas + res.conflictos > 0) marcarConRed()
     await refrescar()
   }, [activo, refrescar, marcarConRed])
 

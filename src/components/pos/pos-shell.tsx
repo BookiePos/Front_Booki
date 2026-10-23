@@ -14,6 +14,10 @@ import {
 
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/auth-context"
+import { useConfirm } from "@/components/ui/confirm-dialog"
+import { alcanceDeSesion } from "@/lib/offline/alcance"
+import { ventasEnCola } from "@/lib/offline/cola"
+import { hayIndexedDb } from "@/lib/offline/idb"
 import { useSede } from "@/lib/pos/sede-context"
 import { navItems } from "@/lib/pos/navigation"
 import { useOnboarding } from "@/lib/onboarding/onboarding-context"
@@ -187,6 +191,7 @@ function UserMenu() {
   const { user, logout, canUseOperation } = useAuth()
   const { sedes, changeSede } = useSede()
   const router = useRouter()
+  const confirm = useConfirm()
 
   const initials = (user?.name ?? "Usuario")
     .split(" ")
@@ -197,6 +202,20 @@ function UserMenu() {
     .toUpperCase()
 
   async function handleLogout() {
+    // Cerrar sesión borra la cola offline (ítem 6.3). Si quedan ventas cobradas
+    // sin registrar, se avisa: borrarlas descuadraría la caja.
+    const a = hayIndexedDb() ? alcanceDeSesion() : null
+    const enCola = a ? await ventasEnCola(a).catch(() => []) : []
+    if (enCola.length > 0) {
+      const ok = await confirm({
+        title: `Hay ${enCola.length} ventas sin sincronizar`,
+        description:
+          "Se cobraron sin conexión y todavía no están en el servidor. Si cierras sesión se borran de este equipo. Conéctate y sincroniza antes de salir.",
+        confirmLabel: "Cerrar sesión igual",
+        destructive: true,
+      })
+      if (!ok) return
+    }
     await logout()
     router.replace("/login")
   }

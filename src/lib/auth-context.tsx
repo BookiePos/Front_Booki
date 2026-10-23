@@ -28,6 +28,7 @@ import {
 } from "@/lib/api"
 import { OPERATION_PERMISSIONS } from "@/lib/access"
 import { pedirNovedadesAlEntrar } from "@/lib/novedades"
+import { borrarTodo as borrarDatosOffline } from "@/lib/offline/idb"
 
 const STORAGE_KEY = "sistemapos.auth"
 
@@ -153,6 +154,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setSuspended(true)
           return
         }
+        // Sin red (modo offline del POS, ítem 6.3): el servidor no contestó,
+        // así que nada dice que la sesión venció. Se sigue con el usuario
+        // guardado; la primera petición con red vuelve a validar el token.
+        if (!(err instanceof ApiError)) {
+          if (!active) return
+          setUser(stored.user)
+          setStatus("authenticated")
+          return
+        }
         try {
           const tokens = await apiRefresh()
           const me = await apiMe(tokens.accessToken)
@@ -195,6 +205,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = useCallback(async () => {
     await apiLogout()
+    // Los datos offline (catálogo, cola, consecutivos) son de esta sesión: no
+    // pueden quedar en el navegador para el siguiente que entre.
+    await borrarDatosOffline().catch(() => undefined)
     writeStored(null)
     setUser(null)
     setStatus("unauthenticated")
