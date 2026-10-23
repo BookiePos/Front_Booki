@@ -45,7 +45,7 @@ const BUSINESS_LABEL: Record<string, string> = {
  * Nombre de los roles de fábrica.
  *
  * El pie del menú no pide la lista de roles al backend por un rótulo: son
- * cuatro claves fijas y un rol a medida cae en el `??` de abajo mostrando su
+ * cinco claves fijas y un rol a medida cae en el `??` de abajo mostrando su
  * propia clave, que es preferible a dejar el hueco en blanco.
  */
 const ROLE_LABEL: Record<string, string> = {
@@ -53,6 +53,7 @@ const ROLE_LABEL: Record<string, string> = {
   admin: "Administrador",
   manager: "Gerente",
   cashier: "Cajero",
+  contador: "Contador",
 }
 
 /** Iniciales para el avatar: "Paulo Morales" → "PM". */

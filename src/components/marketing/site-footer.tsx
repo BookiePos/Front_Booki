@@ -12,6 +12,7 @@ const COLUMNS = [
       { label: "Novedades", href: "/#novedades" },
       { label: "Precios", href: "/#precios" },
       { label: "Comparativa", href: "/comparativa" },
+      { label: "Para contadores", href: "/contadores" },
     ],
   },
   {
