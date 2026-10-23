@@ -2,6 +2,7 @@ import { AppSidebar } from "@/components/erp/app-sidebar"
 import { AppTopbar } from "@/components/erp/app-topbar"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { OnboardingProvider } from "@/lib/onboarding/onboarding-context"
+import { AvisoFiscalPanel } from "@/components/onboarding/aviso-fiscal"
 import { WelcomeDialog } from "@/components/onboarding/welcome-dialog"
 import { ProductTour } from "@/components/onboarding/product-tour"
 import { GuideAutoStart } from "@/components/onboarding/guide-autostart"
@@ -32,6 +33,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             de tabla, y a 390px eso se nota.
           */}
           <div className="min-w-0 flex-1 bg-muted p-4 sm:p-5 md:p-8">
+            <AvisoFiscalPanel />
             {children}
           </div>
         </SidebarInset>

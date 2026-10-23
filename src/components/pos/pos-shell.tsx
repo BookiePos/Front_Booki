@@ -18,6 +18,7 @@ import { useConfirm } from "@/components/ui/confirm-dialog"
 import { alcanceDeSesion } from "@/lib/offline/alcance"
 import { ventasEnCola } from "@/lib/offline/cola"
 import { hayIndexedDb } from "@/lib/offline/idb"
+import { AvisoFiscal } from "@/components/onboarding/aviso-fiscal"
 import { useSede } from "@/lib/pos/sede-context"
 import { navItems } from "@/lib/pos/navigation"
 import { useOnboarding } from "@/lib/onboarding/onboarding-context"
@@ -106,6 +107,12 @@ function SedeBadge() {
       {sede?.name ?? "Sin sede"}
     </Badge>
   )
+}
+
+/** Aviso fiscal de la sede en la que se está vendiendo (no bloquea la venta). */
+function AvisoFiscalSedeActiva() {
+  const { sede } = useSede()
+  return <AvisoFiscal sede={sede} />
 }
 
 /** Botón “Guía”: abre el recorrido de la pantalla actual del terminal. */
@@ -333,6 +340,7 @@ export function PosShell({ children }: { children: React.ReactNode }) {
             El hueco inferior reserva sitio para la barra de navegación fija
             —56px— más aire; desaparece en `lg:`, donde la nav es lateral. */}
         <main className="min-w-0 flex-1 p-4 pb-24 md:p-6 md:pb-24 lg:pb-6">
+          <AvisoFiscalSedeActiva />
           {children}
         </main>
       </div>
