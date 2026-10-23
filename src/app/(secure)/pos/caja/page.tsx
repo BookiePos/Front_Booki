@@ -48,6 +48,8 @@ import {
 import { Field, FieldGrid } from "@/components/ui/field"
 import { HelpTip, Termino } from "@/components/ui/help-tip"
 import { cn } from "@/lib/utils"
+import { useLoadEffect } from "@/hooks/use-load-effect"
+import { useResetOnChange } from "@/hooks/use-reset-on-change"
 
 function errorMessage(err: unknown): string {
   if (err instanceof Error) return err.message
@@ -92,9 +94,7 @@ export default function CajaPage() {
     }
   }, [sedeId])
 
-  React.useEffect(() => {
-    if (canView) void load()
-  }, [canView, load])
+  useLoadEffect(load, canView)
 
   if (!canView) {
     return (
@@ -588,7 +588,7 @@ function CloseCajaDialog({
   const [saving, setSaving] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
-  React.useEffect(() => {
+  useResetOnChange(() => {
     if (open) {
       setBills(null)
       setCoins(null)
