@@ -76,6 +76,25 @@ describe("servicio de impresión térmica", () => {
     expect(ventaConEfectivo(mixta)).toBe(true)
   })
 
+  it("datáfono, Nequi, Daviplata y QR no abren el cajón (6.4)", () => {
+    for (const channel of ["datafono", "nequi", "daviplata", "qr"] as const) {
+      const method = channel === "datafono" ? "card" : "transfer"
+      const sola = {
+        ...venta("cash"),
+        payment: { method, channel },
+      } as unknown as Sale
+      expect(ventaConEfectivo(sola)).toBe(false)
+      const mixta = {
+        ...sola,
+        payments: [
+          { method, channel, amount: 500 },
+          { method: "cash", amount: 500 },
+        ],
+      } as unknown as Sale
+      expect(ventaConEfectivo(mixta)).toBe(true)
+    }
+  })
+
   it("sin impresora vinculada lanza ImpresoraNoVinculada", async () => {
     await expect(abrirCajonTermico(cfg, async () => null)).rejects.toBeInstanceOf(
       ImpresoraNoVinculada,
