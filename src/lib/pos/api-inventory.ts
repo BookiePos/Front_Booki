@@ -59,7 +59,16 @@ export interface SedeRef {
   name: string
 }
 
+/** QR estático o llave Bre-B que el negocio carga para cobrar (ítem 6.4). */
+export interface CobroDigital {
+  qrLlave?: string
+  /** Imagen del QR como data URL (png, jpeg o webp). */
+  qrImagen?: string
+  qrTitular?: string
+}
+
 export interface Sede extends SedeRef {
+  cobroDigital?: CobroDigital
   businessName?: string
   address?: string
   nit?: string

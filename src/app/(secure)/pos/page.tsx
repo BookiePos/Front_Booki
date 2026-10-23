@@ -81,6 +81,12 @@ import {
   toPaymentsPayload,
   type SplitRow,
 } from "@/lib/pos/split-payment"
+import {
+  detalleDigitalError,
+  detalleParaEnviar,
+  detalleVacio,
+  type DigitalDetail,
+} from "@/lib/pos/pago-digital"
 
 
 
@@ -221,6 +227,8 @@ export default function VentaPage() {
    * la cuenta. Apagado, se cobra con `method` como siempre.
    */
   const [splitOn, setSplitOn] = React.useState(false)
+  /** Datáfono / Nequi / Daviplata / QR del medio único (ítem 6.4). */
+  const [digital, setDigital] = React.useState<DigitalDetail>(detalleVacio())
   const [splitRows, setSplitRows] = React.useState<SplitRow[]>([])
   /** Hay fiado en este cobro: el de siempre o una parte del reparto. */
   const usesCredit = splitOn
@@ -950,6 +958,7 @@ export default function VentaPage() {
 
   function openCheckout() {
     setMethod("cash")
+    setDigital(detalleVacio())
     setReceived(null)
     setSplitOn(false)
     setSplitRows([])
@@ -1139,9 +1148,13 @@ export default function VentaPage() {
     .filter(([, qty]) => qty > 0)
     .map(([productId, qty]) => ({ productId, qty }))
 
+  /** Lo que falta del datáfono o la billetera, si el medio único es digital. */
+  const digitalError = splitOn ? null : detalleDigitalError(method, digital)
+
   /** Por qué no se puede confirmar todavía (o `false` si se puede). */
   const confirmBlocked =
     saving ||
+    digitalError !== null ||
     cart.length === 0 ||
     invoiceDataMissing ||
     (!splitOn &&
@@ -1176,7 +1189,9 @@ export default function VentaPage() {
             ? "Para la factura electrónica hace falta el nombre y la cédula o NIT del cliente."
             : split?.error
               ? split.error
-              : !splitOn &&
+              : digitalError
+                ? digitalError
+                : !splitOn &&
                 method === "cash" &&
                 receivedNum !== undefined &&
                 receivedNum < netTotal
@@ -1259,6 +1274,7 @@ export default function VentaPage() {
     setCheckoutError(null)
     const payment = {
       method,
+      ...detalleParaEnviar(method, digital),
       received: method === "cash" ? receivedNum : undefined,
       dueDate: method === "credit" ? creditDue || undefined : undefined,
       debtorType: method === "credit" ? debtorType : undefined,
@@ -1809,6 +1825,9 @@ export default function VentaPage() {
                   change={change}
                   suggestions={suggestions}
                   split={split}
+                  digital={digital}
+                  setDigital={setDigital}
+                  cobro={sede?.cobroDigital}
                 />
 
                 {/* ── Columna 3: lo que no se toca en cada venta ──
