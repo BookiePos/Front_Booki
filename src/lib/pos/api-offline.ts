@@ -53,12 +53,19 @@ export async function reservarConsecutivos(
  */
 export async function enviarVentaOffline(
   dto: SyncDto,
-): Promise<{ status: "creada" | "duplicada" }> {
+): Promise<{ status: "creada" | "duplicada"; saleNumber?: string }> {
   const res = await authFetch("/sales/offline/sync", {
     method: "POST",
     body: JSON.stringify(dto),
   })
-  if (res.ok) return (await res.json()) as { status: "creada" | "duplicada" }
+  if (res.ok) {
+    const r = (await res.json()) as {
+      status: "creada" | "duplicada"
+      sale?: { saleNumber?: string }
+    }
+    // El número real: si el cobro en línea sí había llegado, es un FV-.
+    return { status: r.status, saleNumber: r.sale?.saleNumber }
+  }
   let body: { code?: string; reason?: MotivoConflicto; message?: string | string[] } = {}
   try {
     body = (await res.clone().json()) as typeof body
@@ -86,6 +93,34 @@ export async function sondearRed(f: typeof fetch = fetch): Promise<boolean> {
   } catch {
     return false
   }
+}
+
+/** Faltante de stock de una venta offline autorizada, sin regularizar. */
+export interface FaltanteServidor {
+  saleId: string
+  saleNumber: string
+  soldAt?: string
+  cashierEmail?: string
+  faltantes: { productId: string; qty: number; unitCost: number; cost: number }[]
+}
+
+/** Faltantes pendientes de la sede (`pos.void.authorize`). */
+export async function listarFaltantes(sedeId: string): Promise<FaltanteServidor[]> {
+  const res = await authFetch(
+    `/sales/offline/faltantes?sedeId=${encodeURIComponent(sedeId)}`,
+  )
+  return parseResponse<FaltanteServidor[]>(res)
+}
+
+/** Saca del stock lo que faltaba (ya entró) y cierra la cuenta puente. */
+export async function regularizarFaltantes(
+  saleId: string,
+): Promise<{ estimado: number; real: number }> {
+  const res = await authFetch(
+    `/sales/offline/faltantes/${encodeURIComponent(saleId)}/regularizar`,
+    { method: "POST" },
+  )
+  return parseResponse<{ estimado: number; real: number }>(res)
 }
 
 /** Conflicto offline guardado en el servidor (bandeja por sede). */

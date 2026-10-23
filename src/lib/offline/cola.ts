@@ -268,13 +268,22 @@ export class ConflictoOffline extends Error {
   }
 }
 
-export type Enviar = (dto: SyncDto) => Promise<{ status: "creada" | "duplicada" }>
+/** Respuesta del servidor: `saleNumber` es el número con que quedó registrada. */
+export type Enviar = (
+  dto: SyncDto,
+) => Promise<{ status: "creada" | "duplicada"; saleNumber?: string }>
 
 export interface ResultadoSync {
   enviadas: number
   conflictos: number
   /** Falla de red o del servidor: lo pendiente sigue pendiente. */
   interrumpida: boolean
+  /**
+   * Ventas que ya estaban registradas con OTRO número: el cobro en línea sí
+   * llegó antes de caerse la red. El comprobante dice `offline` y la venta de
+   * verdad es `real` (FV-).
+   */
+  reemplazadas: { offlineId: string; offline: string; real: string }[]
 }
 
 let enCurso: Promise<ResultadoSync> | null = null
@@ -299,11 +308,11 @@ export function sincronizar(a: Alcance, enviar: Enviar): Promise<ResultadoSync> 
 }
 
 async function sincronizarAhora(a: Alcance, enviar: Enviar): Promise<ResultadoSync> {
-  const res: ResultadoSync = { enviadas: 0, conflictos: 0, interrumpida: false }
+  const res: ResultadoSync = { enviadas: 0, conflictos: 0, interrumpida: false, reemplazadas: [] }
   for (const v of await ventasEnCola(a)) {
     if (v.estado !== "pendiente") continue
     try {
-      await enviar({
+      const r = await enviar({
         offlineId: v.offlineId,
         reservationId: v.reservationId,
         saleNumber: v.saleNumber,
@@ -316,6 +325,9 @@ async function sincronizarAhora(a: Alcance, enviar: Enviar): Promise<ResultadoSy
       })
       // Registrada (o ya lo estaba): sale de la cola.
       await borrar(a, STORES.cola, v.offlineId)
+      if (r.status === "duplicada" && r.saleNumber && r.saleNumber !== v.saleNumber) {
+        res.reemplazadas.push({ offlineId: v.offlineId, offline: v.saleNumber, real: r.saleNumber })
+      }
       res.enviadas++
     } catch (err) {
       if (err instanceof ConflictoOffline) {

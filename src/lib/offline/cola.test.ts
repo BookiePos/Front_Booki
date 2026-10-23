@@ -136,7 +136,7 @@ describe("sincronización", () => {
       return { status: dup ? ("duplicada" as const) : ("creada" as const) }
     })
     const r = await sincronizar(A, enviar)
-    expect(r).toEqual({ enviadas: 2, conflictos: 0, interrumpida: false })
+    expect(r).toEqual({ enviadas: 2, conflictos: 0, interrumpida: false, reemplazadas: [] })
     expect(vistos.map((d) => d.saleNumber)).toEqual(["FVC-000001", "FVC-000002"])
     expect(vistos[0]).toMatchObject({ expectedGrandTotal: 23_800, reservationId: "res-1" })
     expect(await ventasEnCola(A)).toHaveLength(0)
@@ -199,6 +199,17 @@ describe("sincronización", () => {
         chargedLines: [{ productId: "p1", unitPrice: 11_900 }],
       }),
     )
+  })
+
+  it("si ya estaba registrada con otro número (cobro en línea que se cayó), lo informa", async () => {
+    await reservar(A)
+    const v = await encolarVenta(A, venta())
+    const r = await sincronizar(A, async () => ({
+      status: "duplicada" as const,
+      saleNumber: "FV-000123",
+    }))
+    expect(r.reemplazadas).toEqual([{ offlineId: v.offlineId, offline: v.saleNumber, real: "FV-000123" }])
+    expect(await ventasEnCola(A)).toHaveLength(0)
   })
 
   it("EN_PROCESO deja la venta pendiente", async () => {

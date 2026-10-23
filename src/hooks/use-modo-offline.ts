@@ -10,6 +10,7 @@ import {
   sincronizar,
   ventasEnCola,
   type NuevaVentaOffline,
+  type ResultadoSync,
   type VentaOffline,
 } from "@/lib/offline/cola"
 import { hayIndexedDb } from "@/lib/offline/idb"
@@ -44,6 +45,11 @@ export interface ModoOffline {
   numerosLibres: number
   /** ¿Se puede cobrar sin red ahora mismo? */
   disponible: boolean
+  /**
+   * Ventas offline que el servidor ya tenía con otro número (el cobro en
+   * línea sí llegó): el número de verdad para mostrarlo.
+   */
+  reemplazadas: ResultadoSync["reemplazadas"]
   marcarSinRed: () => void
   vender: (v: NuevaVentaOffline) => Promise<VentaOffline>
   sincronizarYa: () => Promise<void>
@@ -84,6 +90,7 @@ export function useModoOffline(
   const [cola, setCola] = React.useState<VentaOffline[]>([])
   const [ultimaSync, setUltimaSync] = React.useState<string | null>(null)
   const [numerosLibres, setNumerosLibres] = React.useState(0)
+  const [reemplazadas, setReemplazadas] = React.useState<ResultadoSync["reemplazadas"]>([])
   const activo = habilitado && !!sedeId && hayIndexedDb()
 
   const refrescar = React.useCallback(async () => {
@@ -105,6 +112,9 @@ export function useModoOffline(
     const a = alcanceDeSesion()
     if (!activo || !a) return
     const res = await sincronizar(a, enviarVentaOffline).catch(() => null)
+    if (res && res.reemplazadas.length > 0) {
+      setReemplazadas((prev) => [...res.reemplazadas, ...prev].slice(0, 20))
+    }
     // Solo una respuesta real del servidor prueba que volvió la red.
     if (res && !res.interrumpida && res.enviadas + res.conflictos > 0) marcarConRed()
     await refrescar()
@@ -216,6 +226,7 @@ export function useModoOffline(
     ultimaSync,
     numerosLibres,
     disponible: activo && numerosLibres > 0,
+    reemplazadas,
     marcarSinRed,
     vender,
     sincronizarYa,

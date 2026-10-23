@@ -48,6 +48,13 @@ describe("enviarVentaOffline", () => {
     expect(await enviarVentaOffline(dto)).toEqual({ status: "duplicada" })
   })
 
+  it("duplicada trae el número real con que quedó registrada", async () => {
+    authFetch.mockResolvedValueOnce(
+      json(201, { status: "duplicada", sale: { saleNumber: "FV-000123" } }),
+    )
+    expect(await enviarVentaOffline(dto)).toEqual({ status: "duplicada", saleNumber: "FV-000123" })
+  })
+
   it("409 OFFLINE_CONFLICT trae el motivo para la bandeja", async () => {
     authFetch.mockResolvedValueOnce(
       json(409, { code: "OFFLINE_CONFLICT", reason: "SIN_STOCK", message: "Stock insuficiente" }),

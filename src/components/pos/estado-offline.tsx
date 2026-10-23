@@ -18,7 +18,10 @@ import { MOTIVO_LABEL, type MotivoConflicto } from "@/lib/offline/cola"
 import {
   enviarVentaOffline,
   listarConflictosServidor,
+  listarFaltantes,
+  regularizarFaltantes,
   type ConflictoServidor,
+  type FaltanteServidor,
 } from "@/lib/pos/api-offline"
 import { money } from "@/lib/pos/format"
 import type { ModoOffline } from "@/hooks/use-modo-offline"
@@ -65,6 +68,8 @@ export function EstadoOffline({ modo, sedeId }: { modo: ModoOffline; sedeId: str
   const [ocupado, setOcupado] = React.useState<string | null>(null)
   const [servidor, setServidor] = React.useState<ConflictoServidor[]>([])
   const [errorServidor, setErrorServidor] = React.useState<string | null>(null)
+  const [faltantes, setFaltantes] = React.useState<FaltanteServidor[]>([])
+  const [avisoFaltante, setAvisoFaltante] = React.useState<string | null>(null)
   const puedeAutorizar = hasPermission(PERMISO_AUTORIZAR)
   const n = modo.pendientes.length
   const c = modo.conflictos.length
@@ -75,8 +80,12 @@ export function EstadoOffline({ modo, sedeId }: { modo: ModoOffline; sedeId: str
     if (!puedeAutorizar || !sedeId || !modo.online) return
     try {
       const propias = new Set(modo.conflictos.map((v) => v.offlineId))
-      const todas = await listarConflictosServidor(sedeId)
+      const [todas, pendientes] = await Promise.all([
+        listarConflictosServidor(sedeId),
+        listarFaltantes(sedeId),
+      ])
       setServidor(todas.filter((x) => !propias.has(x._id)))
+      setFaltantes(pendientes)
       setErrorServidor(null)
     } catch {
       setErrorServidor("No se pudo traer la bandeja del servidor.")
@@ -120,6 +129,20 @@ export function EstadoOffline({ modo, sedeId }: { modo: ModoOffline; sedeId: str
         await enviarVentaOffline({ ...x.payload, override: true })
       } catch {
         /* sigue en la bandeja con su motivo; se recarga abajo */
+      }
+      await cargarServidor()
+    })
+  }
+
+  async function regularizar(f: FaltanteServidor) {
+    await correr(f.saleId, async () => {
+      try {
+        const r = await regularizarFaltantes(f.saleId)
+        setAvisoFaltante(
+          `${f.saleNumber}: faltante regularizado (estimado ${money(r.estimado)}, real ${money(r.real)}).`,
+        )
+      } catch (err) {
+        setAvisoFaltante(err instanceof Error ? err.message : "No se pudo regularizar.")
       }
       await cargarServidor()
     })
@@ -179,7 +202,26 @@ export function EstadoOffline({ modo, sedeId }: { modo: ModoOffline; sedeId: str
               Sincronizar ahora ({n})
             </Button>
 
-            {c === 0 && n === 0 && servidor.length === 0 && (
+            {modo.reemplazadas.length > 0 && (
+              <section className="space-y-2" aria-labelledby="offline-reemplazadas">
+                <h3 id="offline-reemplazadas" className="text-sm font-semibold">
+                  Ya estaban registradas
+                </h3>
+                <p className="text-xs text-muted-foreground">
+                  El cobro en línea sí llegó antes de caerse la red: la venta de
+                  verdad tiene otro número. Usa ese si el cliente pide el comprobante.
+                </p>
+                <ul className="space-y-1 text-sm">
+                  {modo.reemplazadas.map((x) => (
+                    <li key={x.offlineId}>
+                      {x.offline} → <span className="font-semibold">{x.real}</span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
+            {c === 0 && n === 0 && servidor.length === 0 && faltantes.length === 0 && (
               <p className="text-sm text-muted-foreground">
                 No hay ventas pendientes ni conflictos.
               </p>
@@ -300,6 +342,42 @@ export function EstadoOffline({ modo, sedeId }: { modo: ModoOffline; sedeId: str
                         Registrar con lo cobrado
                       </Button>
                     )}
+                  </div>
+                ))}
+              </section>
+            )}
+            {puedeAutorizar && faltantes.length > 0 && (
+              <section className="space-y-2" aria-labelledby="offline-faltantes">
+                <h3 id="offline-faltantes" className="text-sm font-semibold">
+                  Faltantes de stock por regularizar
+                </h3>
+                <p className="text-xs text-muted-foreground">
+                  Se vendieron sin estar en el inventario registrado y se costearon
+                  al último costo. Registra la compra o el ajuste que trae ese stock
+                  y regulariza: se saca del inventario con su costo real.
+                </p>
+                {avisoFaltante && (
+                  <p role="status" className="text-xs">
+                    {avisoFaltante}
+                  </p>
+                )}
+                {faltantes.map((f) => (
+                  <div key={f.saleId} className="space-y-2 rounded-lg border p-3 text-sm">
+                    <div className="flex justify-between font-medium">
+                      <span>{f.saleNumber}</span>
+                      <span>{money(f.faltantes.reduce((s, x) => s + x.cost, 0))}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {f.faltantes.map((x) => `${x.qty} und`).join(", ")} · {f.cashierEmail ?? ""}
+                    </p>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={!modo.online || ocupado !== null}
+                      onClick={() => void regularizar(f)}
+                    >
+                      Regularizar
+                    </Button>
                   </div>
                 ))}
               </section>
