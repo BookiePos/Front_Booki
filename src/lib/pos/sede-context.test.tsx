@@ -94,8 +94,12 @@ describe("SedeProvider chosen", () => {
     await act(async () => {})
     mockUser = { id: "u1", sedeIds: ["a", "b"] }
     rerender(ui())
-    await waitFor(() => expect(box.ctx.chosen).toBe(true))
-    expect(box.ctx.sedeId).toBe("b")
+    // Se esperan juntas: chosen ya puede venir en true de la carga sin usuario.
+    await waitFor(() => {
+      expect(box.ctx.loading).toBe(false)
+      expect(box.ctx.chosen).toBe(true)
+      expect(box.ctx.sedeId).toBe("b")
+    })
   })
 
   it("el cierre de sesión borra la marca", async () => {

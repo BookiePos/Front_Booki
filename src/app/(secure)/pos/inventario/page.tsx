@@ -59,6 +59,8 @@ import {
 } from "@/components/ui/field"
 import { Segmented } from "@/components/ui/segmented"
 import { Termino } from "@/components/ui/help-tip"
+import { useLoadEffect } from "@/hooks/use-load-effect"
+import { useResetOnChange } from "@/hooks/use-reset-on-change"
 
 /** Id del `<form>`: el botón de guardar vive en el pie, fuera del formulario. */
 const ADJUST_FORM_ID = "ajuste-inventario-form"
@@ -176,9 +178,7 @@ export default function InventarioPage() {
     }
   }, [canView, sedeId])
 
-  React.useEffect(() => {
-    void load()
-  }, [load])
+  useLoadEffect(load)
 
   // Catálogo para el selector de ajuste (solo si el rol puede modificar).
   React.useEffect(() => {
@@ -525,7 +525,7 @@ function AdjustDialog({
   // Un ajuste de entrada de un producto con lotes crea un lote nuevo.
   const createsLot = direction === "add" && Boolean(product?.trackLots)
 
-  React.useEffect(() => {
+  useResetOnChange(() => {
     if (!open) return
     setProductId(presetProductId ?? "")
     setDirection("remove")
