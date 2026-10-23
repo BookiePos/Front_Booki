@@ -74,6 +74,9 @@ export interface Sede extends SedeRef {
   nit?: string
   phone?: string
   legalNote?: string
+  ciudad?: string
+  /** Sin dato, la venta usa el default conservador (ítem 6.5). */
+  responsabilidadFiscal?: string
   active: boolean
 }
 
