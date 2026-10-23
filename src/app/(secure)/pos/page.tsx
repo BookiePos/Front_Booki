@@ -13,7 +13,6 @@ import {
 import { useAuth } from "@/lib/auth-context"
 import { useSede } from "@/lib/pos/sede-context"
 import {
-  posProducts,
   createSale,
   listOrders,
   pendingOf,
@@ -33,7 +32,6 @@ import {
   type Discount,
 } from "@/lib/pos/api-sales"
 import {
-  getCurrentCaja,
   openCaja,
   type CajaSession,
 } from "@/lib/pos/api-caja"
@@ -124,6 +122,15 @@ import { CobroCompletado } from "@/components/pos/cobro-completado"
 import { BarraResumenCuenta } from "@/components/pos/barra-resumen-cuenta"
 import { CuentaVenta } from "@/components/pos/cuenta-venta"
 import { CatalogoVenta } from "@/components/pos/catalogo-venta"
+import { EstadoOffline } from "@/components/pos/estado-offline"
+import { useModoOffline } from "@/hooks/use-modo-offline"
+import { motivosNoOffline } from "@/lib/offline/cola"
+import {
+  cajaActualConRespaldo,
+  esFallaDeRed,
+  posProductsConRespaldo,
+  ventaOfflineComoSale,
+} from "@/lib/pos/api-offline"
 import { imprimirComprobante } from "@/components/pos/impresora-termica"
 import { ventaConEfectivo } from "@/lib/impresion/servicio"
 
@@ -433,7 +440,8 @@ export default function VentaPage() {
     setLoading(true)
     setError(null)
     try {
-      setProducts(await posProducts(sedeId))
+      // Con respaldo local: sin red, el catálogo guardado (ítem 6.3).
+      setProducts(await posProductsConRespaldo(sedeId))
     } catch (err) {
       setError(errorMessage(err))
     } finally {
@@ -490,7 +498,7 @@ export default function VentaPage() {
     }
     setCajaLoading(true)
     try {
-      const cur = await getCurrentCaja(sedeId)
+      const cur = await cajaActualConRespaldo(sedeId)
       setCaja(cur.session)
     } catch {
       setCaja(null)
@@ -516,6 +524,10 @@ export default function VentaPage() {
     void fetchDiscounts()
   }, [fetchProducts, refreshOrders, refreshCaja, fetchDiscounts])
   useLoadEffect(reiniciarPorSede, canSell)
+
+  // Modo sin conexión (ítem 6.3): bloque de consecutivos del turno, cola local
+  // y sincronización al volver la red.
+  const modo = useModoOffline(sedeId, caja?._id, canSell)
 
   async function handleOpenCaja() {
     if (!sedeId) return
@@ -1252,6 +1264,23 @@ export default function VentaPage() {
    * deciden si el atajo está activo.
    */
   const confirmarRef = React.useRef<() => Promise<void>>(undefined)
+  // Llave de idempotencia del cobro (ítem 6.3): la misma mientras se reintenta
+  // el MISMO cobro (mismas líneas, propina y medio). Si la respuesta se perdió,
+  // el reintento en línea devuelve la venta ya registrada, y si sale sin red la
+  // cola usa esta llave como UUID y el servidor la reconoce al sincronizar.
+  const llaveCobro = React.useRef<{ huella: string; llave: string } | null>(null)
+  function llaveDelCobro(): string {
+    const huella = JSON.stringify([
+      sedeId,
+      cart.map((i) => [i.product._id, i.qty, i.discountId ?? ""]),
+      tipAmount,
+      method,
+    ])
+    if (llaveCobro.current?.huella !== huella) {
+      llaveCobro.current = { huella, llave: crypto.randomUUID() }
+    }
+    return llaveCobro.current.llave
+  }
 
   // Atajos de teclado (6.7), ver `hooks/use-atajos-pos.ts`.
   const lineaActiva = cart.find((i) => i.product._id === lineaSel) ?? cart.at(-1)
@@ -1303,6 +1332,61 @@ export default function VentaPage() {
     return () => document.removeEventListener("keydown", alPulsar)
   }, [checkoutOpen, completedSale, saving, confirmBlocked, ayudaAbierta])
 
+  /**
+   * Cobro sin red (ítem 6.3): solo efectivo de mostrador. La venta se encola
+   * con un consecutivo `FVC-` reservado y su UUID, y se registra en el
+   * servidor (inventario, libro, caja) al volver la conexión.
+   */
+  async function cobrarSinConexion(
+    customerData: typeof customerToSend,
+  ): Promise<Sale> {
+    const no = motivosNoOffline({
+      method,
+      split: splitOn,
+      hasDiscount: cart.some((i) => !!i.discountId),
+      customerId: custId || undefined,
+      priceListId: manualListId || undefined,
+      orderType,
+      emitInvoice,
+      activeOrder: !!activeOrderId,
+    })
+    if (no.length > 0) {
+      throw new Error(
+        `Sin conexión solo se cobra en efectivo en mostrador. Quita: ${no.join(", ")}.`,
+      )
+    }
+    if (receivedNum === undefined || receivedNum < netTotal) {
+      throw new Error("Escribe el efectivo recibido para cobrar sin conexión.")
+    }
+    const venta = await modo.vender({
+      offlineId: llaveDelCobro(),
+      sedeId,
+      cajaSessionId: caja?._id,
+      sale: {
+        sedeId,
+        lines: cart.map((i) => ({ productId: i.product._id, qty: i.qty })),
+        payment: { method: "cash", received: receivedNum },
+        tip: tipAmount || undefined,
+        customer: customerData,
+        seller: sellerPayload,
+        orderType: "mostrador",
+        packaging: packagingRows,
+        packagingExplicit: true,
+      },
+      lineas: cart.map((i) => ({
+        productId: i.product._id,
+        name: i.product.name,
+        sku: i.product.sku,
+        unit: i.product.unit,
+        qty: i.qty,
+        unitPrice: unitPrice(i),
+      })),
+      expectedGrandTotal: netTotal,
+      cashierEmail: user?.email ?? "",
+    })
+    return ventaOfflineComoSale(venta, sede)
+  }
+
   async function handleConfirm() {
     if (!sedeId) return
     setSaving(true)
@@ -1334,7 +1418,11 @@ export default function VentaPage() {
     let quedaAbierta = false
     try {
       let sale: Sale
-      if (activeOrderId) {
+      const sinRed =
+        !modo.online || (typeof navigator !== "undefined" && !navigator.onLine)
+      if (sinRed) {
+        sale = await cobrarSinConexion(customerData)
+      } else if (activeOrderId) {
         // Persiste las líneas actuales antes de liquidar (checkout usa las
         // líneas guardadas de la cuenta, no el carrito).
         await updateOrder(activeOrderId, {
@@ -1375,6 +1463,7 @@ export default function VentaPage() {
         }
       } else {
         sale = await createSale({
+          idempotencyKey: llaveDelCobro(),
           sedeId,
           lines: cart.map((i) => ({
             productId: i.product._id,
@@ -1410,6 +1499,8 @@ export default function VentaPage() {
         })
       }
       setCompletedSale(sale)
+      // Cobro cerrado: el siguiente lleva llave nueva.
+      llaveCobro.current = null
       // El carrito solo se vacía si la cuenta quedó saldada. Con un cobro
       // parcial se conserva la comanda completa para poder seguir cobrando lo
       // que falta sin volver a armarla.
@@ -1477,7 +1568,17 @@ export default function VentaPage() {
         }
       }
     } catch (err) {
-      setCheckoutError(errorMessage(err))
+      if (esFallaDeRed(err)) {
+        // La petición pudo llegar al servidor aunque no volvió la respuesta:
+        // NO se encola sola (sería cobrarla dos veces). Se pasa a modo sin
+        // conexión y el cajero decide tras revisar.
+        modo.marcarSinRed()
+        setCheckoutError(
+          "Se cayó la conexión y no se pudo confirmar la venta. Si no aparece en Ventas al volver la red, cóbrala de nuevo: ahora se guardará sin conexión.",
+        )
+      } else {
+        setCheckoutError(errorMessage(err))
+      }
     } finally {
       setSaving(false)
     }
@@ -1618,6 +1719,8 @@ export default function VentaPage() {
               </p>
             )}
           </div>
+
+          <EstadoOffline modo={modo} sedeId={sedeId} />
 
           {/* Cuentas abiertas: visible pero opcional, con el número al lado
               para que se vea si hay mesas pendientes sin salir de la venta. */}

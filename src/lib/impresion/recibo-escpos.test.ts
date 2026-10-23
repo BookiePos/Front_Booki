@@ -86,4 +86,13 @@ describe("reciboEscpos", () => {
     expect(t).toContain("NIT 900.1")
     expect(t).toContain("Centro")
   })
+
+  it("la venta en contingencia dice impuestos incluidos y lleva la leyenda", () => {
+    const t = latin(
+      reciboEscpos({ ...sale, saleNumber: "FVC-000001", contingencia: true } as Sale, undefined, opts),
+    )
+    expect(t).toContain("Impuestos")
+    expect(t).toContain("Incluidos")
+    expect(t).toMatch(/contingencia/i)
+  })
 })

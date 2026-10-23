@@ -9,7 +9,8 @@ import {
   useState,
 } from "react"
 import { useAuth } from "@/lib/auth-context"
-import { listSedes, type Sede } from "@/lib/pos/api-inventory"
+import { type Sede } from "@/lib/pos/api-inventory"
+import { sedesConRespaldo } from "@/lib/pos/api-offline"
 
 interface SedeContextValue {
   /** Sedes del trabajador (JWT ∩ sedes activas de la BD). */
@@ -102,7 +103,8 @@ export function SedeProvider({ children }: { children: React.ReactNode }) {
     }
     userIdRef.current = userId
     let active = true
-    listSedes()
+    // Con respaldo local: sin red, las sedes guardadas (ítem 6.3).
+    sedesConRespaldo()
       .then((all) => {
         if (!active) return
         const mine = all.filter(

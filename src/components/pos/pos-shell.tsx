@@ -14,6 +14,7 @@ import {
 
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/auth-context"
+import { useCerrarSesion } from "@/hooks/use-cerrar-sesion"
 import { AvisoFiscal } from "@/components/onboarding/aviso-fiscal"
 import { useSede } from "@/lib/pos/sede-context"
 import { navItems } from "@/lib/pos/navigation"
@@ -191,9 +192,10 @@ function SedePicker() {
 }
 
 function UserMenu() {
-  const { user, logout, canUseOperation } = useAuth()
+  const { user, canUseOperation } = useAuth()
   const { sedes, changeSede } = useSede()
   const router = useRouter()
+  const cerrarSesion = useCerrarSesion()
 
   const initials = (user?.name ?? "Usuario")
     .split(" ")
@@ -204,8 +206,8 @@ function UserMenu() {
     .toUpperCase()
 
   async function handleLogout() {
-    await logout()
-    router.replace("/login")
+    // Avisa si quedan ventas offline sin registrar (no se borran; ítem 6.3).
+    if (await cerrarSesion()) router.replace("/login")
   }
 
   return (

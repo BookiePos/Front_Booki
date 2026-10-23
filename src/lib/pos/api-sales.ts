@@ -156,6 +156,12 @@ export interface Customer {
 export interface Sale {
   _id: string
   saleNumber: string
+  /**
+   * Solo en el comprobante de una venta cobrada sin conexión (ítem 6.3): el
+   * impuesto lo discrimina el servidor al sincronizar, así que se imprime
+   * «Impuestos incluidos» con la leyenda de contingencia. Nunca viene del API.
+   */
+  contingencia?: boolean
   sedeId: SedeRef
   cashierEmail: string
   cashierName?: string
@@ -249,6 +255,11 @@ export interface SalePaymentPartInput extends PaymentChannelDetail {
 
 export interface CreateSalePayload {
   sedeId: string
+  /**
+   * Llave de idempotencia del cobro (UUID). Reintentar con la misma no cobra
+   * dos veces; si el reintento sale sin red, es el `offlineId` de la cola.
+   */
+  idempotencyKey?: string
   lines: { productId: string; qty: number; discountId?: string }[]
   /** Un solo medio. Se manda este o `payments`, nunca los dos. */
   payment?: SalePaymentInput

@@ -12,6 +12,7 @@ import { GlobalSearch } from "@/components/erp/global-search"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { ThemeToggle } from "@/components/ui/theme-toggle"
+import { useCerrarSesion } from "@/hooks/use-cerrar-sesion"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,7 +24,8 @@ import {
 } from "@/components/ui/dropdown-menu"
 
 export function AppTopbar() {
-  const { user, logout, canUsePos } = useAuth()
+  const { user, canUsePos } = useAuth()
+  const cerrarSesion = useCerrarSesion()
   const { openGuide, startGuide } = useOnboarding()
   const router = useRouter()
   const pathname = usePathname()
@@ -45,8 +47,8 @@ export function AppTopbar() {
     .toUpperCase()
 
   async function handleLogout() {
-    await logout()
-    router.replace("/login")
+    // Avisa si quedan ventas offline sin registrar (no se borran; ítem 6.3).
+    if (await cerrarSesion()) router.replace("/login")
   }
 
   return (
