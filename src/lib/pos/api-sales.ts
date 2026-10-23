@@ -18,6 +18,22 @@ export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   platform: "Plataforma",
 }
 
+/** Canal digital de un cobro (ítem 6.4); detalla `card` y `transfer`. */
+export type PaymentChannel = "datafono" | "nequi" | "daviplata" | "qr"
+export type CardType = "debit" | "credit"
+export type CardFranchise = "visa" | "mastercard" | "amex" | "diners" | "otra"
+
+/** Detalle del canal digital que viaja con el cobro. Todo opcional. */
+export interface PaymentChannelDetail {
+  channel?: PaymentChannel
+  /** Solo datáfono. */
+  cardType?: CardType
+  /** Solo datáfono. */
+  franchise?: CardFranchise
+  /** Aprobación del datáfono, últimos 4 o número de la billetera. */
+  reference?: string
+}
+
 export type DiscountType = "amount" | "percent"
 
 export interface SaleDiscount {
@@ -175,12 +191,16 @@ export interface Sale {
     notes?: string
     courier?: string
   }
-  payment: { method: PaymentMethod; received?: number; change?: number }
+  payment: {
+    method: PaymentMethod
+    received?: number
+    change?: number
+  } & PaymentChannelDetail
   /**
    * Cobro mixto (ítem 6.9): cuánto cubrió cada medio, el efectivo ya sin la
    * devuelta. Ausente en las ventas de un solo medio.
    */
-  payments?: { method: PaymentMethod; amount: number }[]
+  payments?: ({ method: PaymentMethod; amount: number } & PaymentChannelDetail)[]
   customer?: Customer
   orderId?: string
   createdAt: string
@@ -194,7 +214,7 @@ export interface SalesPage {
 }
 
 /** Pago de una venta. `dueDate` (YYYY-MM-DD) solo aplica al fiado (crédito). */
-export interface SalePaymentInput {
+export interface SalePaymentInput extends PaymentChannelDetail {
   method: PaymentMethod
   received?: number
   dueDate?: string
@@ -224,7 +244,7 @@ export interface DeliveryInput {
  * Una parte de un cobro mixto. En efectivo, `amount` es lo que el cliente
  * entrega (la devuelta sale de ahí); la parte fiada lleva su deudor.
  */
-export interface SalePaymentPartInput {
+export interface SalePaymentPartInput extends PaymentChannelDetail {
   method: PaymentMethod
   amount: number
   dueDate?: string

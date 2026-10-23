@@ -56,6 +56,7 @@ import { coincide, useBusquedaPendiente } from "@/lib/pos/busqueda"
 import {
   listProducts as listInvItems,
   type InvProduct,
+  getCobroDigital,
 } from "@/lib/pos/api-inventory"
 
 import { Button } from "@/components/ui/button"
@@ -79,6 +80,12 @@ import {
   toPaymentsPayload,
   type SplitRow,
 } from "@/lib/pos/split-payment"
+import {
+  detalleDigitalError,
+  detalleParaEnviar,
+  detalleVacio,
+  type DigitalDetail,
+} from "@/lib/pos/pago-digital"
 
 
 
@@ -136,6 +143,29 @@ export default function VentaPage() {
 
   const { sedeId, sede, sedes, loading: sedesLoading } = useSede()
   const confirm = useConfirm()
+
+  // QR de la sede (ítem 6.4): el listado de sedes no trae la imagen; se pide
+  // aparte, una vez por sede, solo si la sede tiene una cargada.
+  const [qrImagen, setQrImagen] = React.useState<{ sedeId: string; src: string } | null>(null)
+  const conImagenQr = !!sede?.cobroDigital?.conImagen
+  React.useEffect(() => {
+    if (!sedeId || !conImagenQr) return
+    let activo = true
+    getCobroDigital(sedeId)
+      .then((c) => {
+        if (activo && c?.qrImagen) setQrImagen({ sedeId, src: c.qrImagen })
+      })
+      .catch(() => {})
+    return () => {
+      activo = false
+    }
+  }, [sedeId, conImagenQr])
+  const cobro = sede?.cobroDigital
+    ? {
+        ...sede.cobroDigital,
+        qrImagen: qrImagen?.sedeId === sedeId ? qrImagen.src : undefined,
+      }
+    : undefined
 
   const [products, setProducts] = React.useState<PosProduct[]>([])
   const [loading, setLoading] = React.useState(true)
@@ -230,6 +260,8 @@ export default function VentaPage() {
    * la cuenta. Apagado, se cobra con `method` como siempre.
    */
   const [splitOn, setSplitOn] = React.useState(false)
+  /** Datáfono / Nequi / Daviplata / QR del medio único (ítem 6.4). */
+  const [digital, setDigital] = React.useState<DigitalDetail>(detalleVacio())
   const [splitRows, setSplitRows] = React.useState<SplitRow[]>([])
   /** Hay fiado en este cobro: el de siempre o una parte del reparto. */
   const usesCredit = splitOn
@@ -973,6 +1005,7 @@ export default function VentaPage() {
 
   function openCheckout() {
     setMethod("cash")
+    setDigital(detalleVacio())
     setReceived(null)
     setSplitOn(false)
     setSplitRows([])
@@ -1162,9 +1195,13 @@ export default function VentaPage() {
     .filter(([, qty]) => qty > 0)
     .map(([productId, qty]) => ({ productId, qty }))
 
+  /** Lo que falta del datáfono o la billetera, si el medio único es digital. */
+  const digitalError = splitOn ? null : detalleDigitalError(method, digital)
+
   /** Por qué no se puede confirmar todavía (o `false` si se puede). */
   const confirmBlocked =
     saving ||
+    digitalError !== null ||
     cart.length === 0 ||
     invoiceDataMissing ||
     (!splitOn &&
@@ -1199,7 +1236,9 @@ export default function VentaPage() {
             ? "Para la factura electrónica hace falta el nombre y la cédula o NIT del cliente."
             : split?.error
               ? split.error
-              : !splitOn &&
+              : digitalError
+                ? digitalError
+                : !splitOn &&
                 method === "cash" &&
                 receivedNum !== undefined &&
                 receivedNum < netTotal
@@ -1354,6 +1393,7 @@ export default function VentaPage() {
     setCheckoutError(null)
     const payment = {
       method,
+      ...detalleParaEnviar(method, digital),
       received: method === "cash" ? receivedNum : undefined,
       dueDate: method === "credit" ? creditDue || undefined : undefined,
       debtorType: method === "credit" ? debtorType : undefined,
@@ -1923,6 +1963,9 @@ export default function VentaPage() {
                   change={change}
                   suggestions={suggestions}
                   split={split}
+                  digital={digital}
+                  setDigital={setDigital}
+                  cobro={cobro}
                 />
 
                 {/* ── Columna 3: lo que no se toca en cada venta ──

@@ -93,6 +93,7 @@ export const navSections: NavSection[] = [
     items: [
       { title: "Caja y bancos", href: "/panel/finanzas/bancos", icon: Landmark, requiredPermissions: ["finance.view"], requiredFeature: "accounting" },
       { title: "Gastos", href: "/panel/finanzas/gastos", icon: FileMinus, requiredPermissions: ["finance.view"], requiredFeature: "expenses" },
+      { title: "Conciliación de pagos", href: "/panel/finanzas/conciliacion", icon: Landmark, requiredPermissions: ["finance.view"], requiredFeature: "accounting" },
       { title: "Cuentas por pagar", href: "/panel/finanzas/cxp", icon: Receipt, requiredPermissions: ["finance.view"], requiredFeature: "accounting" },
       { title: "P&L", href: "/panel/finanzas/pl", icon: TrendingUp, requiredPermissions: ["finance.view"], requiredFeature: "accounting" },
       { title: "Reportes", href: "/panel/finanzas/reportes", icon: BarChart3, requiredPermissions: ["reports.view"] },
