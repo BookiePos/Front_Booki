@@ -8,13 +8,14 @@ import type { SedeRef } from "@/lib/pos/api-inventory"
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-export type PaymentMethod = "cash" | "card" | "transfer" | "credit"
+export type PaymentMethod = "cash" | "card" | "transfer" | "credit" | "platform"
 
 export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   cash: "Efectivo",
   card: "Tarjeta",
   transfer: "Transferencia",
   credit: "Fiado",
+  platform: "Plataforma",
 }
 
 export type DiscountType = "amount" | "percent"

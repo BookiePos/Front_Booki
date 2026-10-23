@@ -7,6 +7,7 @@ import {
   Calculator,
   FileText,
   Bike,
+  Smartphone,
 } from "lucide-react"
 
 export type NavItem = {
@@ -25,6 +26,12 @@ export const navItems: NavItem[] = [
     title: "Domicilios",
     href: "/pos/domicilios",
     icon: Bike,
+    permission: "pos.sell",
+  },
+  {
+    title: "Plataformas",
+    href: "/pos/plataformas",
+    icon: Smartphone,
     permission: "pos.sell",
   },
   { title: "Caja", href: "/pos/caja", icon: Calculator, permission: "pos.sell" },
