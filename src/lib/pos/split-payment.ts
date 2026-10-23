@@ -9,7 +9,13 @@
  *   - El fiado puede ser una de las partes, una sola, y no cubre la propina.
  */
 import {
-  PAYMENT_METHOD_LABELS,
+  detalleDigitalError,
+  detalleParaEnviar,
+  detalleVacio,
+  etiquetaMedio,
+  type DigitalDetail,
+} from "@/lib/pos/pago-digital"
+import {
   type PaymentMethod,
   type Sale,
   type SalePaymentPartInput,
@@ -20,6 +26,8 @@ export interface SplitRow {
   method: PaymentMethod
   /** En pesos. `null` mientras la casilla está vacía. */
   amount: number | null
+  /** Datáfono / Nequi / Daviplata / QR de esta parte (ítem 6.4). */
+  detail?: DigitalDetail
 }
 
 export interface SplitSummary {
@@ -78,8 +86,14 @@ export function splitSummary(
   const change = Math.max(0, paid - due)
 
   let error: string | null = null
+  const sinDetalle = rows
+    .filter((r) => pesos(r) > 0)
+    .map((r) => detalleDigitalError(r.method, r.detail ?? detalleVacio()))
+    .find((e) => e !== null)
   if (rows.filter((r) => pesos(r) > 0).length === 0) {
     error = "Escribe cuánto paga con cada medio."
+  } else if (sinDetalle) {
+    error = sinDetalle
   } else if (credit.length > 1) {
     error = "Solo una parte del cobro puede ser fiada."
   } else if (nonCash > due) {
@@ -122,7 +136,12 @@ export function applyMethodShortcut(
   }
   return rows.map((r) =>
     r.id === ultima.id
-      ? { ...r, method, amount: r.amount ?? (falta || null) }
+      ? {
+          ...r,
+          method,
+          amount: r.amount ?? (falta || null),
+          detail: method === r.method ? r.detail : detalleVacio(),
+        }
       : r,
   )
 }
@@ -149,14 +168,29 @@ export function toPaymentsPayload(
     .map((r) =>
       r.method === "credit"
         ? { method: r.method, amount: pesos(r), ...credito }
-        : { method: r.method, amount: pesos(r) },
+        : {
+            method: r.method,
+            amount: pesos(r),
+            ...detalleParaEnviar(r.method, r.detail ?? detalleVacio()),
+          },
     )
+}
+
+/** Cambia el medio de una fila: el detalle digital anterior no se arrastra. */
+export function withMethod(
+  rows: readonly SplitRow[],
+  id: string,
+  method: PaymentMethod,
+): SplitRow[] {
+  return rows.map((r) =>
+    r.id === id ? { ...r, method, detail: detalleVacio() } : r,
+  )
 }
 
 /** «Efectivo + Tarjeta» en una venta mixta; el medio de siempre si no. */
 export function paymentLabel(sale: Pick<Sale, "payment" | "payments">): string {
   if (sale.payments && sale.payments.length > 1) {
-    return sale.payments.map((p) => PAYMENT_METHOD_LABELS[p.method]).join(" + ")
+    return sale.payments.map((p) => etiquetaMedio(p.method, p.channel)).join(" + ")
   }
-  return PAYMENT_METHOD_LABELS[sale.payment.method]
+  return etiquetaMedio(sale.payment.method, sale.payment.channel)
 }

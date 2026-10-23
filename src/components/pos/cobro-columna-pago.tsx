@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Banknote, Info, HandCoins, CalendarClock, Split } from "lucide-react"
+import { Banknote, HandCoins, CalendarClock, Split } from "lucide-react"
 import { PAYMENT_METHOD_LABELS, type PaymentMethod } from "@/lib/pos/api-sales"
 import {
   type Customer as RegCustomer,
@@ -23,6 +23,9 @@ import { CheckoutColumn, OptionGroup } from "@/components/pos/checkout-layout"
 import { cn } from "@/lib/utils"
 import { PAYMENT_ICONS } from "@/components/pos/venta-helpers"
 import { SplitPaymentEditor } from "@/components/pos/split-payment-editor"
+import { PagoDigitalDetalle } from "@/components/pos/pago-digital-detalle"
+import type { DigitalDetail } from "@/lib/pos/pago-digital"
+import type { CobroDigital } from "@/lib/pos/api-inventory"
 
 interface CobroColumnaPagoProps {
   method: PaymentMethod
@@ -59,6 +62,11 @@ interface CobroColumnaPagoProps {
   change: number | undefined
   suggestions: number[]
   split: SplitSummary | null
+  /** Detalle del medio digital elegido (ítem 6.4). */
+  digital: DigitalDetail
+  setDigital: (d: DigitalDetail) => void
+  /** QR / llave Bre-B de la sede. */
+  cobro?: CobroDigital
 }
 
 export function CobroColumnaPago({
@@ -96,6 +104,9 @@ export function CobroColumnaPago({
   change,
   suggestions,
   split,
+  digital,
+  setDigital,
+  cobro,
 }: CobroColumnaPagoProps) {
   return (
     <CheckoutColumn
@@ -129,6 +140,7 @@ export function CobroColumnaPago({
           remaining={split?.remaining ?? 0}
           change={split?.change ?? 0}
           error={split?.error ?? null}
+          cobro={cobro}
         />
       )}
 
@@ -229,14 +241,13 @@ export function CobroColumnaPago({
       )}
 
       {!splitOn && (method === "card" || method === "transfer") && (
-        <p className="flex items-start gap-2 rounded-xl border border-border bg-card px-3 py-2.5 text-[0.8125rem] text-muted-foreground">
-          <Info className="mt-0.5 size-4 shrink-0 text-primary" />
-          <span>
-            {method === "card"
-              ? "Pasa la tarjeta por el datáfono y confirma aquí cuando la transacción quede aprobada."
-              : "Confirma aquí cuando veas la transferencia recibida. No hay devuelta que entregar."}
-          </span>
-        </p>
+        <PagoDigitalDetalle
+          method={method}
+          detail={digital}
+          onChange={setDigital}
+          cobro={cobro}
+          idBase="pos-digital"
+        />
       )}
 
       {/* Fiado: quién queda debiendo. Va en esta columna y no en la
