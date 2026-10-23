@@ -80,7 +80,9 @@ test.describe("POS — venta, devolución y anulación", () => {
     const confirmar = page.getByRole("dialog").filter({ hasText: `¿Anular la venta ${numero}?` })
     await confirmar.getByRole("button", { name: "Confirmar" }).click()
     await expect(confirmar).toBeHidden({ timeout: 15_000 })
-    await expect(detalle.getByRole("button", { name: "Anular venta" })).toBeHidden({ timeout: 15_000 })
+    // Mientras se anula, el botón dice «Anulando…»: esperar al aviso de anulada,
+    // no a que desaparezca «Anular venta».
+    await expect(detalle.getByText(/no cuenta en los reportes ni en la caja/)).toBeVisible({ timeout: 15_000 })
 
     // Dos botones "Cerrar": la X del encabezado y el del pie; el del pie es el último.
     await detalle.getByRole("button", { name: "Cerrar" }).last().click()
