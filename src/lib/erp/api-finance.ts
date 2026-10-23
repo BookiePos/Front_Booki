@@ -128,6 +128,18 @@ export interface FinanceReceivable {
 
 export type AccountType = "bank" | "cash" | "wallet"
 
+/**
+ * Qué alimenta una cuenta sola: un medio (transferencia, tarjeta) o un canal
+ * digital (datáfono, Nequi, Daviplata, QR / Bre-B; ítem 6.4). Una cuenta
+ * mapeada a un canal recibe lo cobrado por él aunque otra reciba el resto.
+ */
+export type AccountAutoKey =
+  | PaymentMethod
+  | "datafono"
+  | "nequi"
+  | "daviplata"
+  | "qr"
+
 export interface FinanceAccount {
   _id: string
   sedeId?: string
@@ -135,7 +147,7 @@ export interface FinanceAccount {
   type: AccountType
   openingBalance: number
   active: boolean
-  autoMethods: PaymentMethod[]
+  autoMethods: AccountAutoKey[]
   note?: string
   balance?: number
   lastReconciledDate?: string | null
@@ -597,7 +609,7 @@ export interface AccountPayload {
   name?: string
   type?: AccountType
   openingBalance?: number
-  autoMethods?: PaymentMethod[]
+  autoMethods?: AccountAutoKey[]
   active?: boolean
   note?: string
 }
@@ -814,6 +826,14 @@ export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   card: "Tarjeta",
 }
 
+export const AUTO_KEY_LABELS: Record<AccountAutoKey, string> = {
+  ...PAYMENT_METHOD_LABELS,
+  datafono: "Datáfono",
+  nequi: "Nequi",
+  daviplata: "Daviplata",
+  qr: "QR / Bre-B",
+}
+
 export const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
   bank: "Banco",
   cash: "Efectivo",
@@ -866,3 +886,133 @@ export const MONTHS_SHORT = [
   "Nov",
   "Dic",
 ]
+
+// ─── Conciliación de pagos digitales (ítem 6.4) ──────────────────────────────
+
+export type ReconChannel =
+  | "datafono"
+  | "nequi"
+  | "daviplata"
+  | "qr"
+  | "transferencia"
+
+export const RECON_CHANNEL_LABELS: Record<ReconChannel, string> = {
+  datafono: "Datáfono",
+  nequi: "Nequi",
+  daviplata: "Daviplata",
+  qr: "QR / Bre-B",
+  transferencia: "Transferencia",
+}
+
+export interface ReconSettlement {
+  id: string
+  statementAmount: number
+  commission: number
+  commissionIva: number
+  retefuente: number
+  reteIca: number
+  reteIva: number
+  /** Lo que el extracto no explica: 0 = cuadra. */
+  difference: number
+  status: "reconciled" | "difference"
+  source: "manual" | "csv"
+  note?: string
+}
+
+/** Lo cobrado por un canal en un día y su conciliación, si ya existe. */
+export interface ReconRow {
+  date: string
+  channel: ReconChannel
+  franchise: string
+  key: string
+  expected: number
+  tickets: number
+  settlement: ReconSettlement | null
+}
+
+export interface ReconList {
+  rows: ReconRow[]
+  totals: {
+    expected: number
+    statementAmount: number
+    fees: number
+    retentions: number
+    pending: number
+    withDifference: number
+  }
+}
+
+/** Una línea del extracto, tal como se manda a conciliar. */
+export interface SettlementItem {
+  date: string
+  channel: ReconChannel
+  franchise?: string
+  statementAmount: number
+  commission?: number
+  commissionIva?: number
+  retefuente?: number
+  reteIca?: number
+  reteIva?: number
+  note?: string
+}
+
+export interface ReconPreviewRow extends SettlementItem {
+  line: number
+  key: string
+  expected: number
+  tickets: number
+  alreadyReconciled: boolean
+  difference: number
+}
+
+export interface ReconPreview {
+  rows: ReconPreviewRow[]
+  errors: { line: number; message: string }[]
+}
+
+export interface ReconCreateResult {
+  created: ReconSettlement[]
+  skipped: { date: string; key: string; reason: string }[]
+}
+
+export async function listPaymentReconciliation(query: {
+  sedeId: string
+  from: string
+  to: string
+}): Promise<ReconList> {
+  const qs = new URLSearchParams(query).toString()
+  const res = await authFetch(`/finance/payment-reconciliation?${qs}`)
+  return parseResponse<ReconList>(res)
+}
+
+/** Lee el CSV del extracto y lo cruza con lo cobrado, sin guardar nada. */
+export async function previewStatementCsv(payload: {
+  sedeId: string
+  csv: string
+  channel?: ReconChannel
+}): Promise<ReconPreview> {
+  const res = await authFetch("/finance/payment-reconciliation/import", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
+  return parseResponse<ReconPreview>(res)
+}
+
+export async function createPaymentReconciliation(payload: {
+  sedeId: string
+  source: "manual" | "csv"
+  items: SettlementItem[]
+}): Promise<ReconCreateResult> {
+  const res = await authFetch("/finance/payment-reconciliation", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
+  return parseResponse<ReconCreateResult>(res)
+}
+
+export async function deletePaymentReconciliation(id: string): Promise<void> {
+  const res = await authFetch(`/finance/payment-reconciliation/${id}`, {
+    method: "DELETE",
+  })
+  await parseResponse<unknown>(res)
+}
