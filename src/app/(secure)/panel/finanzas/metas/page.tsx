@@ -479,7 +479,9 @@ function BudgetEditor({
   const [budget, setBudget] = React.useState<FinanceBudget | null>(null)
   const [lines, setLines] = React.useState<BudgetLine[]>([])
   const [status, setStatus] = React.useState<"draft" | "active">("draft")
-  const [loading, setLoading] = React.useState(true)
+  // Se está cargando mientras el presupuesto mostrado no es el pedido.
+  const [loadedId, setLoadedId] = React.useState<string | null>(null)
+  const loading = loadedId !== budgetId
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [msg, setMsg] = React.useState<string | null>(null)
@@ -487,7 +489,6 @@ function BudgetEditor({
 
   React.useEffect(() => {
     let active = true
-    setLoading(true)
     getBudget(budgetId)
       .then((b) => {
         if (!active) return
@@ -496,7 +497,7 @@ function BudgetEditor({
         setStatus(b.status)
       })
       .catch((err) => active && setError(errorMessage(err)))
-      .finally(() => active && setLoading(false))
+      .finally(() => active && setLoadedId(budgetId))
     return () => {
       active = false
     }

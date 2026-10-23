@@ -36,7 +36,11 @@ export function BarraResumenCuenta({
           type="button"
           onClick={() => setCuentaAbierta(true)}
           className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-xl px-2 text-left focus-visible:ring-3 focus-visible:ring-ring/50"
-          aria-label="Ver el detalle de la cuenta"
+          aria-label={`Ver el detalle de la cuenta: ${
+            cart.length === 0
+              ? "Sin artículos"
+              : `${cart.length} ${cart.length === 1 ? "artículo" : "artículos"}`
+          } ${money(netTotal)}`}
         >
           <span className="relative shrink-0">
             <ShoppingCart className="size-5 text-muted-foreground" />

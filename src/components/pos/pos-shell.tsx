@@ -138,7 +138,9 @@ function GuideButton() {
 function SedePicker() {
   const { sedes, chooseSede, error } = useSede()
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted p-6">
+    <main
+      className="flex min-h-screen items-center justify-center bg-muted p-6"
+    >
       <div className="w-full max-w-md rounded-2xl border border-border bg-background p-6 shadow-sm">
         <div className="mb-1 flex items-center gap-2">
           <span className="flex size-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
@@ -184,7 +186,7 @@ function SedePicker() {
           ))}
         </div>
       </div>
-    </div>
+    </main>
   )
 }
 
@@ -217,7 +219,7 @@ function UserMenu() {
           />
         }
       >
-        <Avatar className="size-10">
+        <Avatar className="size-10" aria-hidden="true">
           <AvatarFallback className="bg-secondary text-xs font-bold text-secondary-foreground">
             {initials || "U"}
           </AvatarFallback>
@@ -268,10 +270,10 @@ export function PosShell({ children }: { children: React.ReactNode }) {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center gap-2 bg-muted text-sm text-muted-foreground">
+      <main className="flex min-h-screen items-center justify-center gap-2 bg-muted text-sm text-muted-foreground">
         <Loader2 className="size-4 animate-spin" />
         Cargando…
-      </div>
+      </main>
     )
   }
 
