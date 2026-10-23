@@ -27,6 +27,7 @@ import {
 } from "@/lib/erp/api-finance"
 import {
   diferenciaConciliacion,
+  validarCsv,
   estadoConciliacion,
 } from "@/lib/erp/conciliacion-pagos"
 import {
@@ -40,6 +41,7 @@ import {
 import { FRANCHISE_LABELS } from "@/lib/pos/pago-digital"
 import type { CardFranchise } from "@/lib/pos/api-sales"
 
+import { useConfirm } from "@/components/ui/confirm-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -83,6 +85,7 @@ const ESTADO_BADGE = {
 export function ConciliacionPagosPanel() {
   const { hasPermission } = useAuth()
   const canManage = hasPermission("finance.manage")
+  const confirm = useConfirm()
 
   const [sedes, setSedes] = React.useState<Sede[]>([])
   const [sedeId, setSedeId] = React.useState("")
@@ -128,6 +131,14 @@ export function ConciliacionPagosPanel() {
 
   async function quitar(r: ReconRow) {
     if (!r.settlement) return
+    const ok = await confirm({
+      title: "¿Deshacer esta conciliación?",
+      description:
+        "Se reversan el asiento de la comisión y las retenciones y el movimiento de la cuenta. El día vuelve a quedar pendiente.",
+      confirmLabel: "Deshacer",
+      destructive: true,
+    })
+    if (!ok) return
     setDeleting(r.settlement.id)
     try {
       await deletePaymentReconciliation(r.settlement.id)
@@ -519,8 +530,9 @@ function CsvDialog({
     if (!file) return
     setError(null)
     setPreview(null)
-    if (file.size > 400_000) {
-      setError("El archivo pesa demasiado: sube el extracto de un mes o menos.")
+    const problema = validarCsv(file.size)
+    if (problema) {
+      setError(problema)
       return
     }
     setFileName(file.name)

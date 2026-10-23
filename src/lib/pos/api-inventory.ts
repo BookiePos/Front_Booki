@@ -65,6 +65,8 @@ export interface CobroDigital {
   /** Imagen del QR como data URL (png, jpeg o webp). */
   qrImagen?: string
   qrTitular?: string
+  /** Hay imagen guardada; el listado de sedes no la trae, se pide aparte. */
+  conImagen?: boolean
 }
 
 export interface Sede extends SedeRef {
@@ -178,6 +180,12 @@ export const MOVEMENT_TYPE_LABELS: Record<MovementType, string> = {
 export async function listSedes(): Promise<Sede[]> {
   const res = await authFetch("/sedes")
   return parseResponse<Sede[]>(res)
+}
+
+/** QR / llave de la sede con la imagen incluida (el listado no la trae). */
+export async function getCobroDigital(sedeId: string): Promise<CobroDigital | null> {
+  const res = await authFetch(`/sedes/${sedeId}/cobro-digital`)
+  return parseResponse<CobroDigital | null>(res)
 }
 
 export interface CreateSedePayload {

@@ -58,6 +58,7 @@ import { coincide, useBusquedaPendiente } from "@/lib/pos/busqueda"
 import {
   listProducts as listInvItems,
   type InvProduct,
+  getCobroDigital,
 } from "@/lib/pos/api-inventory"
 
 import { Button } from "@/components/ui/button"
@@ -135,6 +136,29 @@ export default function VentaPage() {
 
   const { sedeId, sede, sedes, loading: sedesLoading } = useSede()
   const confirm = useConfirm()
+
+  // QR de la sede (ítem 6.4): el listado de sedes no trae la imagen; se pide
+  // aparte, una vez por sede, solo si la sede tiene una cargada.
+  const [qrImagen, setQrImagen] = React.useState<{ sedeId: string; src: string } | null>(null)
+  const conImagenQr = !!sede?.cobroDigital?.conImagen
+  React.useEffect(() => {
+    if (!sedeId || !conImagenQr) return
+    let activo = true
+    getCobroDigital(sedeId)
+      .then((c) => {
+        if (activo && c?.qrImagen) setQrImagen({ sedeId, src: c.qrImagen })
+      })
+      .catch(() => {})
+    return () => {
+      activo = false
+    }
+  }, [sedeId, conImagenQr])
+  const cobro = sede?.cobroDigital
+    ? {
+        ...sede.cobroDigital,
+        qrImagen: qrImagen?.sedeId === sedeId ? qrImagen.src : undefined,
+      }
+    : undefined
 
   const [products, setProducts] = React.useState<PosProduct[]>([])
   const [loading, setLoading] = React.useState(true)
@@ -1838,7 +1862,7 @@ export default function VentaPage() {
                   split={split}
                   digital={digital}
                   setDigital={setDigital}
-                  cobro={sede?.cobroDigital}
+                  cobro={cobro}
                 />
 
                 {/* ── Columna 3: lo que no se toca en cada venta ──

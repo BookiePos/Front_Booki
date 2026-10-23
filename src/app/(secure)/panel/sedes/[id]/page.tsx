@@ -65,6 +65,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
+import { CobroDigitalConfig } from "@/components/erp/finance/cobro-digital-config"
 import { useConfirm } from "@/components/ui/confirm-dialog"
 import { Input, InputWithIcon } from "@/components/ui/input"
 import { MoneyInput } from "@/components/ui/money-input"
@@ -689,6 +690,11 @@ export default function SedeDetailPage() {
           />
         </div>
       )}
+
+      {/* ── QR / llave Bre-B para cobrar (ítem 6.4): con sede.manage ───────── */}
+      <div className="mt-6">
+        <CobroDigitalConfig sedeId={sedeId} />
+      </div>
 
       {/* ── Ubicación ─────────────────────────────────────────────────────── */}
       <Card className="mt-6">

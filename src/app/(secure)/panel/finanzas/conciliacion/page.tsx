@@ -6,7 +6,6 @@ import { useAuth } from "@/lib/auth-context"
 import { PageHeader } from "@/components/erp/page-header"
 import { Card, CardContent } from "@/components/ui/card"
 import { ConciliacionPagosPanel } from "@/components/erp/finance/conciliacion-pagos-panel"
-import { CobroDigitalConfig } from "@/components/erp/finance/cobro-digital-config"
 
 export default function ConciliacionPagosPage() {
   const { hasPermission } = useAuth()
@@ -35,10 +34,7 @@ export default function ConciliacionPagosPage() {
         title="Conciliación de pagos"
         description="Lo que el POS cobró por datáfono, Nequi, Daviplata y QR contra lo que consignó el extracto, con la comisión y las retenciones."
       />
-      <div className="flex flex-col gap-4">
-        <ConciliacionPagosPanel />
-        <CobroDigitalConfig />
-      </div>
+      <ConciliacionPagosPanel />
     </>
   )
 }

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 import {
   diferenciaConciliacion,
   estadoConciliacion,
+  validarCsv,
   validarImagenQr,
 } from "./conciliacion-pagos"
 
@@ -50,5 +51,17 @@ describe("validarImagenQr", () => {
 
   it("rechaza lo que pasa del tope del servidor", () => {
     expect(validarImagenQr("image/png", 300_000)).toMatch(/pesa mucho/)
+  })
+
+  it("el tope es 70 KB: un archivo de 70 001 bytes no pasa", () => {
+    expect(validarImagenQr("image/png", 70_000)).toBeNull()
+    expect(validarImagenQr("image/png", 70_001)).toMatch(/70 KB/)
+  })
+})
+
+describe("validarCsv", () => {
+  it("acepta hasta 90 KB y avisa claro si se pasa", () => {
+    expect(validarCsv(90_000)).toBeNull()
+    expect(validarCsv(90_001)).toMatch(/90 KB/)
   })
 })
