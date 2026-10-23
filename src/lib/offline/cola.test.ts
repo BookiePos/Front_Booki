@@ -17,7 +17,13 @@ import {
   type NuevaVentaOffline,
   type SyncDto,
 } from "@/lib/offline/cola"
-import { borrarTodo, dbName, type Alcance } from "@/lib/offline/idb"
+import {
+  borrarTodo,
+  dbName,
+  limpiarAlCerrarSesion,
+  ventasSinSincronizar,
+  type Alcance,
+} from "@/lib/offline/idb"
 import { alcanceDeToken } from "@/lib/offline/alcance"
 
 const A: Alcance = { businessId: "biz-a", userId: "u-1" }
@@ -178,13 +184,25 @@ describe("aislamiento por empresa y usuario", () => {
     expect(await leerCopia(A, "catalogo", SEDE)).toMatchObject({ data: [{ _id: "p1" }] })
   })
 
-  it("cerrar sesión borra las bases de todas las empresas", async () => {
+  it("cerrar sesión borra copias y reservas pero NUNCA las ventas cobradas", async () => {
     await reservar(A)
     await reservar(B)
-    await encolarVenta(A, venta())
-    await borrarTodo()
-    expect(await ventasEnCola(A)).toHaveLength(0)
+    await guardarCopia(A, "catalogo", SEDE, [{ _id: "p1" }])
+    const v = await encolarVenta(A, venta())
+    await limpiarAlCerrarSesion()
+    // La venta sigue en la cola de su empresa y usuario: se sincroniza al volver.
+    expect((await ventasEnCola(A)).map((x) => x.offlineId)).toEqual([v.offlineId])
+    expect(await leerReserva(A, SEDE)).toBeUndefined()
+    expect(await leerCopia(A, "catalogo", SEDE)).toBeUndefined()
     expect(await leerReserva(B, SEDE)).toBeUndefined()
+  })
+
+  it("cuenta lo pendiente de todas las sesiones de este equipo", async () => {
+    await reservar(A)
+    await encolarVenta(A, venta())
+    await reservar(B)
+    await encolarVenta(B, venta())
+    expect(await ventasSinSincronizar()).toBe(2)
   })
 
   it("el alcance sale de `biz` y `sub` del token", () => {

@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation"
 import { Lock, Sparkles } from "lucide-react"
 
 import { useAuth } from "@/lib/auth-context"
+import { useCerrarSesion } from "@/hooks/use-cerrar-sesion"
 import { Card, CardContent } from "@/components/ui/card"
 
 /** Ruta de reactivación que sigue accesible aunque la cuenta esté suspendida. */
@@ -65,11 +66,12 @@ export function SuspensionGuard({ children }: { children: React.ReactNode }) {
 
 /** Cierra sesión desde el bloqueo (por si quieren entrar con otra cuenta). */
 function LogoutButton() {
-  const { logout } = useAuth()
+  // Avisa si quedan ventas offline sin registrar (no se borran; ítem 6.3).
+  const cerrarSesion = useCerrarSesion()
   return (
     <button
       type="button"
-      onClick={() => void logout()}
+      onClick={() => void cerrarSesion()}
       className="text-sm font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
     >
       Cerrar sesión

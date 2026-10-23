@@ -28,7 +28,7 @@ import {
 } from "@/lib/api"
 import { OPERATION_PERMISSIONS } from "@/lib/access"
 import { pedirNovedadesAlEntrar } from "@/lib/novedades"
-import { borrarTodo as borrarDatosOffline } from "@/lib/offline/idb"
+import { limpiarAlCerrarSesion as limpiarDatosOffline } from "@/lib/offline/idb"
 
 const STORAGE_KEY = "sistemapos.auth"
 
@@ -205,9 +205,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = useCallback(async () => {
     await apiLogout()
-    // Los datos offline (catálogo, cola, consecutivos) son de esta sesión: no
-    // pueden quedar en el navegador para el siguiente que entre.
-    await borrarDatosOffline().catch(() => undefined)
+    // Las copias (catálogo, turno, sedes) y los consecutivos son de esta
+    // sesión y se borran. Las ventas cobradas sin red NO: quedan en la base de
+    // su empresa y usuario hasta que quien las cobró vuelva a entrar.
+    await limpiarDatosOffline().catch(() => undefined)
     writeStored(null)
     setUser(null)
     setStatus("unauthenticated")
