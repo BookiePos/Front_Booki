@@ -1225,6 +1225,23 @@ export default function VentaPage() {
    * deciden si el atajo está activo.
    */
   const confirmarRef = React.useRef<() => Promise<void>>(undefined)
+  // Llave de idempotencia del cobro (ítem 6.3): la misma mientras se reintenta
+  // el MISMO cobro (mismas líneas, propina y medio). Si la respuesta se perdió,
+  // el reintento en línea devuelve la venta ya registrada, y si sale sin red la
+  // cola usa esta llave como UUID y el servidor la reconoce al sincronizar.
+  const llaveCobro = React.useRef<{ huella: string; llave: string } | null>(null)
+  function llaveDelCobro(): string {
+    const huella = JSON.stringify([
+      sedeId,
+      cart.map((i) => [i.product._id, i.qty, i.discountId ?? ""]),
+      tipAmount,
+      method,
+    ])
+    if (llaveCobro.current?.huella !== huella) {
+      llaveCobro.current = { huella, llave: crypto.randomUUID() }
+    }
+    return llaveCobro.current.llave
+  }
 
   // Atajos de teclado (6.7), ver `hooks/use-atajos-pos.ts`.
   const lineaActiva = cart.find((i) => i.product._id === lineaSel) ?? cart.at(-1)
@@ -1303,6 +1320,7 @@ export default function VentaPage() {
       throw new Error("Escribe el efectivo recibido para cobrar sin conexión.")
     }
     const venta = await modo.vender({
+      offlineId: llaveDelCobro(),
       sedeId,
       cajaSessionId: caja?._id,
       sale: {
@@ -1405,6 +1423,7 @@ export default function VentaPage() {
         }
       } else {
         sale = await createSale({
+          idempotencyKey: llaveDelCobro(),
           sedeId,
           lines: cart.map((i) => ({
             productId: i.product._id,
@@ -1440,6 +1459,8 @@ export default function VentaPage() {
         })
       }
       setCompletedSale(sale)
+      // Cobro cerrado: el siguiente lleva llave nueva.
+      llaveCobro.current = null
       // El carrito solo se vacía si la cuenta quedó saldada. Con un cobro
       // parcial se conserva la comanda completa para poder seguir cobrando lo
       // que falta sin volver a armarla.
@@ -1659,7 +1680,7 @@ export default function VentaPage() {
             )}
           </div>
 
-          <EstadoOffline modo={modo} />
+          <EstadoOffline modo={modo} sedeId={sedeId} />
 
           {/* Cuentas abiertas: visible pero opcional, con el número al lado
               para que se vea si hay mesas pendientes sin salir de la venta. */}

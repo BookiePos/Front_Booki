@@ -235,6 +235,11 @@ export interface SalePaymentPartInput {
 
 export interface CreateSalePayload {
   sedeId: string
+  /**
+   * Llave de idempotencia del cobro (UUID). Reintentar con la misma no cobra
+   * dos veces; si el reintento sale sin red, es el `offlineId` de la cola.
+   */
+  idempotencyKey?: string
   lines: { productId: string; qty: number; discountId?: string }[]
   /** Un solo medio. Se manda este o `payments`, nunca los dos. */
   payment?: SalePaymentInput

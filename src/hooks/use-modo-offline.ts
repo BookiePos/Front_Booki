@@ -5,6 +5,7 @@ import {
   encolarVenta,
   leerReserva,
   reintentar as reintentarEnCola,
+  reservaVigente,
   restantes,
   sincronizar,
   ventasEnCola,
@@ -16,12 +17,19 @@ import {
   COPIA_EVENT,
   enviarVentaOffline,
   reservarConsecutivos,
+  sondearRed,
   ultimaSincronizacion,
 } from "@/lib/pos/api-offline"
 
 /** Con menos de esto, al tener red se pide un bloque nuevo. */
 const MINIMO_RESERVA = 10
 const REINTENTO_MS = 30_000
+/** Sin conexión: cada cuánto se pregunta al servidor si volvió la red. */
+const SONDEO_MS = 15_000
+/** Un bloque que vence antes de esto se renueva con red (vencen a las 48 h). */
+const RENOVAR_ANTES_MS = 6 * 3_600_000
+
+type OpcionesReintento = { useOpenShift?: boolean; override?: boolean }
 
 export interface ModoOffline {
   /** Hay red (según el navegador y la última petición). */
@@ -39,7 +47,7 @@ export interface ModoOffline {
   marcarSinRed: () => void
   vender: (v: NuevaVentaOffline) => Promise<VentaOffline>
   sincronizarYa: () => Promise<void>
-  reintentar: (offlineId: string, opts?: { useOpenShift?: boolean }) => Promise<void>
+  reintentar: (offlineId: string, opts?: OpcionesReintento) => Promise<void>
 }
 
 function useOnline(): [boolean, () => void, () => void] {
@@ -107,7 +115,16 @@ export function useModoOffline(
     const a = alcanceDeSesion()
     if (!activo || !a || !cajaSessionId) return
     const r = await leerReserva(a, sedeId).catch(() => undefined)
-    if (r && r.cajaSessionId === cajaSessionId && restantes(r) >= MINIMO_RESERVA) return
+    const vigenteUnRato =
+      !!r && reservaVigente(r, new Date(Date.now() + RENOVAR_ANTES_MS))
+    if (
+      r &&
+      r.cajaSessionId === cajaSessionId &&
+      vigenteUnRato &&
+      restantes(r) >= MINIMO_RESERVA
+    ) {
+      return
+    }
     try {
       await reservarConsecutivos(sedeId)
     } catch {
@@ -154,6 +171,23 @@ export function useModoOffline(
     return () => window.clearInterval(t)
   }, [activo, pendientes.length, sincronizarYa])
 
+  // «Sin conexión» sin evento `online` (wifi sin salida, o la caída la marcó
+  // una petición fallida): se sondea el servidor y, si contesta, se vuelve a
+  // «En línea», que dispara la sincronización y la renovación del bloque.
+  React.useEffect(() => {
+    if (!activo || online) return
+    let vivo = true
+    const t = window.setInterval(() => {
+      void sondearRed().then((ok) => {
+        if (vivo && ok) marcarConRed()
+      })
+    }, SONDEO_MS)
+    return () => {
+      vivo = false
+      window.clearInterval(t)
+    }
+  }, [activo, online, marcarConRed])
+
   const vender = React.useCallback(
     async (v: NuevaVentaOffline) => {
       const a = alcanceDeSesion()
@@ -166,7 +200,7 @@ export function useModoOffline(
   )
 
   const reintentar = React.useCallback(
-    async (offlineId: string, opts?: { useOpenShift?: boolean }) => {
+    async (offlineId: string, opts?: OpcionesReintento) => {
       const a = alcanceDeSesion()
       if (!a) return
       await reintentarEnCola(a, offlineId, opts)
