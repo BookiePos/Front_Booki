@@ -10,6 +10,7 @@ import {
 } from "react"
 
 import { useAuth } from "@/lib/auth-context"
+import { useLoadEffect } from "@/hooks/use-load-effect"
 
 /**
  * Estado del onboarding, persistido por usuario en localStorage. Recuerda si ya
@@ -122,7 +123,7 @@ export function OnboardingProvider({
   const [guideForced, setGuideForced] = useState(false)
 
   // Carga el estado guardado cuando ya se conoce al usuario.
-  useEffect(() => {
+  const loadState = useCallback(() => {
     if (!userId) {
       setReady(false)
       return
@@ -130,6 +131,7 @@ export function OnboardingProvider({
     setState(readState(userId))
     setReady(true)
   }, [userId])
+  useLoadEffect(loadState)
 
   const persist = useCallback(
     (updater: (prev: OnboardingState) => OnboardingState) => {

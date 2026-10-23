@@ -65,7 +65,9 @@ export function SedeProvider({ children }: { children: React.ReactNode }) {
   // Al entrar al POS se elige la sede de trabajo. Con 0 o 1 sede no hay nada que
   // elegir, así que se da por elegida automáticamente.
   const [chosen, setChosen] = useState(false)
-  const [loading, setLoading] = useState(true)
+  // Está cargando mientras la lista mostrada no es la del usuario y sedes
+  // actuales (derivado, para no marcarlo desde un efecto).
+  const [loadedKey, setLoadedKey] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   // Se compara por contenido: un arreglo nuevo con los mismos ids no re-ejecuta.
@@ -75,6 +77,8 @@ export function SedeProvider({ children }: { children: React.ReactNode }) {
     [userSedeKey],
   )
   const userId = user?.id ?? ""
+  const loadKey = `${userId}|${userSedeKey}`
+  const loading = loadedKey !== loadKey
   const userIdRef = useRef("")
   const chosenRef = useRef(false)
   const sedeIdRef = useRef("")
@@ -98,7 +102,6 @@ export function SedeProvider({ children }: { children: React.ReactNode }) {
     }
     userIdRef.current = userId
     let active = true
-    setLoading(true)
     listSedes()
       .then((all) => {
         if (!active) return
@@ -135,12 +138,12 @@ export function SedeProvider({ children }: { children: React.ReactNode }) {
         setError(err instanceof Error ? err.message : "Error al cargar sedes"),
       )
       .finally(() => {
-        if (active) setLoading(false)
+        if (active) setLoadedKey(loadKey)
       })
     return () => {
       active = false
     }
-  }, [userSedeIds, userId])
+  }, [userSedeIds, userId, loadKey])
 
   function setSedeId(id: string) {
     setSedeIdState(id)

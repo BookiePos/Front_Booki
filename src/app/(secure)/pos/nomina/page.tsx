@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useLoadEffect } from "@/hooks/use-load-effect"
 import {
   Clock,
   Users,
@@ -174,9 +175,7 @@ export default function NominaPage() {
     }
   }, [sedeId, date])
 
-  React.useEffect(() => {
-    if (canView) void load()
-  }, [canView, load])
+  useLoadEffect(load, canView)
 
   // Trabajadores con cambios sin confirmar respecto a lo guardado.
   const dirtyIds = React.useMemo(

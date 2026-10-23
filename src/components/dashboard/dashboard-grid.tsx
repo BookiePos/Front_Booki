@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useLoadEffect } from "@/hooks/use-load-effect"
 import {
   ArrowLeft,
   ArrowRight,
@@ -56,13 +57,14 @@ export function DashboardGrid() {
 
   // Carga el layout guardado del usuario (o el de por defecto), descartando
   // widgets a los que ya no tiene acceso.
-  React.useEffect(() => {
+  const loadLayout = React.useCallback(() => {
     if (!userId) return
     const stored = readLayout(userId)
     const base = stored ?? defaultLayout()
     setLayout(base.filter((it) => availableIds.has(it.id) && WIDGET_BY_ID[it.id]))
     setReady(true)
   }, [userId, availableIds, defaultLayout])
+  useLoadEffect(loadLayout)
 
   const persist = React.useCallback(
     (next: LayoutItem[]) => {
