@@ -27,7 +27,10 @@ const password = process.env.E2E_PASSWORD || ""
 const min = Number(process.env.LH_MIN || 90)
 const port = 9333
 
+// Chrome de verdad (channel) y no el headless-shell de Playwright: Lighthouse
+// no puede navegar en este último ("Target closed").
 const browser = await chromium.launch({
+  channel: process.env.LH_CHANNEL || "chrome",
   args: [`--remote-debugging-port=${port}`],
 })
 try {
@@ -36,7 +39,7 @@ try {
   await page.getByLabel(/correo o usuario/i).fill(email)
   await page.getByLabel(/contraseña/i).fill(password)
   await page.getByRole("button", { name: /entrar/i }).click()
-  await page.getByRole("heading", { name: /hola/i }).waitFor({ timeout: 30_000 })
+  await page.getByText(/sesión iniciada/i).waitFor({ timeout: 30_000 })
 
   const args = [
     "--yes",
