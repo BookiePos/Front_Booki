@@ -6,6 +6,7 @@ import { SITE_URL } from "@/lib/env"
 const RUTAS_PUBLICAS = [
   { path: "", changeFrequency: "weekly", priority: 1 },
   { path: "/comparativa", changeFrequency: "monthly", priority: 0.6 },
+  { path: "/contadores", changeFrequency: "monthly", priority: 0.5 },
   { path: "/estado", changeFrequency: "daily", priority: 0.3 },
 ] as const
 
