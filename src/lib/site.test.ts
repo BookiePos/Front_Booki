@@ -1,23 +1,23 @@
 import { describe, expect, it } from "vitest"
 import {
   ADD_ONS,
+  DOLORES,
   EFECTOS_DEL_COBRO,
   FAQS,
   MEDIOS_DE_PAGO,
   PLANS,
   TIRILLA,
-  UN_DIA,
 } from "./site"
 
 // Todo el texto que la portada muestra desde este archivo.
 const textoVisible = JSON.stringify({
   ADD_ONS,
+  DOLORES,
   EFECTOS_DEL_COBRO,
   FAQS,
   MEDIOS_DE_PAGO,
   PLANS,
   TIRILLA,
-  UN_DIA,
 })
 
 describe("contenido de la portada", () => {
@@ -45,16 +45,20 @@ describe("contenido de la portada", () => {
   it("dice que sin internet solo se cobra en efectivo", () => {
     const offline = FAQS.find((f) => /internet/i.test(f.q))
     expect(offline?.a).toMatch(/efectivo/)
-    const hito = UN_DIA.find((d) => d.id === "sin-internet")
+    const hito = DOLORES.find((d) => d.id === "sin-internet")
     expect(hito?.content).toMatch(/efectivo/)
   })
 
-  it("la tirilla cuadra: el renglón de caja dice el efectivo que de verdad entró", () => {
+  it("la factura cuadra: la nota de caja dice el efectivo que de verdad entró", () => {
     const total = TIRILLA.lineas.reduce((s, l) => s + l.qty * l.unit, 0)
     const efectivo = new Intl.NumberFormat("es-CO").format(total - TIRILLA.nequi)
-    const caja = EFECTOS_DEL_COBRO.find((e) => e.area === "CAJA")
+    const caja = EFECTOS_DEL_COBRO.find((e) => e.fila === "efectivo")
     expect(TIRILLA.nequi).toBeLessThan(total)
     expect(caja?.texto).toContain(`$${efectivo}`)
+  })
+
+  it("cada dolor cabe en un renglón, para que el tachado sea una sola raya", () => {
+    for (const d of DOLORES) expect(d.label.length).toBeLessThanOrEqual(36)
   })
 
   it("el anual vale diez mensualidades, como dice el selector", () => {

@@ -2,67 +2,83 @@
 
 // Basado en el Timeline de Hyperiux Vault (https://vault.hyperiux.com).
 //
-// Se conserva la mecánica del original: la sección se fija, la pista corre
-// en horizontal con el scroll, la línea se dibuja de izquierda a derecha y cada
-// hito levanta su tallo, su punto y su texto (líneas enmascaradas con
-// SplitText) al llegar a pantalla. Cambia lo que el original traía fijo:
-//   · Los hitos llegan por props, con un hueco para una pantalla (`media`).
-//   · El desplazamiento se mide en píxeles con `invalidateOnRefresh`, no con
-//     un porcentaje a ojo (-65%) que solo cuadraba con su contenido de demo.
-//   · La entrada de cada hito usa `containerAnimation`: se dispara cuando el
-//     hito cruza la pantalla dentro de la pista, sin tabla de posiciones.
-//   · En celular la pista no se fija: los hitos van en columna con una línea
-//     vertical. Una pista de 800vw a dedo no se puede leer.
+// Del original se conserva la idea: la sección se fija, la pista corre en
+// horizontal con el scroll, la línea se dibuja de izquierda a derecha y cada
+// hito levanta su tallo, su punto y su texto. Lo demás se rehízo para que
+// quede bien encuadrado y en una sola coreografía:
+//
+//   · Todo se mide en vw y se conoce de antemano (ancho de pista, posición de
+//     cada hito, distancia a correr), así que dos `gsap.timeline` atados al
+//     scroll lo manejan todo. No hay disparadores sueltos que se adelanten o
+//     se queden a medias según el ancho de pantalla.
+//   · Mientras la sección sube a la pantalla se revelan, en orden, los hitos
+//     que ya están a la vista; al fijarse llega dibujada. Después corre la
+//     pista y cada hito se revela al cruzar el 85% del ancho. La línea llega
+//     justo al tallo de cada hito cuando este aparece: nunca va adelantada ni
+//     atrasada.
+//   · El fijado deja libre la barra de navegación (pt-18), lleva el título de
+//     la sección arriba a la izquierda (así el encuadre fijo dice de qué se
+//     trata) y centra la pista en el espacio que queda.
+//   · En celular no se fija: los hitos van en columna con una línea vertical.
 
 import { useLayoutEffect, useRef, type CSSProperties, type ReactNode } from "react"
 import gsap from "gsap"
 import { ScrollTrigger } from "gsap/ScrollTrigger"
-import { SplitText } from "gsap/SplitText"
 import { cn } from "@/lib/utils"
 
 if (typeof window !== "undefined") {
-  gsap.registerPlugin(ScrollTrigger, SplitText)
+  gsap.registerPlugin(ScrollTrigger)
 }
 
 export type TimelineItem = {
   id: string
-  /** La marca de tiempo del hito: "7:10 a. m.", "Día 30". */
+  /** El dolor: se muestra tachado. Un renglón (≤ 36 caracteres). */
   label: string
+  /** La solución, en una frase corta. */
   content: string
-  /** Lo que se ve del hito: una pantalla, una foto. Va pegado a la línea. */
+  /** Lo que se ve de la solución: una pantalla. */
   media?: ReactNode
 }
 
 export type TimelineProps = {
-  title: ReactNode
-  periodLabel?: string
-  /** Bloque grande que abre la pista, antes del primer hito. */
-  lead?: ReactNode
   items: TimelineItem[]
+  /** Título de la sección: va dentro del encuadre fijo, sobre la pista. */
+  title?: ReactNode
+  /** id del título que nombra la sección. */
+  labelledBy?: string
   className?: string
   style?: CSSProperties
 }
 
-/** Separación entre hitos y ancho de cada uno, en vw (escritorio). */
-const PASO = 15
-const ANCHO = 24
+// Geometría de escritorio, en vw.
+const MARGEN = 6 // aire a cada lado de la pista
+const PASO = 27 // de un hito al siguiente
+const ANCHO = 23 // ancho de cada hito
+const UMBRAL = 85 // un hito se revela al cruzar este punto de la pantalla
 
-export default function Timeline({
-  title,
-  periodLabel,
-  lead,
-  items,
-  className,
-  style,
-}: TimelineProps) {
+// Tiempos del timeline, en "vw de recorrido": el scroll total del tramo fijado
+// es la suma, así que 1 unidad = 1vw de rueda.
+const INTRO = 34 // revelado de los hitos visibles, mientras la sección sube
+const REVELADO = 11 // lo que dura el revelado de un hito
+const RESPIRO = 10 // pausa al final, con todo a la vista, antes de soltar
+
+export default function Timeline({ items, title, labelledBy, className, style }: TimelineProps) {
   const sectionRef = useRef<HTMLElement>(null)
-  const trackRef = useRef<HTMLDivElement>(null)
   const pinRef = useRef<HTMLDivElement>(null)
+  const trackRef = useRef<HTMLDivElement>(null)
+  const lineRef = useRef<HTMLDivElement>(null)
+
+  const n = items.length
+  const anchoPista = MARGEN * 2 + (n - 1) * PASO + ANCHO
+  const anchoLinea = anchoPista - MARGEN * 2
+  const distancia = Math.max(0, anchoPista - 100)
 
   useLayoutEffect(() => {
     const section = sectionRef.current
+    const pin = pinRef.current
     const track = trackRef.current
-    if (!section || !track) return
+    const line = lineRef.current
+    if (!section || !pin || !track || !line) return
 
     const mm = gsap.matchMedia(section)
 
@@ -77,229 +93,215 @@ export default function Timeline({
           reducido: boolean
         }
         const hitos = gsap.utils.toArray<HTMLElement>("[data-tl-item]", section)
+        const partes = (hito: HTMLElement) => ({
+          tallo: hito.querySelector("[data-tl-stem]"),
+          punto: hito.querySelector("[data-tl-dot]"),
+          tachado: hito.querySelector("[data-tl-strike]"),
+          sube: hito.querySelectorAll("[data-tl-rise]"),
+          medio: hito.querySelector("[data-tl-media]"),
+        })
 
+        // Celular: columna. Cada hito se tacha y aparece una vez al entrar.
         if (!escritorio) {
-          // Celular: columna normal. Cada hito sube un poco al entrar.
           if (reducido) return
           hitos.forEach((hito) => {
-            gsap.from(hito, {
-              y: 32,
-              opacity: 0,
-              duration: 0.7,
-              ease: "power2.out",
-              scrollTrigger: { trigger: hito, start: "top 88%" },
-            })
+            const p = partes(hito)
+            gsap
+              .timeline({ scrollTrigger: { trigger: hito, start: "top 82%" } })
+              .from(p.sube, { yPercent: 110, duration: 0.6, ease: "power3.out", stagger: 0.08 })
+              .fromTo(
+                p.tachado,
+                { backgroundSize: "0% 2px" },
+                { backgroundSize: "100% 2px", duration: 0.45, ease: "power2.inOut" },
+                0.25,
+              )
+              .from(p.medio, { y: 24, opacity: 0, duration: 0.6, ease: "power3.out" }, 0.35)
           })
           return
         }
 
-        const distancia = () => Math.max(0, track.scrollWidth - window.innerWidth)
-
-        // El corrimiento lo maneja el scroll del usuario, no corre solo: se
-        // conserva aun con movimiento reducido, que es la única forma de ver
-        // los hitos de la derecha.
-        // Se fija el contenedor de adentro y no la sección: el pin envuelve lo
-        // fijado en un <div> espaciador, y si fuera la sección, React perdería
-        // la pista de su nodo al re-renderizar a los hermanos (insertBefore).
-        const slide = gsap.to(track, {
-          x: () => -distancia(),
-          ease: "none",
+        // Dos tramos. La intro corre mientras la sección SUBE a la pantalla
+        // (del 70% al borde de arriba): revela los hitos que ya están a la
+        // vista, así que al fijarse la pista ya llega dibujada y nunca se ve
+        // un plano orquídea vacío. El tramo fijado solo corre la pista y
+        // revela los que van entrando.
+        const intro = gsap.timeline({
+          defaults: { ease: "none" },
+          scrollTrigger: {
+            trigger: section,
+            start: "top 70%",
+            end: "top top",
+            scrub: reducido ? true : 0.9,
+          },
+        })
+        const tl = gsap.timeline({
+          defaults: { ease: "none" },
           scrollTrigger: {
             trigger: section,
             start: "top top",
-            end: () => `+=${distancia()}`,
-            pin: pinRef.current,
-            scrub: reducido ? true : 0.6,
+            end: () => `+=${((reducido ? distancia : distancia + RESPIRO) * window.innerWidth) / 100}`,
+            pin,
+            scrub: reducido ? true : 0.9,
             invalidateOnRefresh: true,
           },
         })
 
-        const linea = section.querySelector<HTMLElement>("[data-tl-line]")
-        if (reducido || !linea) return
+        // xPercent es relativo al ancho de la pista, que está fijado en vw:
+        // el desplazamiento es exacto en cualquier pantalla.
+        tl.to(track, { xPercent: (-distancia / anchoPista) * 100, duration: distancia }, 0)
 
-        gsap.fromTo(
-          linea,
-          { scaleX: 0 },
-          {
-            scaleX: 1,
-            ease: "none",
-            scrollTrigger: {
-              trigger: linea,
-              containerAnimation: slide,
-              start: "left 90%",
-              end: "right 100%",
-              scrub: true,
-            },
-          },
-        )
+        if (reducido) return
 
-        hitos.forEach((hito) => {
-          const tallo = hito.querySelector("[data-tl-stem]")
-          const punto = hito.querySelector("[data-tl-dot]")
-          const medio = hito.querySelector("[data-tl-media]")
-          const textos = hito.querySelectorAll<HTMLElement>("[data-tl-split]")
+        // Tiempos: la intro va de 0 a INTRO; el tramo fijado, de INTRO en
+        // adelante en la misma escala (1 unidad = 1vw de recorrido).
+        let lineaHasta = 0
+        intro.set(line, { scaleX: 0 }, 0)
+        hitos.forEach((hito, i) => {
+          const x = MARGEN + i * PASO
+          const visible = x < UMBRAL
+          const t = visible ? (x / UMBRAL) * INTRO * 0.6 : INTRO + (x - UMBRAL)
+          const p = partes(hito)
+          // Cada animación va a su tramo, con su tiempo local.
+          const linea = (destino: gsap.core.Timeline, desde: number, hasta: number, fraccion: number) =>
+            destino.to(line, { scaleX: fraccion, duration: Math.max(0.01, hasta - desde), ease: "power1.inOut" }, desde)
+          const dest = visible ? intro : tl
+          const local = visible ? t : t - INTRO
+          const fraccion = (x - MARGEN) / anchoLinea
 
-          // Los disparadores van pegados al borde derecho: la pista termina
-          // con el último hito al ~70% del ancho, así que un final más a la
-          // izquierda nunca llegaba y ese hito se quedaba a medio revelar.
-          const tl = gsap.timeline({
-            scrollTrigger: {
-              trigger: hito,
-              containerAnimation: slide,
-              start: "left 100%",
-              end: "left 76%",
-              scrub: true,
-            },
-          })
-          tl.fromTo(tallo, { scaleY: 0 }, { scaleY: 1, ease: "none", duration: 0.4 })
-            .fromTo(punto, { scale: 0 }, { scale: 1, ease: "none", duration: 0.4 }, "<")
-          if (medio) {
-            tl.fromTo(
-              medio,
-              { clipPath: "inset(0 100% 0 0)" },
-              { clipPath: "inset(0 0% 0 0)", ease: "power2.out", duration: 0.6 },
-              0.15,
+          // La línea llega al tallo justo cuando este empieza a crecer. Si el
+          // tramo cambia (último visible → primero de la corrida), arranca de
+          // donde quedó.
+          if (visible) linea(intro, lineaHasta, t, fraccion)
+          else linea(tl, Math.max(0, lineaHasta - INTRO), local, fraccion)
+          lineaHasta = t
+
+          dest.fromTo(p.punto, { scale: 0 }, { scale: 1, duration: REVELADO * 0.2, ease: "back.out(2)" }, local)
+            .fromTo(p.tallo, { scaleY: 0 }, { scaleY: 1, duration: REVELADO * 0.35, ease: "power2.out" }, local)
+            .fromTo(p.sube, { yPercent: 110 }, { yPercent: 0, duration: REVELADO * 0.4, ease: "power3.out", stagger: REVELADO * 0.12 }, local + REVELADO * 0.2)
+            .fromTo(
+              p.tachado,
+              { backgroundSize: "0% 2px" },
+              { backgroundSize: "100% 2px", duration: REVELADO * 0.3, ease: "power2.inOut" },
+              local + REVELADO * 0.45,
             )
-          }
-
-          // Líneas enmascaradas, como el original. `autoSplit` vuelve a
-          // partir si la fuente termina de cargar o cambia el ancho.
-          textos.forEach((el) => {
-            SplitText.create(el, {
-              type: "lines",
-              mask: "lines",
-              autoSplit: true,
-              onSplit: (self) =>
-                gsap.fromTo(
-                  self.lines,
-                  { yPercent: 100 },
-                  {
-                    yPercent: 0,
-                    stagger: 0.08,
-                    ease: "power2.out",
-                    scrollTrigger: {
-                      trigger: hito,
-                      containerAnimation: slide,
-                      start: "left 98%",
-                      end: "left 78%",
-                      scrub: true,
-                    },
-                  },
-                ),
-            })
-          })
+            .fromTo(
+              p.medio,
+              { clipPath: "inset(0 100% 0 0)" },
+              { clipPath: "inset(0 0% 0 0)", duration: REVELADO * 0.45, ease: "power3.out" },
+              local + REVELADO * 0.55,
+            )
         })
+
+        // El resto de la línea, hasta el tope derecho, mientras termina la
+        // corrida (tiempo local del tramo fijado); y el respiro final quieto.
+        const desde = Math.max(0, lineaHasta - INTRO)
+        if (distancia > desde) {
+          tl.to(line, { scaleX: 1, duration: distancia - desde, ease: "power1.inOut" }, desde)
+        }
+        tl.to({}, { duration: RESPIRO }, distancia)
       },
     )
 
     return () => mm.revert()
-  }, [items])
-
-  const anchoPista = `${(items.length - 1) * PASO + ANCHO}vw`
+  }, [items, anchoPista, anchoLinea, distancia])
 
   return (
-    <section ref={sectionRef} className={cn("relative w-full", className)} style={style}>
-      <div ref={pinRef} className="md:flex md:h-svh md:items-center md:overflow-hidden">
+    <section ref={sectionRef} aria-labelledby={labelledBy} className={cn("relative w-full overflow-hidden", className)} style={style}>
+      <div ref={pinRef} className="md:flex md:h-svh md:flex-col md:justify-center md:pt-18">
+        {title && (
+          // A la misma distancia del borde que el primer hito (MARGEN).
+          <div
+            className="px-5 pt-24 sm:px-8 md:mb-[2.5vw] md:pt-0 md:pr-0 md:pl-[var(--tl-margen)]"
+            style={{ "--tl-margen": `${MARGEN}vw` } as CSSProperties}
+          >
+            {title}
+          </div>
+        )}
         <div
           ref={trackRef}
-          className="flex flex-col gap-14 px-5 py-20 sm:px-8 md:h-[min(42vw,80svh)] md:w-max md:flex-row md:items-stretch md:gap-[6vw] md:px-[5vw] md:py-0"
+          className="relative px-5 py-16 sm:px-8 md:h-[min(30vw,calc(100svh-17rem))] md:w-[var(--tl-pista)] md:shrink-0 md:p-0"
+          style={{ "--tl-pista": `${anchoPista}vw` } as CSSProperties}
         >
-          <div className="flex shrink-0 flex-col justify-between gap-8 md:w-[30vw]">
-            <div>
-              {title}
-              {periodLabel && (
-                <p className="mt-4 font-mono text-sm md:text-[1.05vw]">{periodLabel}</p>
-              )}
-            </div>
-            {lead}
-          </div>
-
+          {/* Línea central (escritorio) con sus dos topes. */}
           <div
-            className="relative shrink-0 md:h-full md:w-[var(--tl-ancho)]"
-            style={{ "--tl-ancho": anchoPista } as CSSProperties}
+            aria-hidden="true"
+            className="absolute top-1/2 hidden h-[2px] -translate-y-1/2 md:block"
+            style={{ left: `${MARGEN}vw`, width: `${anchoLinea}vw` }}
           >
-            {/* Línea central (escritorio) con sus dos topes. */}
-            <div
-              aria-hidden="true"
-              className="absolute top-1/2 left-0 hidden h-[2px] w-full -translate-y-1/2 md:block"
-            >
-              <div data-tl-line className="h-full w-full origin-left bg-current" />
-              <span className="absolute top-1/2 -left-[0.35vw] size-[0.7vw] -translate-y-1/2 bg-current" />
-              <span className="absolute top-1/2 -right-[0.35vw] size-[0.7vw] -translate-y-1/2 bg-current" />
-            </div>
-
-            <ol className="relative space-y-14 border-l-2 border-current pl-6 md:static md:space-y-0 md:border-0 md:pl-0">
-              {items.map((item, i) => {
-                const arriba = i % 2 === 0
-                return (
-                  <li
-                    key={item.id}
-                    data-tl-item
-                    className={cn(
-                      "relative md:absolute md:h-1/2 md:w-[var(--tl-item)] md:left-[var(--tl-x)]",
-                      arriba ? "md:top-0" : "md:top-1/2",
-                    )}
-                    style={
-                      {
-                        "--tl-x": `${i * PASO}vw`,
-                        "--tl-item": `${ANCHO}vw`,
-                      } as CSSProperties
-                    }
-                  >
-                    {/* Tallo y punto: del borde del hito a la línea central. */}
-                    <span
-                      aria-hidden="true"
-                      data-tl-stem
-                      className={cn(
-                        "absolute left-0 hidden w-[2px] bg-current md:block",
-                        arriba ? "top-[0.4vw] bottom-0 origin-bottom" : "top-0 bottom-[0.4vw] origin-top",
-                      )}
-                    />
-                    <span
-                      aria-hidden="true"
-                      data-tl-dot
-                      className={cn(
-                        "absolute -left-[0.4vw] hidden size-[0.8vw] bg-current md:block",
-                        arriba ? "top-0" : "bottom-0",
-                      )}
-                    />
-                    {/* En celular, el punto va sobre la línea vertical. */}
-                    <span
-                      aria-hidden="true"
-                      className="absolute top-1.5 -left-[calc(1.5rem+5px)] size-2 bg-current md:hidden"
-                    />
-
-                    <div
-                      className={cn(
-                        "flex flex-col gap-3 md:h-full md:gap-[0.8vw] md:pl-[1.4vw]",
-                        arriba ? "md:pb-[1.6vw]" : "md:flex-col-reverse md:justify-end md:pt-[1.6vw]",
-                      )}
-                    >
-                      <div className={cn(!arriba && "md:mt-[0.4vw]")}>
-                        <h3
-                          data-tl-split
-                          className="font-mono text-xl font-bold tracking-[-0.03em] md:text-[1.7vw] md:leading-none"
-                        >
-                          {item.label}
-                        </h3>
-                        <p
-                          data-tl-split
-                          className="mt-2 max-w-md text-pretty text-base leading-snug md:mt-[0.6vw] md:max-w-none md:text-[1.05vw]"
-                        >
-                          {item.content}
-                        </p>
-                      </div>
-                      {item.media && (
-                        <div data-tl-media className={cn(arriba ? "md:mt-auto" : "")}>
-                          {item.media}
-                        </div>
-                      )}
-                    </div>
-                  </li>
-                )
-              })}
-            </ol>
+            <div ref={lineRef} className="h-full w-full origin-left bg-current" />
+            <span className="absolute top-1/2 -right-[0.35vw] size-[0.7vw] -translate-y-1/2 bg-current" />
           </div>
+
+          <ol className="relative space-y-16 border-l-2 border-current pl-6 md:static md:space-y-0 md:border-0 md:pl-0">
+            {items.map((item, i) => {
+              const arriba = i % 2 === 0
+              return (
+                <li
+                  key={item.id}
+                  data-tl-item
+                  className={cn(
+                    "relative md:absolute md:h-1/2 md:w-[var(--tl-ancho)] md:left-[var(--tl-x)]",
+                    arriba ? "md:top-0" : "md:top-1/2",
+                  )}
+                  style={
+                    {
+                      "--tl-x": `${MARGEN + i * PASO}vw`,
+                      "--tl-ancho": `${ANCHO}vw`,
+                    } as CSSProperties
+                  }
+                >
+                  {/* Tallo y punto: del borde del hito a la línea central. */}
+                  <span
+                    aria-hidden="true"
+                    data-tl-stem
+                    className={cn(
+                      "absolute left-0 hidden w-[2px] bg-current md:block",
+                      arriba ? "top-[0.4vw] bottom-0 origin-bottom" : "top-0 bottom-[0.4vw] origin-top",
+                    )}
+                  />
+                  <span
+                    aria-hidden="true"
+                    data-tl-dot
+                    className={cn(
+                      "absolute -left-[0.4vw] hidden size-[0.8vw] bg-brand-600 md:block",
+                      arriba ? "top-0" : "bottom-0",
+                    )}
+                  />
+                  {/* En celular, el punto va sobre la línea vertical. */}
+                  <span aria-hidden="true" className="absolute top-1.5 -left-[calc(1.5rem+5px)] size-2 bg-brand-600 md:hidden" />
+
+                  <div
+                    className={cn(
+                      "flex flex-col gap-5 md:h-full md:gap-[1vw] md:pl-[1.4vw]",
+                      arriba ? "md:pb-[1.4vw]" : "md:flex-col-reverse md:justify-end md:pt-[1.4vw]",
+                    )}
+                  >
+                    <div className={cn(!arriba && "md:mt-[0.2vw]")}>
+                      <h3 className="overflow-hidden pb-[2px]">
+                        <span data-tl-rise className="block font-titular text-base font-medium text-navy-950/75 md:text-[1.15vw] md:whitespace-nowrap">
+                          <span className="sr-only">Antes: </span>
+                          <span data-tl-strike className="tachado">
+                            {item.label}
+                          </span>
+                        </span>
+                      </h3>
+                      <p className="mt-2 overflow-hidden md:mt-[0.5vw]">
+                        <span data-tl-rise className="block font-titular text-xl leading-tight font-semibold tracking-[-0.02em] text-balance md:text-[1.55vw]">
+                          <span className="sr-only">Con BookiPos: </span>
+                          {item.content}
+                        </span>
+                      </p>
+                    </div>
+                    {item.media && (
+                      <div data-tl-media className={cn("max-w-sm md:max-w-none", arriba && "md:mt-auto")}>
+                        {item.media}
+                      </div>
+                    )}
+                  </div>
+                </li>
+              )
+            })}
+          </ol>
         </div>
       </div>
     </section>

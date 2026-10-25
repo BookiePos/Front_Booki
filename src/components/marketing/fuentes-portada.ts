@@ -1,15 +1,16 @@
-import { JetBrains_Mono, Outfit } from "next/font/google";
+import { Geist, Outfit } from "next/font/google";
 
 /**
- * Letra de la portada: la de una caja registradora. Una térmica imprime en
- * ancho fijo, y la portada entera es una tirilla, así que los titulares van en
- * la misma monoespaciada que el papel, apretada y en negrita. Vive aquí y no
- * en el layout raíz: solo la portada la descarga.
+ * Letra de los titulares de la portada: Geist, una grotesca de trazo limpio
+ * que aguanta tamaños grandes con el espaciado apretado. Reemplaza a la
+ * monoespaciada de caja registradora, que Paulo leyó como retro. Vive aquí y
+ * no en el layout raíz: solo la portada la descarga. Se usa con la utilidad
+ * `font-titular` (token en `globals.css`).
  */
-export const fuenteTirilla = JetBrains_Mono({
+export const fuenteTitular = Geist({
   subsets: ["latin"],
-  weight: ["400", "500", "700", "800"],
-  variable: "--font-portada-mono",
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-portada",
   display: "swap",
 });
 

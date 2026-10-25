@@ -22,7 +22,7 @@ export const APPS = {
 };
 
 export const NAV_LINKS = [
-  { href: "#un-dia", label: "Cómo funciona" },
+  { href: "#como-funciona", label: "Cómo funciona" },
   { href: "#precios", label: "Precios" },
   { href: "#preguntas", label: "Preguntas" },
 ];
@@ -31,13 +31,14 @@ export const NAV_LINKS = [
 export const CTA_REGISTRO = { href: "/registro", label: "Probar 14 días gratis" };
 
 /**
- * La tirilla del hero. El restaurante es de ejemplo, pero el papel está armado
- * como lo imprime el POS (consecutivo FVC-, pago dividido) y cuadra: la suma
- * de líneas da el total y los pagos suman lo mismo. Son los mismos platos y la
- * misma mesa que la pantalla de cobro de la línea del día.
+ * La factura que aparece al entrar por la letra. El restaurante es de
+ * ejemplo, pero el papel está armado como lo imprime el POS (consecutivo FVC-,
+ * pago dividido) y cuadra: la suma de líneas da el total y los pagos suman lo
+ * mismo. Son los mismos platos y la misma mesa que la pantalla de cobro de la
+ * línea de tiempo.
  */
 export const TIRILLA = {
-  negocio: "RESTAURANTE EL FOGÓN",
+  negocio: "Restaurante El Fogón",
   mesa: "Mesa 7",
   consecutivo: "FVC-001284",
   fecha: "25/10/2026 · 1:42 p. m.",
@@ -51,14 +52,15 @@ export const TIRILLA = {
 };
 
 /**
- * Lo que pasa en el sistema en el mismo segundo del cobro. Va impreso al pie
- * de la tirilla: el argumento de venta en tres renglones.
+ * Lo que pasa en el sistema en el mismo segundo del cobro. Cada efecto sale
+ * con una raya del renglón de la factura que lo causa (`fila`): los platos
+ * mueven el inventario, el efectivo la caja y el total la contabilidad.
  */
 export const EFECTOS_DEL_COBRO = [
-  { area: "INVENTARIO", texto: "−2 bandejas, −1 ajiaco" },
-  { area: "CAJA", texto: "+$48.000 al turno" },
-  { area: "ASIENTO", texto: "#4.812 cuadrado" },
-];
+  { fila: "platos", area: "Inventario", texto: "−2 bandejas, −1 ajiaco" },
+  { fila: "efectivo", area: "Caja", texto: "+$48.000 al turno" },
+  { fila: "total", area: "Contabilidad", texto: "Asiento #4.812, cuadrado" },
+] as const;
 
 /** Franja de medios de pago: todos existen hoy en el cobro del POS. */
 export const MEDIOS_DE_PAGO = [
@@ -73,45 +75,39 @@ export const MEDIOS_DE_PAGO = [
 ];
 
 /**
- * La línea del día: un día de trabajo en el restaurante de ejemplo, de la
- * primera factura al cierre del mes. Cada hito lleva su pantalla (ver
- * `components/marketing/pantallas.tsx`), en el mismo orden.
+ * La línea de tiempo: lo que duele con otros sistemas (se tacha al pasar) y
+ * cómo lo resuelve BookiPos, en una línea cada cosa. Cada una lleva su
+ * pantalla (ver `components/marketing/pantallas.tsx`) en el mismo orden.
+ *
+ * Los dolores son genéricos a propósito: no se le atribuye nada a una marca
+ * con nombre propio (misma regla que `comparativa.ts`). Cada dolor cabe en un
+ * renglón a escritorio (≤ 36 caracteres) para que el tachado sea una sola raya.
  */
-export const UN_DIA = [
+export const DOLORES = [
   {
     id: "factura",
-    label: "7:10 a. m.",
-    content: "Llega el proveedor. Le tomas foto a la factura y la compra entra al inventario cuando la apruebas.",
-  },
-  {
-    id: "apertura",
-    label: "11:30 a. m.",
-    content: "Se abre la caja con su base. Cada peso queda a nombre de quien la abrió.",
+    label: "Digitar factura por factura",
+    content: "Le tomas foto y la compra entra sola al inventario.",
   },
   {
     id: "cobro",
-    label: "1:42 p. m.",
-    content: "La mesa 7 paga con Nequi y efectivo. Bajan los ingredientes de cada plato y el asiento se hace solo.",
+    label: "Vender aquí, llevar cuentas allá",
+    content: "Cada cobro descuenta el inventario y hace su asiento.",
   },
   {
     id: "sin-internet",
-    label: "3:15 p. m.",
-    content: "Se cae el internet. La caja sigue cobrando en efectivo y envía las ventas cuando vuelve la red.",
-  },
-  {
-    id: "domicilio",
-    label: "7:30 p. m.",
-    content: "Sale un domicilio a Laureles con la tarifa de su zona. El repartidor rinde cuentas al cerrar.",
+    label: "Se cae el internet, se para la caja",
+    content: "Sigue cobrando en efectivo y sincroniza al volver.",
   },
   {
     id: "cierre",
-    label: "10:40 p. m.",
-    content: "Cierre contando billetes y monedas. Si falta plata, aparece con nombre y hora.",
+    label: "El descuadre aparece a fin de mes",
+    content: "Cierras contando billetes: si falta, sale con nombre y hora.",
   },
   {
     id: "nomina",
-    label: "Día 30",
-    content: "La nómina sale de la asistencia, y lo que el equipo consumió en el local baja de la colilla.",
+    label: "La libreta del consumo del equipo",
+    content: "Lo que consumen en el local baja solo de la nómina.",
   },
 ];
 

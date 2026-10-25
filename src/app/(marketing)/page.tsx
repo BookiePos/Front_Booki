@@ -1,39 +1,33 @@
-import { EntradaAlDia } from "@/components/marketing/entrada-al-dia";
+import { Factura } from "@/components/marketing/factura";
 import { Faq } from "@/components/marketing/faq";
 import { FinalCta } from "@/components/marketing/final-cta";
-import { fuenteTirilla } from "@/components/marketing/fuente-tirilla";
-import { Hero } from "@/components/marketing/hero";
+import { fuenteTitular } from "@/components/marketing/fuentes-portada";
 import { LineaDelDia } from "@/components/marketing/linea-del-dia";
 import { MediosDePago } from "@/components/marketing/medios-de-pago";
+import { Portada } from "@/components/marketing/portada";
 import { Pricing } from "@/components/marketing/pricing";
 import { SiteFooter } from "@/components/marketing/site-footer";
 import { SiteNav } from "@/components/marketing/site-nav";
 
 /**
- * Portada. Papel gris claro, tinta marina y el orquídea del isotipo como único
- * color. El orden:
+ * Portada. Fondo lila pálido, tinta marina y el orquídea del isotipo como
+ * único color. El orden:
  *
- *   tirilla del cobro (hero) → "BookiPos" gigante, por cuya letra se entra
- *   (portal) → un día de trabajo con una pantalla en cada hito (línea) →
- *   medios de pago → precios → preguntas → cierre.
+ *   "BookiPos" gigante, por cuya letra se entra (portal) → adentro, la
+ *   factura de la mesa 7 con lo que movió en el sistema → lo que duele con
+ *   otros sistemas y cómo lo resuelve BookiPos (línea de tiempo) → medios de
+ *   pago → precios → preguntas → cierre.
  *
- * `--font-mono` se redefine aquí para que `font-mono` sea la letra de caja de
- * la portada (JetBrains Mono) sin tocar la del panel ni la del POS.
+ * La factura es de servidor y entra al portal (de cliente) como hijo.
  */
 export default function HomePage() {
   return (
-    <div
-      className={`${fuenteTirilla.variable} bg-mesa text-navy-950`}
-      style={
-        {
-          "--font-mono": "var(--font-portada-mono), ui-monospace, monospace",
-        } as React.CSSProperties
-      }
-    >
+    <div className={`${fuenteTitular.variable} bg-mesa text-navy-950`}>
       <SiteNav />
       <main id="contenido">
-        <Hero />
-        <EntradaAlDia />
+        <Portada>
+          <Factura />
+        </Portada>
         <LineaDelDia />
         <MediosDePago />
         <Pricing />
