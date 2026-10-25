@@ -22,6 +22,31 @@ es decidir "esto ya es lo que va a usar el negocio".
 
 ## Sin publicar
 
+### Portada nueva
+
+La página de inicio se rehizo entera. La anterior abría con una pantalla morada
+vacía y el logo armándose a medias al hacer scroll, y contaba cosas viejas: decía
+que el sistema no funcionaba sin internet.
+
+- **Papel gris claro y letra de caja registradora.** El hero es la tirilla del
+  cobro de la mesa 7 de un restaurante de ejemplo, cortada por el borde de
+  arriba, con lo que movió en inventario, caja y contabilidad impreso al pie y
+  un sello orquídea que dice CUADRADO. Sin tarjetas ni esquinas redondeadas.
+- **El logo, igual al arte original**: el doblez de la esquina, la sombra del
+  papel y la palabra en la letra de la marca. Cambia también en el menú del
+  panel y en las pantallas de entrada, que usan el mismo dibujo.
+- **Se entra por la letra.** Después del hero, "BookiPos" gigante: al bajar, la
+  cámara entra por una letra y cae en la línea del día.
+- **Un día en el restaurante, en línea de tiempo**: la pista corre en horizontal
+  con el scroll y cada hito trae su pantalla de la app, dibujada en código para
+  que se vea nítida a cualquier tamaño: la factura por foto, la apertura de
+  caja, el cobro dividido, la caja sin internet (solo efectivo), el domicilio,
+  el cierre y la nómina. En celular va en columna.
+- **Precios con selector mensual o anual** (el anual son diez mensualidades). La
+  tabla comparativa y los complementos quedan plegados debajo.
+- Sin precios de la competencia en los complementos, y sin "Términos" ni
+  "Privacidad" en el pie mientras no exista el texto al que llevar.
+
 ### El costo de una receta, completo y a la vista
 
 Hasta ahora, la ficha de un producto **con receta no mostraba ningún costo**: el

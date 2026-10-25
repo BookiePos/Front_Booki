@@ -1,32 +1,46 @@
-import { Benefits } from "@/components/marketing/benefits";
+import { EntradaAlDia } from "@/components/marketing/entrada-al-dia";
 import { Faq } from "@/components/marketing/faq";
-import { Flow } from "@/components/marketing/flow";
 import { FinalCta } from "@/components/marketing/final-cta";
+import { fuenteTirilla } from "@/components/marketing/fuente-tirilla";
 import { Hero } from "@/components/marketing/hero";
-import { Modules } from "@/components/marketing/modules";
+import { LineaDelDia } from "@/components/marketing/linea-del-dia";
+import { MediosDePago } from "@/components/marketing/medios-de-pago";
 import { Pricing } from "@/components/marketing/pricing";
-import { ScrollLogo } from "@/components/marketing/scroll-logo";
 import { SiteFooter } from "@/components/marketing/site-footer";
 import { SiteNav } from "@/components/marketing/site-nav";
-import { WhatsNew } from "@/components/marketing/whats-new";
 
+/**
+ * Portada. Papel gris claro, tinta marina y el orquídea del isotipo como único
+ * color. El orden:
+ *
+ *   tirilla del cobro (hero) → "BookiPos" gigante, por cuya letra se entra
+ *   (portal) → un día de trabajo con una pantalla en cada hito (línea) →
+ *   medios de pago → precios → preguntas → cierre.
+ *
+ * `--font-mono` se redefine aquí para que `font-mono` sea la letra de caja de
+ * la portada (JetBrains Mono) sin tocar la del panel ni la del POS.
+ */
 export default function HomePage() {
   return (
-    <>
+    <div
+      className={`${fuenteTirilla.variable} bg-mesa text-navy-950`}
+      style={
+        {
+          "--font-mono": "var(--font-portada-mono), ui-monospace, monospace",
+        } as React.CSSProperties
+      }
+    >
       <SiteNav />
       <main id="contenido">
-        {/* La cortina de marca abre la página; el hero recoge justo después. */}
-        <ScrollLogo />
         <Hero />
-        <Benefits />
-        <Flow />
-        <Modules />
-        <WhatsNew />
+        <EntradaAlDia />
+        <LineaDelDia />
+        <MediosDePago />
         <Pricing />
         <Faq />
         <FinalCta />
       </main>
       <SiteFooter />
-    </>
+    </div>
   );
 }
