@@ -18,18 +18,23 @@ const PANTALLAS: Record<string, ReactNode> = {
 };
 
 /**
- * Qué cambia: lo que duele con otros sistemas, tachado, y cómo lo resuelve
- * BookiPos, con su pantalla. Es la pista horizontal de `ui/timeline`.
- *
- * Va sobre el orquídea plano del doblez del isotipo, el mismo color en el que
- * termina el portal de la letra, que es también donde vive su título
- * (`#que-cambia`): se entra por la letra y se cae aquí sin corte.
+ * Lo que duele con otros sistemas, tachado, y cómo lo resuelve BookiPos, con
+ * su pantalla. Es la pista horizontal de `ui/timeline`, sobre el lila de la
+ * portada: sale del orquídea de la factura y vuelve al papel claro.
  */
 export function LineaDelDia() {
   return (
     <Timeline
-      className="bg-brand-500 text-navy-950"
-      labelledBy="que-cambia"
+      className="bg-mesa text-navy-950"
+      labelledBy="dolores"
+      title={
+        <h2
+          id="dolores"
+          className="font-titular text-[clamp(2rem,3.4vw,3.25rem)] leading-[1.02] font-semibold tracking-[-0.04em] text-balance"
+        >
+          Lo que duele con otros sistemas.
+        </h2>
+      }
       items={DOLORES.map((d) => ({ ...d, media: PANTALLAS[d.id] }))}
     />
   );

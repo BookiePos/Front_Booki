@@ -16,8 +16,9 @@
 //     pista y cada hito se revela al cruzar el 85% del ancho. La línea llega
 //     justo al tallo de cada hito cuando este aparece: nunca va adelantada ni
 //     atrasada.
-//   · El fijado deja libre la barra de navegación (pt-18) y centra la pista
-//     en el espacio que queda.
+//   · El fijado deja libre la barra de navegación (pt-18), lleva el título de
+//     la sección arriba a la izquierda (así el encuadre fijo dice de qué se
+//     trata) y centra la pista en el espacio que queda.
 //   · En celular no se fija: los hitos van en columna con una línea vertical.
 
 import { useLayoutEffect, useRef, type CSSProperties, type ReactNode } from "react"
@@ -41,7 +42,9 @@ export type TimelineItem = {
 
 export type TimelineProps = {
   items: TimelineItem[]
-  /** id del título que nombra la sección (puede vivir fuera de ella). */
+  /** Título de la sección: va dentro del encuadre fijo, sobre la pista. */
+  title?: ReactNode
+  /** id del título que nombra la sección. */
   labelledBy?: string
   className?: string
   style?: CSSProperties
@@ -59,7 +62,7 @@ const INTRO = 34 // revelado de los hitos visibles, mientras la sección sube
 const REVELADO = 11 // lo que dura el revelado de un hito
 const RESPIRO = 10 // pausa al final, con todo a la vista, antes de soltar
 
-export default function Timeline({ items, labelledBy, className, style }: TimelineProps) {
+export default function Timeline({ items, title, labelledBy, className, style }: TimelineProps) {
   const sectionRef = useRef<HTMLElement>(null)
   const pinRef = useRef<HTMLDivElement>(null)
   const trackRef = useRef<HTMLDivElement>(null)
@@ -204,10 +207,19 @@ export default function Timeline({ items, labelledBy, className, style }: Timeli
 
   return (
     <section ref={sectionRef} aria-labelledby={labelledBy} className={cn("relative w-full overflow-hidden", className)} style={style}>
-      <div ref={pinRef} className="md:flex md:h-svh md:items-center md:pt-18">
+      <div ref={pinRef} className="md:flex md:h-svh md:flex-col md:justify-center md:pt-18">
+        {title && (
+          // A la misma distancia del borde que el primer hito (MARGEN).
+          <div
+            className="px-5 pt-24 sm:px-8 md:mb-[2.5vw] md:pt-0 md:pr-0 md:pl-[var(--tl-margen)]"
+            style={{ "--tl-margen": `${MARGEN}vw` } as CSSProperties}
+          >
+            {title}
+          </div>
+        )}
         <div
           ref={trackRef}
-          className="relative px-5 py-16 sm:px-8 md:h-[min(34vw,calc(100svh-11rem))] md:w-[var(--tl-pista)] md:shrink-0 md:p-0"
+          className="relative px-5 py-16 sm:px-8 md:h-[min(30vw,calc(100svh-17rem))] md:w-[var(--tl-pista)] md:shrink-0 md:p-0"
           style={{ "--tl-pista": `${anchoPista}vw` } as CSSProperties}
         >
           {/* Línea central (escritorio) con sus dos topes. */}
@@ -251,12 +263,12 @@ export default function Timeline({ items, labelledBy, className, style }: Timeli
                     aria-hidden="true"
                     data-tl-dot
                     className={cn(
-                      "absolute -left-[0.4vw] hidden size-[0.8vw] bg-current md:block",
+                      "absolute -left-[0.4vw] hidden size-[0.8vw] bg-brand-600 md:block",
                       arriba ? "top-0" : "bottom-0",
                     )}
                   />
                   {/* En celular, el punto va sobre la línea vertical. */}
-                  <span aria-hidden="true" className="absolute top-1.5 -left-[calc(1.5rem+5px)] size-2 bg-current md:hidden" />
+                  <span aria-hidden="true" className="absolute top-1.5 -left-[calc(1.5rem+5px)] size-2 bg-brand-600 md:hidden" />
 
                   <div
                     className={cn(
@@ -266,7 +278,7 @@ export default function Timeline({ items, labelledBy, className, style }: Timeli
                   >
                     <div className={cn(!arriba && "md:mt-[0.2vw]")}>
                       <h3 className="overflow-hidden pb-[2px]">
-                        <span data-tl-rise className="block font-mono text-sm text-navy-950/80 md:text-[1.05vw] md:whitespace-nowrap">
+                        <span data-tl-rise className="block font-titular text-[0.9375rem] text-navy-950/60 md:text-[1.05vw] md:whitespace-nowrap">
                           <span className="sr-only">Antes: </span>
                           <span data-tl-strike className="tachado">
                             {item.label}
@@ -274,7 +286,7 @@ export default function Timeline({ items, labelledBy, className, style }: Timeli
                         </span>
                       </h3>
                       <p className="mt-2 overflow-hidden md:mt-[0.5vw]">
-                        <span data-tl-rise className="block font-display text-xl leading-tight font-semibold text-balance md:text-[1.55vw]">
+                        <span data-tl-rise className="block font-titular text-xl leading-tight font-semibold tracking-[-0.02em] text-balance md:text-[1.55vw]">
                           <span className="sr-only">Con BookiPos: </span>
                           {item.content}
                         </span>

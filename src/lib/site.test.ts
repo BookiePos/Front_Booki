@@ -49,10 +49,10 @@ describe("contenido de la portada", () => {
     expect(hito?.content).toMatch(/efectivo/)
   })
 
-  it("la tirilla cuadra: el renglón de caja dice el efectivo que de verdad entró", () => {
+  it("la factura cuadra: la nota de caja dice el efectivo que de verdad entró", () => {
     const total = TIRILLA.lineas.reduce((s, l) => s + l.qty * l.unit, 0)
     const efectivo = new Intl.NumberFormat("es-CO").format(total - TIRILLA.nequi)
-    const caja = EFECTOS_DEL_COBRO.find((e) => e.area === "CAJA")
+    const caja = EFECTOS_DEL_COBRO.find((e) => e.fila === "efectivo")
     expect(TIRILLA.nequi).toBeLessThan(total)
     expect(caja?.texto).toContain(`$${efectivo}`)
   })

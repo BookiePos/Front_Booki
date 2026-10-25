@@ -20,9 +20,9 @@ type Ciclo = "mensual" | "anual";
 /**
  * Planes y precios.
  *
- * Sin tarjetas: cuatro columnas separadas por una raya, como una lista de
- * precios impresa. El plan recomendado no se infla ni cambia de fondo; lleva
- * una franja orquídea arriba y es el único botón lleno.
+ * Sin tarjetas: cuatro columnas separadas por una raya fina. El plan
+ * recomendado no se infla ni cambia de fondo; lleva una franja orquídea
+ * arriba y es el único botón lleno.
  *
  * El anual vale diez mensualidades en los cuatro planes, así que el selector
  * puede decir "2 meses gratis" sin redondear nada. La tabla y los
@@ -37,7 +37,7 @@ export function Pricing() {
         <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
           <h2
             id="precios-heading"
-            className="max-w-3xl font-mono text-[clamp(2.25rem,4.4vw,4rem)] leading-[0.98] font-extrabold tracking-[-0.05em] text-navy-950 uppercase"
+            className="max-w-3xl font-titular text-[clamp(2.25rem,4.4vw,4rem)] leading-[1] font-semibold tracking-[-0.045em] text-balance text-navy-950"
           >
             Precio en pesos. Sin comisión por venta.
           </h2>
@@ -46,7 +46,7 @@ export function Pricing() {
           <div
             role="group"
             aria-label="Ciclo de pago"
-            className="inline-flex shrink-0 self-start border-2 border-navy-950 font-mono text-sm font-bold uppercase lg:self-auto"
+            className="inline-flex shrink-0 self-start rounded-md bg-white/60 p-1 text-sm font-semibold ring-1 ring-navy-950/15 ring-inset lg:self-auto"
           >
             {(["mensual", "anual"] as const).map((c) => (
               <button
@@ -55,7 +55,7 @@ export function Pricing() {
                 aria-pressed={ciclo === c}
                 onClick={() => setCiclo(c)}
                 className={cn(
-                  "inline-flex h-12 items-center px-5 transition-colors duration-150",
+                  "inline-flex h-10 items-center rounded-[5px] px-4 transition-colors duration-150",
                   ciclo === c ? "bg-navy-950 text-white" : "text-navy-950 hover:bg-white",
                 )}
               >
@@ -65,7 +65,7 @@ export function Pricing() {
           </div>
         </div>
 
-        <div className="mt-16 grid border-t-2 border-navy-950 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="mt-16 grid border-t border-navy-950/25 sm:grid-cols-2 xl:grid-cols-4">
           {PLANS.map((plan, i) => {
             const anual = ciclo === "anual" && plan.priceAnnual != null;
             const precio = anual ? plan.priceAnnual! : (plan.price ?? 0);
@@ -81,37 +81,37 @@ export function Pricing() {
                 )}
               >
                 {plan.featured && (
-                  <span aria-hidden="true" className="absolute -top-[2px] right-0 left-0 h-2 bg-brand-500" />
+                  <span aria-hidden="true" className="absolute -top-px right-0 left-0 h-[3px] bg-brand-500" />
                 )}
                 <div className="flex items-baseline justify-between gap-3">
-                  <h3 id={`plan-${plan.id}`} className="font-mono text-2xl font-extrabold tracking-[-0.04em] text-navy-950 uppercase">
+                  <h3 id={`plan-${plan.id}`} className="font-titular text-2xl font-semibold tracking-[-0.03em] text-navy-950">
                     {plan.name}
                   </h3>
                   {plan.featured && (
-                    <span className="font-mono text-xs font-bold text-brand-700 uppercase">Recomendado</span>
+                    <span className="text-[0.8125rem] font-semibold text-brand-700">Recomendado</span>
                   )}
                 </div>
                 <p className="mt-3 text-pretty text-[0.95rem] leading-relaxed text-navy-950/70 sm:min-h-[4.5rem] xl:min-h-24">
                   {plan.pitch}
                 </p>
 
-                <p className="mt-6 flex items-baseline gap-1.5 font-mono text-navy-950">
-                  <span className="text-[clamp(2rem,3.4vw,2.6rem)] leading-none font-extrabold tracking-[-0.05em]">
+                <p className="mt-6 flex items-baseline gap-1.5 text-navy-950">
+                  <span className="tnum font-titular text-[clamp(2rem,3.4vw,2.6rem)] leading-none font-semibold tracking-[-0.04em]">
                     ${formatNumber(precio)}
                   </span>
                   <span className="text-sm text-navy-950/60">{anual ? "/año" : plan.cadence}</span>
                 </p>
-                <p className="mt-2 h-5 font-mono text-sm text-navy-950/60">
+                <p className="tnum mt-2 h-5 text-sm text-navy-950/60">
                   {anual && <>= ${formatNumber(Math.round(precio / 12))} al mes</>}
                 </p>
 
                 <a
                   href={`/registro?plan=${plan.id}`}
                   className={cn(
-                    "mt-6 inline-flex h-13 items-center justify-center px-5 text-center font-mono text-sm font-bold uppercase transition-colors duration-150",
+                    "mt-6 inline-flex h-12 items-center justify-center rounded-md px-5 text-center text-[0.9375rem] font-semibold transition-colors duration-150",
                     plan.featured
                       ? "bg-navy-950 text-white hover:bg-brand-700"
-                      : "border-2 border-navy-950 text-navy-950 hover:bg-white",
+                      : "text-navy-950 ring-1 ring-navy-950/25 ring-inset hover:bg-white/70",
                   )}
                 >
                   {plan.cta}
@@ -142,8 +142,8 @@ export function Pricing() {
           })}
         </div>
 
-        <details className="group mt-12 border-y-2 border-navy-950">
-          <summary className="flex min-h-16 cursor-pointer list-none items-center justify-between gap-4 font-mono text-base font-bold text-navy-950 uppercase [&::-webkit-details-marker]:hidden">
+        <details className="group mt-12 border-y border-navy-950/25">
+          <summary className="flex min-h-16 cursor-pointer list-none items-center justify-between gap-4 font-titular text-lg font-semibold tracking-[-0.01em] text-navy-950 [&::-webkit-details-marker]:hidden">
             Comparar planes y ver complementos
             <Plus
               className="size-5 shrink-0 transition-transform duration-200 group-open:rotate-45"
@@ -158,8 +158,8 @@ export function Pricing() {
               <table className="w-full min-w-[40rem] border-collapse text-left text-sm">
                 <caption className="sr-only">Funciones incluidas en cada plan</caption>
                 <thead>
-                  <tr className="border-b border-navy-950/20 font-mono uppercase">
-                    <th scope="col" className="sticky left-0 bg-mesa py-4 pr-4 font-bold text-navy-950/60">
+                  <tr className="border-b border-navy-950/20">
+                    <th scope="col" className="sticky left-0 bg-mesa py-4 pr-4 font-semibold text-navy-950/60">
                       Función
                     </th>
                     {PLANS.map((plan) => (
@@ -167,7 +167,7 @@ export function Pricing() {
                         key={plan.id}
                         scope="col"
                         className={cn(
-                          "px-3 py-4 text-center font-bold",
+                          "px-3 py-4 text-center font-semibold",
                           plan.featured ? "text-brand-700" : "text-navy-950",
                         )}
                       >
@@ -193,7 +193,7 @@ export function Pricing() {
               </table>
             </div>
 
-            <h3 className="mt-12 font-mono text-lg font-extrabold text-navy-950 uppercase">Complementos</h3>
+            <h3 className="mt-12 font-titular text-xl font-semibold tracking-[-0.02em] text-navy-950">Complementos</h3>
             <ul className="mt-5 grid gap-x-10 gap-y-6 sm:grid-cols-2 lg:grid-cols-3">
               {ADD_ONS.map((addon) => (
                 <li key={addon.name} className="border-t border-navy-950/20 pt-4">
@@ -201,7 +201,7 @@ export function Pricing() {
                     <span className="font-semibold text-navy-950">{addon.name}</span>
                     <span
                       className={cn(
-                        "font-mono font-bold",
+                        "tnum font-semibold",
                         addon.priceLabel ? "text-brand-700" : "text-navy-950",
                       )}
                     >

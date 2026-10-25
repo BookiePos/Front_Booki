@@ -22,7 +22,7 @@ export const APPS = {
 };
 
 export const NAV_LINKS = [
-  { href: "#que-cambia", label: "Qué cambia" },
+  { href: "#como-funciona", label: "Cómo funciona" },
   { href: "#precios", label: "Precios" },
   { href: "#preguntas", label: "Preguntas" },
 ];
@@ -31,13 +31,14 @@ export const NAV_LINKS = [
 export const CTA_REGISTRO = { href: "/registro", label: "Probar 14 días gratis" };
 
 /**
- * La tirilla del hero. El restaurante es de ejemplo, pero el papel está armado
- * como lo imprime el POS (consecutivo FVC-, pago dividido) y cuadra: la suma
- * de líneas da el total y los pagos suman lo mismo. Son los mismos platos y la
- * misma mesa que la pantalla de cobro de la línea del día.
+ * La factura que aparece al entrar por la letra. El restaurante es de
+ * ejemplo, pero el papel está armado como lo imprime el POS (consecutivo FVC-,
+ * pago dividido) y cuadra: la suma de líneas da el total y los pagos suman lo
+ * mismo. Son los mismos platos y la misma mesa que la pantalla de cobro de la
+ * línea de tiempo.
  */
 export const TIRILLA = {
-  negocio: "RESTAURANTE EL FOGÓN",
+  negocio: "Restaurante El Fogón",
   mesa: "Mesa 7",
   consecutivo: "FVC-001284",
   fecha: "25/10/2026 · 1:42 p. m.",
@@ -51,14 +52,15 @@ export const TIRILLA = {
 };
 
 /**
- * Lo que pasa en el sistema en el mismo segundo del cobro. Va impreso al pie
- * de la tirilla: el argumento de venta en tres renglones.
+ * Lo que pasa en el sistema en el mismo segundo del cobro. Cada efecto sale
+ * con una raya del renglón de la factura que lo causa (`fila`): los platos
+ * mueven el inventario, el efectivo la caja y el total la contabilidad.
  */
 export const EFECTOS_DEL_COBRO = [
-  { area: "INVENTARIO", texto: "−2 bandejas, −1 ajiaco" },
-  { area: "CAJA", texto: "+$48.000 al turno" },
-  { area: "ASIENTO", texto: "#4.812 cuadrado" },
-];
+  { fila: "platos", area: "Inventario", texto: "−2 bandejas, −1 ajiaco" },
+  { fila: "efectivo", area: "Caja", texto: "+$48.000 al turno" },
+  { fila: "total", area: "Contabilidad", texto: "Asiento #4.812, cuadrado" },
+] as const;
 
 /** Franja de medios de pago: todos existen hoy en el cobro del POS. */
 export const MEDIOS_DE_PAGO = [

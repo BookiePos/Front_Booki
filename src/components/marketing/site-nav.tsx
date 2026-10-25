@@ -17,10 +17,8 @@ const ALTO_BARRA = "4.5rem";
 /**
  * Barra de navegación fija de la portada.
  *
- * Arriba del todo es transparente: deja ver la tirilla cortada por el borde.
- * Al bajar toma el lila de la mesa con una raya de 2px, la misma de las
- * secciones. Enlaces en la letra del cuerpo: la monoespaciada se queda en los
- * titulares; en la barra, a 14px, se leía como una terminal. Botón recto.
+ * Arriba del todo es transparente, sobre el "BookiPos" gigante. Al bajar toma
+ * el lila de la portada, translúcido, con una raya fina.
  */
 export function SiteNav() {
   const [open, setOpen] = useState(false);
@@ -68,11 +66,11 @@ export function SiteNav() {
       className={cn(
         // No se transiciona `backdrop-filter`: interpolarlo obliga a
         // recomponer el desenfoque en cada frame.
-        "fixed inset-x-0 top-0 z-50 border-b-2 transition-[background-color,border-color] duration-300",
+        "fixed inset-x-0 top-0 z-50 border-b transition-[background-color,border-color] duration-300",
         open
-          ? "border-navy-950 bg-mesa"
+          ? "border-navy-950/15 bg-mesa"
           : scrolled
-            ? "border-navy-950 bg-mesa/90 backdrop-blur-md"
+            ? "border-navy-950/10 bg-mesa/85 backdrop-blur-md"
             : "border-transparent bg-transparent",
       )}
     >
@@ -106,7 +104,7 @@ export function SiteNav() {
           </Link>
           <Link
             href={CTA_REGISTRO.href}
-            className="inline-flex h-11 items-center bg-navy-950 px-5 text-white transition-colors duration-150 hover:bg-brand-700"
+            className="inline-flex h-10 items-center rounded-md bg-navy-950 px-5 text-white transition-colors duration-150 hover:bg-brand-700"
           >
             {CTA_REGISTRO.label}
           </Link>

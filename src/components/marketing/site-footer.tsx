@@ -7,7 +7,7 @@ const COLUMNS = [
   {
     title: "Producto",
     links: [
-      { label: "Qué cambia", href: "/#que-cambia" },
+      { label: "Cómo funciona", href: "/#como-funciona" },
       { label: "Precios", href: "/#precios" },
       { label: "Comparativa", href: "/comparativa" },
       { label: "Para contadores", href: "/contadores" },
@@ -47,7 +47,7 @@ const COLUMNS = [
  */
 export function SiteFooter() {
   return (
-    <footer className="border-t-2 border-navy-950 bg-mesa text-navy-950">
+    <footer className="border-t border-navy-950/15 bg-mesa text-navy-950">
       <div className="mx-auto max-w-7xl px-5 py-14 sm:px-8 sm:py-16">
         <div className="grid gap-10 sm:gap-12 lg:grid-cols-[1.4fr_2fr]">
           <div>
@@ -68,7 +68,7 @@ export function SiteFooter() {
           >
             {COLUMNS.map((column) => (
               <div key={column.title}>
-                <h2 className="font-mono text-xs font-bold tracking-wide text-navy-950/65 uppercase">
+                <h2 className="text-[0.8125rem] font-semibold text-navy-950/65">
                   {column.title}
                 </h2>
                 <ul className="mt-4 space-y-1.5">
@@ -88,7 +88,7 @@ export function SiteFooter() {
           </nav>
         </div>
 
-        <p className="mt-12 border-t border-navy-950/20 pt-8 font-mono text-xs text-navy-950/65 uppercase sm:mt-14">
+        <p className="mt-12 border-t border-navy-950/20 pt-8 text-[0.8125rem] text-navy-950/65 sm:mt-14">
           © {new Date().getFullYear()} BookiPos. Hecho en Colombia.
         </p>
       </div>

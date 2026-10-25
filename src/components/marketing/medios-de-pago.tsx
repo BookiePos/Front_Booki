@@ -13,7 +13,7 @@ export function MediosDePago() {
   return (
     <section
       aria-labelledby="pagos-heading"
-      className="marquesina overflow-hidden border-y-2 border-navy-950 bg-mesa py-5"
+      className="marquesina overflow-hidden border-y border-navy-950/15 bg-mesa py-6"
     >
       <h2 id="pagos-heading" className="sr-only">
         Medios de pago que recibe la caja
@@ -23,14 +23,12 @@ export function MediosDePago() {
           <ul
             key={copia}
             aria-hidden={copia === 1 || undefined}
-            className="flex shrink-0 items-center font-mono text-2xl font-extrabold tracking-[-0.03em] text-navy-950 uppercase sm:text-3xl"
+            className="flex shrink-0 items-center font-titular text-2xl font-semibold tracking-[-0.03em] text-navy-950 sm:text-3xl"
           >
             {MEDIOS_DE_PAGO.map((medio) => (
               <li key={medio} className="flex items-center whitespace-nowrap">
                 {medio}
-                <span aria-hidden="true" className="mx-8 text-brand-500 sm:mx-10">
-                  /
-                </span>
+                <span aria-hidden="true" className="mx-8 size-2 bg-brand-500 sm:mx-10" />
               </li>
             ))}
           </ul>

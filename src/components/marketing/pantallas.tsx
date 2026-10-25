@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
  * Cada una muestra UNA cosa, la que resuelve el dolor de su hito, con dos o
  * tres renglones como mucho: la versión anterior traía cinco filas por
  * pantalla y la línea se leía como una hoja de cálculo. Los rótulos son los de
- * las pantallas reales y las cifras cuadran con la tirilla del hero.
+ * las pantallas reales y las cifras cuadran con la factura de la portada.
  */
 
 const peso = (n: number) => `$${new Intl.NumberFormat("es-CO").format(n)}`;
@@ -28,7 +28,7 @@ function Pantalla({
   return (
     <div
       aria-hidden="true"
-      className="@container overflow-hidden rounded-[3px] bg-white text-navy-950 shadow-[5px_5px_0_var(--color-navy-950)] ring-[1.5px] ring-navy-950"
+      className="@container overflow-hidden rounded-[5px] bg-white text-navy-950 shadow-[0_1px_2px_rgb(26_22_38/0.06),0_16px_36px_-14px_rgb(26_22_38/0.28)] ring-1 ring-navy-950/10"
     >
       <div className="flex items-center justify-between gap-[2cqw] border-b border-navy-950/12 bg-[#f7f5fb] px-[4cqw] py-[2.2cqw] text-[3.8cqw] leading-none font-semibold">
         <span className="truncate">{titulo}</span>
