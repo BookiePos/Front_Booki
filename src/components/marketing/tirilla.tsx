@@ -21,7 +21,11 @@ const peso = (n: number) => `$${formatNumber(n)}`;
  */
 export function Tirilla({ className }: { className?: string }) {
   return (
-    <figure className={cn("relative", className)}>
+    // `overflow-hidden` es la ranura: el papel baja desde el borde de su propia
+    // caja. Sin él, en celular y tableta (tirilla debajo del lema) el papel
+    // arrancaba encima del titular y lo tapaba mientras se imprimía. El
+    // `pr-2.5` deja ver la sombra de 10px que va a la derecha del papel.
+    <figure className={cn("relative overflow-hidden pr-2.5", className)}>
       <figcaption className="sr-only">
         Tirilla de ejemplo de {TIRILLA.negocio}, {TIRILLA.mesa}: total {peso(TOTAL)},
         pagado {peso(TIRILLA.nequi)} por Nequi y {peso(EFECTIVO)} en efectivo. Al
