@@ -404,8 +404,9 @@
   /* Papel térmico de la tirilla: frío, no crema. */
   --color-paper: #f3f4f7;
 
-  /* El fondo de la portada: la mesa gris sobre la que cae la tirilla blanca. */
-  --color-mesa: #e9e9ec;
+  /* El fondo de la portada: un lila muy pálido, el orquídea del isotipo
+     lavado, sobre el que cae la tirilla blanca. navy-950 encima da 17:1. */
+  --color-mesa: #f2ecfb;
 
   /* Tinta — grises con matiz violeta para que nada se vea "sucio" */
   --color-ink: #1a1626;
@@ -672,13 +673,26 @@ body {
     conic-gradient(from -45deg at 50% 100%, #000 0 90deg, #0000 0) bottom / 14px 7px repeat-x;
 }
 
-/* Portal hacia la línea del día: el pie del componente (el enlace "Ver un día
-   de trabajo") se ajusta a la letra de la portada. */
+/* Portal hacia la línea de tiempo: el pie del componente (el enlace "Ver qué
+   cambia") va en la letra del cuerpo, no en la Arial del original. */
 .portal-dia [data-gp-caption] {
   inset: auto 1.25rem 8%;
   justify-content: center;
-  font: 600 0.9375rem/1.4 var(--font-portada-mono, ui-monospace), monospace;
+  font: 600 1rem/1.4 var(--font-sans);
   color: var(--color-navy-950);
+}
+
+/* Tachado que se dibuja: un fondo de 2px en el medio del renglón cuyo ancho
+   anima GSAP de 0% a 100%. Con fondo y no con `text-decoration` porque así se
+   puede animar y, con `box-decoration-break`, tacha bien aunque el texto
+   ocupe dos renglones en el celular. */
+.tachado {
+  background-image: linear-gradient(currentColor, currentColor);
+  background-repeat: no-repeat;
+  background-position: 0 56%;
+  background-size: 100% 2px;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
 }
 .portal-dia [data-gp-enter] {
   border-bottom: 2px solid currentColor;

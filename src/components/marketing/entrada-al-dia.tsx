@@ -72,7 +72,7 @@ export function EntradaAlDia() {
       fontWeight={700}
       interactive={false}
       scrollLength={2.2}
-      enterLabel="Ver un día de trabajo"
+      enterLabel="Ver qué cambia"
       className="portal-dia"
       style={{
         "--gp-paper": "var(--color-mesa)",
@@ -82,10 +82,14 @@ export function EntradaAlDia() {
       }}
       background={<div className="absolute inset-0 bg-brand-500" />}
     >
-      {/* Espacios duros en la hora: "7:00 a. m." no se parte en dos renglones. */}
-      <p className="max-w-[14ch] font-mono text-[clamp(2.4rem,6vw,5.5rem)] leading-[0.98] font-extrabold tracking-[-0.055em] uppercase">
-        Son las 7:00{" "}a.{" "}m. y abre El Fogón.
-      </p>
+      {/* El título de la línea de tiempo vive aquí, en el orquídea que deja
+          el portal: es lo primero que se lee al salir de la letra. */}
+      <h2
+        id="que-cambia"
+        className="max-w-[15ch] font-mono text-[clamp(2.4rem,6vw,5.5rem)] leading-[0.98] font-extrabold tracking-[-0.055em] uppercase"
+      >
+        Lo que duele con otros sistemas.
+      </h2>
     </GlyphPortal>
   );
 }

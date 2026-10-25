@@ -18,8 +18,9 @@ const ALTO_BARRA = "4.5rem";
  * Barra de navegación fija de la portada.
  *
  * Arriba del todo es transparente: deja ver la tirilla cortada por el borde.
- * Al bajar toma el gris de la mesa con una raya de 2px, la misma de las
- * secciones. Enlaces en la monoespaciada de la portada, botón recto.
+ * Al bajar toma el lila de la mesa con una raya de 2px, la misma de las
+ * secciones. Enlaces en la letra del cuerpo: la monoespaciada se queda en los
+ * titulares; en la barra, a 14px, se leía como una terminal. Botón recto.
  */
 export function SiteNav() {
   const [open, setOpen] = useState(false);
@@ -88,7 +89,7 @@ export function SiteNav() {
             <li key={link.href}>
               <a
                 href={link.href}
-                className="inline-flex h-11 items-center px-3 font-mono text-sm font-medium text-navy-950 underline-offset-4 transition-colors hover:text-brand-700 hover:underline"
+                className="inline-flex h-11 items-center px-3 text-[0.95rem] font-medium text-navy-950 underline-offset-4 transition-colors hover:text-brand-700 hover:underline"
               >
                 {link.label}
               </a>
@@ -96,7 +97,7 @@ export function SiteNav() {
           ))}
         </ul>
 
-        <div className="ml-auto hidden items-center gap-2 font-mono text-sm font-bold uppercase lg:flex">
+        <div className="ml-auto hidden items-center gap-2 text-[0.95rem] font-semibold lg:flex">
           <Link
             href="/login"
             className="inline-flex h-11 items-center px-4 text-navy-950 underline-offset-4 transition-colors hover:text-brand-700 hover:underline"
@@ -164,14 +165,14 @@ export function SiteNav() {
                   <a
                     href={link.href}
                     onClick={() => setOpen(false)}
-                    className="flex h-14 items-center border-b border-navy-950/20 font-mono text-xl font-extrabold tracking-[-0.03em] text-navy-950 uppercase"
+                    className="flex h-14 items-center border-b border-navy-950/20 font-display text-xl font-semibold text-navy-950"
                   >
                     {link.label}
                   </a>
                 </li>
               ))}
             </ul>
-            <div className="mt-6 flex flex-col font-mono text-sm font-bold uppercase">
+            <div className="mt-6 flex flex-col font-semibold">
               <Link
                 href={CTA_REGISTRO.href}
                 onClick={() => setOpen(false)}

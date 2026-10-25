@@ -7,7 +7,7 @@ const COLUMNS = [
   {
     title: "Producto",
     links: [
-      { label: "Cómo funciona", href: "/#un-dia" },
+      { label: "Qué cambia", href: "/#que-cambia" },
       { label: "Precios", href: "/#precios" },
       { label: "Comparativa", href: "/comparativa" },
       { label: "Para contadores", href: "/contadores" },
