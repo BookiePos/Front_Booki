@@ -390,8 +390,22 @@
   /* Marino del logo oscuro — el lienzo de la versión dark. No es un negro
      violeta: es azul, y ese contraste frío/cálido con la orquídea es lo
      que hace que la marca se lea igual de bien en los dos modos. */
+  --color-navy-700: #1b2948;
+  --color-navy-800: #111d37;
   --color-navy-900: #0a1428;
   --color-navy-950: #00081c;
+
+  /* Texto sobre el marino de la portada. `mist` es el gris de lectura (9.2:1
+     sobre navy-950, 8.5:1 sobre navy-900); `mist-soft` el de apoyo más claro.
+     Tienen matiz azul a propósito: un gris neutro sobre marino se ve sucio. */
+  --color-mist: #a7b0c8;
+  --color-mist-soft: #cdd3e3;
+
+  /* Papel térmico de la tirilla: frío, no crema. */
+  --color-paper: #f3f4f7;
+
+  /* El fondo de la portada: la mesa gris sobre la que cae la tirilla blanca. */
+  --color-mesa: #e9e9ec;
 
   /* Tinta — grises con matiz violeta para que nada se vea "sucio" */
   --color-ink: #1a1626;
@@ -577,62 +591,97 @@ body {
   translate: -50% 0;
 }
 
-/* ---------- Utilidades de superficie ---------- */
+/* ---------- Portada ----------
+   Papel gris claro, tinta marina y un solo toque orquídea (el del doblez del
+   isotipo). Esquinas rectas en todo lo que no es la app: la portada es una
+   tirilla impresa, no un tablero de tarjetas. */
 
-.grain {
-  position: relative;
-}
-.grain::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  opacity: 0.4;
-  mix-blend-mode: multiply;
-  background-image: radial-gradient(
-    circle at 1px 1px,
-    var(--color-brand-200) 1px,
-    transparent 0
-  );
-  background-size: 22px 22px;
-  mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, #000 20%, transparent 75%);
-}
-
-/* Aurora del hero: manchas violetas suaves. Sin animación de layout —
-   solo transform/opacity, para no provocar reflow (CLS). */
-.aurora {
-  position: absolute;
-  inset: -30% -10% auto -10%;
-  height: 780px;
-  pointer-events: none;
-  filter: blur(72px);
-  opacity: 0.55;
-  background:
-    radial-gradient(38% 46% at 22% 32%, var(--color-brand-400) 0%, transparent 65%),
-    radial-gradient(34% 40% at 74% 22%, var(--color-brand-300) 0%, transparent 62%),
-    radial-gradient(30% 38% at 52% 62%, var(--color-brand-200) 0%, transparent 60%);
-  animation: aurora-drift 22s var(--ease-out-soft) infinite alternate;
-}
-
-@keyframes aurora-drift {
-  from {
-    transform: translate3d(-2%, 0, 0) scale(1);
-  }
-  to {
-    transform: translate3d(3%, -3%, 0) scale(1.08);
-  }
-}
-
-/* Entrada del panel al cambiar de pestaña en Beneficios. */
-@keyframes fade-up {
+/* Entrada del hero en cascada: cada pieza lleva su `--i`. */
+@keyframes hero-rise {
   from {
     opacity: 0;
-    transform: translate3d(0, 12px, 0);
+    transform: translate3d(0, 20px, 0);
   }
   to {
     opacity: 1;
     transform: none;
   }
+}
+.hero-rise {
+  animation: hero-rise 700ms var(--ease-out-soft) both;
+  animation-delay: calc(var(--i, 0) * 90ms + 80ms);
+}
+
+/* La tirilla baja desde el borde de arriba a saltos, como la empuja el
+   rodillo de una térmica: `steps()` y no una curva suave, que se leería como
+   un cajón deslizándose. */
+@keyframes tirilla-sale {
+  from {
+    transform: translate3d(0, -100%, 0);
+  }
+  to {
+    transform: none;
+  }
+}
+.tirilla-sale {
+  animation: tirilla-sale 1400ms steps(14, end) 350ms both;
+}
+
+/* El sello cae sobre el papel cuando la tirilla ya salió: llega grande y
+   transparente y se asienta de golpe, como un sello de tinta de verdad. */
+@keyframes sello {
+  0% {
+    opacity: 0;
+    transform: rotate(-11deg) scale(1.7);
+  }
+  70% {
+    opacity: 0.95;
+    transform: rotate(-11deg) scale(0.96);
+  }
+  100% {
+    opacity: 0.92;
+    transform: rotate(-11deg) scale(1);
+  }
+}
+.sello {
+  transform: rotate(-11deg);
+  animation: sello 420ms cubic-bezier(0.3, 0, 0.2, 1) 1850ms both;
+}
+
+/* Franja de medios de pago. La pista lleva la lista dos veces y se mueve la
+   mitad de su ancho: al terminar, la segunda copia está donde empezó la
+   primera y el salto no se ve. Se pausa al pasar el ratón. */
+@keyframes marquesina {
+  to {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+.marquesina-pista {
+  animation: marquesina 42s linear infinite;
+}
+.marquesina:hover .marquesina-pista {
+  animation-play-state: paused;
+}
+
+/* Borde rasgado de la tirilla: dientes de 14px hacia abajo. Un triángulo por
+   baldosa con un cónico desde el centro inferior; el resto del papel queda
+   entero con un rectángulo opaco encima. */
+.borde-rasgado {
+  mask:
+    linear-gradient(#000 0 0) top / 100% calc(100% - 7px) no-repeat,
+    conic-gradient(from -45deg at 50% 100%, #000 0 90deg, #0000 0) bottom / 14px 7px repeat-x;
+}
+
+/* Portal hacia la línea del día: el pie del componente (el enlace "Ver un día
+   de trabajo") se ajusta a la letra de la portada. */
+.portal-dia [data-gp-caption] {
+  inset: auto 1.25rem 8%;
+  justify-content: center;
+  font: 600 0.9375rem/1.4 var(--font-portada-mono, ui-monospace), monospace;
+  color: var(--color-navy-950);
+}
+.portal-dia [data-gp-enter] {
+  border-bottom: 2px solid currentColor;
 }
 
 /* ---------- Entradas al hacer scroll ---------- */
@@ -738,8 +787,17 @@ body {
     filter: none;
     will-change: auto;
   }
-  .aurora {
+  /* Las entradas del hero llevan retardo con `fill-mode: both`: aunque la
+     duración quede en 0.01ms, el contenido estaría invisible durante el
+     retardo. Sin animación, se ve desde el primer pintado. */
+  .hero-rise,
+  .tirilla-sale,
+  .marquesina-pista {
     animation: none;
+  }
+  .sello {
+    animation: none;
+    opacity: 0.92;
   }
 }
 

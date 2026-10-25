@@ -4,8 +4,8 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { Menu, X } from "lucide-react";
 import { BookiPosLogo } from "@/components/marketing/bookipos-logo";
-import { useOverDarkSection, useScrolledPast } from "@/hooks/use-scroll-progress";
-import { NAV_LINKS } from "@/lib/site";
+import { useScrolledPast } from "@/hooks/use-scroll-progress";
+import { CTA_REGISTRO, NAV_LINKS } from "@/lib/site";
 import { cn } from "@/lib/utils";
 
 /**
@@ -15,20 +15,15 @@ import { cn } from "@/lib/utils";
 const ALTO_BARRA = "4.5rem";
 
 /**
- * Barra de navegación fija.
+ * Barra de navegación fija de la portada.
  *
- * Contrastes medidos (WCAG 2.1):
- *   · sobre sección oscura: brand-100 sobre brand-950 ....... 13.19:1 ✓ AAA
- *   · sobre papel: ink-soft sobre blanco .................... 13.28:1 ✓ AAA
- *   · CTA claro: brand-900 sobre blanco ..................... 13.38:1 ✓ AAA
- *   · CTA morado: blanco sobre brand-600→brand-800 ... 5.92–10.50:1 ✓ AA
- *   · menú móvil "Iniciar sesión": brand-700 sobre brand-50 ... 7.9:1 ✓ AAA
+ * Arriba del todo es transparente: deja ver la tirilla cortada por el borde.
+ * Al bajar toma el gris de la mesa con una raya de 2px, la misma de las
+ * secciones. Enlaces en la monoespaciada de la portada, botón recto.
  */
 export function SiteNav() {
   const [open, setOpen] = useState(false);
   const scrolled = useScrolledPast(20);
-  // La cortina de marca es violeta 950: sobre ella el nav va en claro.
-  const onDark = useOverDarkSection() && !open;
   const toggleRef = useRef<HTMLButtonElement>(null);
 
   // Escape cierra el menú y devuelve el foco al botón que lo abrió: el panel
@@ -72,38 +67,28 @@ export function SiteNav() {
       className={cn(
         // No se transiciona `backdrop-filter`: interpolarlo obliga a
         // recomponer el desenfoque en cada frame.
-        "fixed inset-x-0 top-0 z-50 transition-[background-color,box-shadow,border-color] duration-300",
+        "fixed inset-x-0 top-0 z-50 border-b-2 transition-[background-color,border-color] duration-300",
         open
-          ? // Con el panel abierto la barra tiene que ser opaca sí o sí: si no,
-            // arriba del todo se veía el hero por detrás del logo mientras el
-            // panel de debajo era blanco.
-            "border-b border-hairline bg-white shadow-[0_1px_24px_-12px_rgba(74,7,115,0.35)]"
-          : onDark
-            ? "border-b border-transparent bg-transparent"
-            : scrolled
-              ? "border-b border-hairline bg-white/85 shadow-[0_1px_24px_-12px_rgba(74,7,115,0.35)] backdrop-blur-xl"
-              : "border-b border-transparent bg-transparent",
+          ? "border-navy-950 bg-mesa"
+          : scrolled
+            ? "border-navy-950 bg-mesa/90 backdrop-blur-md"
+            : "border-transparent bg-transparent",
       )}
     >
       <nav
         aria-label="Principal"
-        className="mx-auto flex h-18 max-w-7xl items-center justify-between gap-4 px-5 sm:gap-6 sm:px-8"
+        className="mx-auto flex h-18 max-w-7xl items-center gap-4 px-5 sm:gap-6 sm:px-8"
       >
-        <Link href="/" className="shrink-0 py-2" aria-label="BookiPos — inicio">
-          <BookiPosLogo tone={onDark ? "light" : "dark"} />
+        <Link href="/" className="shrink-0 py-2" aria-label="BookiPos, inicio">
+          <BookiPosLogo />
         </Link>
 
-        <ul className="hidden items-center gap-1 lg:flex">
+        <ul className="ml-6 hidden items-center gap-1 lg:flex">
           {NAV_LINKS.map((link) => (
             <li key={link.href}>
               <a
                 href={link.href}
-                className={cn(
-                  "inline-flex h-11 items-center rounded-full px-4 text-[0.95rem] font-medium transition-colors duration-300",
-                  onDark
-                    ? "text-brand-100 hover:bg-white/10 hover:text-white"
-                    : "text-ink-soft hover:bg-brand-50 hover:text-brand-700",
-                )}
+                className="inline-flex h-11 items-center px-3 font-mono text-sm font-medium text-navy-950 underline-offset-4 transition-colors hover:text-brand-700 hover:underline"
               >
                 {link.label}
               </a>
@@ -111,33 +96,19 @@ export function SiteNav() {
           ))}
         </ul>
 
-        <div className="hidden items-center gap-2 lg:flex">
+        <div className="ml-auto hidden items-center gap-2 font-mono text-sm font-bold uppercase lg:flex">
           <Link
             href="/login"
-            className={cn(
-              "inline-flex h-11 items-center rounded-full px-5 text-[0.95rem] font-semibold transition-colors duration-300",
-              onDark
-                ? "text-brand-100 hover:bg-white/10 hover:text-white"
-                : "text-ink-soft hover:bg-brand-50 hover:text-brand-700",
-            )}
+            className="inline-flex h-11 items-center px-4 text-navy-950 underline-offset-4 transition-colors hover:text-brand-700 hover:underline"
           >
             Iniciar sesión
           </Link>
-          {/* Recuadro morado del CTA: degradado entre pasos vecinos (600→800),
-              anillo interior de 1px más claro que el relleno y sombra teñida
-              de brand-900. La sombra anterior era el violeta viejo #6d28d9,
-              ajeno a la paleta muestreada del logo. */}
-          <a
-            href="#precios"
-            className={cn(
-              "inline-flex h-11 items-center rounded-full px-5 text-[0.95rem] font-semibold transition-[background-color,background-image,transform] duration-300 active:scale-[0.97]",
-              onDark
-                ? "bg-white text-brand-900 shadow-[0_8px_24px_-10px_rgba(0,0,0,0.55)] hover:bg-brand-100"
-                : "bg-gradient-to-br from-brand-600 via-brand-700 to-brand-800 text-white shadow-[0_8px_22px_-8px_rgba(74,7,115,0.75)] ring-1 ring-inset ring-white/20 hover:from-brand-700 hover:via-brand-800 hover:to-brand-900",
-            )}
+          <Link
+            href={CTA_REGISTRO.href}
+            className="inline-flex h-11 items-center bg-navy-950 px-5 text-white transition-colors duration-150 hover:bg-brand-700"
           >
-            Probar gratis
-          </a>
+            {CTA_REGISTRO.label}
+          </Link>
         </div>
 
         <button
@@ -146,10 +117,7 @@ export function SiteNav() {
           onClick={() => setOpen((v) => !v)}
           aria-expanded={open}
           aria-controls="menu-movil"
-          className={cn(
-            "inline-flex size-11 shrink-0 items-center justify-center rounded-full transition-colors lg:hidden",
-            onDark ? "text-white hover:bg-white/10" : "text-ink hover:bg-brand-50",
-          )}
+          className="ml-auto inline-flex size-11 shrink-0 items-center justify-center text-navy-950 lg:hidden"
         >
           <span className="sr-only">{open ? "Cerrar menú" : "Abrir menú"}</span>
           {open ? (
@@ -172,19 +140,19 @@ export function SiteNav() {
               setOpen(false);
               toggleRef.current?.focus();
             }}
-            className="fixed inset-x-0 bottom-0 bg-navy-950/45 lg:hidden"
+            className="fixed inset-x-0 bottom-0 bg-navy-950/40 lg:hidden"
             style={{ top: ALTO_BARRA }}
           >
             <span className="sr-only">Cerrar menú</span>
           </button>
 
           {/* El panel scrollea por dentro: en un móvil apaisado (≈360×400) los
-              cinco enlaces más los dos botones no caben, y como el <body> está
+              enlaces más los dos botones no caben, y como el <body> está
               bloqueado quedaban inalcanzables. `svh` y no `vh` para que la
               barra del navegador móvil no recorte el último botón. */}
           <div
             id="menu-movil"
-            className="relative overflow-y-auto overscroll-contain border-t border-hairline bg-gradient-to-b from-white to-brand-50 px-5 pt-4 lg:hidden"
+            className="relative overflow-y-auto overscroll-contain bg-mesa px-5 pt-2 lg:hidden"
             style={{
               maxHeight: `calc(100svh - ${ALTO_BARRA})`,
               paddingBottom: "max(2rem, env(safe-area-inset-bottom))",
@@ -196,32 +164,28 @@ export function SiteNav() {
                   <a
                     href={link.href}
                     onClick={() => setOpen(false)}
-                    className="flex h-14 items-center border-b border-brand-100 text-lg font-medium text-ink transition-colors active:text-brand-700"
+                    className="flex h-14 items-center border-b border-navy-950/20 font-mono text-xl font-extrabold tracking-[-0.03em] text-navy-950 uppercase"
                   >
                     {link.label}
                   </a>
                 </li>
               ))}
             </ul>
-            <div className="mt-6 flex flex-col gap-3">
-              {/* El borde es lo ÚNICO que dibuja este botón —su relleno
-                  brand-50 es el mismo color al que llega el degradado del
-                  panel—, así que WCAG 1.4.11 le exige 3:1. brand-300 daba
-                  1.90:1; brand-500 da 3.46:1 sobre brand-50. */}
+            <div className="mt-6 flex flex-col font-mono text-sm font-bold uppercase">
+              <Link
+                href={CTA_REGISTRO.href}
+                onClick={() => setOpen(false)}
+                className="inline-flex h-13 items-center justify-center bg-navy-950 px-6 text-white"
+              >
+                {CTA_REGISTRO.label}
+              </Link>
               <Link
                 href="/login"
                 onClick={() => setOpen(false)}
-                className="inline-flex h-13 items-center justify-center rounded-full border border-brand-500 bg-brand-50 px-6 font-semibold text-brand-700 transition-transform duration-150 active:scale-[0.98]"
+                className="inline-flex h-13 items-center justify-center border-2 border-t-0 border-navy-950 px-6 text-navy-950"
               >
                 Iniciar sesión
               </Link>
-              <a
-                href="#precios"
-                onClick={() => setOpen(false)}
-                className="inline-flex h-13 items-center justify-center rounded-full bg-gradient-to-br from-brand-600 via-brand-700 to-brand-800 px-6 font-semibold text-white shadow-[0_10px_26px_-10px_rgba(74,7,115,0.8)] ring-1 ring-inset ring-white/20 transition-transform duration-150 active:scale-[0.98]"
-              >
-                Probar gratis
-              </a>
             </div>
           </div>
         </>
