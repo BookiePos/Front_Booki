@@ -617,6 +617,13 @@ body {
   animation-delay: calc(var(--i, 0) * 90ms + 80ms);
 }
 
+/* La cifra de un plan al cambiar entre mensual y anual: entra de nuevo, más
+   corta que la del hero, para que se note que cambió. */
+.precio-entra {
+  display: inline-block;
+  animation: hero-rise 380ms var(--ease-out-soft) both;
+}
+
 /* El orquídea llena las letras de "BookiPos" de abajo arriba al cargar. El
    fondo del portal ocupa toda la pantalla, pero solo se ve a través de las
    letras: se sube desde la base de la palabra hasta su tope, que el portal
@@ -662,10 +669,11 @@ body {
   transition-delay: calc(var(--i, 0) * 180ms + 850ms);
 }
 .factura [data-factura-texto],
-.factura dl [data-factura-nota] {
+.factura [data-factura-colgada] {
+  transform-origin: left center;
   transition:
     opacity 450ms var(--ease-out-soft),
-    transform 450ms var(--ease-out-soft);
+    transform 550ms cubic-bezier(0.34, 1.4, 0.64, 1);
   transition-delay: calc(var(--i, 0) * 180ms + 1050ms);
 }
 .portal-dia[data-gp-motion="on"]:not([data-gp-entered="true"]) .factura {
@@ -684,10 +692,11 @@ body {
   & [data-factura-raya] {
     transform: scaleX(0);
   }
+  /* La etiqueta llega con un pequeño rebote, como una notificación. */
   & [data-factura-texto],
-  & dl [data-factura-nota] {
+  & [data-factura-colgada] {
     opacity: 0;
-    transform: translate3d(-8px, 0, 0);
+    transform: translate3d(-10px, 0, 0) scale(0.9);
   }
   /* Al volver a subir se esconde todo a la vez, sin cascada al revés. */
   & * {
@@ -719,11 +728,13 @@ body {
 /* Tachado que se dibuja: un fondo de 2px en el medio del renglón cuyo ancho
    anima GSAP de 0% a 100%. Con fondo y no con `text-decoration` porque así se
    puede animar y, con `box-decoration-break`, tacha bien aunque el texto
-   ocupe dos renglones en el celular. */
+   ocupe dos renglones en el celular.
+   La raya va en orquídea y no en el color del texto: del mismo color se
+   comía las letras y el dolor no se leía, y la idea es que se lea. */
 .tachado {
-  background-image: linear-gradient(currentColor, currentColor);
+  background-image: linear-gradient(var(--color-brand-600), var(--color-brand-600));
   background-repeat: no-repeat;
-  background-position: 0 56%;
+  background-position: 0 58%;
   background-size: 100% 2px;
   -webkit-box-decoration-break: clone;
   box-decoration-break: clone;
@@ -836,6 +847,7 @@ body {
      duración quede en 0.01ms, el contenido estaría invisible durante el
      retardo. Sin animación, se ve desde el primer pintado. */
   .hero-rise,
+  .precio-entra,
   .portal-llena,
   .marquesina-pista {
     animation: none;

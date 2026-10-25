@@ -1,4 +1,5 @@
 import type { CSSProperties, ReactNode } from "react";
+import { BookCheck, PackageMinus, Wallet, type LucideIcon } from "lucide-react";
 import { EFECTOS_DEL_COBRO, TIRILLA } from "@/lib/site";
 import { cn, formatNumber } from "@/lib/utils";
 
@@ -34,7 +35,7 @@ export function Factura() {
       {/* Desde md la figura reserva a la derecha del papel (22rem) el sitio
           de las notas, que van en absoluto: sin esto se salían del contenedor
           y abrían scroll horizontal. */}
-      <figure className="w-full max-w-[22rem] md:w-[39.5rem] md:max-w-none">
+      <figure className="w-full max-w-[22rem] md:w-[42rem] md:max-w-none">
         <figcaption className="sr-only">
           Factura de ejemplo de {TIRILLA.negocio}, {TIRILLA.mesa}: total {peso(TOTAL)}, pagado{" "}
           {peso(TIRILLA.nequi)} por Nequi y {peso(EFECTIVO)} en efectivo. Al cobrar, el sistema
@@ -73,7 +74,9 @@ export function Factura() {
               {peso(TOTAL)}
             </span>
           </Renglon>
-          <Renglon i={5} className="mt-2 text-navy-950/60">
+          {/* mt-4 y no mt-2: separa las etiquetas de contabilidad y caja,
+              que cuelgan del total y del efectivo. */}
+          <Renglon i={5} className="mt-4 text-navy-950/60">
             <span>Nequi</span>
             <span className="tnum">{peso(TIRILLA.nequi)}</span>
           </Renglon>
@@ -83,19 +86,16 @@ export function Factura() {
           </Renglon>
         </div>
 
-        {/* En celular no hay sitio a la derecha del papel: las notas van debajo,
-            cada una con su punto. */}
-        <dl aria-hidden="true" className="mt-8 space-y-4 md:hidden">
+        {/* En celular no hay sitio a la derecha del papel: las etiquetas van
+            debajo, colgadas del papel por una raya vertical. */}
+        <div aria-hidden="true" className="ml-6 border-l-2 border-navy-950 pt-4 md:hidden">
           {EFECTOS_DEL_COBRO.map((e, i) => (
-            <div key={e.fila} data-factura-nota style={{ "--i": i } as CSSProperties} className="flex gap-3">
-              <span className="mt-2 size-1.5 shrink-0 bg-navy-950" />
-              <div>
-                <dt className="text-[0.8125rem] font-medium text-navy-950/65">{e.area}</dt>
-                <dd className="font-titular text-lg leading-snug font-medium tracking-[-0.01em]">{e.texto}</dd>
-              </div>
+            <div key={e.fila} data-factura-colgada style={{ "--i": i } as CSSProperties} className="flex items-center pb-3 last:pb-0">
+              <span className="h-0.5 w-5 shrink-0 bg-navy-950" />
+              <Etiqueta efecto={e} />
             </div>
           ))}
-        </dl>
+        </div>
       </figure>
     </div>
   );
@@ -130,18 +130,47 @@ function Renglon({
           style={{ "--i": orden } as CSSProperties}
           className="absolute top-1/2 left-[calc(100%+0.75rem)] hidden -translate-y-1/2 items-center md:flex"
         >
-          <span data-factura-raya className="relative h-px w-16 origin-left bg-navy-950">
-            <span className="absolute top-1/2 -left-[3px] size-1.5 -translate-y-1/2 bg-navy-950" />
+          <span data-factura-raya className="relative h-0.5 w-16 origin-left bg-navy-950">
+            <span className="absolute top-1/2 -left-1 size-2 -translate-y-1/2 rounded-full bg-navy-950" />
           </span>
-          <span data-factura-texto className="ml-4 block w-max">
-            <span className="block text-[0.8125rem] leading-tight font-medium text-navy-950/65">{efecto.area}</span>
-            <span className="block font-titular text-lg leading-snug font-medium tracking-[-0.01em] text-navy-950">
-              {efecto.texto}
-            </span>
+          <span data-factura-texto className="block">
+            <Etiqueta efecto={efecto} />
           </span>
         </span>
       )}
     </div>
+  );
+}
+
+/* Cada efecto con su ícono y su cifra en negrita, en una etiqueta blanca
+   sobre el orquídea: en texto suelto el ojo se la saltaba. El color dice el
+   sentido: lo que sale del inventario en rojo, lo que entra a caja en verde,
+   el asiento en el orquídea de la marca. */
+const ICONOS: Record<Fila, LucideIcon> = {
+  platos: PackageMinus,
+  efectivo: Wallet,
+  total: BookCheck,
+};
+const TONOS: Record<Fila, string> = {
+  platos: "bg-red-50 text-red-700",
+  efectivo: "bg-emerald-50 text-positive",
+  total: "bg-brand-100 text-brand-700",
+};
+
+function Etiqueta({ efecto }: { efecto: (typeof EFECTOS_DEL_COBRO)[number] }) {
+  const Icono = ICONOS[efecto.fila];
+  return (
+    <span className="flex w-max items-center gap-3 rounded-lg bg-white py-1.5 pr-4 pl-1.5 shadow-[0_1px_2px_rgb(26_22_38/0.08),0_10px_24px_-10px_rgb(26_22_38/0.4)]">
+      <span className={cn("flex size-9 shrink-0 items-center justify-center rounded-md", TONOS[efecto.fila])}>
+        <Icono className="size-[1.15rem]" strokeWidth={2.2} />
+      </span>
+      <span className="leading-tight">
+        <span className="block text-xs font-medium text-navy-950/55">{efecto.area}</span>
+        <span className="block font-titular text-[1.0625rem] font-semibold tracking-[-0.01em] text-navy-950">
+          {efecto.texto}
+        </span>
+      </span>
+    </span>
   );
 }
 

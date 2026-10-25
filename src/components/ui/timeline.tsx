@@ -278,7 +278,7 @@ export default function Timeline({ items, title, labelledBy, className, style }:
                   >
                     <div className={cn(!arriba && "md:mt-[0.2vw]")}>
                       <h3 className="overflow-hidden pb-[2px]">
-                        <span data-tl-rise className="block font-titular text-[0.9375rem] text-navy-950/60 md:text-[1.05vw] md:whitespace-nowrap">
+                        <span data-tl-rise className="block font-titular text-base font-medium text-navy-950/75 md:text-[1.15vw] md:whitespace-nowrap">
                           <span className="sr-only">Antes: </span>
                           <span data-tl-strike className="tachado">
                             {item.label}

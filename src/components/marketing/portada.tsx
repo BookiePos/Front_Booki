@@ -72,10 +72,10 @@ export function Portada({ children }: { children: ReactNode }) {
         <div className="mx-auto flex h-full max-w-7xl flex-col justify-end px-5 pb-[max(2rem,7svh)] sm:px-8">
           <div className="flex flex-col gap-7 lg:flex-row lg:items-end lg:justify-between lg:gap-12">
             <h1
-              className="hero-rise max-w-[24ch] font-titular text-[clamp(1.4rem,2.3vw,2.1rem)] leading-[1.15] font-medium tracking-[-0.025em] text-balance text-navy-950"
+              className="hero-rise max-w-[20ch] font-titular text-[clamp(1.75rem,3.1vw,2.75rem)] leading-[1.08] font-semibold tracking-[-0.035em] text-balance text-navy-950"
               style={{ "--i": 4 } as CSSProperties}
             >
-              El punto de venta que cuadra la caja, el inventario y la contabilidad mientras cobras.
+              El sistema que cuadra todo mientras cobras.
             </h1>
             <div
               className="hero-rise pointer-events-auto flex shrink-0 flex-wrap gap-3 text-[0.9375rem] font-semibold"
