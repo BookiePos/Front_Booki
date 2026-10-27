@@ -8,9 +8,18 @@ type CsvCell = string | number | boolean | null | undefined
 /** Marca de orden de bytes (BOM) para que Excel abra el CSV como UTF-8. */
 const BOM = String.fromCharCode(0xfeff)
 
-/** Escapa un valor para CSV (comillas dobles y separadores). */
+/**
+ * Texto que una hoja de cálculo tomaría como fórmula (= + @, tab, CR, o un
+ * guion que no es un número negativo). Lo escribe cualquiera con permiso de
+ * catálogo o inventario y lo abre quien exporta (ítem 4.11).
+ */
+const PARECE_FORMULA = /^(?:[=+@\t\r]|-(?![\d.]))/
+
+/** Escapa un valor para CSV (comillas dobles, separadores y fórmulas). */
 function escapeCell(value: CsvCell): string {
-  const s = value === null || value === undefined ? "" : String(value)
+  let s = value === null || value === undefined ? "" : String(value)
+  // Solo el texto: un número negativo de verdad sigue siendo un número.
+  if (typeof value === "string" && PARECE_FORMULA.test(s)) s = `'${s}`
   return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
 }
 

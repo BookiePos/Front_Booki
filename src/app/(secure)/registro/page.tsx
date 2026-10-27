@@ -1,20 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { Suspense, useId, useState } from "react";
 import {
   Eye,
   EyeOff,
-  LayoutDashboard,
   LoaderCircle,
+  MailCheck,
   ShoppingBag,
-  ShoppingCart,
   UtensilsCrossed,
 } from "lucide-react";
 import { AuthBrandPanel } from "@/components/auth/brand-panel";
 import { BookiPosLogo } from "@/components/marketing/bookipos-logo";
-import { ZoneLink } from "@/components/marketing/zone-link";
 import {
   ApiError,
   BusinessPlan,
@@ -44,9 +42,8 @@ const PLANS: Record<BusinessPlan, { name: string; blurb: string }> = {
 };
 
 function RegistroForm() {
-  const router = useRouter();
   const params = useSearchParams();
-  const { register, hasPermission, user } = useAuth();
+  const { register } = useAuth();
 
   const planParam = params.get("plan");
   const initialPlan: BusinessPlan =
@@ -116,14 +113,6 @@ function RegistroForm() {
       setPending(false);
     }
   }
-
-  const canPos = hasPermission("pos.sell");
-  const canPanel = [
-    "reports.view",
-    "finance.view",
-    "inventory.view",
-    "users.manage",
-  ].some((permission) => hasPermission(permission));
 
   return (
     <main className="zone-marketing grid min-h-svh bg-surface text-ink lg:grid-cols-[1fr_1.1fr]">
@@ -336,61 +325,32 @@ function RegistroForm() {
             </>
           ) : (
             <div>
-              <h1 className="font-display text-4xl font-semibold text-ink">
-                ¡Listo, {user?.name.split(" ")[0] ?? ""}!
+              <span className="inline-flex size-12 items-center justify-center rounded-2xl bg-brand-50 text-brand-700">
+                <MailCheck className="size-6" aria-hidden />
+              </span>
+              <h1 className="mt-6 font-display text-4xl font-semibold text-ink">
+                Revisa tu correo
               </h1>
+              {/* El mismo mensaje exista o no la cuenta (ítem 4.11): si el
+                  correo ya estaba registrado, lo que llega es un aviso para
+                  iniciar sesión o recuperar la contraseña. */}
               <p className="mt-3 leading-relaxed text-ink-muted">
-                Tu {tipoNegocio === "retail" ? "tienda" : "restaurante"}{" "}
-                <strong>{businessName}</strong> ya está{" "}
-                {tipoNegocio === "retail" ? "creada" : "creado"}. ¿Por dónde
-                quieres empezar?
+                Enviamos un enlace a <strong>{ownerEmail.trim()}</strong> para
+                confirmar tu dirección. Ábrelo para terminar de crear{" "}
+                <strong>{businessName}</strong> y entrar. El enlace vence en 24
+                horas.
               </p>
-
-              <div className="mt-8 space-y-3">
-                {plan === "punto" ? (
-                  <>
-                    {canPos && (
-                      <ZoneLink
-                        href="/pos"
-                        onNavigate={router.push}
-                        icon={<ShoppingCart className="size-6" aria-hidden />}
-                        title="Punto de venta"
-                        body="Vender, cobrar, abrir y cerrar caja."
-                      />
-                    )}
-                    {canPanel && (
-                      <ZoneLink
-                        href="/panel"
-                        onNavigate={router.push}
-                        icon={<LayoutDashboard className="size-6" aria-hidden />}
-                        title="Panel de operación"
-                        body="Inventario, cartera, nómina y reportes."
-                      />
-                    )}
-                  </>
-                ) : (
-                  <>
-                    {canPanel && (
-                      <ZoneLink
-                        href="/panel"
-                        onNavigate={router.push}
-                        icon={<LayoutDashboard className="size-6" aria-hidden />}
-                        title="Panel de operación"
-                        body="Inventario, cartera, nómina y reportes."
-                      />
-                    )}
-                    {canPos && (
-                      <ZoneLink
-                        href="/pos"
-                        onNavigate={router.push}
-                        icon={<ShoppingCart className="size-6" aria-hidden />}
-                        title="Punto de venta"
-                        body="Vender, cobrar, abrir y cerrar caja."
-                      />
-                    )}
-                  </>
-                )}
-              </div>
+              <p className="mt-3 text-sm leading-relaxed text-ink-muted">
+                ¿No llega? Revisa la carpeta de spam o vuelve a intentarlo en un
+                minuto. Si ya tenías cuenta,{" "}
+                <Link
+                  href="/login"
+                  className="font-semibold text-brand-700 underline underline-offset-4 hover:text-brand-800"
+                >
+                  inicia sesión
+                </Link>
+                .
+              </p>
             </div>
           )}
         </div>

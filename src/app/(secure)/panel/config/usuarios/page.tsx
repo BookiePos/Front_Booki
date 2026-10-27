@@ -1168,7 +1168,7 @@ function InviteDialog({ open, onOpenChange, roles, actor, onSuccess }: InviteDia
   }
 
   async function copyLink() {
-    if (!result) return
+    if (!result?.inviteUrl) return
     try {
       await navigator.clipboard.writeText(result.inviteUrl)
       setCopied(true)
@@ -1291,6 +1291,7 @@ function InviteDialog({ open, onOpenChange, roles, actor, onSuccess }: InviteDia
             </p>
           </div>
 
+          {result.inviteUrl && (
           <Field
             id="i-link"
             label="Enlace de invitación"
@@ -1316,6 +1317,7 @@ function InviteDialog({ open, onOpenChange, roles, actor, onSuccess }: InviteDia
               </Button>
             </div>
           </Field>
+          )}
         </div>
       )}
     </FormDialog>
