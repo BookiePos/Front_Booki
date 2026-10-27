@@ -1,8 +1,7 @@
-"use client"
-
 import { PAYMENT_METHOD_LABELS, type Sale } from "@/lib/pos/api-sales"
 import { money, qty, dateTime } from "@/lib/pos/format"
 import { cn } from "@/lib/utils"
+import { LEYENDA_CONTINGENCIA } from "@/lib/offline/cola"
 
 export interface FacturaBusiness {
   name: string
@@ -137,7 +136,7 @@ export function Factura({
       {/* Totales */}
       <div className="mt-4 flex justify-end">
         <div className="w-full max-w-xs space-y-1">
-          {(sale.discountTotal > 0 || sale.taxTotal > 0) && (
+          {(sale.discountTotal > 0 || sale.taxTotal > 0 || sale.contingencia) && (
             <Row label="Subtotal" value={money(sale.subtotal)} muted />
           )}
           {sale.discountTotal > 0 && (
@@ -151,8 +150,12 @@ export function Factura({
               muted
             />
           )}
-          {sale.taxTotal > 0 && (
-            <Row label="Impuestos" value={money(sale.taxTotal)} muted />
+          {sale.contingencia ? (
+            <Row label="Impuestos" value="Incluidos" muted />
+          ) : (
+            sale.taxTotal > 0 && (
+              <Row label="Impuestos" value={money(sale.taxTotal)} muted />
+            )
           )}
           <div className="flex justify-between border-t border-border pt-1 text-base font-semibold">
             <span>TOTAL</span>
@@ -168,6 +171,11 @@ export function Factura({
         </div>
       </div>
 
+      {sale.contingencia && (
+        <p className="mt-6 text-center text-xs text-muted-foreground">
+          {LEYENDA_CONTINGENCIA}
+        </p>
+      )}
       <p className="mt-6 text-center text-xs text-muted-foreground">
         Documento equivalente · No es factura electrónica DIAN · ¡Gracias por su
         compra!

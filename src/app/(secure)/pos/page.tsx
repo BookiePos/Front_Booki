@@ -13,7 +13,6 @@ import {
 import { useAuth } from "@/lib/auth-context"
 import { useSede } from "@/lib/pos/sede-context"
 import {
-  posProducts,
   createSale,
   listOrders,
   pendingOf,
@@ -33,7 +32,6 @@ import {
   type Discount,
 } from "@/lib/pos/api-sales"
 import {
-  getCurrentCaja,
   openCaja,
   type CajaSession,
 } from "@/lib/pos/api-caja"
@@ -58,6 +56,7 @@ import { coincide, useBusquedaPendiente } from "@/lib/pos/busqueda"
 import {
   listProducts as listInvItems,
   type InvProduct,
+  getCobroDigital,
 } from "@/lib/pos/api-inventory"
 
 import { Button } from "@/components/ui/button"
@@ -73,12 +72,20 @@ import { useConfirm } from "@/components/ui/confirm-dialog"
 
 
 import { METODOS_ATAJO, useAtajosPos } from "@/hooks/use-atajos-pos"
+import { useLoadEffect } from "@/hooks/use-load-effect"
+import { useResetOnChange } from "@/hooks/use-reset-on-change"
 import {
   applyMethodShortcut,
   splitSummary,
   toPaymentsPayload,
   type SplitRow,
 } from "@/lib/pos/split-payment"
+import {
+  detalleDigitalError,
+  detalleParaEnviar,
+  detalleVacio,
+  type DigitalDetail,
+} from "@/lib/pos/pago-digital"
 
 
 
@@ -115,7 +122,17 @@ import { CobroCompletado } from "@/components/pos/cobro-completado"
 import { BarraResumenCuenta } from "@/components/pos/barra-resumen-cuenta"
 import { CuentaVenta } from "@/components/pos/cuenta-venta"
 import { CatalogoVenta } from "@/components/pos/catalogo-venta"
-
+import { EstadoOffline } from "@/components/pos/estado-offline"
+import { useModoOffline } from "@/hooks/use-modo-offline"
+import { motivosNoOffline } from "@/lib/offline/cola"
+import {
+  cajaActualConRespaldo,
+  esFallaDeRed,
+  posProductsConRespaldo,
+  ventaOfflineComoSale,
+} from "@/lib/pos/api-offline"
+import { imprimirComprobante } from "@/components/pos/impresora-termica"
+import { ventaConEfectivo } from "@/lib/impresion/servicio"
 
 export default function VentaPage() {
   const { user, hasPermission, isRetail, isRestaurant } = useAuth()
@@ -126,6 +143,29 @@ export default function VentaPage() {
 
   const { sedeId, sede, sedes, loading: sedesLoading } = useSede()
   const confirm = useConfirm()
+
+  // QR de la sede (ítem 6.4): el listado de sedes no trae la imagen; se pide
+  // aparte, una vez por sede, solo si la sede tiene una cargada.
+  const [qrImagen, setQrImagen] = React.useState<{ sedeId: string; src: string } | null>(null)
+  const conImagenQr = !!sede?.cobroDigital?.conImagen
+  React.useEffect(() => {
+    if (!sedeId || !conImagenQr) return
+    let activo = true
+    getCobroDigital(sedeId)
+      .then((c) => {
+        if (activo && c?.qrImagen) setQrImagen({ sedeId, src: c.qrImagen })
+      })
+      .catch(() => {})
+    return () => {
+      activo = false
+    }
+  }, [sedeId, conImagenQr])
+  const cobro = sede?.cobroDigital
+    ? {
+        ...sede.cobroDigital,
+        qrImagen: qrImagen?.sedeId === sedeId ? qrImagen.src : undefined,
+      }
+    : undefined
 
   const [products, setProducts] = React.useState<PosProduct[]>([])
   const [loading, setLoading] = React.useState(true)
@@ -220,6 +260,8 @@ export default function VentaPage() {
    * la cuenta. Apagado, se cobra con `method` como siempre.
    */
   const [splitOn, setSplitOn] = React.useState(false)
+  /** Datáfono / Nequi / Daviplata / QR del medio único (ítem 6.4). */
+  const [digital, setDigital] = React.useState<DigitalDetail>(detalleVacio())
   const [splitRows, setSplitRows] = React.useState<SplitRow[]>([])
   /** Hay fiado en este cobro: el de siempre o una parte del reparto. */
   const usesCredit = splitOn
@@ -398,7 +440,8 @@ export default function VentaPage() {
     setLoading(true)
     setError(null)
     try {
-      setProducts(await posProducts(sedeId))
+      // Con respaldo local: sin red, el catálogo guardado (ítem 6.3).
+      setProducts(await posProductsConRespaldo(sedeId))
     } catch (err) {
       setError(errorMessage(err))
     } finally {
@@ -455,7 +498,7 @@ export default function VentaPage() {
     }
     setCajaLoading(true)
     try {
-      const cur = await getCurrentCaja(sedeId)
+      const cur = await cajaActualConRespaldo(sedeId)
       setCaja(cur.session)
     } catch {
       setCaja(null)
@@ -465,8 +508,7 @@ export default function VentaPage() {
   }, [sedeId])
 
   // Al cambiar de sede se reinicia todo (cuenta, catálogo y cuentas abiertas).
-  React.useEffect(() => {
-    if (!canSell) return
+  const reiniciarPorSede = React.useCallback(() => {
     setCart([])
     setTip(null)
     setActiveOrderId(null)
@@ -480,7 +522,12 @@ export default function VentaPage() {
     void refreshOrders()
     void refreshCaja()
     void fetchDiscounts()
-  }, [canSell, fetchProducts, refreshOrders, refreshCaja, fetchDiscounts])
+  }, [fetchProducts, refreshOrders, refreshCaja, fetchDiscounts])
+  useLoadEffect(reiniciarPorSede, canSell)
+
+  // Modo sin conexión (ítem 6.3): bloque de consecutivos del turno, cola local
+  // y sincronización al volver la red.
+  const modo = useModoOffline(sedeId, caja?._id, canSell)
 
   async function handleOpenCaja() {
     if (!sedeId) return
@@ -511,7 +558,7 @@ export default function VentaPage() {
   }
 
   // Recuerda si ya se configuró la impresión (para ocultar la ayuda inicial).
-  React.useEffect(() => {
+  const leerImpresionConfigurada = React.useCallback(() => {
     if (
       typeof window !== "undefined" &&
       window.localStorage.getItem("pos.printConfigured") === "1"
@@ -519,11 +566,21 @@ export default function VentaPage() {
       setPrintConfigured(true)
     }
   }, [])
+  useLoadEffect(leerImpresionConfigurada)
 
   // Imprime el recibo. La primera vez marca la impresión como configurada,
   // así la ayuda inicial deja de aparecer en las siguientes ventas.
-  function handlePrintReceipt() {
-    window.print()
+  const cajonYaAbierto = React.useRef<string | null>(null)
+  async function handlePrintReceipt() {
+    // Térmica directa si está elegida; si no, el diálogo del navegador.
+    // El cajón se abre solo en la primera impresión de esta venta.
+    if (completedSale) {
+      const primera = cajonYaAbierto.current !== completedSale._id
+      cajonYaAbierto.current = completedSale._id
+      await imprimirComprobante(completedSale, sede, {
+        abrirCajon: primera && ventaConEfectivo(completedSale),
+      })
+    } else window.print()
     if (!printConfigured) {
       setPrintConfigured(true)
       if (typeof window !== "undefined") {
@@ -800,6 +857,25 @@ export default function VentaPage() {
     }
   }
 
+  const filtered = React.useMemo(() => {
+    return products.filter((p) => {
+      const inCat =
+        category === ALL ||
+        (category === UNCAT ? !p.categoryId : p.categoryId === category)
+      if (!inCat) return false
+      // Por palabras y sin tildes: "galleta chocolate" tiene que encontrar
+      // "Galleta de chocolate". Con la frase entera no aparecía nada.
+      return coincide(
+        search,
+        p.name,
+        p.sku,
+        p.barcode,
+        p.categoryName,
+        p.variantGroupName,
+      )
+    })
+  }, [products, search, category])
+
   // Escáner de código de barras / SKU: al presionar Enter agrega la coincidencia.
   function handleScan() {
     const q = search.trim().toLowerCase()
@@ -896,24 +972,6 @@ export default function VentaPage() {
   const tipAmount = tip ?? 0
   const suggestedTip = Math.round(total * 0.1)
 
-  const filtered = React.useMemo(() => {
-    return products.filter((p) => {
-      const inCat =
-        category === ALL ||
-        (category === UNCAT ? !p.categoryId : p.categoryId === category)
-      if (!inCat) return false
-      // Por palabras y sin tildes: "galleta chocolate" tiene que encontrar
-      // "Galleta de chocolate". Con la frase entera no aparecía nada.
-      return coincide(
-        search,
-        p.name,
-        p.sku,
-        p.barcode,
-        p.categoryName,
-        p.variantGroupName,
-      )
-    })
-  }, [products, search, category])
 
   /**
    * La rejilla enseña fotos solo si al menos un producto a la vista tiene una.
@@ -947,6 +1005,7 @@ export default function VentaPage() {
 
   function openCheckout() {
     setMethod("cash")
+    setDigital(detalleVacio())
     setReceived(null)
     setSplitOn(false)
     setSplitRows([])
@@ -975,7 +1034,7 @@ export default function VentaPage() {
   }
 
   // El fiado exige identificar al cliente: abre esa sección automáticamente.
-  React.useEffect(() => {
+  useResetOnChange(() => {
     if (usesCredit) setShowCustomer(true)
   }, [usesCredit])
 
@@ -1136,9 +1195,13 @@ export default function VentaPage() {
     .filter(([, qty]) => qty > 0)
     .map(([productId, qty]) => ({ productId, qty }))
 
+  /** Lo que falta del datáfono o la billetera, si el medio único es digital. */
+  const digitalError = splitOn ? null : detalleDigitalError(method, digital)
+
   /** Por qué no se puede confirmar todavía (o `false` si se puede). */
   const confirmBlocked =
     saving ||
+    digitalError !== null ||
     cart.length === 0 ||
     invoiceDataMissing ||
     (!splitOn &&
@@ -1173,7 +1236,9 @@ export default function VentaPage() {
             ? "Para la factura electrónica hace falta el nombre y la cédula o NIT del cliente."
             : split?.error
               ? split.error
-              : !splitOn &&
+              : digitalError
+                ? digitalError
+                : !splitOn &&
                 method === "cash" &&
                 receivedNum !== undefined &&
                 receivedNum < netTotal
@@ -1199,6 +1264,23 @@ export default function VentaPage() {
    * deciden si el atajo está activo.
    */
   const confirmarRef = React.useRef<() => Promise<void>>(undefined)
+  // Llave de idempotencia del cobro (ítem 6.3): la misma mientras se reintenta
+  // el MISMO cobro (mismas líneas, propina y medio). Si la respuesta se perdió,
+  // el reintento en línea devuelve la venta ya registrada, y si sale sin red la
+  // cola usa esta llave como UUID y el servidor la reconoce al sincronizar.
+  const llaveCobro = React.useRef<{ huella: string; llave: string } | null>(null)
+  function llaveDelCobro(): string {
+    const huella = JSON.stringify([
+      sedeId,
+      cart.map((i) => [i.product._id, i.qty, i.discountId ?? ""]),
+      tipAmount,
+      method,
+    ])
+    if (llaveCobro.current?.huella !== huella) {
+      llaveCobro.current = { huella, llave: crypto.randomUUID() }
+    }
+    return llaveCobro.current.llave
+  }
 
   // Atajos de teclado (6.7), ver `hooks/use-atajos-pos.ts`.
   const lineaActiva = cart.find((i) => i.product._id === lineaSel) ?? cart.at(-1)
@@ -1250,12 +1332,68 @@ export default function VentaPage() {
     return () => document.removeEventListener("keydown", alPulsar)
   }, [checkoutOpen, completedSale, saving, confirmBlocked, ayudaAbierta])
 
+  /**
+   * Cobro sin red (ítem 6.3): solo efectivo de mostrador. La venta se encola
+   * con un consecutivo `FVC-` reservado y su UUID, y se registra en el
+   * servidor (inventario, libro, caja) al volver la conexión.
+   */
+  async function cobrarSinConexion(
+    customerData: typeof customerToSend,
+  ): Promise<Sale> {
+    const no = motivosNoOffline({
+      method,
+      split: splitOn,
+      hasDiscount: cart.some((i) => !!i.discountId),
+      customerId: custId || undefined,
+      priceListId: manualListId || undefined,
+      orderType,
+      emitInvoice,
+      activeOrder: !!activeOrderId,
+    })
+    if (no.length > 0) {
+      throw new Error(
+        `Sin conexión solo se cobra en efectivo en mostrador. Quita: ${no.join(", ")}.`,
+      )
+    }
+    if (receivedNum === undefined || receivedNum < netTotal) {
+      throw new Error("Escribe el efectivo recibido para cobrar sin conexión.")
+    }
+    const venta = await modo.vender({
+      offlineId: llaveDelCobro(),
+      sedeId,
+      cajaSessionId: caja?._id,
+      sale: {
+        sedeId,
+        lines: cart.map((i) => ({ productId: i.product._id, qty: i.qty })),
+        payment: { method: "cash", received: receivedNum },
+        tip: tipAmount || undefined,
+        customer: customerData,
+        seller: sellerPayload,
+        orderType: "mostrador",
+        packaging: packagingRows,
+        packagingExplicit: true,
+      },
+      lineas: cart.map((i) => ({
+        productId: i.product._id,
+        name: i.product.name,
+        sku: i.product.sku,
+        unit: i.product.unit,
+        qty: i.qty,
+        unitPrice: unitPrice(i),
+      })),
+      expectedGrandTotal: netTotal,
+      cashierEmail: user?.email ?? "",
+    })
+    return ventaOfflineComoSale(venta, sede)
+  }
+
   async function handleConfirm() {
     if (!sedeId) return
     setSaving(true)
     setCheckoutError(null)
     const payment = {
       method,
+      ...detalleParaEnviar(method, digital),
       received: method === "cash" ? receivedNum : undefined,
       dueDate: method === "credit" ? creditDue || undefined : undefined,
       debtorType: method === "credit" ? debtorType : undefined,
@@ -1280,7 +1418,11 @@ export default function VentaPage() {
     let quedaAbierta = false
     try {
       let sale: Sale
-      if (activeOrderId) {
+      const sinRed =
+        !modo.online || (typeof navigator !== "undefined" && !navigator.onLine)
+      if (sinRed) {
+        sale = await cobrarSinConexion(customerData)
+      } else if (activeOrderId) {
         // Persiste las líneas actuales antes de liquidar (checkout usa las
         // líneas guardadas de la cuenta, no el carrito).
         await updateOrder(activeOrderId, {
@@ -1321,6 +1463,7 @@ export default function VentaPage() {
         }
       } else {
         sale = await createSale({
+          idempotencyKey: llaveDelCobro(),
           sedeId,
           lines: cart.map((i) => ({
             productId: i.product._id,
@@ -1356,6 +1499,8 @@ export default function VentaPage() {
         })
       }
       setCompletedSale(sale)
+      // Cobro cerrado: el siguiente lleva llave nueva.
+      llaveCobro.current = null
       // El carrito solo se vacía si la cuenta quedó saldada. Con un cobro
       // parcial se conserva la comanda completa para poder seguir cobrando lo
       // que falta sin volver a armarla.
@@ -1423,7 +1568,17 @@ export default function VentaPage() {
         }
       }
     } catch (err) {
-      setCheckoutError(errorMessage(err))
+      if (esFallaDeRed(err)) {
+        // La petición pudo llegar al servidor aunque no volvió la respuesta:
+        // NO se encola sola (sería cobrarla dos veces). Se pasa a modo sin
+        // conexión y el cajero decide tras revisar.
+        modo.marcarSinRed()
+        setCheckoutError(
+          "Se cayó la conexión y no se pudo confirmar la venta. Si no aparece en Ventas al volver la red, cóbrala de nuevo: ahora se guardará sin conexión.",
+        )
+      } else {
+        setCheckoutError(errorMessage(err))
+      }
     } finally {
       setSaving(false)
     }
@@ -1564,6 +1719,8 @@ export default function VentaPage() {
               </p>
             )}
           </div>
+
+          <EstadoOffline modo={modo} sedeId={sedeId} />
 
           {/* Cuentas abiertas: visible pero opcional, con el número al lado
               para que se vea si hay mesas pendientes sin salir de la venta. */}
@@ -1806,6 +1963,9 @@ export default function VentaPage() {
                   change={change}
                   suggestions={suggestions}
                   split={split}
+                  digital={digital}
+                  setDigital={setDigital}
+                  cobro={cobro}
                 />
 
                 {/* ── Columna 3: lo que no se toca en cada venta ──

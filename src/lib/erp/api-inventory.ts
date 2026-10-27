@@ -96,6 +96,13 @@ export interface ResolucionFe {
 }
 
 export interface Sede extends SedeRef {
+  /** QR / llave Bre-B para cobrar por transferencia (ítem 6.4). */
+  cobroDigital?: {
+    qrLlave?: string
+    qrImagen?: string
+    qrTitular?: string
+    conImagen?: boolean
+  }
   businessName?: string
   address?: string
   nit?: string
@@ -257,7 +264,17 @@ export async function createSede(payload: CreateSedePayload): Promise<Sede> {
   return parseResponse<Sede>(res)
 }
 
+/** QR / llave de la sede con la imagen (el listado de sedes no la trae). */
+export async function getCobroDigital(
+  sedeId: string,
+): Promise<{ qrLlave?: string; qrImagen?: string; qrTitular?: string } | null> {
+  const res = await authFetch(`/sedes/${sedeId}/cobro-digital`)
+  return parseResponse(res)
+}
+
 export interface UpdateSedePayload extends SedeFiscalFields {
+  /** Vacío en los tres campos quita el QR. */
+  cobroDigital?: { qrLlave?: string; qrImagen?: string; qrTitular?: string }
   code?: string
   name?: string
   businessName?: string

@@ -22,6 +22,34 @@ es decidir "esto ya es lo que va a usar el negocio".
 
 ## Sin publicar
 
+### Portada nueva
+
+La página de inicio se rehizo entera. La anterior abría con una pantalla morada
+vacía y el logo armándose a medias al hacer scroll, y contaba cosas viejas: decía
+que el sistema no funcionaba sin internet.
+
+- **Abre con "BookiPos" gigante y se entra por la letra.** Al cargar, el
+  orquídea llena las letras de abajo arriba; al bajar, la cámara entra por una
+  letra y adentro está la factura de la mesa 7 de un restaurante de ejemplo.
+  De sus renglones salen rayas finas a lo que ese cobro movió: los platos al
+  inventario, el efectivo a la caja y el total a la contabilidad.
+- **Fondo lila pálido y titulares en una grotesca moderna** (Geist), sin la
+  letra de máquina en mayúsculas de la primera versión. Radios chicos, rayas
+  finas y nada de tarjetas.
+- **El logo, igual al arte original**: el doblez de la esquina, la sombra del
+  papel y la palabra en la letra de la marca. Cambia también en el menú del
+  panel y en las pantallas de entrada, que usan el mismo dibujo.
+- **Lo que duele y cómo se resuelve, en línea de tiempo**: cinco molestias de
+  siempre (digitar facturas, vender en un sistema y llevar cuentas en otro, la
+  caja parada sin internet, el descuadre de fin de mes, la libreta del consumo
+  del equipo) que se tachan al pasar, con la solución de BookiPos en una línea
+  y su pantalla de la app dibujada en código. La pista corre en horizontal con
+  el scroll y llega ya dibujada; en celular va en columna.
+- **Precios con selector mensual o anual** (el anual son diez mensualidades). La
+  tabla comparativa y los complementos quedan plegados debajo.
+- Sin precios de la competencia en los complementos, y sin "Términos" ni
+  "Privacidad" en el pie mientras no exista el texto al que llevar.
+
 ### El costo de una receta, completo y a la vista
 
 Hasta ahora, la ficha de un producto **con receta no mostraba ningún costo**: el

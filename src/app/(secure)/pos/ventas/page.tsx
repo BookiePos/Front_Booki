@@ -1,6 +1,8 @@
 "use client"
 
 import * as React from "react"
+import { useLoadEffect } from "@/hooks/use-load-effect"
+import { useResetOnChange } from "@/hooks/use-reset-on-change"
 import {
   Receipt as ReceiptIcon,
   Banknote,
@@ -27,6 +29,7 @@ import { DevolucionDialog } from "@/components/pos/devolucion-dialog"
 import { money, timeOnly, isToday } from "@/lib/pos/format"
 import { coincide, useBusquedaPendiente } from "@/lib/pos/busqueda"
 import { Receipt } from "@/components/pos/receipt"
+import { imprimirComprobante } from "@/components/pos/impresora-termica"
 import { Factura } from "@/components/pos/factura"
 
 import { Card, CardContent } from "@/components/ui/card"
@@ -97,11 +100,13 @@ export default function VentasPage() {
     [sedeId],
   )
 
-  React.useEffect(() => {
-    if (!canView || !sedeId) return
-    setRows([])
-    void load(1)
+  // Al cambiar de sede se vacía la lista antes de pedir la primera página.
+  useResetOnChange(() => {
+    if (canView && sedeId) setRows([])
   }, [canView, sedeId, load])
+
+  const loadFirstPage = React.useCallback(() => load(1), [load])
+  useLoadEffect(loadFirstPage, canView && Boolean(sedeId))
 
   // Resumen del turno (ventas de hoy, sin contar las anuladas).
   const today = React.useMemo(() => {
@@ -150,7 +155,9 @@ export default function VentasPage() {
     setVoidError(null)
     try {
       const updated = await voidSale(selected._id)
-      setSelected(updated)
+      // Solo refresca el detalle si sigue abierto en esta venta: si la persona lo
+      // cerró mientras se anulaba, la respuesta tardía no debe volver a abrirlo.
+      setSelected((prev) => (prev?._id === updated._id ? updated : prev))
       setRows((prev) => prev.map((s) => (s._id === updated._id ? updated : s)))
     } catch (err) {
       setVoidError(errorMessage(err))
@@ -374,7 +381,14 @@ export default function VentasPage() {
             <Button
               variant="outline"
               className="no-print"
-              onClick={() => window.print()}
+              onClick={() =>
+                detailView === "factura"
+                  ? window.print()
+                  : selected &&
+                    void imprimirComprobante(selected, sede, {
+                      abrirCajon: false, // reimpresión: nunca abre el cajón
+                    })
+              }
             >
               <Printer />
               {detailView === "factura" ? "Imprimir / PDF" : "Imprimir"}

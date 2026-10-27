@@ -55,6 +55,7 @@ import {
 } from "@/components/ui/form-dialog"
 import { Field } from "@/components/ui/field"
 import { Termino } from "@/components/ui/help-tip"
+import { useLoadEffect } from "@/hooks/use-load-effect"
 
 const CONTRACT_LABELS: Record<ContractType, string> = {
   indefinido: "Indefinido",
@@ -141,9 +142,7 @@ export default function EmpleadosPage() {
     }
   }, [canView, canManageUsers])
 
-  React.useEffect(() => {
-    void load()
-  }, [load])
+  useLoadEffect(load)
 
   const refreshPositions = React.useCallback(async () => {
     try {

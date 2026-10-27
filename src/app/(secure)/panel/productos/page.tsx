@@ -90,6 +90,7 @@ import { CatalogoEjemplo } from "@/components/onboarding/catalogo-ejemplo"
 import { useConfirm } from "@/components/ui/confirm-dialog"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
+import { useLoadEffect } from "@/hooks/use-load-effect"
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -1147,8 +1148,7 @@ export default function ProductosPage() {
     }
   }, [])
 
-  React.useEffect(() => {
-    if (!canView) return
+  const loadCatalog = React.useCallback(() => {
     void fetchProducts()
     void listProducts().then(setInvProducts).catch(() => {})
     void listCategories().then(setCategories).catch(() => {})
@@ -1169,7 +1169,9 @@ export default function ProductosPage() {
         setProducedIds(new Set(boms.map((b) => refId(b.productId)))),
       )
       .catch(() => {})
-  }, [canView, fetchProducts])
+  }, [fetchProducts])
+
+  useLoadEffect(loadCatalog, canView)
 
   function openCreate() {
     setSheetMode("create")

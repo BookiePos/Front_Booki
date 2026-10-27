@@ -34,6 +34,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import { CalendarRange } from "lucide-react"
+import { useLoadEffect } from "@/hooks/use-load-effect"
 
 const ALL = "all"
 const inputClass =
@@ -189,9 +190,7 @@ function PLView({
     }
   }, [from, to, sedeId])
 
-  React.useEffect(() => {
-    void load()
-  }, [load])
+  useLoadEffect(load)
 
   return (
     <div className="flex flex-col gap-4">
@@ -347,9 +346,7 @@ function MonthlyView({ sedeId }: { sedeId?: string }) {
     }
   }, [year, sedeId])
 
-  React.useEffect(() => {
-    void load()
-  }, [load])
+  useLoadEffect(load)
 
   const years = [nowYear + 1, nowYear, nowYear - 1, nowYear - 2]
   const compact = new Intl.NumberFormat("es-CO", {
@@ -498,13 +495,14 @@ function VsActualView({ sedeId }: { sedeId?: string }) {
   const [budgets, setBudgets] = React.useState<FinanceBudget[]>([])
   const [budgetId, setBudgetId] = React.useState("")
   const [data, setData] = React.useState<BudgetVsActual | null>(null)
-  const [loadingList, setLoadingList] = React.useState(true)
+  // Se está cargando la lista mientras la mostrada no es la del año pedido.
+  const [listYear, setListYear] = React.useState<number | null>(null)
+  const loadingList = listYear !== year
   const [loading, setLoading] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
   React.useEffect(() => {
     let active = true
-    setLoadingList(true)
     listBudgets(year)
       .then((bs) => {
         if (!active) return
@@ -514,7 +512,7 @@ function VsActualView({ sedeId }: { sedeId?: string }) {
         )
       })
       .catch((err) => active && setError(errorMessage(err)))
-      .finally(() => active && setLoadingList(false))
+      .finally(() => active && setListYear(year))
     return () => {
       active = false
     }
@@ -536,9 +534,7 @@ function VsActualView({ sedeId }: { sedeId?: string }) {
     }
   }, [budgetId, sedeId])
 
-  React.useEffect(() => {
-    void load()
-  }, [load])
+  useLoadEffect(load)
 
   const years = [nowYear + 1, nowYear, nowYear - 1, nowYear - 2]
 

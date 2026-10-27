@@ -2,12 +2,13 @@
  * Contenido de la web madre. Vive aparte de los componentes para que cambiar
  * un precio o una viñeta no obligue a tocar JSX.
  *
- * Regla de estilo: título de 2–4 palabras, `claim` de una línea que quepa sin
- * partirse, y el detalle en viñetas cortas que solo aparece al interactuar.
- * Si una viñeta necesita coma y "además", está mal escrita.
- *
- * Las capacidades listadas se corresponden con módulos que ya existen en el
- * backend (RBAC, nómina, ledger, CxC, caja, inventario multi-sede).
+ * Reglas de la copia (las vigila `site.test.ts`):
+ *   · Solo se afirma lo que el sistema hace hoy. Cada capacidad nombrada aquí
+ *     se puede señalar en una pantalla: si no, no va.
+ *   · Sin raya larga en el texto visible: se lee como copia hecha por IA. Coma,
+ *     punto o dos puntos.
+ *   · Sin precios de terceros (misma regla que `comparativa.ts`).
+ *   · Sin fechas ni plazos de lo que todavía no existe (factura electrónica).
  */
 
 /**
@@ -21,166 +22,92 @@ export const APPS = {
 };
 
 export const NAV_LINKS = [
-  { href: "#beneficios", label: "Beneficios" },
-  { href: "#modulos", label: "Módulos" },
-  { href: "#novedades", label: "Novedades" },
+  { href: "#como-funciona", label: "Cómo funciona" },
   { href: "#precios", label: "Precios" },
   { href: "#preguntas", label: "Preguntas" },
 ];
 
-export interface Benefit {
-  id: string;
-  icon: string;
-  title: string;
-  claim: string;
-  detail: string[];
-}
+/** Un solo rótulo para la intención "registrarse" en toda la página. */
+export const CTA_REGISTRO = { href: "/registro", label: "Probar 14 días gratis" };
 
-export const BENEFITS: Benefit[] = [
+/**
+ * La factura que aparece al entrar por la letra. El restaurante es de
+ * ejemplo, pero el papel está armado como lo imprime el POS (consecutivo FVC-,
+ * pago dividido) y cuadra: la suma de líneas da el total y los pagos suman lo
+ * mismo. Son los mismos platos y la misma mesa que la pantalla de cobro de la
+ * línea de tiempo.
+ */
+export const TIRILLA = {
+  negocio: "Restaurante El Fogón",
+  mesa: "Mesa 7",
+  consecutivo: "FVC-001284",
+  fecha: "25/10/2026 · 1:42 p. m.",
+  lineas: [
+    { qty: 2, name: "Bandeja paisa", unit: 38_000 },
+    { qty: 1, name: "Ajiaco", unit: 28_000 },
+    { qty: 2, name: "Limonada de coco", unit: 12_000 },
+  ],
+  /** Se reparte el total: lo que no va por Nequi entra en efectivo. */
+  nequi: 80_000,
+};
+
+/**
+ * Lo que pasa en el sistema en el mismo segundo del cobro. Cada efecto sale
+ * con una raya del renglón de la factura que lo causa (`fila`): los platos
+ * mueven el inventario, el efectivo la caja y el total la contabilidad.
+ */
+export const EFECTOS_DEL_COBRO = [
+  { fila: "platos", area: "Inventario", texto: "−2 bandejas, −1 ajiaco" },
+  { fila: "efectivo", area: "Caja", texto: "+$48.000 al turno" },
+  { fila: "total", area: "Contabilidad", texto: "Asiento #4.812, cuadrado" },
+] as const;
+
+/** Franja de medios de pago: todos existen hoy en el cobro del POS. */
+export const MEDIOS_DE_PAGO = [
+  "Efectivo",
+  "Nequi",
+  "Daviplata",
+  "QR Bre-B",
+  "Datáfono",
+  "Pago dividido",
+  "Propina",
+  "Fiado con cliente",
+];
+
+/**
+ * La línea de tiempo: lo que duele con otros sistemas (se tacha al pasar) y
+ * cómo lo resuelve BookiPos, en una línea cada cosa. Cada una lleva su
+ * pantalla (ver `components/marketing/pantallas.tsx`) en el mismo orden.
+ *
+ * Los dolores son genéricos a propósito: no se le atribuye nada a una marca
+ * con nombre propio (misma regla que `comparativa.ts`). Cada dolor cabe en un
+ * renglón a escritorio (≤ 36 caracteres) para que el tachado sea una sola raya.
+ */
+export const DOLORES = [
   {
-    id: "contabilidad",
-    icon: "receipt",
-    title: "Contabilidad sin digitar",
-    claim: "Cobras y el asiento contable ya está hecho.",
-    detail: [
-      "Ventas, gastos, compras y pagos postean solos",
-      "Libro mayor inmutable: no se edita, se corrige con contrapartida",
-      "Tu contador entra a revisar, no a transcribir",
-    ],
+    id: "factura",
+    label: "Digitar factura por factura",
+    content: "Le tomas foto y la compra entra sola al inventario.",
   },
   {
-    id: "sedes",
-    icon: "store",
-    title: "Todas tus sedes, un número",
-    claim: "Deja de sumar Excel los lunes.",
-    detail: [
-      "Inventario, caja y reportes por sede",
-      "Traslados entre bodegas con trazabilidad",
-      "Consolidado del grupo en la misma pantalla",
-    ],
+    id: "cobro",
+    label: "Vender aquí, llevar cuentas allá",
+    content: "Cada cobro descuenta el inventario y hace su asiento.",
+  },
+  {
+    id: "sin-internet",
+    label: "Se cae el internet, se para la caja",
+    content: "Sigue cobrando en efectivo y sincroniza al volver.",
+  },
+  {
+    id: "cierre",
+    label: "El descuadre aparece a fin de mes",
+    content: "Cierras contando billetes: si falta, sale con nombre y hora.",
   },
   {
     id: "nomina",
-    icon: "users",
-    title: "La nómina se arma sola",
-    claim: "Lo que consume el equipo baja del pago.",
-    detail: [
-      "Asistencia, novedades, liquidación y PILA",
-      "Consumo de empleado descontado automáticamente",
-      "Se acabó la libreta detrás de la caja",
-    ],
-  },
-  {
-    id: "permisos",
-    icon: "shield",
-    title: "Nadie ve lo que no debe",
-    claim: "Más de 30 permisos, uno por acción.",
-    detail: [
-      "Quién autoriza descuentos y quién anula ventas",
-      "El cajero no ve la nómina ni los márgenes",
-      "Cada acción sensible queda firmada y con hora",
-    ],
-  },
-  {
-    id: "dian",
-    icon: "file",
-    title: "Impuestos y numeración en orden",
-    claim: "Tu resolución y tu numeración, en el panel.",
-    detail: [
-      "IVA e INC según el régimen del negocio",
-      "Numeración y resolución controladas desde el panel",
-      "Rastro completo de cada documento emitido",
-    ],
-  },
-  {
-    id: "caja",
-    icon: "wallet",
-    title: "La caja cuadra o suena",
-    claim: "El descuadre aparece con nombre y hora.",
-    detail: [
-      "Conteo por denominación al cerrar",
-      "Sangrías y movimientos registrados en el momento",
-      "Te enteras al cerrar turno, no al mes siguiente",
-    ],
-  },
-];
-
-export interface ModuleTab {
-  id: string;
-  name: string;
-  tag: string;
-  claim: string;
-  points: string[];
-  href: string;
-  /** Filas del mock de pantalla que acompaña a cada módulo. */
-  screen: { label: string; value: string; accent?: boolean }[];
-}
-
-export const MODULES: ModuleTab[] = [
-  {
-    id: "pos",
-    name: "BookiPos POS",
-    tag: "Para la barra y la mesa",
-    claim: "Cobrar toma dos toques. Nada más.",
-    points: [
-      "Mesas, comandas y división de cuenta",
-      "Propina y pago mixto",
-      "Nequi, Daviplata, tarjeta y efectivo",
-      "Devoluciones con autorización",
-    ],
-    href: APPS.pos,
-    screen: [
-      { label: "Mesa 7 · 4 personas", value: "Abierta" },
-      { label: "Bandeja paisa ×2", value: "$76.000" },
-      { label: "Limonada de coco", value: "$12.000" },
-      { label: "Total con INC", value: "$106.380", accent: true },
-    ],
-  },
-  {
-    id: "erp",
-    name: "BookiPos Operación",
-    tag: "Para la oficina",
-    claim: "El negocio entero en una pantalla.",
-    points: [
-      "Inventario, compras y proveedores",
-      "Clientes, cartera y cuentas por cobrar",
-      "Nómina, asistencia y PILA",
-      "Contabilidad y reportes por sede",
-    ],
-    href: APPS.erp,
-    screen: [
-      { label: "Venta del día · 3 sedes", value: "$4.812.400", accent: true },
-      { label: "Margen bruto", value: "62,4%" },
-      { label: "Cartera vencida", value: "$318.000" },
-      { label: "Asientos posteados", value: "147" },
-    ],
-  },
-];
-
-export const WHATS_NEW = [
-  {
-    date: "Ago 2026",
-    tag: "Nuevo",
-    title: "Permisos granulares por módulo",
-    body: "RRHH, nómina, asistencia y facturación con permisos propios.",
-  },
-  {
-    date: "Ago 2026",
-    tag: "Nuevo",
-    title: "Consumo de empleado a nómina",
-    body: "Lo que consume el equipo baja solo en la liquidación.",
-  },
-  {
-    date: "Jul 2026",
-    tag: "Mejora",
-    title: "Cartera con cliente real",
-    body: "Se acabó el fiado anónimo que nadie sabe cobrar.",
-  },
-  {
-    date: "Jul 2026",
-    tag: "Mejora",
-    title: "Posteo contable automático",
-    body: "Ventas, gastos y compras generan su asiento sin intervención.",
+    label: "La libreta del consumo del equipo",
+    content: "Lo que consumen en el local baja solo de la nómina.",
   },
 ];
 
@@ -315,13 +242,13 @@ export const ADD_ONS: AddOn[] = [
     name: "Nómina hasta 10 empleados",
     price: 34_900,
     unit: "/mes",
-    note: "Incluida en Control y Cadena. Alegra cobra $29.900 aquí, pero salta a $69.000 en el empleado 11.",
+    note: "Para Punto y Negocio. Control y Cadena ya la traen incluida.",
   },
   {
     name: "Empleado adicional",
     price: 2_900,
     unit: "/mes",
-    note: "Con 15 empleados quedas en $49.400 contra $69.000 de Alegra.",
+    note: "Por encima del tope de nómina. Con 15 empleados, el complemento queda en $49.400 al mes.",
   },
   {
     name: "Sede adicional",
@@ -334,7 +261,7 @@ export const ADD_ONS: AddOn[] = [
     price: 0,
     priceLabel: "Sin costo",
     unit: "",
-    note: "El importador CSV de catálogo y existencias ya está construido.",
+    note: "Te pasamos catálogo, existencias y clientes desde un archivo CSV.",
   },
   {
     name: "Capacitación adicional en sitio",
@@ -346,16 +273,24 @@ export const ADD_ONS: AddOn[] = [
 
 export const FAQS = [
   {
-    q: "¿Sirve para restaurante y para tienda?",
-    a: "Sí. Nació en restaurante — mesas, comandas, propina, división de cuenta — y el mismo motor cubre retail con código de barras, variantes e inventario por bodega. Activas el modo que necesites por sede.",
+    q: "¿Sirve para mi tipo de negocio?",
+    a: "Si vendes en mostrador o en mesa, sí: restaurante, panadería, cafetería, bar, tienda o minimercado. Para el salón hay mesas, comandas, propina y cuenta dividida; para la tienda, código de barras, variantes e inventario por bodega.",
   },
   {
     q: "¿Funciona sin internet?",
-    a: "Hoy no, y no queremos prometerlo. BookiPos es web y requiere conexión; el modo offline está en la hoja de ruta. Si tu local tiene internet inestable, hablemos antes de que compres.",
+    a: "La caja sí. Si se cae la conexión, el punto de venta sigue cobrando en efectivo con su numeración reservada y guarda las ventas en el equipo. Cuando vuelve la red, se envían solas. El panel de administración sí necesita conexión.",
+  },
+  {
+    q: "¿Qué medios de pago recibe?",
+    a: "Efectivo, datáfono, Nequi, Daviplata y QR Bre-B, también combinados en una misma cuenta. Los pagos digitales se concilian después contra el extracto del banco.",
+  },
+  {
+    q: "¿Tengo que comprar equipos?",
+    a: "No. Funciona en el computador, la tableta o el celular que ya tienes, desde el navegador. Si tienes impresora térmica y cajón monedero, desde Chrome o Edge BookiPos imprime la tirilla y abre el cajón.",
   },
   {
     q: "¿Emite factura electrónica ante la DIAN?",
-    a: "Todavía no. La conexión con la DIAN está en camino y no la damos por hecha hasta que esté probada. Hoy cargas tu resolución y numeración en el panel, calculamos IVA e INC según el régimen del negocio y guardamos el rastro de cada documento. Si la factura electrónica es indispensable para ti hoy, escríbenos antes de comprar.",
+    a: "Todavía no. Hoy cargas tu resolución y tu numeración en el panel, el sistema calcula IVA e INC según el régimen del negocio y guarda el rastro de cada documento. Si la factura electrónica es indispensable para ti hoy, escríbenos antes de comprar.",
   },
   {
     q: "¿Puedo migrar de mi sistema actual?",

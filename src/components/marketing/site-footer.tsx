@@ -7,23 +7,23 @@ const COLUMNS = [
   {
     title: "Producto",
     links: [
-      { label: "Beneficios", href: "/#beneficios" },
-      { label: "Módulos", href: "/#modulos" },
-      { label: "Novedades", href: "/#novedades" },
+      { label: "Cómo funciona", href: "/#como-funciona" },
       { label: "Precios", href: "/#precios" },
       { label: "Comparativa", href: "/comparativa" },
+      { label: "Para contadores", href: "/contadores" },
     ],
   },
   {
     title: "Acceso",
     links: [
+      { label: "Crear cuenta", href: "/registro" },
+      { label: "Iniciar sesión", href: "/login" },
       { label: "Punto de venta", href: APPS.pos },
       { label: "Panel de operación", href: APPS.erp },
-      { label: "Iniciar sesión", href: "/login" },
     ],
   },
   {
-    title: "Empresa",
+    title: "Ayuda",
     links: [
       { label: "Preguntas frecuentes", href: "/#preguntas" },
       { label: "Hablar con ventas", href: `mailto:${SOPORTE.ventas}` },
@@ -34,37 +34,28 @@ const COLUMNS = [
 ];
 
 /**
- * Pie de página.
+ * Pie de página. Lo comparten la portada y las páginas de lectura
+ * (comparativa, contadores, estado), todas claras: va en el gris de la mesa
+ * con la raya de 2px de la portada arriba.
  *
- * Contrastes medidos (WCAG 2.1) sobre blanco:
- *   · títulos de columna: eran `ink-faint` = 3.49:1 ✗ para 14px negrita
- *     (negrita solo cuenta como "texto grande" a partir de 18.66px). Pasan a
- *     `ink-muted` = 7.65:1 ✓ AAA.
- *   · línea legal y enlaces del pie: mismo cambio, 3.49:1 → 7.65:1 ✓.
- *   · enlaces de columna `ink-soft` = 13.28:1 ✓; hover `brand-700` = 8.15:1 ✓.
+ * Contrastes (WCAG 2.1) sobre #e9e9ec: enlaces navy-950 al 85% ≈ 12:1,
+ * títulos y línea legal al 65% ≈ 6:1. Alto mínimo de 28px por enlace
+ * (2.5.8 pide 24px).
  *
- * Los enlaces llevan alto mínimo de 28px (WCAG 2.5.8 pide 24px) para que en
- * móvil no haya que apuntar a una línea de texto de 20px.
+ * Sin "Términos" ni "Privacidad": apuntaban a `#`. Vuelven cuando exista el
+ * texto al que llevar.
  */
 export function SiteFooter() {
   return (
-    <footer className="relative bg-gradient-to-b from-brand-50/60 to-white">
-      {/* Filo de marca: hairline neutra en los extremos que se tiñe de
-          orquídea en el centro. Separa el pie sin la barra gris de siempre. */}
-      <div
-        aria-hidden="true"
-        className="h-px w-full bg-gradient-to-r from-hairline via-brand-300 to-hairline"
-      />
-
+    <footer className="border-t border-navy-950/15 bg-mesa text-navy-950">
       <div className="mx-auto max-w-7xl px-5 py-14 sm:px-8 sm:py-16">
         <div className="grid gap-10 sm:gap-12 lg:grid-cols-[1.4fr_2fr]">
           <div>
-            <Link href="/" aria-label="BookiPos — inicio" className="inline-block">
+            <Link href="/" aria-label="BookiPos, inicio" className="inline-block">
               <BookiPosLogo />
             </Link>
-            <p className="mt-5 max-w-sm text-pretty leading-relaxed text-ink-muted">
+            <p className="mt-5 max-w-sm text-pretty leading-relaxed text-navy-950/70">
               Punto de venta y sistema operacional para negocios en Colombia.
-              Restaurante, bar y retail — con la contabilidad al día.
             </p>
           </div>
 
@@ -77,7 +68,7 @@ export function SiteFooter() {
           >
             {COLUMNS.map((column) => (
               <div key={column.title}>
-                <h2 className="text-sm font-bold uppercase tracking-[0.14em] text-ink-muted">
+                <h2 className="text-[0.8125rem] font-semibold text-navy-950/65">
                   {column.title}
                 </h2>
                 <ul className="mt-4 space-y-1.5">
@@ -85,7 +76,7 @@ export function SiteFooter() {
                     <li key={link.label}>
                       <a
                         href={link.href}
-                        className="inline-flex min-h-7 items-center text-[0.95rem] text-ink-soft transition-colors hover:text-brand-700"
+                        className="inline-flex min-h-7 items-center text-[0.95rem] text-navy-950/85 underline-offset-4 transition-colors hover:text-brand-700 hover:underline"
                       >
                         {link.label}
                       </a>
@@ -97,23 +88,9 @@ export function SiteFooter() {
           </nav>
         </div>
 
-        <div className="mt-12 flex flex-col gap-4 border-t border-hairline pt-8 text-sm text-ink-muted sm:mt-14 sm:flex-row sm:items-center sm:justify-between">
-          <p>© {new Date().getFullYear()} BookiPos. Hecho en Colombia.</p>
-          <p className="flex flex-wrap gap-x-6 gap-y-1">
-            <a
-              href="#"
-              className="inline-flex min-h-7 items-center transition-colors hover:text-brand-700"
-            >
-              Términos
-            </a>
-            <a
-              href="#"
-              className="inline-flex min-h-7 items-center transition-colors hover:text-brand-700"
-            >
-              Privacidad
-            </a>
-          </p>
-        </div>
+        <p className="mt-12 border-t border-navy-950/20 pt-8 text-[0.8125rem] text-navy-950/65 sm:mt-14">
+          © {new Date().getFullYear()} BookiPos. Hecho en Colombia.
+        </p>
       </div>
     </footer>
   );

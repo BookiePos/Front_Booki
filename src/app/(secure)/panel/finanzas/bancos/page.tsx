@@ -30,7 +30,7 @@ import {
   listCategories,
   getTreasury,
   ACCOUNT_TYPE_LABELS,
-  PAYMENT_METHOD_LABELS,
+  AUTO_KEY_LABELS,
   type FinanceAccount,
   type FinanceMovement,
   type FinanceCategory,
@@ -38,7 +38,7 @@ import {
   type AccountType,
   type AccountPayload,
   type MovementPayload,
-  type PaymentMethod,
+  type AccountAutoKey,
 } from "@/lib/erp/api-finance"
 import { money, todayLocal, fmtDate, errorMessage, numOr } from "@/lib/erp/finance-format"
 
@@ -72,9 +72,18 @@ import {
   CheckboxField,
 } from "@/components/ui/field"
 import { Termino } from "@/components/ui/help-tip"
+import { useLoadEffect } from "@/hooks/use-load-effect"
+import { useResetOnChange } from "@/hooks/use-reset-on-change"
 
 /** Medios que pueden auto-alimentar una cuenta (el efectivo vive en la caja del POS). */
-const AUTO_METHODS: PaymentMethod[] = ["card", "transfer"]
+const AUTO_METHODS: AccountAutoKey[] = [
+  "card",
+  "transfer",
+  "datafono",
+  "nequi",
+  "daviplata",
+  "qr",
+]
 
 const TYPE_ICON: Record<AccountType, React.ComponentType<{ className?: string }>> = {
   bank: Landmark,
@@ -134,9 +143,7 @@ export default function BancosPage() {
     }
   }, [])
 
-  React.useEffect(() => {
-    if (canView) void load()
-  }, [canView, load])
+  useLoadEffect(load, canView)
 
   if (!canView) {
     return (
@@ -345,7 +352,7 @@ export default function BancosPage() {
                             <Sparkles className="size-3 text-primary" />
                             {a.autoMethods.map((m) => (
                               <Badge key={m} variant="outline" className="text-[11px]">
-                                {PAYMENT_METHOD_LABELS[m]}
+                                {AUTO_KEY_LABELS[m]}
                               </Badge>
                             ))}
                           </span>
@@ -444,12 +451,12 @@ function AccountDialog({
   const [type, setType] = React.useState<AccountType>("bank")
   const [sedeId, setSedeId] = React.useState("")
   const [openingBalance, setOpeningBalance] = React.useState("")
-  const [autoMethods, setAutoMethods] = React.useState<PaymentMethod[]>([])
+  const [autoMethods, setAutoMethods] = React.useState<AccountAutoKey[]>([])
   const [note, setNote] = React.useState("")
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
-  React.useEffect(() => {
+  useResetOnChange(() => {
     if (!open) return
     setError(null)
     if (editing) {
@@ -469,7 +476,7 @@ function AccountDialog({
     }
   }, [open, editing])
 
-  function toggleMethod(m: PaymentMethod) {
+  function toggleMethod(m: AccountAutoKey) {
     setAutoMethods((prev) =>
       prev.includes(m) ? prev.filter((x) => x !== m) : [...prev, m],
     )
@@ -591,7 +598,7 @@ function AccountDialog({
 
       <FormSection
         title="Auto-alimenta con"
-        description="Las ventas del POS, los pagos y los cobros por estos medios entran o salen de esta cuenta sin que registres nada. El efectivo se lleva en la caja del POS, no aquí."
+        description="Las ventas del POS, los pagos y los cobros por estos medios entran o salen de esta cuenta sin que registres nada. El efectivo se lleva en la caja del POS, no aquí. Si eliges un canal (Datáfono, Nequi, Daviplata, QR), la cuenta recibe solo lo cobrado por él."
         boxed
       >
         <div className="grid gap-2 sm:grid-cols-2">
@@ -599,7 +606,7 @@ function AccountDialog({
             <CheckboxField
               key={m}
               id={`ac-auto-${m}`}
-              label={PAYMENT_METHOD_LABELS[m]}
+              label={AUTO_KEY_LABELS[m]}
               checked={autoMethods.includes(m)}
               onCheckedChange={() => toggleMethod(m)}
             />
@@ -638,7 +645,8 @@ function AccountMovementsDialog({
   movOpen: boolean
   setMovOpen: (v: boolean) => void
 }) {
-  const [movements, setMovements] = React.useState<FinanceMovement[]>([])
+  const [loadedMovements, setMovements] = React.useState<FinanceMovement[]>([])
+  const movements = account ? loadedMovements : []
   const [loading, setLoading] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
@@ -646,6 +654,7 @@ function AccountMovementsDialog({
     if (!account) return
     setLoading(true)
     setError(null)
+    setMovements([])
     try {
       setMovements(await listAccountMovements(account._id))
     } catch (err) {
@@ -655,10 +664,7 @@ function AccountMovementsDialog({
     }
   }, [account])
 
-  React.useEffect(() => {
-    if (account) void reload()
-    else setMovements([])
-  }, [account, reload])
+  useLoadEffect(reload, account !== null)
 
   return (
     <>
@@ -806,7 +812,7 @@ function NewMovementDialog({
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
-  React.useEffect(() => {
+  useResetOnChange(() => {
     if (!open) return
     setError(null)
     setDate(todayLocal())

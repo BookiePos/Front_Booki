@@ -7,6 +7,7 @@ import {
   paymentLabel,
   splitSummary,
   toPaymentsPayload,
+  withMethod,
   type SplitRow,
 } from "./split-payment"
 
@@ -14,6 +15,11 @@ const fila = (method: SplitRow["method"], amount: number | null, id: string = me
   id,
   method,
   amount,
+  // El datáfono pide tipo y franquicia (ítem 6.4): las pruebas de la cuenta
+  // las dan por llenadas para no mezclar reglas.
+  ...(method === "card"
+    ? { detail: { channel: "" as const, cardType: "debit" as const, franchise: "visa" as const, reference: "" } }
+    : {}),
 })
 
 // Cobro de $59.000 (total $50.000 + propina $5.000 + domicilio $4.000):
@@ -125,5 +131,78 @@ describe("paymentLabel", () => {
       }),
     ).toBe("Tarjeta + Efectivo")
     expect(paymentLabel({ payment: { method: "transfer" } })).toBe("Transferencia")
+  })
+})
+
+describe("medios digitales en dividir pago (6.4)", () => {
+  const datafono = (over: Partial<SplitRow["detail"] & object> = {}): SplitRow => ({
+    id: "d",
+    method: "card",
+    amount: 39_000,
+    detail: { channel: "", cardType: "debit", franchise: "visa", reference: "", ...over },
+  })
+
+  it("no deja cobrar un datáfono sin franquicia", () => {
+    const r = splitSummary([fila("cash", 20_000), datafono({ franchise: "" })], DUE, CAP)
+    expect(r.error).toMatch(/franquicia/)
+  })
+
+  it("con el detalle completo se puede cobrar", () => {
+    const r = splitSummary([fila("cash", 20_000), datafono()], DUE, CAP)
+    expect(r.error).toBeNull()
+  })
+
+  it("las filas sin detalle (transferencia o efectivo) siguen sin pedir nada", () => {
+    expect(splitSummary([fila("cash", 20_000), fila("transfer", 39_000)], DUE, CAP).error).toBeNull()
+  })
+
+  it("el cobro viaja con el canal de cada parte", () => {
+    const payload = toPaymentsPayload(
+      [
+        fila("cash", 20_000),
+        datafono({ reference: "A-123" }),
+        {
+          id: "n",
+          method: "transfer",
+          amount: 5_000,
+          detail: { channel: "nequi", cardType: "", franchise: "", reference: "3001234567" },
+        },
+      ],
+      {},
+    )
+    expect(payload).toEqual([
+      { method: "cash", amount: 20_000 },
+      {
+        method: "card",
+        amount: 39_000,
+        channel: "datafono",
+        cardType: "debit",
+        franchise: "visa",
+        reference: "A-123",
+      },
+      { method: "transfer", amount: 5_000, channel: "nequi", reference: "3001234567" },
+    ])
+  })
+
+  it("al cambiar una fila de medio se parte de un detalle limpio", () => {
+    const cambiada = withMethod([datafono()], "d", "transfer")
+    expect(cambiada[0].method).toBe("transfer")
+    expect(cambiada[0].detail).toEqual({ channel: "", cardType: "", franchise: "", reference: "" })
+  })
+})
+
+describe("paymentLabel con canal (6.4)", () => {
+  it("nombra Nequi y el datáfono en vez del medio genérico", () => {
+    expect(
+      paymentLabel({
+        payment: { method: "transfer", channel: "nequi" },
+        payments: [
+          { method: "cash", amount: 1 },
+          { method: "transfer", amount: 2, channel: "nequi" },
+        ],
+      }),
+    ).toBe("Efectivo + Nequi")
+    expect(paymentLabel({ payment: { method: "card", channel: "datafono" } })).toBe("Datáfono")
+    expect(paymentLabel({ payment: { method: "card" } })).toBe("Tarjeta")
   })
 })

@@ -67,6 +67,8 @@ import {
 } from "@/components/ui/table"
 import { FormDialog, FormAlert } from "@/components/ui/form-dialog"
 import { Termino } from "@/components/ui/help-tip"
+import { useLoadEffect } from "@/hooks/use-load-effect"
+import { useResetOnChange } from "@/hooks/use-reset-on-change"
 
 const money = new Intl.NumberFormat("es-CO", {
   style: "currency",
@@ -146,9 +148,7 @@ export default function NominaPage() {
     }
   }, [canManage])
 
-  React.useEffect(() => {
-    void load()
-  }, [load])
+  useLoadEffect(load)
 
   if (!canManage) {
     return (
@@ -291,12 +291,15 @@ function CorrerNomina({
 
   // Muestra abajo "cómo va" la nómina del período: carga el detalle de la
   // corrida objetivo (con sus desprendibles) cuando cambia.
+  useResetOnChange(() => {
+    if (!targetRun) setRun(null)
+  }, [targetRun])
+
   React.useEffect(() => {
     const id = targetRun?._id ?? null
     if (id === shownIdRef.current) return
     if (!id) {
       shownIdRef.current = null
-      setRun(null)
       return
     }
     let cancelled = false

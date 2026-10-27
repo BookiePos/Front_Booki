@@ -14,6 +14,8 @@ import {
 
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/auth-context"
+import { useCerrarSesion } from "@/hooks/use-cerrar-sesion"
+import { AvisoFiscal } from "@/components/onboarding/aviso-fiscal"
 import { useSede } from "@/lib/pos/sede-context"
 import { navItems } from "@/lib/pos/navigation"
 import { useOnboarding } from "@/lib/onboarding/onboarding-context"
@@ -104,6 +106,12 @@ function SedeBadge() {
   )
 }
 
+/** Aviso fiscal de la sede en la que se está vendiendo (no bloquea la venta). */
+function AvisoFiscalSedeActiva() {
+  const { sede } = useSede()
+  return <AvisoFiscal sede={sede} />
+}
+
 /** Botón “Guía”: abre el recorrido de la pantalla actual del terminal. */
 function GuideButton() {
   const pathname = usePathname()
@@ -131,7 +139,9 @@ function GuideButton() {
 function SedePicker() {
   const { sedes, chooseSede, error } = useSede()
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted p-6">
+    <main
+      className="flex min-h-screen items-center justify-center bg-muted p-6"
+    >
       <div className="w-full max-w-md rounded-2xl border border-border bg-background p-6 shadow-sm">
         <div className="mb-1 flex items-center gap-2">
           <span className="flex size-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
@@ -177,14 +187,15 @@ function SedePicker() {
           ))}
         </div>
       </div>
-    </div>
+    </main>
   )
 }
 
 function UserMenu() {
-  const { user, logout, canUseOperation } = useAuth()
+  const { user, canUseOperation } = useAuth()
   const { sedes, changeSede } = useSede()
   const router = useRouter()
+  const cerrarSesion = useCerrarSesion()
 
   const initials = (user?.name ?? "Usuario")
     .split(" ")
@@ -195,8 +206,8 @@ function UserMenu() {
     .toUpperCase()
 
   async function handleLogout() {
-    await logout()
-    router.replace("/login")
+    // Avisa si quedan ventas offline sin registrar (no se borran; ítem 6.3).
+    if (await cerrarSesion()) router.replace("/login")
   }
 
   return (
@@ -210,7 +221,7 @@ function UserMenu() {
           />
         }
       >
-        <Avatar className="size-10">
+        <Avatar className="size-10" aria-hidden="true">
           <AvatarFallback className="bg-secondary text-xs font-bold text-secondary-foreground">
             {initials || "U"}
           </AvatarFallback>
@@ -261,10 +272,10 @@ export function PosShell({ children }: { children: React.ReactNode }) {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center gap-2 bg-muted text-sm text-muted-foreground">
+      <main className="flex min-h-screen items-center justify-center gap-2 bg-muted text-sm text-muted-foreground">
         <Loader2 className="size-4 animate-spin" />
         Cargando…
-      </div>
+      </main>
     )
   }
 
@@ -312,6 +323,7 @@ export function PosShell({ children }: { children: React.ReactNode }) {
             El hueco inferior reserva sitio para la barra de navegación fija
             —56px— más aire; desaparece en `lg:`, donde la nav es lateral. */}
         <main className="min-w-0 flex-1 p-4 pb-24 md:p-6 md:pb-24 lg:pb-6">
+          <AvisoFiscalSedeActiva />
           {children}
         </main>
       </div>

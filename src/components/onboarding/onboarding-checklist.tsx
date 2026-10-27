@@ -18,7 +18,8 @@ import type { LucideIcon } from "lucide-react"
 
 import { useAuth } from "@/lib/auth-context"
 import { useOnboarding } from "@/lib/onboarding/onboarding-context"
-import { listProducts } from "@/lib/erp/api-inventory"
+import { listProducts, listSedes } from "@/lib/erp/api-inventory"
+import { primeraSedeConDatosPendientes } from "@/lib/onboarding/registro-corto"
 import { getSalesReport } from "@/lib/erp/api-reports"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -33,6 +34,8 @@ interface Step {
   icon: LucideIcon
   /** Si se define, el CTA ejecuta esta acción en vez de navegar a `href`. */
   action?: () => void
+  /** Recorrido guiado opcional, junto al enlace del CTA. */
+  guide?: () => void
   /** Comprobación automática de "hecho" contra datos reales (opcional). */
   derive?: () => Promise<boolean>
 }
@@ -54,17 +57,35 @@ export function OnboardingChecklist() {
     startSedeGuide,
   } = useOnboarding()
 
+  // Primera sede con datos fiscales pendientes: a ella lleva el paso «sede».
+  const [sedePendiente, setSedePendiente] = React.useState<string | null>(null)
+
   const steps = React.useMemo<Step[]>(() => {
-    const list: Step[] = [
-      {
+    const list: Step[] = []
+
+    // Un solo paso para la sede y sus datos fiscales (ítem 6.5): el registro
+    // ya no los pide. Solo lo ve quien puede editar sedes; enlaza a la primera
+    // sede con datos pendientes. «Hecho» = todas las sedes tienen NIT,
+    // responsabilidad fiscal, dirección y ciudad, que es lo que dice el texto.
+    if (hasPermission("sede.manage")) {
+      list.push({
         id: "sede",
-        title: "Personaliza tu sede",
-        body: "Te guío paso a paso para editar el nombre, la dirección y los datos fiscales.",
+        title: "Completa los datos de tu sede",
+        body: "NIT, responsabilidad fiscal, dirección y ciudad. Con ellos los impuestos y los comprobantes salen bien.",
         href: "/panel/sedes",
-        cta: "Personalizar",
+        cta: "Completar",
         icon: Store,
-        action: startSedeGuide,
-      },
+        guide: startSedeGuide,
+        derive: async () => {
+          const sedes = await listSedes()
+          const pendiente = primeraSedeConDatosPendientes(sedes)
+          setSedePendiente(pendiente?._id ?? null)
+          return sedes.length > 0 && !pendiente
+        },
+      })
+    }
+
+    list.push(
       {
         id: "productos",
         title: isRetail ? "Carga tus productos" : "Carga productos y recetas",
@@ -92,7 +113,7 @@ export function OnboardingChecklist() {
           return report.totalRevenue > 0
         },
       },
-    ]
+    )
 
     if (isRestaurant) {
       list.push({
@@ -279,16 +300,38 @@ export function OnboardingChecklist() {
                       <ChevronRight className="size-4" />
                     </Button>
                   ) : (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="shrink-0 gap-1"
-                      render={<Link href={step.href} />}
+                    <div className="flex shrink-0 items-center gap-1">
+                      {step.guide && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            markStepCompleted(step.id)
+                            step.guide?.()
+                          }}
+                        >
+                          Guía
+                        </Button>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="shrink-0 gap-1"
+                        render={
+                        <Link
+                          href={
+                            step.id === "sede" && sedePendiente
+                              ? `/panel/sedes/${sedePendiente}`
+                              : step.href
+                          }
+                        />
+                      }
                       onClick={() => markStepCompleted(step.id)}
                     >
                       {step.cta}
-                      <ChevronRight className="size-4" />
-                    </Button>
+                        <ChevronRight className="size-4" />
+                      </Button>
+                    </div>
                   )}
                 </div>
               </li>

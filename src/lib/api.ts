@@ -154,6 +154,8 @@ export interface RegisterPayload {
   businessName: string
   plan: BusinessPlan
   tipoNegocio: BusinessType
+  /** «¿Cobras IVA?» (registro corto): sin responder = el backend usa su default. */
+  cobraIva?: "si" | "no"
   nit?: string
   nitDv?: string
   tipoPersona?: "natural" | "juridica"

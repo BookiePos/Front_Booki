@@ -1,32 +1,40 @@
-import { Benefits } from "@/components/marketing/benefits";
+import { Factura } from "@/components/marketing/factura";
 import { Faq } from "@/components/marketing/faq";
-import { Flow } from "@/components/marketing/flow";
 import { FinalCta } from "@/components/marketing/final-cta";
-import { Hero } from "@/components/marketing/hero";
-import { Modules } from "@/components/marketing/modules";
+import { fuenteTitular } from "@/components/marketing/fuentes-portada";
+import { LineaDelDia } from "@/components/marketing/linea-del-dia";
+import { MediosDePago } from "@/components/marketing/medios-de-pago";
+import { Portada } from "@/components/marketing/portada";
 import { Pricing } from "@/components/marketing/pricing";
-import { ScrollLogo } from "@/components/marketing/scroll-logo";
 import { SiteFooter } from "@/components/marketing/site-footer";
 import { SiteNav } from "@/components/marketing/site-nav";
-import { WhatsNew } from "@/components/marketing/whats-new";
 
+/**
+ * Portada. Fondo lila pálido, tinta marina y el orquídea del isotipo como
+ * único color. El orden:
+ *
+ *   "BookiPos" gigante, por cuya letra se entra (portal) → adentro, la
+ *   factura de la mesa 7 con lo que movió en el sistema → lo que duele con
+ *   otros sistemas y cómo lo resuelve BookiPos (línea de tiempo) → medios de
+ *   pago → precios → preguntas → cierre.
+ *
+ * La factura es de servidor y entra al portal (de cliente) como hijo.
+ */
 export default function HomePage() {
   return (
-    <>
+    <div className={`${fuenteTitular.variable} bg-mesa text-navy-950`}>
       <SiteNav />
       <main id="contenido">
-        {/* La cortina de marca abre la página; el hero recoge justo después. */}
-        <ScrollLogo />
-        <Hero />
-        <Benefits />
-        <Flow />
-        <Modules />
-        <WhatsNew />
+        <Portada>
+          <Factura />
+        </Portada>
+        <LineaDelDia />
+        <MediosDePago />
         <Pricing />
         <Faq />
         <FinalCta />
       </main>
       <SiteFooter />
-    </>
+    </div>
   );
 }

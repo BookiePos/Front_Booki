@@ -8,13 +8,30 @@ import type { SedeRef } from "@/lib/pos/api-inventory"
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-export type PaymentMethod = "cash" | "card" | "transfer" | "credit"
+export type PaymentMethod = "cash" | "card" | "transfer" | "credit" | "platform"
 
 export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   cash: "Efectivo",
   card: "Tarjeta",
   transfer: "Transferencia",
   credit: "Fiado",
+  platform: "Plataforma",
+}
+
+/** Canal digital de un cobro (ítem 6.4); detalla `card` y `transfer`. */
+export type PaymentChannel = "datafono" | "nequi" | "daviplata" | "qr"
+export type CardType = "debit" | "credit"
+export type CardFranchise = "visa" | "mastercard" | "amex" | "diners" | "otra"
+
+/** Detalle del canal digital que viaja con el cobro. Todo opcional. */
+export interface PaymentChannelDetail {
+  channel?: PaymentChannel
+  /** Solo datáfono. */
+  cardType?: CardType
+  /** Solo datáfono. */
+  franchise?: CardFranchise
+  /** Aprobación del datáfono, últimos 4 o número de la billetera. */
+  reference?: string
 }
 
 export type DiscountType = "amount" | "percent"
@@ -139,6 +156,12 @@ export interface Customer {
 export interface Sale {
   _id: string
   saleNumber: string
+  /**
+   * Solo en el comprobante de una venta cobrada sin conexión (ítem 6.3): el
+   * impuesto lo discrimina el servidor al sincronizar, así que se imprime
+   * «Impuestos incluidos» con la leyenda de contingencia. Nunca viene del API.
+   */
+  contingencia?: boolean
   sedeId: SedeRef
   cashierEmail: string
   cashierName?: string
@@ -168,12 +191,16 @@ export interface Sale {
     notes?: string
     courier?: string
   }
-  payment: { method: PaymentMethod; received?: number; change?: number }
+  payment: {
+    method: PaymentMethod
+    received?: number
+    change?: number
+  } & PaymentChannelDetail
   /**
    * Cobro mixto (ítem 6.9): cuánto cubrió cada medio, el efectivo ya sin la
    * devuelta. Ausente en las ventas de un solo medio.
    */
-  payments?: { method: PaymentMethod; amount: number }[]
+  payments?: ({ method: PaymentMethod; amount: number } & PaymentChannelDetail)[]
   customer?: Customer
   orderId?: string
   createdAt: string
@@ -187,7 +214,7 @@ export interface SalesPage {
 }
 
 /** Pago de una venta. `dueDate` (YYYY-MM-DD) solo aplica al fiado (crédito). */
-export interface SalePaymentInput {
+export interface SalePaymentInput extends PaymentChannelDetail {
   method: PaymentMethod
   received?: number
   dueDate?: string
@@ -217,7 +244,7 @@ export interface DeliveryInput {
  * Una parte de un cobro mixto. En efectivo, `amount` es lo que el cliente
  * entrega (la devuelta sale de ahí); la parte fiada lleva su deudor.
  */
-export interface SalePaymentPartInput {
+export interface SalePaymentPartInput extends PaymentChannelDetail {
   method: PaymentMethod
   amount: number
   dueDate?: string
@@ -228,6 +255,11 @@ export interface SalePaymentPartInput {
 
 export interface CreateSalePayload {
   sedeId: string
+  /**
+   * Llave de idempotencia del cobro (UUID). Reintentar con la misma no cobra
+   * dos veces; si el reintento sale sin red, es el `offlineId` de la cola.
+   */
+  idempotencyKey?: string
   lines: { productId: string; qty: number; discountId?: string }[]
   /** Un solo medio. Se manda este o `payments`, nunca los dos. */
   payment?: SalePaymentInput

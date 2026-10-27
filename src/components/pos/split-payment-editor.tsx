@@ -9,8 +9,12 @@ import { NativeSelect } from "@/components/ui/field"
 import {
   addSplitRow,
   fillRemaining,
+  withMethod,
   type SplitRow,
 } from "@/lib/pos/split-payment"
+import { detalleVacio } from "@/lib/pos/pago-digital"
+import type { CobroDigital } from "@/lib/pos/api-inventory"
+import { PagoDigitalDetalle } from "@/components/pos/pago-digital-detalle"
 import { cn } from "@/lib/utils"
 
 /**
@@ -24,6 +28,7 @@ export function SplitPaymentEditor({
   remaining,
   change,
   error,
+  cobro,
 }: {
   rows: SplitRow[]
   onChange: (rows: SplitRow[]) => void
@@ -31,6 +36,7 @@ export function SplitPaymentEditor({
   remaining: number
   change: number
   error: string | null
+  cobro?: CobroDigital
 }) {
   const metodos = Object.entries(PAYMENT_METHOD_LABELS) as [
     PaymentMethod,
@@ -44,13 +50,7 @@ export function SplitPaymentEditor({
           <li key={r.id} className="flex flex-wrap items-center gap-2">
             <NativeSelect
               value={r.method}
-              onChange={(v) =>
-                onChange(
-                  rows.map((x) =>
-                    x.id === r.id ? { ...x, method: v as PaymentMethod } : x,
-                  ),
-                )
-              }
+              onChange={(v) => onChange(withMethod(rows, r.id, v as PaymentMethod))}
               aria-label={`Medio de pago ${i + 1}`}
               options={metodos.map(([value, label]) => ({ value, label }))}
             />
@@ -83,6 +83,15 @@ export function SplitPaymentEditor({
                 <Trash2 className="size-4" />
               </Button>
             )}
+            <PagoDigitalDetalle
+              method={r.method}
+              detail={r.detail ?? detalleVacio()}
+              onChange={(detail) =>
+                onChange(rows.map((x) => (x.id === r.id ? { ...x, detail } : x)))
+              }
+              cobro={cobro}
+              idBase={`split-${r.id}`}
+            />
           </li>
         ))}
       </ul>

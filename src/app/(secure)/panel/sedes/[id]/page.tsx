@@ -65,6 +65,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
+import { CobroDigitalConfig } from "@/components/erp/finance/cobro-digital-config"
 import { useConfirm } from "@/components/ui/confirm-dialog"
 import { Input, InputWithIcon } from "@/components/ui/input"
 import { MoneyInput } from "@/components/ui/money-input"
@@ -81,6 +82,7 @@ import {
 } from "@/components/ui/field"
 import { Segmented } from "@/components/ui/segmented"
 import { Termino } from "@/components/ui/help-tip"
+import { useLoadEffect } from "@/hooks/use-load-effect"
 
 /** Id del `<form>`: el botón de guardar vive en el pie, fuera del formulario. */
 const DISCOUNT_FORM_ID = "descuento-form"
@@ -384,10 +386,7 @@ export default function SedeDetailPage() {
     [sedeId, fetchSede, fetchUsers, fetchEmployees, canManageUsers],
   )
 
-  React.useEffect(() => {
-    if (!canManage) return
-    void loadAll()
-  }, [canManage, loadAll])
+  useLoadEffect(loadAll, canManage)
 
   // Mantener fresco: al volver a la pestaña/ventana se recarga en silencio,
   // para que los cambios hechos en Inventario se reflejen sin recargar a mano.
@@ -691,6 +690,11 @@ export default function SedeDetailPage() {
           />
         </div>
       )}
+
+      {/* ── QR / llave Bre-B para cobrar (ítem 6.4): con sede.manage ───────── */}
+      <div className="mt-6">
+        <CobroDigitalConfig sedeId={sedeId} />
+      </div>
 
       {/* ── Ubicación ─────────────────────────────────────────────────────── */}
       <Card className="mt-6">

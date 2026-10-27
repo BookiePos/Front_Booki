@@ -55,6 +55,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { useConfirm } from "@/components/ui/confirm-dialog"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
+import { useLoadEffect } from "@/hooks/use-load-effect"
 
 /** Progreso de una tanda: qué se está haciendo y por cuál va. */
 interface Progress {
@@ -104,9 +105,7 @@ export default function FacturasPorFotoPage() {
     }
   }, [])
 
-  React.useEffect(() => {
-    if (canView) void load()
-  }, [canView, load])
+  useLoadEffect(load, canView)
 
   /**
    * Procesa la tanda de fotos **una por una**: reescala, sube y manda a leer.
