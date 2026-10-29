@@ -140,12 +140,15 @@ function ResolutionSheet({ open, onOpenChange, row, initialTipo, onSaved }: Reso
   const [claveTecnica, setClaveTecnica] = React.useState("")
   const [saving, setSaving] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+  const [errorPrefijo, setErrorPrefijo] = React.useState<string | null>(null)
 
+  /** Lo que el formulario mostró al cargarse: para saber si hay datos tecleados. */
+  const baseline = React.useRef("")
   const cargar = React.useCallback(
     (r: ResolutionRow, t: TipoResolucion) => {
       const actual = resolucionDeTipo(r, t)
       const res = actual?.resolucion
-      setF({
+      const nuevo: RegisterResolutionPayload = {
         numero: res?.numero ?? "",
         fechaResolucion: res?.fechaResolucion?.slice(0, 10) ?? "",
         prefijo: res?.prefijo ?? "",
@@ -153,7 +156,9 @@ function ResolutionSheet({ open, onOpenChange, row, initialTipo, onSaved }: Reso
         rangoHasta: res?.rangoHasta,
         vigenciaDesde: res?.vigenciaDesde?.slice(0, 10) ?? "",
         vigenciaHasta: res?.vigenciaHasta?.slice(0, 10) ?? "",
-      })
+      }
+      baseline.current = JSON.stringify(nuevo)
+      setF(nuevo)
       setEmpezarEn(
         actual?.status.consecutivo.siguiente
           ? String(actual.status.consecutivo.siguiente)
@@ -169,15 +174,40 @@ function ResolutionSheet({ open, onOpenChange, row, initialTipo, onSaved }: Reso
     cargar(row, initialTipo)
     setClaveTecnica("")
     setError(null)
+    setErrorPrefijo(null)
   }, [open, row, initialTipo, cargar])
 
   const exigePrefijo = tipoExigePrefijo(tipo)
   const nombreTipo = TIPO_RESOLUCION_LABELS[tipo].toLowerCase()
 
   function cambiarTipo(t: TipoResolucion) {
-    setTipo(t)
     setError(null)
-    if (row) cargar(row, t)
+    setErrorPrefijo(null)
+    if (!row) {
+      setTipo(t)
+      return
+    }
+    const editado = JSON.stringify(f) !== baseline.current
+    const existente = resolucionDeTipo(row, t)?.resolucion
+    if (editado && !existente) {
+      // Hay datos tecleados y el tipo nuevo no tiene nada guardado: se
+      // conservan las fechas, el rango y el número; el prefijo y el
+      // consecutivo son propios de cada tipo y se vacían.
+      setTipo(t)
+      setF((prev) => ({ ...prev, prefijo: "" }))
+      setEmpezarEn("")
+      toast.info(
+        "Conservé los datos que escribiste. Falta el prefijo y el consecutivo propios de este tipo.",
+      )
+      return
+    }
+    setTipo(t)
+    cargar(row, t)
+    if (editado && existente) {
+      toast.info(
+        `Se cargó la resolución guardada de ${TIPO_RESOLUCION_LABELS[t].toLowerCase()}; los cambios sin guardar del tipo anterior se descartaron.`,
+      )
+    }
   }
 
   function set<K extends keyof RegisterResolutionPayload>(
@@ -190,11 +220,13 @@ function ResolutionSheet({ open, onOpenChange, row, initialTipo, onSaved }: Reso
   async function handleSave() {
     if (!row) return
     if (exigePrefijo && !f.prefijo?.trim()) {
-      setError(
+      setErrorPrefijo(
         `La resolución de ${nombreTipo} necesita un prefijo propio, distinto al de la factura.`,
       )
+      document.getElementById("r-prefijo")?.focus()
       return
     }
+    setErrorPrefijo(null)
     setSaving(true)
     setError(null)
     try {
@@ -305,6 +337,7 @@ function ResolutionSheet({ open, onOpenChange, row, initialTipo, onSaved }: Reso
           <Field
             id="r-prefijo"
             label={exigePrefijo ? "Prefijo (obligatorio)" : "Prefijo"}
+            error={errorPrefijo}
             hint={
               exigePrefijo
                 ? "Distinto al de la factura: el consecutivo se comparte por prefijo."
@@ -316,7 +349,6 @@ function ResolutionSheet({ open, onOpenChange, row, initialTipo, onSaved }: Reso
               id="r-prefijo"
               maxLength={4}
               value={f.prefijo ?? ""}
-              required={exigePrefijo}
               aria-required={exigePrefijo}
               onChange={(e) => set("prefijo", e.target.value.toUpperCase())}
               placeholder={exigePrefijo ? "NC" : "FE"}
@@ -476,12 +508,16 @@ export default function ResolucionesPage() {
   }
 
   // Lo que exige atención primero. Dentro de cada estado, por código de sede.
+  const peor = (r: ResolutionRow) =>
+    Math.min(
+      GRAVEDAD[r.status.estado],
+      ...(r.otras ?? []).map((o) => GRAVEDAD[o.status.estado]),
+    )
   const ordenadas = [...rows].sort(
-    (a, b) =>
-      GRAVEDAD[a.status.estado] - GRAVEDAD[b.status.estado] ||
-      a.sedeCode.localeCompare(b.sedeCode),
+    (a, b) => peor(a) - peor(b) || a.sedeCode.localeCompare(b.sedeCode),
   )
-  const conProblema = ordenadas.filter((r) => !r.status.puedeEmitir).length
+  // Cuenta la factura y también las demás resoluciones: vencida, agotada o por vencer.
+  const conProblema = ordenadas.filter((r) => peor(r) <= GRAVEDAD.por_vencer).length
 
   return (
     <>
@@ -513,8 +549,8 @@ export default function ResolucionesPage() {
                 <TriangleAlert className="mt-0.5 size-5 shrink-0 text-destructive" aria-hidden />
                 <p className="text-sm">
                   <strong>
-                    {conProblema} sede(s) no pueden emitir factura electrónica
-                    ahora mismo.
+                    {conProblema} sede(s) tienen resoluciones que piden atención
+                    (vencidas, agotadas, por vencer o sin completar).
                   </strong>{" "}
                   Revisa abajo qué le falta a cada una.
                 </p>
@@ -617,20 +653,31 @@ export default function ResolucionesPage() {
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => abrir(row, "pos")}
+                        onClick={() =>
+                          abrir(
+                            row,
+                            TIPOS_RESOLUCION.find(
+                              (t) =>
+                                t !== "invoice" &&
+                                !(row.otras ?? []).some(
+                                  (o) => o.tipoDocumento === t,
+                                ),
+                            ) ?? "pos",
+                          )
+                        }
                       >
                         <Pencil className="size-4" aria-hidden />
                         Registrar otro tipo
                       </Button>
                     </div>
-                    {row.otras.length === 0 ? (
+                    {(row.otras ?? []).length === 0 ? (
                       <p className="text-sm text-muted-foreground">
                         Sin resoluciones de documento equivalente POS, notas ni
                         contingencia.
                       </p>
                     ) : (
                       <ul className="flex flex-col gap-2">
-                        {row.otras.map((o) => (
+                        {(row.otras ?? []).map((o) => (
                           <li
                             key={o.tipoDocumento}
                             className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-sm"
