@@ -3,6 +3,7 @@ import {
   actorCanGrant,
   actorCanGrantSede,
   actorSeesAllSedes,
+  PERMISOS_FE,
   permsAllowOperation,
   permsAllowPos,
   roleFitsArea,
@@ -48,5 +49,15 @@ describe("jerarquía", () => {
     expect(actorCanGrantSede(admin, "s1")).toBe(true)
     expect(actorCanGrantSede(admin, "s2")).toBe(false)
     expect(actorSeesAllSedes(actor({ permissions: ["sede.view_all"] }))).toBe(true)
+  })
+})
+
+describe("permisos de facturación y nómina electrónica", () => {
+  it("son de back-office y el certificado queda marcado solo para el Dueño", () => {
+    for (const p of PERMISOS_FE) expect(permsAllowOperation([p.key])).toBe(true)
+    expect(PERMISOS_FE.filter((p) => p.soloDueno).map((p) => p.key)).toEqual([
+      "einvoicing.certificate",
+    ])
+    expect(PERMISOS_FE.find((p) => p.key === "payroll.einvoice")?.group).toBe("Nómina")
   })
 })

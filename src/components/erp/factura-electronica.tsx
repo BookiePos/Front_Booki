@@ -3,7 +3,7 @@
 import * as React from "react"
 import QRCode from "qrcode"
 
-import type { ElectronicDocument } from "@/lib/erp/api-einvoicing"
+import { dianStatusSello, type ElectronicDocument } from "@/lib/erp/api-einvoicing"
 import { cn } from "@/lib/utils"
 
 const moneyFmt = new Intl.NumberFormat("es-CO", {
@@ -133,7 +133,9 @@ export function FacturaElectronica({
             {validated ? (
               <span className="font-medium text-success-ink">Validada DIAN</span>
             ) : (
-              <span className="font-medium text-warning-ink">Sin validar DIAN</span>
+              <span className="font-medium text-warning-ink">
+                {dianStatusSello(doc.dianStatus)}
+              </span>
             )}
           </p>
         </div>

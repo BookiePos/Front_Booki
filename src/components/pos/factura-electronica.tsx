@@ -3,7 +3,7 @@
 import * as React from "react"
 import QRCode from "qrcode"
 
-import type { ElectronicDocument } from "@/lib/pos/api-einvoicing"
+import { dianStatusSello, type ElectronicDocument } from "@/lib/pos/api-einvoicing"
 import { money, qty, dateTime } from "@/lib/pos/format"
 import { cn } from "@/lib/utils"
 
@@ -125,7 +125,7 @@ export function FacturaElectronica({
               : "bg-warning/10 text-warning-ink",
           )}
         >
-          {validated ? "Validada DIAN" : "Sin validar DIAN"}
+          {dianStatusSello(doc.dianStatus)}
         </span>
       </div>
 
