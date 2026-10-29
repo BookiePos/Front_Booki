@@ -18,6 +18,7 @@ import {
   esErrorDv,
   municipioDaneValido,
   payloadDatosFiscales,
+  fiscalDeCliente,
   type DatosFiscalesForm,
 } from "@/lib/erp/datos-fiscales"
 import { CustomerFiscalFields } from "@/components/erp/customer-fiscal-fields"
@@ -274,16 +275,7 @@ function CustomerDialog({
       setPhone(editing.phone ?? "")
       setEmail(editing.email ?? "")
       setCity(editing.city ?? "")
-      setFiscal({
-        dianDocType: editing.dianDocType ?? "",
-        nitDv: editing.nitDv ?? "",
-        tipoPersona: editing.tipoPersona ?? "",
-        responsabilidadesFiscales: editing.responsabilidadesFiscales ?? [],
-        regimen: editing.regimen ?? "",
-        municipioDane: editing.municipioDane ?? "",
-        emailFacturacion: editing.emailFacturacion ?? "",
-        address: editing.address ?? "",
-      })
+      setFiscal(fiscalDeCliente(editing))
       setCreditLimit(String(editing.creditLimit ?? 0))
       setPriceListId(editing.priceListId ?? "")
       setActive(editing.active)
@@ -337,7 +329,11 @@ function CustomerDialog({
         creditLimit: Math.round(Number(creditLimit) || 0),
         // Cadena vacía = quitarle la lista y volver a cobrarle de mostrador.
         priceListId,
-        ...payloadDatosFiscales(fiscal, isNew),
+        ...payloadDatosFiscales(
+          fiscal,
+          isNew,
+          editing ? fiscalDeCliente(editing) : undefined,
+        ),
       }
       if (isNew) {
         await createCustomer({ ...base, docType, docNumber: docNumber.trim() })
@@ -348,7 +344,13 @@ function CustomerDialog({
       onClose()
     } catch (e) {
       // El 400 del DV va pegado al campo; el resto, al aviso del formulario.
-      if (e instanceof ApiError && e.status === 400 && esErrorDv(e.message)) {
+      // Si el campo DV no está a la vista (tipo distinto de NIT), el error va al aviso general.
+      if (
+        e instanceof ApiError &&
+        e.status === 400 &&
+        esErrorDv(e.message) &&
+        fiscal.dianDocType === "31"
+      ) {
         setDvError(e.message)
       } else {
         setErr(errorMessage(e))
@@ -438,6 +440,7 @@ function CustomerDialog({
       <CustomerFiscalFields
         value={fiscal}
         onChange={setFiscal}
+        onDvChange={() => setDvError(null)}
         docNumber={docNumber || editing?.docNumber || ""}
         dvError={dvError}
       />

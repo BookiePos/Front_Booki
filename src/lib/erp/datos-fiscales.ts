@@ -95,26 +95,69 @@ export const DATOS_FISCALES_VACIOS: DatosFiscalesForm = {
   address: "",
 }
 
-/**
- * Arma el fragmento fiscal del payload. En edición se envía la cadena vacía
- * (y `[]` en las responsabilidades) para BORRAR un campo, como espera el
- * backend; al crear, lo vacío se omite. El DV solo viaja con tipo 31.
- */
-export function payloadDatosFiscales(f: DatosFiscalesForm, isNew: boolean) {
-  const vacio = <T extends string>(v: string): T | undefined =>
-    v.trim() ? (v.trim() as T) : isNew ? undefined : ("" as T)
-  const esNit = f.dianDocType === "31"
+/** Estado inicial del formulario fiscal a partir de la ficha guardada. */
+export function fiscalDeCliente(c: {
+  dianDocType?: string
+  nitDv?: string
+  tipoPersona?: string
+  responsabilidadesFiscales?: string[]
+  regimen?: string
+  municipioDane?: string
+  emailFacturacion?: string
+  address?: string
+}): DatosFiscalesForm {
   return {
-    dianDocType: vacio(f.dianDocType),
-    nitDv: esNit ? vacio(f.nitDv) : isNew ? undefined : "",
-    tipoPersona: vacio(f.tipoPersona),
-    responsabilidadesFiscales:
-      f.responsabilidadesFiscales.length > 0 || !isNew
-        ? f.responsabilidadesFiscales
-        : undefined,
-    regimen: vacio(f.regimen),
-    municipioDane: vacio(f.municipioDane),
-    emailFacturacion: vacio(f.emailFacturacion),
-    address: vacio(f.address),
+    dianDocType: c.dianDocType ?? "",
+    nitDv: c.nitDv ?? "",
+    tipoPersona: c.tipoPersona ?? "",
+    responsabilidadesFiscales: c.responsabilidadesFiscales ?? [],
+    regimen: c.regimen ?? "",
+    municipioDane: c.municipioDane ?? "",
+    emailFacturacion: c.emailFacturacion ?? "",
+    address: c.address ?? "",
+  }
+}
+
+/**
+ * Arma el fragmento fiscal del payload. Al crear, lo vacío se omite. Al editar
+ * (`original` = la ficha tal como se cargó) solo viaja lo que CAMBIÓ: así un
+ * cliente viejo con el DV mal escrito no recibe un 400 imposible de corregir
+ * por cambiarle el teléfono (el backend valida el DV si llega tipo o DV). Un
+ * campo que se vació viaja como cadena vacía (y `[]`) para borrarlo. El DV
+ * solo viaja con tipo 31.
+ */
+export function payloadDatosFiscales(
+  f: DatosFiscalesForm,
+  isNew: boolean,
+  original?: DatosFiscalesForm,
+) {
+  const nuevo = { ...f, nitDv: f.dianDocType === "31" ? f.nitDv : "" }
+  const antes = original
+  const cambio = (k: keyof DatosFiscalesForm): boolean => {
+    if (isNew || !antes) return true
+    if (k === "responsabilidadesFiscales") {
+      const a = [...antes[k]].sort().join(",")
+      return a !== [...nuevo[k]].sort().join(",")
+    }
+    return String(antes[k]).trim() !== String(nuevo[k]).trim()
+  }
+  const texto = (k: Exclude<keyof DatosFiscalesForm, "responsabilidadesFiscales">) => {
+    if (!cambio(k)) return undefined
+    const v = nuevo[k].trim()
+    return v ? v : isNew ? undefined : ""
+  }
+  return {
+    dianDocType: texto("dianDocType"),
+    nitDv: texto("nitDv"),
+    tipoPersona: texto("tipoPersona"),
+    responsabilidadesFiscales: cambio("responsabilidadesFiscales")
+      ? nuevo.responsabilidadesFiscales.length > 0 || !isNew
+        ? nuevo.responsabilidadesFiscales
+        : undefined
+      : undefined,
+    regimen: texto("regimen"),
+    municipioDane: texto("municipioDane"),
+    emailFacturacion: texto("emailFacturacion"),
+    address: texto("address"),
   }
 }

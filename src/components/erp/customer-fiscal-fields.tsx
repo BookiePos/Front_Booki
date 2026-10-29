@@ -34,12 +34,16 @@ export function CustomerFiscalFields({
   onChange,
   docNumber,
   dvError,
+  onDvChange,
 }: {
   value: DatosFiscalesForm
   onChange: (next: DatosFiscalesForm) => void
   docNumber: string
   dvError?: string | null
+  /** Se llama al teclear el DV, para limpiar el error del API. */
+  onDvChange?: () => void
 }) {
+  const [municipioTocado, setMunicipioTocado] = React.useState(false)
   const set = <K extends keyof DatosFiscalesForm>(
     k: K,
     v: DatosFiscalesForm[K],
@@ -49,7 +53,8 @@ export function CustomerFiscalFields({
   const sugerido = esNit
     ? calcularDvNit(docNumber.replace(/\D/g, ""))
     : undefined
-  const municipioMal = !municipioDaneValido(value.municipioDane)
+  const municipioMal =
+    municipioTocado && !municipioDaneValido(value.municipioDane)
 
   function toggleResp(codigo: string, on: boolean) {
     const sin = value.responsabilidadesFiscales.filter((r) => r !== codigo)
@@ -114,7 +119,10 @@ export function CustomerFiscalFields({
               inputMode="numeric"
               maxLength={1}
               value={value.nitDv}
-              onChange={(e) => set("nitDv", e.target.value.replace(/\D/g, ""))}
+              onChange={(e) => {
+                onDvChange?.()
+                set("nitDv", e.target.value.replace(/\D/g, ""))
+              }}
               placeholder="0"
             />
           </Field>
@@ -148,6 +156,7 @@ export function CustomerFiscalFields({
             id="c-dane"
             inputMode="numeric"
             maxLength={5}
+            onBlur={() => setMunicipioTocado(true)}
             value={value.municipioDane}
             onChange={(e) =>
               set("municipioDane", e.target.value.replace(/\D/g, ""))
@@ -157,7 +166,11 @@ export function CustomerFiscalFields({
         </Field>
 
         <FieldSpan span={2}>
-          <Field id="c-address" label="Dirección de facturación">
+          <Field
+            id="c-address"
+            label="Dirección"
+            hint="Se usa en la factura electrónica"
+          >
             <Input
               id="c-address"
               value={value.address}
