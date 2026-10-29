@@ -13,6 +13,16 @@ import {
   type CustomerDocType,
 } from "@/lib/erp/api-customers"
 import { money, errorMessage } from "@/lib/erp/finance-format"
+import {
+  DATOS_FISCALES_VACIOS,
+  esErrorDv,
+  municipioDaneValido,
+  payloadDatosFiscales,
+  fiscalDeCliente,
+  type DatosFiscalesForm,
+} from "@/lib/erp/datos-fiscales"
+import { CustomerFiscalFields } from "@/components/erp/customer-fiscal-fields"
+import { ApiError } from "@/lib/api"
 import { listPriceLists, type PriceList } from "@/lib/erp/api-catalog"
 
 import { PageHeader } from "@/components/erp/page-header"
@@ -243,6 +253,9 @@ function CustomerDialog({
   const [phone, setPhone] = React.useState("")
   const [email, setEmail] = React.useState("")
   const [city, setCity] = React.useState("")
+  const [fiscal, setFiscal] =
+    React.useState<DatosFiscalesForm>(DATOS_FISCALES_VACIOS)
+  const [dvError, setDvError] = React.useState<string | null>(null)
   const [creditLimit, setCreditLimit] = React.useState("0")
   // Lista con la que se le cobra. Vacío = precio de mostrador.
   const [priceListId, setPriceListId] = React.useState("")
@@ -254,6 +267,7 @@ function CustomerDialog({
   useResetOnChange(() => {
     if (!customer) return
     setErr(null)
+    setDvError(null)
     if (editing) {
       setName(editing.name)
       setDocType(editing.docType)
@@ -261,6 +275,7 @@ function CustomerDialog({
       setPhone(editing.phone ?? "")
       setEmail(editing.email ?? "")
       setCity(editing.city ?? "")
+      setFiscal(fiscalDeCliente(editing))
       setCreditLimit(String(editing.creditLimit ?? 0))
       setPriceListId(editing.priceListId ?? "")
       setActive(editing.active)
@@ -271,6 +286,7 @@ function CustomerDialog({
       setPhone("")
       setEmail("")
       setCity("")
+      setFiscal(DATOS_FISCALES_VACIOS)
       setCreditLimit("0")
       setPriceListId("")
       setActive(true)
@@ -303,6 +319,7 @@ function CustomerDialog({
   async function save() {
     setBusy(true)
     setErr(null)
+    setDvError(null)
     try {
       const base = {
         name: name.trim(),
@@ -312,6 +329,11 @@ function CustomerDialog({
         creditLimit: Math.round(Number(creditLimit) || 0),
         // Cadena vacía = quitarle la lista y volver a cobrarle de mostrador.
         priceListId,
+        ...payloadDatosFiscales(
+          fiscal,
+          isNew,
+          editing ? fiscalDeCliente(editing) : undefined,
+        ),
       }
       if (isNew) {
         await createCustomer({ ...base, docType, docNumber: docNumber.trim() })
@@ -321,7 +343,18 @@ function CustomerDialog({
       await onSaved()
       onClose()
     } catch (e) {
-      setErr(errorMessage(e))
+      // El 400 del DV va pegado al campo; el resto, al aviso del formulario.
+      // Si el campo DV no está a la vista (tipo distinto de NIT), el error va al aviso general.
+      if (
+        e instanceof ApiError &&
+        e.status === 400 &&
+        esErrorDv(e.message) &&
+        fiscal.dianDocType === "31"
+      ) {
+        setDvError(e.message)
+      } else {
+        setErr(errorMessage(e))
+      }
     } finally {
       setBusy(false)
     }
@@ -340,7 +373,11 @@ function CustomerDialog({
           onCancel={onClose}
           onSubmit={() => void save()}
           busy={busy}
-          disabled={!name.trim() || (isNew && !docNumber.trim())}
+          disabled={
+            !name.trim() ||
+            (isNew && !docNumber.trim()) ||
+            !municipioDaneValido(fiscal.municipioDane)
+          }
           submitLabel={isNew ? "Registrar" : "Guardar"}
         />
       }
@@ -399,6 +436,14 @@ function CustomerDialog({
           </FieldSpan>
         </FieldGrid>
       </FormSection>
+
+      <CustomerFiscalFields
+        value={fiscal}
+        onChange={setFiscal}
+        onDvChange={() => setDvError(null)}
+        docNumber={docNumber || editing?.docNumber || ""}
+        dvError={dvError}
+      />
 
       <FormSection
         title="Contacto y crédito"

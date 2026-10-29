@@ -18,6 +18,14 @@ export interface Customer {
    * Existe para que el descuento del mayorista no dependa de que el cajero se
    * acuerde de aplicarlo en cada venta.
    */
+  /** Datos fiscales para la factura electrónica (todos opcionales). */
+  dianDocType?: string
+  nitDv?: string
+  tipoPersona?: string
+  responsabilidadesFiscales?: string[]
+  regimen?: string
+  municipioDane?: string
+  emailFacturacion?: string
   priceListId?: string
   notes?: string
   active: boolean
@@ -34,6 +42,14 @@ export interface CustomerPayload {
   city?: string
   creditLimit?: number
   /** Cadena vacía = quitarle la lista y volver a cobrarle de mostrador. */
+  /** Datos fiscales para la factura electrónica (cadena vacía = borrar, solo al editar). */
+  dianDocType?: string
+  nitDv?: string
+  tipoPersona?: string
+  responsabilidadesFiscales?: string[]
+  regimen?: string
+  municipioDane?: string
+  emailFacturacion?: string
   priceListId?: string
   notes?: string
 }
