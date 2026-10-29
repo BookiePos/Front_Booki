@@ -4,8 +4,37 @@
  */
 import { authFetch, parseResponse } from "@/lib/api-admin"
 
-export type DocType = "invoice" | "credit_note"
-export type DianStatus = "draft" | "pending" | "accepted" | "rejected"
+export type DocType =
+  | "invoice"
+  | "pos"
+  | "credit_note"
+  | "debit_note"
+  | "payroll"
+  | "payroll_adjustment"
+export type DianStatus =
+  | "draft"
+  | "signed"
+  | "sent"
+  | "accepted"
+  | "rejected"
+  | "contingency"
+
+/** Etiqueta en español de cada estado ante la DIAN. */
+export const DIAN_STATUS_LABELS: Record<DianStatus, string> = {
+  draft: "Borrador",
+  signed: "Firmado",
+  sent: "Enviado a la DIAN",
+  accepted: "Aceptado",
+  rejected: "Rechazado",
+  contingency: "Contingencia",
+}
+
+/** Texto corto para el sello del documento: lo no aceptado dice en qué va. */
+export function dianStatusSello(status: DianStatus): string {
+  if (status === "accepted") return "Validada DIAN"
+  if (status === "draft") return "Sin validar DIAN"
+  return `${DIAN_STATUS_LABELS[status]} · sin validar`
+}
 
 export interface DocEmisor {
   name?: string
@@ -164,23 +193,78 @@ export interface ResolutionStatus {
   }
 }
 
+/** Tipos de documento que pueden tener resolución de numeración propia. */
+export type TipoResolucion =
+  | "invoice"
+  | "pos"
+  | "credit_note"
+  | "debit_note"
+  | "contingency"
+
+export const TIPOS_RESOLUCION: readonly TipoResolucion[] = [
+  "invoice",
+  "pos",
+  "credit_note",
+  "debit_note",
+  "contingency",
+]
+
+export const TIPO_RESOLUCION_LABELS: Record<TipoResolucion, string> = {
+  invoice: "Factura de venta",
+  pos: "Documento equivalente POS",
+  credit_note: "Nota crédito",
+  debit_note: "Nota débito",
+  contingency: "Contingencia",
+}
+
+/** Todo tipo que no sea factura necesita prefijo propio (lo exige el backend). */
+export function tipoExigePrefijo(tipo: TipoResolucion): boolean {
+  return tipo !== "invoice"
+}
+
+export interface ResolutionData {
+  numero?: string
+  fechaResolucion?: string
+  prefijo?: string
+  rangoDesde?: number
+  rangoHasta?: number
+  vigenciaDesde?: string
+  vigenciaHasta?: string
+}
+
+/** Resolución de un tipo distinto de factura, con su estado. */
+export interface ResolutionTipoRow {
+  tipoDocumento: TipoResolucion
+  resolucion: ResolutionData
+  status: ResolutionStatus
+}
+
 export interface ResolutionRow {
   sedeId: string
   sedeCode: string
   sedeName: string
-  resolucion?: {
-    numero?: string
-    fechaResolucion?: string
-    prefijo?: string
-    rangoDesde?: number
-    rangoHasta?: number
-    vigenciaDesde?: string
-    vigenciaHasta?: string
-  }
+  /** La fila principal es siempre la de factura. */
+  tipoDocumento: "invoice"
+  resolucion?: ResolutionData
   status: ResolutionStatus
+  /** Resoluciones de los demás tipos de documento de la sede. */
+  otras: ResolutionTipoRow[]
+}
+
+/** La resolución (y su estado) de una sede para un tipo de documento. */
+export function resolucionDeTipo(
+  row: ResolutionRow,
+  tipo: TipoResolucion,
+): { resolucion?: ResolutionData; status: ResolutionStatus } | undefined {
+  if (tipo === "invoice") {
+    return { resolucion: row.resolucion, status: row.status }
+  }
+  return (row.otras ?? []).find((o) => o.tipoDocumento === tipo)
 }
 
 export interface RegisterResolutionPayload {
+  /** Por defecto `invoice`. */
+  tipoDocumento?: TipoResolucion
   numero?: string
   fechaResolucion?: string
   prefijo?: string

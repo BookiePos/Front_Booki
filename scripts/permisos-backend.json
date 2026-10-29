@@ -1,6 +1,6 @@
 {
   "fuente": "Backend/src/modules/core-auth/domain/permissions.ts",
-  "total": 37,
+  "total": 40,
   "permisos": [
     "attendance.manage",
     "audit.view",
@@ -11,6 +11,8 @@
     "caja.sangria",
     "customers.manage",
     "customers.view",
+    "einvoicing.certificate",
+    "einvoicing.configure",
     "einvoicing.issue",
     "einvoicing.void",
     "employees.manage",
@@ -23,6 +25,7 @@
     "onboarding.template",
     "params.manage",
     "payroll.deduction.approve",
+    "payroll.einvoice",
     "payroll.manage",
     "payroll.view",
     "pos.discount.authorize",

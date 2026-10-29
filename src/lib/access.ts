@@ -40,7 +40,41 @@ export const OPERATION_PERMISSIONS = [
   "payroll.manage",
   "employees.view",
   "employees.manage",
+  "einvoicing.configure",
+  "einvoicing.certificate",
+  "payroll.einvoice",
 ] as const
+
+/**
+ * Permisos de facturación electrónica y nómina electrónica, con su grupo y su
+ * etiqueta en español (espejo del catálogo del backend). `einvoicing.certificate`
+ * (subir el certificado .p12) es solo del Dueño: el backend no lo reparte a
+ * ningún otro rol, y la UI no debe ofrecerlo como si fuera delegable.
+ */
+export const PERMISOS_FE: readonly {
+  key: string
+  group: "Facturación electrónica" | "Nómina"
+  label: string
+  soloDueno?: boolean
+}[] = [
+  {
+    key: "einvoicing.configure",
+    group: "Facturación electrónica",
+    label:
+      "Configurar facturación electrónica (datos fiscales, resoluciones, credenciales DIAN)",
+  },
+  {
+    key: "einvoicing.certificate",
+    group: "Facturación electrónica",
+    label: "Gestionar el certificado de firma digital (solo el Dueño)",
+    soloDueno: true,
+  },
+  {
+    key: "payroll.einvoice",
+    group: "Nómina",
+    label: "Emitir nómina electrónica ante la DIAN",
+  },
+]
 
 /** ¿El conjunto de permisos habilita el punto de venta? */
 export function permsAllowPos(perms: string[]): boolean {

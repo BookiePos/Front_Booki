@@ -17,9 +17,14 @@ import {
   listResolutions,
   registerResolution,
   ESTADO_RESOLUCION_LABELS,
+  TIPOS_RESOLUCION,
+  TIPO_RESOLUCION_LABELS,
+  resolucionDeTipo,
+  tipoExigePrefijo,
   type EstadoResolucion,
   type RegisterResolutionPayload,
   type ResolutionRow,
+  type TipoResolucion,
 } from "@/lib/erp/api-einvoicing"
 import { errorMessage, fmtDate } from "@/lib/erp/finance-format"
 
@@ -123,36 +128,87 @@ interface ResolutionSheetProps {
   open: boolean
   onOpenChange: (v: boolean) => void
   row: ResolutionRow | null
+  /** Tipo con el que abre el formulario. */
+  initialTipo: TipoResolucion
   onSaved: (rows: ResolutionRow[]) => void
 }
 
-function ResolutionSheet({ open, onOpenChange, row, onSaved }: ResolutionSheetProps) {
+function ResolutionSheet({ open, onOpenChange, row, initialTipo, onSaved }: ResolutionSheetProps) {
+  const [tipo, setTipo] = React.useState<TipoResolucion>("invoice")
   const [f, setF] = React.useState<RegisterResolutionPayload>({})
   const [empezarEn, setEmpezarEn] = React.useState("")
   const [claveTecnica, setClaveTecnica] = React.useState("")
   const [saving, setSaving] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+  const [errorPrefijo, setErrorPrefijo] = React.useState<string | null>(null)
+
+  /** Lo que el formulario mostró al cargarse: para saber si hay datos tecleados. */
+  const baseline = React.useRef("")
+  const cargar = React.useCallback(
+    (r: ResolutionRow, t: TipoResolucion) => {
+      const actual = resolucionDeTipo(r, t)
+      const res = actual?.resolucion
+      const nuevo: RegisterResolutionPayload = {
+        numero: res?.numero ?? "",
+        fechaResolucion: res?.fechaResolucion?.slice(0, 10) ?? "",
+        prefijo: res?.prefijo ?? "",
+        rangoDesde: res?.rangoDesde,
+        rangoHasta: res?.rangoHasta,
+        vigenciaDesde: res?.vigenciaDesde?.slice(0, 10) ?? "",
+        vigenciaHasta: res?.vigenciaHasta?.slice(0, 10) ?? "",
+      }
+      baseline.current = JSON.stringify(nuevo)
+      setF(nuevo)
+      setEmpezarEn(
+        actual?.status.consecutivo.siguiente
+          ? String(actual.status.consecutivo.siguiente)
+          : "",
+      )
+    },
+    [],
+  )
 
   React.useEffect(() => {
     if (!open || !row) return
-    const r = row.resolucion
-    setF({
-      numero: r?.numero ?? "",
-      fechaResolucion: r?.fechaResolucion?.slice(0, 10) ?? "",
-      prefijo: r?.prefijo ?? "",
-      rangoDesde: r?.rangoDesde,
-      rangoHasta: r?.rangoHasta,
-      vigenciaDesde: r?.vigenciaDesde?.slice(0, 10) ?? "",
-      vigenciaHasta: r?.vigenciaHasta?.slice(0, 10) ?? "",
-    })
-    setEmpezarEn(
-      row.status.consecutivo.siguiente
-        ? String(row.status.consecutivo.siguiente)
-        : "",
-    )
+    setTipo(initialTipo)
+    cargar(row, initialTipo)
     setClaveTecnica("")
     setError(null)
-  }, [open, row])
+    setErrorPrefijo(null)
+  }, [open, row, initialTipo, cargar])
+
+  const exigePrefijo = tipoExigePrefijo(tipo)
+  const nombreTipo = TIPO_RESOLUCION_LABELS[tipo].toLowerCase()
+
+  function cambiarTipo(t: TipoResolucion) {
+    setError(null)
+    setErrorPrefijo(null)
+    if (!row) {
+      setTipo(t)
+      return
+    }
+    const editado = JSON.stringify(f) !== baseline.current
+    const existente = resolucionDeTipo(row, t)?.resolucion
+    if (editado && !existente) {
+      // Hay datos tecleados y el tipo nuevo no tiene nada guardado: se
+      // conservan las fechas, el rango y el número; el prefijo y el
+      // consecutivo son propios de cada tipo y se vacían.
+      setTipo(t)
+      setF((prev) => ({ ...prev, prefijo: "" }))
+      setEmpezarEn("")
+      toast.info(
+        "Conservé los datos que escribiste. Falta el prefijo y el consecutivo propios de este tipo.",
+      )
+      return
+    }
+    setTipo(t)
+    cargar(row, t)
+    if (editado && existente) {
+      toast.info(
+        `Se cargó la resolución guardada de ${TIPO_RESOLUCION_LABELS[t].toLowerCase()}; los cambios sin guardar del tipo anterior se descartaron.`,
+      )
+    }
+  }
 
   function set<K extends keyof RegisterResolutionPayload>(
     key: K,
@@ -163,11 +219,20 @@ function ResolutionSheet({ open, onOpenChange, row, onSaved }: ResolutionSheetPr
 
   async function handleSave() {
     if (!row) return
+    if (exigePrefijo && !f.prefijo?.trim()) {
+      setErrorPrefijo(
+        `La resolución de ${nombreTipo} necesita un prefijo propio, distinto al de la factura.`,
+      )
+      document.getElementById("r-prefijo")?.focus()
+      return
+    }
+    setErrorPrefijo(null)
     setSaving(true)
     setError(null)
     try {
       const rows = await registerResolution(row.sedeId, {
         ...f,
+        tipoDocumento: tipo,
         numero: f.numero || undefined,
         prefijo: f.prefijo || undefined,
         fechaResolucion: f.fechaResolucion || undefined,
@@ -194,7 +259,7 @@ function ResolutionSheet({ open, onOpenChange, row, onSaved }: ResolutionSheetPr
       onOpenChange={onOpenChange}
       size="2xl"
       icon={ScrollText}
-      title={`Resolución de ${row?.sedeName ?? "la sede"}`}
+      title={`Resolución de ${row?.sedeName ?? "la sede"} · ${TIPO_RESOLUCION_LABELS[tipo]}`}
       description="Copia los datos tal como los entregó la DIAN. Al guardar se ajusta también por qué número seguirá la numeración."
       footer={
         <>
@@ -217,6 +282,26 @@ function ResolutionSheet({ open, onOpenChange, row, onSaved }: ResolutionSheetPr
       }
     >
       {error && <FormAlert>{error}</FormAlert>}
+
+      <FormSection
+        title="Tipo de documento"
+        description="La DIAN autoriza la numeración por tipo de documento: cada uno lleva su propio prefijo y rango."
+      >
+        <Field id="r-tipo" label="Tipo de documento">
+          <select
+            id="r-tipo"
+            value={tipo}
+            onChange={(e) => cambiarTipo(e.target.value as TipoResolucion)}
+            className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm"
+          >
+            {TIPOS_RESOLUCION.map((t) => (
+              <option key={t} value={t}>
+                {TIPO_RESOLUCION_LABELS[t]}
+              </option>
+            ))}
+          </select>
+        </Field>
+      </FormSection>
 
       <FormSection
         title="La resolución"
@@ -249,13 +334,24 @@ function ResolutionSheet({ open, onOpenChange, row, onSaved }: ResolutionSheetPr
         help={{ term: "rangoNumeracion" }}
       >
         <FieldGrid cols={3}>
-          <Field id="r-prefijo" label="Prefijo" help={{ term: "prefijo" }}>
+          <Field
+            id="r-prefijo"
+            label={exigePrefijo ? "Prefijo (obligatorio)" : "Prefijo"}
+            error={errorPrefijo}
+            hint={
+              exigePrefijo
+                ? "Distinto al de la factura: el consecutivo se comparte por prefijo."
+                : undefined
+            }
+            help={{ term: "prefijo" }}
+          >
             <Input
               id="r-prefijo"
               maxLength={4}
               value={f.prefijo ?? ""}
+              aria-required={exigePrefijo}
               onChange={(e) => set("prefijo", e.target.value.toUpperCase())}
-              placeholder="FE"
+              placeholder={exigePrefijo ? "NC" : "FE"}
             />
           </Field>
           <Field id="r-desde" label="Desde">
@@ -319,7 +415,7 @@ function ResolutionSheet({ open, onOpenChange, row, onSaved }: ResolutionSheetPr
       >
         <Field
           id="r-empezar"
-          label="La próxima factura llevará el número"
+          label={`El próximo documento (${nombreTipo}) llevará el número`}
           hint="Al estrenar una resolución es el primer número del rango. Se pregunta porque es lo que hay que ajustar al renovar: si no, la numeración salta y se pierden folios autorizados."
         >
           <Input
@@ -367,6 +463,12 @@ export default function ResolucionesPage() {
   const [rows, setRows] = React.useState<ResolutionRow[]>([])
   const [loading, setLoading] = React.useState(true)
   const [editing, setEditing] = React.useState<ResolutionRow | null>(null)
+  const [editingTipo, setEditingTipo] = React.useState<TipoResolucion>("invoice")
+
+  function abrir(row: ResolutionRow, tipo: TipoResolucion) {
+    setEditingTipo(tipo)
+    setEditing(row)
+  }
 
   const load = React.useCallback(async () => {
     setLoading(true)
@@ -406,12 +508,16 @@ export default function ResolucionesPage() {
   }
 
   // Lo que exige atención primero. Dentro de cada estado, por código de sede.
+  const peor = (r: ResolutionRow) =>
+    Math.min(
+      GRAVEDAD[r.status.estado],
+      ...(r.otras ?? []).map((o) => GRAVEDAD[o.status.estado]),
+    )
   const ordenadas = [...rows].sort(
-    (a, b) =>
-      GRAVEDAD[a.status.estado] - GRAVEDAD[b.status.estado] ||
-      a.sedeCode.localeCompare(b.sedeCode),
+    (a, b) => peor(a) - peor(b) || a.sedeCode.localeCompare(b.sedeCode),
   )
-  const conProblema = ordenadas.filter((r) => !r.status.puedeEmitir).length
+  // Cuenta la factura y también las demás resoluciones: vencida, agotada o por vencer.
+  const conProblema = ordenadas.filter((r) => peor(r) <= GRAVEDAD.por_vencer).length
 
   return (
     <>
@@ -443,8 +549,8 @@ export default function ResolucionesPage() {
                 <TriangleAlert className="mt-0.5 size-5 shrink-0 text-destructive" aria-hidden />
                 <p className="text-sm">
                   <strong>
-                    {conProblema} sede(s) no pueden emitir factura electrónica
-                    ahora mismo.
+                    {conProblema} sede(s) tienen resoluciones que piden atención
+                    (vencidas, agotadas, por vencer o sin completar).
                   </strong>{" "}
                   Revisa abajo qué le falta a cada una.
                 </p>
@@ -473,7 +579,7 @@ export default function ResolucionesPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     <EstadoBadge estado={row.status.estado} />
-                    <Button size="sm" variant="outline" onClick={() => setEditing(row)}>
+                    <Button size="sm" variant="outline" onClick={() => abrir(row, "invoice")}>
                       <Pencil className="size-4" aria-hidden />
                       {r?.numero ? "Renovar o corregir" : "Registrar"}
                     </Button>
@@ -538,6 +644,78 @@ export default function ResolucionesPage() {
                       </div>
                     </>
                   )}
+
+                  <div className="flex flex-col gap-2 border-t border-border pt-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-sm font-medium">
+                        Otros tipos de documento
+                      </p>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() =>
+                          abrir(
+                            row,
+                            TIPOS_RESOLUCION.find(
+                              (t) =>
+                                t !== "invoice" &&
+                                !(row.otras ?? []).some(
+                                  (o) => o.tipoDocumento === t,
+                                ),
+                            ) ?? "pos",
+                          )
+                        }
+                      >
+                        <Pencil className="size-4" aria-hidden />
+                        Registrar otro tipo
+                      </Button>
+                    </div>
+                    {(row.otras ?? []).length === 0 ? (
+                      <p className="text-sm text-muted-foreground">
+                        Sin resoluciones de documento equivalente POS, notas ni
+                        contingencia.
+                      </p>
+                    ) : (
+                      <ul className="flex flex-col gap-2">
+                        {(row.otras ?? []).map((o) => (
+                          <li
+                            key={o.tipoDocumento}
+                            className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-sm"
+                          >
+                            <div className="flex flex-col">
+                              <span className="font-medium">
+                                {TIPO_RESOLUCION_LABELS[o.tipoDocumento]}
+                              </span>
+                              <span className="text-xs text-muted-foreground tabular-nums">
+                                Prefijo {o.resolucion.prefijo || "—"} · rango{" "}
+                                {o.resolucion.rangoDesde ?? "—"} –{" "}
+                                {o.resolucion.rangoHasta ?? "—"} · próximo{" "}
+                                {o.status.consecutivo.siguiente ?? "—"}
+                              </span>
+                              {o.status.alertas.map((a, i) => (
+                                <span
+                                  key={i}
+                                  className="text-xs text-warning-ink"
+                                >
+                                  {a}
+                                </span>
+                              ))}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <EstadoBadge estado={o.status.estado} />
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => abrir(row, o.tipoDocumento)}
+                              >
+                                Renovar
+                              </Button>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             )
@@ -578,6 +756,7 @@ export default function ResolucionesPage() {
         open={editing !== null}
         onOpenChange={(v) => setEditing(v ? editing : null)}
         row={editing}
+        initialTipo={editingTipo}
         onSaved={setRows}
       />
     </>

@@ -4,8 +4,37 @@
  */
 import { authFetch, parseResponse } from "@/lib/api-admin"
 
-export type DocType = "invoice" | "credit_note"
-export type DianStatus = "draft" | "pending" | "accepted" | "rejected"
+export type DocType =
+  | "invoice"
+  | "pos"
+  | "credit_note"
+  | "debit_note"
+  | "payroll"
+  | "payroll_adjustment"
+export type DianStatus =
+  | "draft"
+  | "signed"
+  | "sent"
+  | "accepted"
+  | "rejected"
+  | "contingency"
+
+/** Etiqueta en español de cada estado ante la DIAN. */
+export const DIAN_STATUS_LABELS: Record<DianStatus, string> = {
+  draft: "Borrador",
+  signed: "Firmado",
+  sent: "Enviado a la DIAN",
+  accepted: "Aceptado",
+  rejected: "Rechazado",
+  contingency: "Contingencia",
+}
+
+/** Texto corto para el sello del documento: lo no aceptado dice en qué va. */
+export function dianStatusSello(status: DianStatus): string {
+  if (status === "accepted") return "Validada DIAN"
+  if (status === "draft") return "Sin validar DIAN"
+  return `${DIAN_STATUS_LABELS[status]} · sin validar`
+}
 
 export interface DocEmisor {
   name?: string
