@@ -63,6 +63,8 @@ export interface LineaOffline {
   unit: string
   qty: number
   unitPrice: number
+  /** INC de bolsas por unidad que cobró el comprobante (art. 512-15 ET). */
+  bagTaxUnit?: number
 }
 
 /** Lo que viaja a `POST /sales/offline/sync` como `sale`. */
@@ -246,15 +248,21 @@ export interface SyncDto {
   /** Registrar con lo cobrado (exige `pos.void.authorize` en el servidor). */
   override?: boolean
   /** Precio unitario de cada producto según el comprobante. */
-  chargedLines?: { productId: string; unitPrice: number }[]
+  chargedLines?: { productId: string; unitPrice: number; bagTaxUnit?: number }[]
   sale: VentaOfflinePayload
 }
 
 /** Lo que el comprobante cobró por unidad de cada producto. */
-export function precioCobrado(v: VentaOffline): { productId: string; unitPrice: number }[] {
-  const porProducto = new Map<string, number>()
-  for (const l of v.lineas) porProducto.set(l.productId, l.unitPrice)
-  return [...porProducto].map(([productId, unitPrice]) => ({ productId, unitPrice }))
+export function precioCobrado(
+  v: VentaOffline,
+): { productId: string; unitPrice: number; bagTaxUnit?: number }[] {
+  const porProducto = new Map<string, { unitPrice: number; bagTaxUnit?: number }>()
+  for (const l of v.lineas) porProducto.set(l.productId, { unitPrice: l.unitPrice, bagTaxUnit: l.bagTaxUnit })
+  return [...porProducto].map(([productId, c]) => ({
+    productId,
+    unitPrice: c.unitPrice,
+    ...(c.bagTaxUnit ? { bagTaxUnit: c.bagTaxUnit } : {}),
+  }))
 }
 
 /** El servidor rechazó la venta con un motivo (409 OFFLINE_CONFLICT o 400). */

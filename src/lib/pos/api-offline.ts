@@ -220,6 +220,10 @@ export function ventaOfflineComoSale(
     lineTotal: l.qty * l.unitPrice,
   }))
   const subtotal = lines.reduce((s, l) => s + l.lineTotal, 0)
+  const bagTaxTotal = v.lineas.reduce(
+    (s, l) => s + Math.round((l.bagTaxUnit ?? 0) * l.qty),
+    0,
+  )
   const tip = v.sale.tip ?? 0
   const received = v.sale.payment.received
   return {
@@ -233,7 +237,8 @@ export function ventaOfflineComoSale(
     subtotal,
     discountTotal: 0,
     taxTotal: 0,
-    total: subtotal,
+    bagTaxTotal: bagTaxTotal || undefined,
+    total: subtotal + bagTaxTotal,
     tip: tip || undefined,
     orderType: "mostrador",
     payment: {

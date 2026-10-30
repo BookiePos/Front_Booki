@@ -12,6 +12,13 @@ import {
 
 import { useAuth } from "@/lib/auth-context"
 import { useSede } from "@/lib/pos/sede-context"
+import { leerTarifaBolsa } from "@/lib/pos/api-bolsas"
+import {
+  bagTaxUnitPorProducto,
+  causaIncBolsas,
+  incBolsasTotal,
+  type LineaBolsa,
+} from "@/lib/pos/inc-bolsas"
 import {
   createSale,
   listOrders,
@@ -180,6 +187,8 @@ export default function VentaPage() {
   // Propina (restaurante): null = no hay; número = monto en pesos (editable).
   // Es voluntaria: se puede poner y quitar, con el 10% sugerido o un monto libre.
   const [tip, setTip] = React.useState<number | null>(null)
+  // Tarifa del INC de bolsas vigente hoy (0 = no aplica; null = no se pudo leer).
+  const [tarifaBolsa, setTarifaBolsa] = React.useState<number | null>(0)
 
   // Descuentos predefinidos de la sede (activos), para aplicar por línea.
   const [discounts, setDiscounts] = React.useState<Discount[]>([])
@@ -434,6 +443,18 @@ export default function VentaPage() {
       setNcBusy(false)
     }
   }
+
+  const aplicaBolsas = causaIncBolsas(sede)
+  // La tarifa del INC de bolsas sale de /taxes y solo cuenta si la sede es
+  // responsable de IVA (misma regla que `causaIncBolsas` del servidor).
+  React.useEffect(() => {
+    let vivo = true
+    if (!sedeId || !aplicaBolsas) return
+    leerTarifaBolsa().then((t) => vivo && setTarifaBolsa(t))
+    return () => {
+      vivo = false
+    }
+  }, [sedeId, aplicaBolsas])
 
   const fetchProducts = React.useCallback(async () => {
     if (!sedeId) return
@@ -1133,7 +1154,37 @@ export default function VentaPage() {
   // Total a cobrar. Los descuentos son solo los predefinidos por línea (ya
   // netos en `total`); en el POS no se permiten descuentos libres. La propina
   // (restaurante) y el domicilio se cobran ENCIMA del total y sin IVA.
-  const netTotal = chargeTotal + tipAmount + deliveryFee
+  // INC de bolsas (art. 512-15 ET): va aparte del precio y ningún descuento lo
+  // toca. En una cuenta dividida sale del acumulado, como en el servidor.
+  const lineasBolsa = React.useMemo<LineaBolsa[]>(() => {
+    const esBolsa = new Map(products.map((p) => [p._id, p.bolsaPlastica === true]))
+    if (!activeOrder) {
+      return cart.map((i) => ({
+        productId: i.product._id,
+        bolsa: i.product.bolsaPlastica === true,
+        previo: 0,
+        qty: i.qty,
+      }))
+    }
+    const pagado = new Map<string, number>()
+    for (const l of activeOrder.lines) {
+      pagado.set(l.productId, (pagado.get(l.productId) ?? 0) + (l.paidQty ?? 0))
+    }
+    const ahora = splitLines
+      ? new Map(splitLines.map((l) => [l.productId, l.qty]))
+      : pendiente
+    return [...ahora].map(([productId, qty]) => ({
+      productId,
+      bolsa: esBolsa.get(productId) === true,
+      previo: pagado.get(productId) ?? 0,
+      qty,
+    }))
+  }, [activeOrder, cart, products, splitLines, pendiente])
+  const tarifaEfectiva = aplicaBolsas ? tarifaBolsa : 0
+  const incBolsas = incBolsasTotal(lineasBolsa, tarifaEfectiva ?? 0)
+  const bolsaSinTarifa = tarifaEfectiva === null && lineasBolsa.some((l) => l.bolsa)
+
+  const netTotal = chargeTotal + incBolsas + tipAmount + deliveryFee
 
   const receivedNum = received ?? undefined
   /** La devuelta: lo que se le entrega al cliente. Exacta, en pesos. */
@@ -1147,7 +1198,7 @@ export default function VentaPage() {
   )
   /** Restante y devuelta del reparto. Lo fiado no cubre la propina. */
   const split = splitOn
-    ? splitSummary(splitRows, netTotal, chargeTotal + deliveryFee)
+    ? splitSummary(splitRows, netTotal, chargeTotal + incBolsas + deliveryFee)
     : null
 
   /** Limpia el cliente: descarta campos vacíos. */
@@ -1355,9 +1406,15 @@ export default function VentaPage() {
         `Sin conexión solo se cobra en efectivo en mostrador. Quita: ${no.join(", ")}.`,
       )
     }
+    if (bolsaSinTarifa) {
+      throw new Error(
+        "No se pudo leer la tarifa del INC de bolsas: sin conexión no se cobra una bolsa plástica.",
+      )
+    }
     if (receivedNum === undefined || receivedNum < netTotal) {
       throw new Error("Escribe el efectivo recibido para cobrar sin conexión.")
     }
+    const bagUnits = bagTaxUnitPorProducto(lineasBolsa, tarifaEfectiva ?? 0)
     const venta = await modo.vender({
       offlineId: llaveDelCobro(),
       sedeId,
@@ -1380,6 +1437,7 @@ export default function VentaPage() {
         unit: i.product.unit,
         qty: i.qty,
         unitPrice: unitPrice(i),
+        bagTaxUnit: bagUnits.get(i.product._id),
       })),
       expectedGrandTotal: netTotal,
       cashierEmail: user?.email ?? "",

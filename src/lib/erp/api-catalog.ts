@@ -61,6 +61,8 @@ export interface CatalogProduct {
   ivaType: IvaType
   /** En un restaurante: expendio (INC) o mercancía revendida (IVA). Ítem 1.17. */
   tratamientoFiscal?: "expendio" | "mercancia"
+  /** Es la «Bolsa plástica»: cobra INC de bolsas aparte (art. 512-15 ET). */
+  bolsaPlastica?: boolean
   sourceType: CatalogSourceType
   inventoryProductId?: InvProductRef | null
   qtyPerUnit?: number
@@ -101,6 +103,7 @@ export interface CatalogProductPayload {
   ivaRate?: IvaRate
   ivaType?: IvaType
   tratamientoFiscal?: "expendio" | "mercancia"
+  bolsaPlastica?: boolean
   sourceType?: CatalogSourceType
   inventoryProductId?: string
   qtyPerUnit?: number
