@@ -6,6 +6,14 @@ import QRCode from "qrcode"
 import { dianStatusSello, type ElectronicDocument } from "@/lib/pos/api-einvoicing"
 import { money, qty, dateTime } from "@/lib/pos/format"
 import { cn } from "@/lib/utils"
+import {
+  descuentoComoFila,
+  detalleBolsa,
+  esDocumentoConTributos,
+  etiquetaTributo,
+  filasDeTotales,
+  totalAPagar,
+} from "@/lib/factura-electronica-vista"
 
 const RESP_FISCAL_LABELS: Record<string, string> = {
   responsable_iva: "Responsable de IVA",
@@ -55,6 +63,7 @@ export function FacturaElectronica({
   const adq = doc.adquiriente
   const res = doc.resolution
   const validated = doc.dianStatus === "accepted"
+  const conTributos = esDocumentoConTributos(doc)
 
   React.useEffect(() => {
     let active = true
@@ -196,10 +205,17 @@ export function FacturaElectronica({
                   {qty(l.qty)} × {money(l.unitPrice)}
                 </span>
                 <span className="tabular-nums">
-                  IVA {l.ivaRate}%
-                  {l.ivaAmount > 0 ? ` · ${money(l.ivaAmount)}` : ""}
+                  {etiquetaTributo(l, conTributos)}
+                  {(conTributos ? (l.taxAmount ?? 0) : l.ivaAmount) > 0
+                    ? ` · ${money(conTributos ? (l.taxAmount ?? 0) : l.ivaAmount)}`
+                    : ""}
                 </span>
               </div>
+              {detalleBolsa(l, money) && (
+                <p className="text-xs text-muted-foreground tabular-nums">
+                  {detalleBolsa(l, money)}
+                </p>
+              )}
               {l.discountAmount > 0 && (
                 <p className="text-xs text-muted-foreground tabular-nums">
                   Descuento: −{money(l.discountAmount)}
@@ -215,16 +231,26 @@ export function FacturaElectronica({
         </ul>
       </div>
 
+      {doc.aviso && (
+        <p
+          role="note"
+          className="mt-4 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs leading-snug text-warning-ink"
+        >
+          Aviso: {doc.aviso}
+        </p>
+      )}
+
       {/* Totales */}
       <div className="space-y-1 border-t border-border pt-3">
-        <Row label="Base gravable" value={money(doc.taxableBase)} muted />
-        {doc.discountTotal > 0 && (
+        {filasDeTotales(doc).map((f) => (
+          <Row key={f.clave} label={f.label} value={money(f.value)} muted />
+        ))}
+        {descuentoComoFila(doc) && (
           <Row label="Descuento" value={`−${money(doc.discountTotal)}`} muted />
         )}
-        <Row label="IVA" value={money(doc.ivaTotal)} muted />
         <div className="flex items-baseline justify-between border-t border-border pt-1.5 text-base font-semibold">
           <span>TOTAL</span>
-          <span className="tabular-nums">{money(doc.total)}</span>
+          <span className="tabular-nums">{money(totalAPagar(doc))}</span>
         </div>
       </div>
 

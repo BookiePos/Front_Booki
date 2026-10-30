@@ -124,7 +124,7 @@ export function Receipt({
 
       {/* Totales */}
       <div className="flex flex-col gap-1">
-        {(sale.discountTotal > 0 || sale.taxTotal > 0 || sale.contingencia) && (
+        {(sale.discountTotal > 0 || sale.taxTotal > 0 || (sale.bagTaxTotal ?? 0) > 0 || sale.contingencia) && (
           <Row label="Subtotal" value={money(sale.subtotal)} muted />
         )}
         {sale.discountTotal > 0 && (
@@ -144,6 +144,9 @@ export function Receipt({
           sale.taxTotal > 0 && (
             <Row label="Impuestos" value={money(sale.taxTotal)} muted />
           )
+        )}
+        {(sale.bagTaxTotal ?? 0) > 0 && (
+          <Row label="INC bolsas" value={money(sale.bagTaxTotal ?? 0)} muted />
         )}
         <div className="flex justify-between text-sm font-semibold">
           <span>TOTAL</span>

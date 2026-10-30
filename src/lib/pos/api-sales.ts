@@ -56,6 +56,8 @@ export interface PosProduct {
   barcode?: string | null
   categoryId: string | null
   categoryName: string | null
+  /** Es el producto «Bolsa plástica»: lleva INC de bolsas aparte (art. 512-15 ET). */
+  bolsaPlastica?: boolean
   // ── Variantes (talla / color) ──────────────────────────────────────────────
   // Cada talla es su propio vendible con su stock; estos campos son lo que
   // permite al POS juntarlas en una sola tarjeta con selector en vez de pintar
@@ -176,6 +178,8 @@ export interface Sale {
   discount?: SaleDiscount
   discountTotal: number
   taxTotal: number
+  /** INC de bolsas plásticas (ya está dentro de `total`). */
+  bagTaxTotal?: number
   total: number
   /** Propina (restaurante): se cobró encima del total. */
   tip?: number

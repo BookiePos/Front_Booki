@@ -5,6 +5,14 @@ import QRCode from "qrcode"
 
 import { dianStatusSello, type ElectronicDocument } from "@/lib/erp/api-einvoicing"
 import { cn } from "@/lib/utils"
+import {
+  descuentoComoFila,
+  detalleBolsa,
+  esDocumentoConTributos,
+  etiquetaTributo,
+  filasDeTotales,
+  totalAPagar,
+} from "@/lib/factura-electronica-vista"
 
 const moneyFmt = new Intl.NumberFormat("es-CO", {
   style: "currency",
@@ -66,6 +74,7 @@ export function FacturaElectronica({
   const adq = doc.adquiriente
   const res = doc.resolution
   const validated = doc.dianStatus === "accepted"
+  const conTributos = esDocumentoConTributos(doc)
 
   React.useEffect(() => {
     let active = true
@@ -201,7 +210,7 @@ export function FacturaElectronica({
             <th className="pb-2 font-medium">Descripción</th>
             <th className="pb-2 text-right font-medium">Cant.</th>
             <th className="pb-2 text-right font-medium">V. Unit</th>
-            <th className="pb-2 text-right font-medium">IVA</th>
+            <th className="pb-2 text-right font-medium">{conTributos ? "Impuesto" : "IVA"}</th>
             <th className="pb-2 text-right font-medium">Total</th>
           </tr>
         </thead>
@@ -215,17 +224,31 @@ export function FacturaElectronica({
                     {l.code}
                   </span>
                 )}
+                {detalleBolsa(l, money) && (
+                  <span className="block text-xs text-muted-foreground tabular-nums">
+                    {detalleBolsa(l, money)}
+                  </span>
+                )}
               </td>
               <td className="py-2 text-right tabular-nums">{qty(l.qty)}</td>
               <td className="py-2 text-right tabular-nums">
                 {money(l.unitPrice)}
               </td>
-              <td className="py-2 text-right tabular-nums">{l.ivaRate}%</td>
+              <td className="py-2 text-right tabular-nums">{etiquetaTributo(l, conTributos)}</td>
               <td className="py-2 text-right tabular-nums">{money(l.total)}</td>
             </tr>
           ))}
         </tbody>
       </table>
+
+      {doc.aviso && (
+        <p
+          role="note"
+          className="mt-4 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs leading-snug text-warning-ink"
+        >
+          Aviso: {doc.aviso}
+        </p>
+      )}
 
       {/* Totales + QR */}
       <div className="mt-4 flex items-start justify-between gap-4">
@@ -250,18 +273,19 @@ export function FacturaElectronica({
         </div>
 
         <div className="w-full max-w-xs space-y-1">
-          <Row label="Base gravable" value={money(doc.taxableBase)} muted />
-          {doc.discountTotal > 0 && (
+          {filasDeTotales(doc).map((f) => (
+            <Row key={f.clave} label={f.label} value={money(f.value)} muted />
+          ))}
+          {descuentoComoFila(doc) && (
             <Row
               label="Descuento"
               value={`−${money(doc.discountTotal)}`}
               muted
             />
           )}
-          <Row label="IVA" value={money(doc.ivaTotal)} muted />
           <div className="flex justify-between border-t border-border pt-1 text-base font-semibold">
             <span>TOTAL</span>
-            <span className="tabular-nums">{money(doc.total)}</span>
+            <span className="tabular-nums">{money(totalAPagar(doc))}</span>
           </div>
         </div>
       </div>

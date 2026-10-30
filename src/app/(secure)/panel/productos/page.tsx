@@ -55,6 +55,8 @@ import { PageHeader } from "@/components/erp/page-header"
 import { ProductImageField } from "@/components/erp/product-image-field"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Checkbox } from "@/components/ui/checkbox"
+import { listTaxes } from "@/lib/erp/api-tax"
 import {
   Card,
   CardContent,
@@ -216,6 +218,20 @@ function ProductDialog({
   const [categoryId, setCategoryId] = React.useState("none")
   const [salePrice, setSalePrice] = React.useState<number | null>(null)
   const [ivaSel, setIvaSel] = React.useState("19")
+  const [bolsaPlastica, setBolsaPlastica] = React.useState(false)
+  // El campo solo aparece si la empresa activó el INC de bolsas. Sin permiso
+  // sobre /taxes (o sin red) se queda oculto, salvo que el producto ya sea bolsa.
+  const [incBolsaActivo, setIncBolsaActivo] = React.useState(false)
+  React.useEffect(() => {
+    if (!open) return
+    let vivo = true
+    listTaxes()
+      .then((t) => vivo && setIncBolsaActivo(t.some((x) => x.code === "INC_BOLSA" && x.active)))
+      .catch(() => vivo && setIncBolsaActivo(false))
+    return () => {
+      vivo = false
+    }
+  }, [open])
   const [tratamiento, setTratamiento] = React.useState<"expendio" | "mercancia">(
     "expendio",
   )
@@ -345,6 +361,7 @@ function ProductDialog({
         setCategoryId(product.categoryId?._id ?? "none")
         setSalePrice(product.salePrice ?? null)
         setIvaSel(ivaKey(product.ivaRate ?? 19, product.ivaType ?? "gravado"))
+        setBolsaPlastica(product.bolsaPlastica === true)
         setTratamiento(product.tratamientoFiscal ?? "expendio")
         // Retail nunca usa receta; si por datos viejos llegara una, se trata
         // como "del inventario" para que la ficha sea coherente con el giro.
@@ -385,6 +402,7 @@ function ProductDialog({
         setCategoryId("none")
         setSalePrice(null)
         setIvaSel("19")
+        setBolsaPlastica(false)
         setTratamiento("expendio")
         setSourceType("inventory")
         setInventoryProductId("")
@@ -473,6 +491,8 @@ function ProductDialog({
         ivaRate: iva.rate,
         ivaType: iva.type,
         tratamientoFiscal: tratamiento,
+        // Solo viaja si el campo se ve o ya estaba marcado: no se pisa en silencio.
+        bolsaPlastica: incBolsaActivo || bolsaPlastica ? bolsaPlastica : undefined,
         sourceType,
         inventoryProductId:
           sourceType === "inventory" ? inventoryProductId : undefined,
@@ -688,6 +708,21 @@ function ProductDialog({
                 ]}
               />
             </Field>
+            {(incBolsaActivo || bolsaPlastica) && (
+              <label className="flex cursor-pointer items-start gap-2 text-sm sm:col-span-2">
+                <Checkbox
+                  checked={bolsaPlastica}
+                  onCheckedChange={(v) => setBolsaPlastica(v === true)}
+                  className="mt-0.5"
+                />
+                <span>
+                  Bolsa plástica
+                  <span className="block text-xs text-muted-foreground">
+                    Al venderla se suma el INC de bolsas (art. 512-15 ET) aparte del precio, solo si la sede es responsable de IVA.
+                  </span>
+                </span>
+              </label>
+            )}
             <Field id="c-cat" label="Categoría" help={{ term: "categoria" }}>
               <NativeSelect
                 id="c-cat"

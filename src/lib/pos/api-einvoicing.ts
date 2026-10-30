@@ -68,7 +68,28 @@ export interface DocLine {
   base: number
   ivaRate: number
   ivaAmount: number
+  /** Tributo de la línea: 01 IVA, 04 INC. Ausente: sin tributo (o documento anterior a la Fase 2). */
+  taxScheme?: "01" | "04"
+  /** Tarifa en %. 01 al 0 % es exento. */
+  taxRate?: number
+  taxAmount?: number
+  /** INC de bolsas (tributo 22), por unidad. */
+  perUnitTax?: DocPerUnitTax
   total: number
+}
+
+export interface DocPerUnitTax {
+  codigo: "22"
+  unidades: number
+  valorUnitario: number
+  valor: number
+}
+
+/** Cargo de documento no gravado (la propina). */
+export interface DocCharge {
+  chargeIndicator: boolean
+  reason: string
+  amount: number
 }
 
 export interface DocResolucion {
@@ -96,6 +117,16 @@ export interface ElectronicDocument {
   taxableBase: number
   ivaTotal: number
   discountTotal: number
+  /** Campos de la Fase 2: ausentes en documentos anteriores. */
+  incTotal?: number
+  icaTotal?: number
+  bagTaxTotal?: number
+  charges?: DocCharge[]
+  chargeTotal?: number
+  /** Lo que paga el cliente (incluye bolsas, domicilio y propina). */
+  payableAmount?: number
+  /** Algo que revisar sin bloquear la emisión. */
+  aviso?: string
   total: number
   formaPago: string
   medioPago?: string
