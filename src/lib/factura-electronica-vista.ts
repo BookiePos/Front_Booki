@@ -73,11 +73,9 @@ export function filasDeTotales(doc: DocumentoVista): FilaTotal[] {
   if ((doc.bagTaxTotal ?? 0) > 0) {
     filas.push({ clave: "bolsas", label: "INC de bolsas", value: doc.bagTaxTotal! })
   }
-  const propina = (doc.charges ?? [])
-    .filter((c) => c.chargeIndicator)
-    .reduce((a, c) => a + c.amount, 0)
-  const cargos = propina > 0 ? propina : (doc.chargeTotal ?? 0)
-  if (cargos > 0) filas.push({ clave: "propina", label: "Propina", value: cargos })
+  // `chargeTotal` ya viene con signo: se usa tal cual.
+  const cargos = doc.chargeTotal ?? 0
+  if (cargos !== 0) filas.push({ clave: "propina", label: "Propina", value: cargos })
   return filas
 }
 

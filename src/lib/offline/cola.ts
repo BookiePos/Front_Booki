@@ -261,7 +261,7 @@ export function precioCobrado(
   return [...porProducto].map(([productId, c]) => ({
     productId,
     unitPrice: c.unitPrice,
-    ...(c.bagTaxUnit ? { bagTaxUnit: c.bagTaxUnit } : {}),
+    ...(c.bagTaxUnit !== undefined ? { bagTaxUnit: c.bagTaxUnit } : {}),
   }))
 }
 

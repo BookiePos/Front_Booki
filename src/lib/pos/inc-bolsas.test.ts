@@ -2,10 +2,12 @@ import { describe, expect, it } from "vitest"
 
 import {
   bagTaxUnitPorProducto,
+  bolsaSinTarifa,
   causaIncBolsas,
   chargeForQty,
   incBolsasTotal,
   tarifaBolsaVigente,
+  tarifaParaVenta,
 } from "./inc-bolsas"
 
 /**
@@ -113,5 +115,23 @@ describe("tarifaBolsaVigente · tarifa del día", () => {
     expect(tarifaBolsaVigente(bolsa(false), "2026-06-01")).toBe(0)
     expect(tarifaBolsaVigente(bolsa(true), "2024-12-31")).toBe(0)
     expect(tarifaBolsaVigente([], "2026-06-01")).toBe(0)
+  })
+})
+
+describe("tarifa desconocida (null): nunca se suma 0", () => {
+  const conBolsa = [{ productId: "b", bolsa: true, previo: 0, qty: 1 }]
+  const sinBolsa = [{ productId: "p", bolsa: false, previo: 0, qty: 1 }]
+  it("sede que cobra bolsas y tarifa sin leer: se conserva null y bloquea el cobro con bolsa", () => {
+    const t = tarifaParaVenta(true, null)
+    expect(t).toBeNull()
+    expect(bolsaSinTarifa(t, conBolsa)).toBe(true)
+  })
+  it("sin bolsa en el carrito no bloquea, aunque la tarifa sea null", () => {
+    expect(bolsaSinTarifa(null, sinBolsa)).toBe(false)
+  })
+  it("sede que no cobra bolsas: tarifa 0 y nunca bloquea; tarifa conocida tampoco", () => {
+    expect(tarifaParaVenta(false, null)).toBe(0)
+    expect(bolsaSinTarifa(tarifaParaVenta(false, null), conBolsa)).toBe(false)
+    expect(bolsaSinTarifa(73, conBolsa)).toBe(false)
   })
 })

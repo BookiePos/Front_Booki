@@ -15,8 +15,11 @@ import { useSede } from "@/lib/pos/sede-context"
 import { leerTarifaBolsa } from "@/lib/pos/api-bolsas"
 import {
   bagTaxUnitPorProducto,
+  bolsaSinTarifa,
   causaIncBolsas,
   incBolsasTotal,
+  MENSAJE_BOLSA_SIN_TARIFA,
+  tarifaParaVenta,
   type LineaBolsa,
 } from "@/lib/pos/inc-bolsas"
 import {
@@ -188,7 +191,7 @@ export default function VentaPage() {
   // Es voluntaria: se puede poner y quitar, con el 10% sugerido o un monto libre.
   const [tip, setTip] = React.useState<number | null>(null)
   // Tarifa del INC de bolsas vigente hoy (0 = no aplica; null = no se pudo leer).
-  const [tarifaBolsa, setTarifaBolsa] = React.useState<number | null>(0)
+  const [tarifaBolsa, setTarifaBolsa] = React.useState<number | null>(null)
 
   // Descuentos predefinidos de la sede (activos), para aplicar por línea.
   const [discounts, setDiscounts] = React.useState<Discount[]>([])
@@ -445,17 +448,6 @@ export default function VentaPage() {
   }
 
   const aplicaBolsas = causaIncBolsas(sede)
-  // La tarifa del INC de bolsas sale de /taxes y solo cuenta si la sede es
-  // responsable de IVA (misma regla que `causaIncBolsas` del servidor).
-  React.useEffect(() => {
-    let vivo = true
-    if (!sedeId || !aplicaBolsas) return
-    leerTarifaBolsa().then((t) => vivo && setTarifaBolsa(t))
-    return () => {
-      vivo = false
-    }
-  }, [sedeId, aplicaBolsas])
-
   const fetchProducts = React.useCallback(async () => {
     if (!sedeId) return
     setLoading(true)
@@ -549,6 +541,18 @@ export default function VentaPage() {
   // Modo sin conexión (ítem 6.3): bloque de consecutivos del turno, cola local
   // y sincronización al volver la red.
   const modo = useModoOffline(sedeId, caja?._id, canSell)
+
+  // La tarifa del INC de bolsas sale de /taxes y solo cuenta si la sede es
+  // responsable de IVA (misma regla que `causaIncBolsas` del servidor).
+  React.useEffect(() => {
+    let vivo = true
+    if (!sedeId || !aplicaBolsas) return
+    leerTarifaBolsa().then((t) => vivo && setTarifaBolsa(t))
+    return () => {
+      vivo = false
+    }
+    // También al volver la red: sin ella la lectura anterior pudo fallar.
+  }, [sedeId, aplicaBolsas, modo.online])
 
   async function handleOpenCaja() {
     if (!sedeId) return
@@ -1025,6 +1029,8 @@ export default function VentaPage() {
   )
 
   function openCheckout() {
+    // Cada cobro vuelve a leer la tarifa: la lectura anterior pudo fallar.
+    if (sedeId && aplicaBolsas) leerTarifaBolsa().then(setTarifaBolsa)
     setMethod("cash")
     setDigital(detalleVacio())
     setReceived(null)
@@ -1180,9 +1186,9 @@ export default function VentaPage() {
       qty,
     }))
   }, [activeOrder, cart, products, splitLines, pendiente])
-  const tarifaEfectiva = aplicaBolsas ? tarifaBolsa : 0
+  const tarifaEfectiva = tarifaParaVenta(aplicaBolsas, tarifaBolsa)
   const incBolsas = incBolsasTotal(lineasBolsa, tarifaEfectiva ?? 0)
-  const bolsaSinTarifa = tarifaEfectiva === null && lineasBolsa.some((l) => l.bolsa)
+  const sinTarifaBolsa = bolsaSinTarifa(tarifaEfectiva, lineasBolsa)
 
   const netTotal = chargeTotal + incBolsas + tipAmount + deliveryFee
 
@@ -1252,6 +1258,7 @@ export default function VentaPage() {
   /** Por qué no se puede confirmar todavía (o `false` si se puede). */
   const confirmBlocked =
     saving ||
+    sinTarifaBolsa ||
     digitalError !== null ||
     cart.length === 0 ||
     invoiceDataMissing ||
@@ -1277,7 +1284,9 @@ export default function VentaPage() {
   const motivoBloqueo =
     saving || cart.length === 0
       ? null
-      : orderType === "domicilio" && !address.trim()
+      : sinTarifaBolsa
+        ? MENSAJE_BOLSA_SIN_TARIFA
+        : orderType === "domicilio" && !address.trim()
         ? "Escribe la dirección del domicilio para poder cobrar."
         : usesCredit &&
             ((debtorType === "customer" && !custId) ||
@@ -1406,11 +1415,7 @@ export default function VentaPage() {
         `Sin conexión solo se cobra en efectivo en mostrador. Quita: ${no.join(", ")}.`,
       )
     }
-    if (bolsaSinTarifa) {
-      throw new Error(
-        "No se pudo leer la tarifa del INC de bolsas: sin conexión no se cobra una bolsa plástica.",
-      )
-    }
+    if (sinTarifaBolsa) throw new Error(MENSAJE_BOLSA_SIN_TARIFA)
     if (receivedNum === undefined || receivedNum < netTotal) {
       throw new Error("Escribe el efectivo recibido para cobrar sin conexión.")
     }
@@ -1437,7 +1442,8 @@ export default function VentaPage() {
         unit: i.product.unit,
         qty: i.qty,
         unitPrice: unitPrice(i),
-        bagTaxUnit: bagUnits.get(i.product._id),
+        // Bolsa que no cobró INC: 0 explícito, no se omite el campo.
+        bagTaxUnit: i.product.bolsaPlastica === true ? (bagUnits.get(i.product._id) ?? 0) : undefined,
       })),
       expectedGrandTotal: netTotal,
       cashierEmail: user?.email ?? "",
@@ -1447,6 +1453,10 @@ export default function VentaPage() {
 
   async function handleConfirm() {
     if (!sedeId) return
+    if (sinTarifaBolsa) {
+      setCheckoutError(MENSAJE_BOLSA_SIN_TARIFA)
+      return
+    }
     setSaving(true)
     setCheckoutError(null)
     const payment = {

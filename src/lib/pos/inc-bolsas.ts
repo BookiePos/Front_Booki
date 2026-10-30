@@ -87,3 +87,23 @@ export function bagTaxUnitPorProducto(
   }
   return out
 }
+
+/**
+ * Tarifa que cuenta para esta venta: 0 si la sede no cobra el INC de bolsas;
+ * `null` si debería cobrarlo y la tarifa aún no se conoce. Nunca se trata `null`
+ * como 0: el total saldría corto frente al que guarda el servidor.
+ */
+export function tarifaParaVenta(aplica: boolean, tarifa: number | null): number | null {
+  return aplica ? tarifa : 0
+}
+
+/** Hay una bolsa en el cobro y no se sabe cuánto INC lleva: no se puede cobrar. */
+export function bolsaSinTarifa(
+  tarifa: number | null,
+  lineas: readonly LineaBolsa[],
+): boolean {
+  return tarifa === null && lineas.some((l) => l.bolsa)
+}
+
+export const MENSAJE_BOLSA_SIN_TARIFA =
+  "No se pudo leer la tarifa del INC de bolsas. Revisa la conexión y vuelve a abrir el cobro, o quita la bolsa."

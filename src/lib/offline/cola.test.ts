@@ -9,6 +9,7 @@ import {
   leerCopia,
   leerReserva,
   motivosNoOffline,
+  precioCobrado,
   reintentar,
   restantes,
   SinNumerosError,
@@ -286,5 +287,17 @@ describe("qué se puede cobrar sin conexión", () => {
     expect(motivosNoOffline({ ...base, orderType: "domicilio" })).not.toEqual([])
     expect(motivosNoOffline({ ...base, emitInvoice: true })).not.toEqual([])
     expect(motivosNoOffline({ ...base, activeOrder: true })).not.toEqual([])
+  })
+})
+
+describe("precioCobrado · INC de bolsas", () => {
+  const l = (productId: string, bagTaxUnit?: number) => ({
+    productId, name: productId, sku: productId, unit: "und", qty: 1, unitPrice: 100, bagTaxUnit,
+  })
+  it("bolsa sin INC manda bagTaxUnit 0 explícito; la que cobró manda su valor; el resto lo omite", () => {
+    const r = precioCobrado({ lineas: [l("bolsa0", 0), l("bolsa", 73), l("plato")] } as never)
+    expect(r.find((x) => x.productId === "bolsa0")).toEqual({ productId: "bolsa0", unitPrice: 100, bagTaxUnit: 0 })
+    expect(r.find((x) => x.productId === "bolsa")?.bagTaxUnit).toBe(73)
+    expect(r.find((x) => x.productId === "plato")).not.toHaveProperty("bagTaxUnit")
   })
 })

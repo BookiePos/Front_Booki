@@ -48,6 +48,10 @@ describe("factura electrónica · totales", () => {
     expect(filas.map((f) => f.clave)).toEqual(["base", "iva", "inc", "bolsas", "propina"])
     expect(filas.reduce((a, f) => a + f.value, 0)).toBe(totalAPagar(doc))
   })
+  it("la fila de cargos usa chargeTotal tal cual", () => {
+    const doc = { ...base, charges: [], chargeTotal: 7_000, payableAmount: 7_000, total: 7_000 }
+    expect(filasDeTotales(doc).find((f) => f.clave === "propina")?.value).toBe(7_000)
+  })
   it("IVA y exentos: sin filas vacías, suma exacta", () => {
     const doc = { ...base, taxableBase: 20_000, ivaTotal: 1_900, payableAmount: 21_900, total: 21_900 }
     const filas = filasDeTotales(doc)
