@@ -5,6 +5,7 @@ import {
   bolsaSinTarifa,
   causaIncBolsas,
   chargeForQty,
+  conservarTarifa,
   incBolsasTotal,
   tarifaBolsaVigente,
   tarifaParaVenta,
@@ -133,5 +134,20 @@ describe("tarifa desconocida (null): nunca se suma 0", () => {
     expect(tarifaParaVenta(false, null)).toBe(0)
     expect(bolsaSinTarifa(tarifaParaVenta(false, null), conBolsa)).toBe(false)
     expect(bolsaSinTarifa(73, conBolsa)).toBe(false)
+  })
+})
+
+describe("tarifa conocida y luego fallo de red", () => {
+  it("la lectura fallida conserva la tarifa y el cobro offline con bolsa sigue", () => {
+    const conBolsa = [{ productId: "b", bolsa: true, previo: 0, qty: 2 }]
+    const t = conservarTarifa(conservarTarifa(null, 73), null)
+    expect(t).toBe(73)
+    expect(bolsaSinTarifa(tarifaParaVenta(true, t), conBolsa)).toBe(false)
+    expect(incBolsasTotal(conBolsa, t ?? 0)).toBe(146)
+  })
+  it("si nunca se pudo leer sigue null y bloquea; una lectura buena la reemplaza", () => {
+    expect(conservarTarifa(null, null)).toBeNull()
+    expect(conservarTarifa(70, 73)).toBe(73)
+    expect(conservarTarifa(73, 0)).toBe(0)
   })
 })

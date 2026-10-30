@@ -107,3 +107,12 @@ export function bolsaSinTarifa(
 
 export const MENSAJE_BOLSA_SIN_TARIFA =
   "No se pudo leer la tarifa del INC de bolsas. Revisa la conexión y vuelve a abrir el cobro, o quita la bolsa."
+
+/**
+ * Una lectura fallida (`null`) no pisa una tarifa ya conocida: sin red la
+ * relectura falla siempre, y el cobro offline necesita la última tarifa buena.
+ * Solo queda `null` si nunca se pudo leer.
+ */
+export function conservarTarifa(actual: number | null, leida: number | null): number | null {
+  return leida ?? actual
+}

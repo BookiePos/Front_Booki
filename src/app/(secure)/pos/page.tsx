@@ -17,6 +17,7 @@ import {
   bagTaxUnitPorProducto,
   bolsaSinTarifa,
   causaIncBolsas,
+  conservarTarifa,
   incBolsasTotal,
   MENSAJE_BOLSA_SIN_TARIFA,
   tarifaParaVenta,
@@ -546,8 +547,9 @@ export default function VentaPage() {
   // responsable de IVA (misma regla que `causaIncBolsas` del servidor).
   React.useEffect(() => {
     let vivo = true
-    if (!sedeId || !aplicaBolsas) return
-    leerTarifaBolsa().then((t) => vivo && setTarifaBolsa(t))
+    // Sin red la lectura fallaría y no aporta nada: se conserva la última tarifa.
+    if (!sedeId || !aplicaBolsas || !modo.online) return
+    leerTarifaBolsa().then((t) => vivo && setTarifaBolsa((a) => conservarTarifa(a, t)))
     return () => {
       vivo = false
     }
@@ -1030,7 +1032,9 @@ export default function VentaPage() {
 
   function openCheckout() {
     // Cada cobro vuelve a leer la tarifa: la lectura anterior pudo fallar.
-    if (sedeId && aplicaBolsas) leerTarifaBolsa().then(setTarifaBolsa)
+    if (sedeId && aplicaBolsas && modo.online) {
+      leerTarifaBolsa().then((t) => setTarifaBolsa((a) => conservarTarifa(a, t)))
+    }
     setMethod("cash")
     setDigital(detalleVacio())
     setReceived(null)
