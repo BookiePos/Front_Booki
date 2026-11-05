@@ -65,6 +65,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
+import { NominaElectronicaCard } from "@/components/erp/nomina-electronica-card"
 import { CobroDigitalConfig } from "@/components/erp/finance/cobro-digital-config"
 import { useConfirm } from "@/components/ui/confirm-dialog"
 import { Input, InputWithIcon } from "@/components/ui/input"
@@ -838,6 +839,7 @@ export default function SedeDetailPage() {
 
       {/* ── Zonas de domicilio ────────────────────────────────────────────── */}
       <DeliveryZonesCard sedeId={sedeId} canManage={canManage} />
+      <NominaElectronicaCard sedeId={sedeId} />
 
       {/* ── Descuentos ────────────────────────────────────────────────────── */}
       <Card className="mt-6">
