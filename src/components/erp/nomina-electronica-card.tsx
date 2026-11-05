@@ -8,8 +8,15 @@ import { useAuth } from "@/lib/auth-context"
 import {
   configurarNominaEmisor,
   getEmisorNomina,
+  getHabilitacionNomina,
+  iniciarHabilitacionNomina,
   type EmisorNominaVista,
+  type HabilitacionNominaVista,
 } from "@/lib/erp/api-einvoicing"
+import {
+  ESTADO_DOC_HABILITACION_LABELS,
+  mensajeErrorNominaPeriodo,
+} from "@/lib/erp/nomina-electronica-periodo"
 import {
   armarPayloadNomina,
   mensajeErrorNomina,
@@ -37,6 +44,9 @@ export function NominaElectronicaCard({ sedeId }: { sedeId: string }) {
   const [testSetId, setTestSetId] = React.useState("")
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+  const [hab, setHab] = React.useState<HabilitacionNominaVista | null>(null)
+  const [habBusy, setHabBusy] = React.useState(false)
+  const [habError, setHabError] = React.useState<string | null>(null)
 
   React.useEffect(() => {
     if (!permitido) return
@@ -74,6 +84,24 @@ export function NominaElectronicaCard({ sedeId }: { sedeId: string }) {
       setError(mensajeErrorNomina(e))
     } finally {
       setBusy(false)
+    }
+  }
+
+  // El 409 del backend (ambiente de producción, TestSetId faltante, corrida en
+  // curso…) ya viene explicado en español: se muestra tal cual.
+  async function habilitacion(accion: "iniciar" | "consultar") {
+    setHabBusy(true)
+    setHabError(null)
+    try {
+      setHab(
+        accion === "iniciar"
+          ? await iniciarHabilitacionNomina(sedeId)
+          : await getHabilitacionNomina(sedeId),
+      )
+    } catch (e) {
+      setHabError(mensajeErrorNominaPeriodo(e))
+    } finally {
+      setHabBusy(false)
     }
   }
 
@@ -162,6 +190,56 @@ export function NominaElectronicaCard({ sedeId }: { sedeId: string }) {
               </Button>
             </div>
           </form>
+        )}
+        {vista && (
+          <div className="flex flex-col gap-3 border-t pt-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="text-sm font-medium">Set de pruebas de habilitación</p>
+                <p className="text-xs text-muted-foreground">
+                  Envía a la DIAN (ambiente de habilitación) documentos de prueba con un
+                  trabajador sintético. Requiere SoftwareID, PIN y TestSetId guardados.
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Button type="button" variant="outline" disabled={habBusy} onClick={() => void habilitacion("consultar")}>
+                  Ver avance
+                </Button>
+                <Button type="button" disabled={habBusy} onClick={() => void habilitacion("iniciar")}>
+                  {habBusy && <Loader2 className="animate-spin" aria-hidden />}
+                  Correr set de pruebas de habilitación
+                </Button>
+              </div>
+            </div>
+            {habError && <FormAlert>{habError}</FormAlert>}
+            {hab && (
+              <div className="flex flex-col gap-2 text-sm" role="status" aria-live="polite">
+                <p>
+                  <Badge variant={hab.aprobada ? "default" : "outline"}>
+                    {hab.aprobada ? "Aprobada" : hab.estado === "en_curso" ? "En curso" : "Sin iniciar"}
+                  </Badge>{" "}
+                  {hab.mensaje}
+                </p>
+                {hab.resumen && (
+                  <p className="text-muted-foreground">
+                    Nóminas: {hab.resumen.porTipo.nie.aceptados}/{hab.resumen.porTipo.nie.exigidos} aceptadas · Ajustes:{" "}
+                    {hab.resumen.porTipo.niae.aceptados}/{hab.resumen.porTipo.niae.exigidos} aceptados
+                  </p>
+                )}
+                {hab.error && <FormAlert>{hab.error}</FormAlert>}
+                {hab.documentos.length > 0 && (
+                  <ul className="flex flex-col gap-1 text-xs text-muted-foreground">
+                    {hab.documentos.map((d) => (
+                      <li key={`${d.tipo}-${d.numero}`}>
+                        {d.tipo === "nie" ? "Nómina" : "Ajuste"} {d.numero}: {ESTADO_DOC_HABILITACION_LABELS[d.estado]}
+                        {d.mensaje ? ` — ${d.mensaje}` : ""}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+          </div>
         )}
       </CardContent>
     </Card>

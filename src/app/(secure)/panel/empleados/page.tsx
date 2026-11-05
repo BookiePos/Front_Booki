@@ -116,6 +116,8 @@ export default function EmpleadosPage() {
     [users],
   )
 
+  const deepLinkHecho = React.useRef(false)
+
   const load = React.useCallback(async () => {
     if (!canView) return
     setLoading(true)
@@ -127,6 +129,16 @@ export default function EmpleadosPage() {
         listSedes(),
       ])
       setEmployees(emps)
+      // Enlace profundo desde nómina electrónica (?editar=<id>): abre esa ficha una vez.
+      const editarId = deepLinkHecho.current
+        ? null
+        : new URLSearchParams(window.location.search).get("editar")
+      const objetivo = editarId ? emps.find((x) => x._id === editarId) : undefined
+      if (objetivo && canManage) {
+        deepLinkHecho.current = true
+        setEditing(objetivo)
+        setFormOpen(true)
+      }
       setPositions(pos)
       setSedes(sd.filter((s) => s.active))
       // Los usuarios permiten mostrar quién ya tiene acceso al sistema.
@@ -140,7 +152,7 @@ export default function EmpleadosPage() {
     } finally {
       setLoading(false)
     }
-  }, [canView, canManageUsers])
+  }, [canView, canManageUsers, canManage])
 
   useLoadEffect(load)
 

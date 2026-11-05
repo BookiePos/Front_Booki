@@ -370,3 +370,171 @@ export async function configurarNominaEmisor(
   const data = await parseResponse<{ emisor: EmisorNominaVista | null }>(res)
   return data.emisor
 }
+
+// ── Nómina electrónica DIAN: periodo, documentos y habilitación ──────────────
+
+/** Pre-vuelo de un trabajador: qué bloquea o advierte. No emite nada. */
+export interface PrevueloTrabajador {
+  empleadoId: string
+  nombre: string
+  ok: boolean
+  bloqueos: string[]
+  advertencias: string[]
+  documentoExistente?: { id: string; fullNumber: string; dianStatus: string }
+}
+
+export type EstadoEmisionTrabajador =
+  | "existente"
+  | "emitido"
+  | "en_curso"
+  | "bloqueado"
+  | "error"
+
+export interface ResultadoTrabajadorEmision {
+  empleadoId: string
+  nombre: string
+  estado: EstadoEmisionTrabajador
+  documentoId?: string
+  fullNumber?: string
+  dianStatus?: string
+  mensajes: string[]
+}
+
+export interface ResultadoEmisionPeriodo {
+  periodo: string
+  resultados: ResultadoTrabajadorEmision[]
+  /** Ausente cuando ya no quedan trabajadores por procesar. */
+  siguienteCursor?: string
+  pendientes: number
+}
+
+export interface DocumentoNomina {
+  id: string
+  fullNumber: string
+  tipoXml: "102" | "103"
+  tipoNota?: 1 | 2
+  periodo: string
+  empleado: { nombre?: string; documento: string }
+  dianStatus: string
+  vigente: boolean
+  superado: boolean
+  issueDate: string
+  rechazoMotivo?: string
+}
+
+/** Resultado de transmitir, consultar o ajustar un documento. */
+export interface ResultadoNominaElectronica {
+  documentoId?: string
+  fullNumber?: string
+  tipoXml?: "102" | "103"
+  periodo?: string
+  dianStatus?: string
+  cune?: string
+  transmitido: boolean
+  codigo?: string
+  mensajes: string[]
+  intentos: number
+}
+
+export type TipoNotaAjuste = "reemplazar" | "eliminar"
+
+const qs = (params: Record<string, string>) => new URLSearchParams(params).toString()
+
+export async function prepararNominaPeriodo(
+  periodo: string,
+  sedeId: string,
+): Promise<{ periodo: string; trabajadores: PrevueloTrabajador[] }> {
+  const res = await authFetch(
+    `/einvoicing/nomina/periodos/${periodo}/preparar?${qs({ sedeId })}`,
+    { method: "POST" },
+  )
+  return parseResponse(res)
+}
+
+export async function emitirNominaPeriodo(
+  periodo: string,
+  sedeId: string,
+  cursor?: string,
+): Promise<ResultadoEmisionPeriodo> {
+  const res = await authFetch(
+    `/einvoicing/nomina/periodos/${periodo}/emitir?${qs({ sedeId })}`,
+    { method: "POST", body: JSON.stringify(cursor ? { cursor } : {}) },
+  )
+  return parseResponse(res)
+}
+
+export async function listarNominaDocumentos(
+  periodo: string,
+  sedeId: string,
+): Promise<DocumentoNomina[]> {
+  const res = await authFetch(`/einvoicing/nomina?${qs({ periodo, sedeId })}`)
+  return parseResponse(res)
+}
+
+export async function transmitirNomina(id: string): Promise<ResultadoNominaElectronica> {
+  const res = await authFetch(`/einvoicing/nomina/${id}/transmitir`, { method: "POST" })
+  return parseResponse(res)
+}
+
+export async function consultarNomina(id: string): Promise<ResultadoNominaElectronica> {
+  const res = await authFetch(`/einvoicing/nomina/${id}`)
+  return parseResponse(res)
+}
+
+export async function ajustarNomina(
+  id: string,
+  tipoNota: TipoNotaAjuste,
+): Promise<ResultadoNominaElectronica> {
+  const res = await authFetch(`/einvoicing/nomina/${id}/ajuste`, {
+    method: "POST",
+    body: JSON.stringify({ tipoNota }),
+  })
+  return parseResponse(res)
+}
+
+export type EstadoDocHabilitacion =
+  | "pendiente"
+  | "enviando"
+  | "enviado"
+  | "aceptado"
+  | "rechazado"
+
+export interface HabilitacionNominaVista {
+  estado: "sin_iniciar" | "en_curso" | "aprobada"
+  aprobada: boolean
+  mensaje: string
+  testSetId?: string
+  resumen?: {
+    porTipo: Record<
+      "nie" | "niae",
+      { exigidos: number; aceptados: number; rechazados: number; enCurso: number }
+    >
+    aprobada: boolean
+    aceptados: number
+    total: number
+  }
+  documentos: {
+    tipo: "nie" | "niae"
+    numero: string
+    estado: EstadoDocHabilitacion
+    mensaje: string | null
+    intentos: number
+  }[]
+  error?: string
+}
+
+export async function iniciarHabilitacionNomina(
+  sedeId: string,
+): Promise<HabilitacionNominaVista> {
+  const res = await authFetch(`/einvoicing/sedes/${sedeId}/emisor/nomina/habilitacion`, {
+    method: "POST",
+  })
+  return parseResponse(res)
+}
+
+export async function getHabilitacionNomina(
+  sedeId: string,
+): Promise<HabilitacionNominaVista> {
+  const res = await authFetch(`/einvoicing/sedes/${sedeId}/emisor/nomina/habilitacion`)
+  return parseResponse(res)
+}
