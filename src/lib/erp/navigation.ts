@@ -29,6 +29,7 @@ import {
   SlidersHorizontal,
   CreditCard,
   ScanLine,
+  FileCheck2,
 } from "lucide-react"
 
 export type NavItem = {
@@ -106,6 +107,7 @@ export const navSections: NavSection[] = [
     items: [
       { title: "Empleados", href: "/panel/empleados", icon: BadgeDollarSign, requiredPermissions: ["employees.view", "employees.manage"] },
       { title: "Nómina", href: "/panel/nomina", icon: Wallet, requiredPermissions: ["payroll.manage"], requiredFeature: "payroll" },
+      { title: "Nómina electrónica", href: "/panel/nomina/electronica", icon: FileCheck2, requiredPermissions: ["payroll.einvoice"], requiredFeature: "payroll" },
       { title: "Consumos / deducciones", href: "/panel/nomina/deducciones", icon: ReceiptText, requiredPermissions: ["payroll.view", "payroll.deduction.approve", "payroll.manage"], requiredFeature: "payroll" },
       { title: "Turnos", href: "/panel/turnos", icon: CalendarClock, requiredPermissions: ["attendance.manage"] },
     ],
