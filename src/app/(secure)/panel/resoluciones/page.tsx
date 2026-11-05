@@ -5,6 +5,7 @@ import Link from "next/link"
 import {
   CircleCheck,
   ClipboardList,
+  CloudDownload,
   Loader2,
   Pencil,
   ScrollText,
@@ -20,12 +21,15 @@ import {
   TIPOS_RESOLUCION,
   TIPO_RESOLUCION_LABELS,
   resolucionDeTipo,
+  traerRangosDian,
+  type RangosDianVista,
   tipoExigePrefijo,
   type EstadoResolucion,
   type RegisterResolutionPayload,
   type ResolutionRow,
   type TipoResolucion,
 } from "@/lib/erp/api-einvoicing"
+import { mensajeRangosFallidos, payloadDeRango, textoRango } from "@/lib/erp/documento-fe"
 import { errorMessage, fmtDate } from "@/lib/erp/finance-format"
 
 import { PageHeader } from "@/components/erp/page-header"
@@ -130,10 +134,12 @@ interface ResolutionSheetProps {
   row: ResolutionRow | null
   /** Tipo con el que abre el formulario. */
   initialTipo: TipoResolucion
+  /** Datos de un rango de la DIAN para pre-llenar (la clave técnica no viene). */
+  prefill?: RegisterResolutionPayload | null
   onSaved: (rows: ResolutionRow[]) => void
 }
 
-function ResolutionSheet({ open, onOpenChange, row, initialTipo, onSaved }: ResolutionSheetProps) {
+function ResolutionSheet({ open, onOpenChange, row, initialTipo, prefill, onSaved }: ResolutionSheetProps) {
   const [tipo, setTipo] = React.useState<TipoResolucion>("invoice")
   const [f, setF] = React.useState<RegisterResolutionPayload>({})
   const [empezarEn, setEmpezarEn] = React.useState("")
@@ -172,10 +178,14 @@ function ResolutionSheet({ open, onOpenChange, row, initialTipo, onSaved }: Reso
     if (!open || !row) return
     setTipo(initialTipo)
     cargar(row, initialTipo)
+    if (prefill) {
+      setF((prev) => ({ ...prev, ...prefill }))
+      if (prefill.rangoDesde !== undefined) setEmpezarEn(String(prefill.rangoDesde))
+    }
     setClaveTecnica("")
     setError(null)
     setErrorPrefijo(null)
-  }, [open, row, initialTipo, cargar])
+  }, [open, row, initialTipo, prefill, cargar])
 
   const exigePrefijo = tipoExigePrefijo(tipo)
   const nombreTipo = TIPO_RESOLUCION_LABELS[tipo].toLowerCase()
@@ -465,9 +475,40 @@ export default function ResolucionesPage() {
   const [editing, setEditing] = React.useState<ResolutionRow | null>(null)
   const [editingTipo, setEditingTipo] = React.useState<TipoResolucion>("invoice")
 
+  const [prefill, setPrefill] = React.useState<RegisterResolutionPayload | null>(null)
+  const [rangosDe, setRangosDe] = React.useState<ResolutionRow | null>(null)
+  const [rangos, setRangos] = React.useState<RangosDianVista | null>(null)
+  const [cargandoRangos, setCargandoRangos] = React.useState(false)
+
   function abrir(row: ResolutionRow, tipo: TipoResolucion) {
+    setPrefill(null)
     setEditingTipo(tipo)
     setEditing(row)
+  }
+
+  async function traerRangos(row: ResolutionRow) {
+    setRangosDe(row)
+    setRangos(null)
+    setCargandoRangos(true)
+    try {
+      setRangos(await traerRangosDian(row.sedeId))
+    } catch (err) {
+      toast.error(errorMessage(err))
+      setRangosDe(null)
+    } finally {
+      setCargandoRangos(false)
+    }
+  }
+
+  function usarRango(row: ResolutionRow, r: RangosDianVista["rangos"][number]) {
+    // Un rango con prefijo distinto al de la factura se registra como otro tipo.
+    const factura = row.resolucion?.prefijo ?? ""
+    const tipo: TipoResolucion =
+      !factura || (r.prefijo ?? "") === factura ? "invoice" : "pos"
+    setPrefill(payloadDeRango(r))
+    setEditingTipo(tipo)
+    setEditing(row)
+    setRangosDe(null)
   }
 
   const load = React.useCallback(async () => {
@@ -579,6 +620,10 @@ export default function ResolucionesPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     <EstadoBadge estado={row.status.estado} />
+                    <Button size="sm" variant="outline" onClick={() => void traerRangos(row)}>
+                      <CloudDownload className="size-4" aria-hidden />
+                      Traer rangos de la DIAN
+                    </Button>
                     <Button size="sm" variant="outline" onClick={() => abrir(row, "invoice")}>
                       <Pencil className="size-4" aria-hidden />
                       {r?.numero ? "Renovar o corregir" : "Registrar"}
@@ -757,8 +802,66 @@ export default function ResolucionesPage() {
         onOpenChange={(v) => setEditing(v ? editing : null)}
         row={editing}
         initialTipo={editingTipo}
+        prefill={prefill}
         onSaved={setRows}
       />
+
+      <FormDialog
+        open={rangosDe !== null}
+        onOpenChange={(v) => !v && setRangosDe(null)}
+        size="2xl"
+        icon={CloudDownload}
+        title="Rangos autorizados por la DIAN"
+        description={`Sede ${rangosDe?.sedeName ?? ""}. Se consultan con el certificado del emisor; nada se registra solo.`}
+        footer={<Button onClick={() => setRangosDe(null)}>Cerrar</Button>}
+      >
+        {cargandoRangos || !rangos ? (
+          <p className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="size-4 animate-spin" aria-hidden /> Consultando a la DIAN…
+          </p>
+        ) : !rangos.ok ? (
+          <FormAlert>{mensajeRangosFallidos(rangos)}</FormAlert>
+        ) : rangos.rangos.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            La DIAN no tiene rangos autorizados para este emisor en este ambiente.
+          </p>
+        ) : (
+          <ul className="flex flex-col gap-2">
+            {rangos.rangos.map((r, i) => (
+              <li
+                key={i}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-sm"
+              >
+                <div className="flex flex-col">
+                  <span className="font-medium tabular-nums">{textoRango(r)}</span>
+                  <span className="text-xs text-muted-foreground">
+                    Resolución {r.resolucion ?? "—"}
+                  </span>
+                </div>
+                {r.registrada ? (
+                  <Badge className="border-transparent bg-success/15 text-success-ink">
+                    Ya registrada
+                  </Badge>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => rangosDe && usarRango(rangosDe, r)}
+                  >
+                    Registrar
+                  </Button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+        {rangos?.ok && (
+          <p className="text-xs text-muted-foreground">
+            La DIAN no entrega la clave técnica por aquí ni las fechas de
+            vigencia: se completan al registrar.
+          </p>
+        )}
+      </FormDialog>
     </>
   )
 }
