@@ -77,6 +77,19 @@ describe("faltaEnFicha", () => {
     expect(faltaEnFicha("fev", FICHA_COMPLETA, "123")).toBeNull()
   })
 
+  it("NIT de la ficha sin DV o con DV malo se avisa antes de cobrar", () => {
+    const nit = { ...FICHA_COMPLETA, docNumber: "900123456", dianDocType: "31" }
+    expect(faltaEnFicha("pos_identificado", nit, "900123456")).toMatch(/DV del NIT/)
+    expect(faltaEnFicha("fev", { ...nit, nitDv: "3" }, "900123456")).toMatch(/debería ser 8/)
+    expect(faltaEnFicha("fev", { ...nit, nitDv: "8" }, "900123456")).toBeNull()
+  })
+
+  it("el correo tecleado cuenta como correo de facturación", () => {
+    const sinCorreo = { ...FICHA_COMPLETA, email: undefined }
+    expect(faltaEnFicha("fev", sinCorreo, "123")).toMatch(/correo/)
+    expect(faltaEnFicha("fev", sinCorreo, "123", "ana@x.co")).toBeNull()
+  })
+
   it("factura con un número distinto al de la ficha: el backend la descartaría", () => {
     expect(faltaEnFicha("fev", FICHA_COMPLETA, "123-4")).toMatch(/no es el de la ficha/)
   })

@@ -87,13 +87,19 @@ export default function VentasPage() {
    * servidor) y la venta solo guarda el de ese momento.
    */
   const [docSel, setDocSel] = React.useState<ElectronicDocument | null>(null)
+  /** `_id` del documento que no se pudo leer (el tiquete saldría incompleto). */
+  const [docFallo, setDocFallo] = React.useState<string | null>(null)
   const documentoId = selected?.documentoFiscal?.documentoId
   React.useEffect(() => {
     let vivo = true
     if (!documentoId) return
     getDocument(documentoId)
       .then((d) => vivo && setDocSel(d))
-      .catch(() => vivo && setDocSel(null))
+      .catch(() => {
+        if (!vivo) return
+        setDocSel(null)
+        setDocFallo(documentoId)
+      })
     return () => {
       vivo = false
       setDocSel(null)
@@ -104,6 +110,10 @@ export default function VentasPage() {
   const fiscalSel = selected
     ? tiqueteFiscalDe(selected.documentoFiscal, docVigente)
     : null
+  /** Sin el documento completo la reimpresión saldría sin resolución ni impuestos por tarifa. */
+  const preparandoTiquete =
+    !!documentoId && !docVigente && docFallo !== documentoId
+  const tiqueteIncompleto = !!documentoId && docFallo === documentoId
 
   // Filtros
   const [query, setQuery] = React.useState("")
@@ -411,6 +421,7 @@ export default function VentasPage() {
             <Button
               variant="outline"
               className="no-print"
+              disabled={detailView !== "factura" && preparandoTiquete}
               onClick={() =>
                 detailView === "factura"
                   ? window.print()
@@ -422,7 +433,11 @@ export default function VentasPage() {
               }
             >
               <Printer />
-              {detailView === "factura" ? "Imprimir / PDF" : "Imprimir"}
+              {detailView === "factura"
+                ? "Imprimir / PDF"
+                : preparandoTiquete
+                  ? "Preparando el tiquete…"
+                  : "Imprimir"}
             </Button>
             <Button onClick={() => setSelected(null)}>Cerrar</Button>
           </>
@@ -445,6 +460,13 @@ export default function VentasPage() {
                     manda su estado DIAN actual, no el «en proceso» de entonces. */}
                 {!docVigente && (
                   <AvisoDocumentoFiscal documentoFiscal={selected.documentoFiscal} />
+                )}
+                {tiqueteIncompleto && (
+                  <p role="status" className="rounded-xl bg-accent px-4 py-3 text-xs text-accent-foreground">
+                    No se pudo traer el documento completo: el tiquete saldría sin
+                    resolución, fabricante, impuestos por tarifa ni datos del
+                    cliente. Cierra y vuelve a abrir la venta para reintentar.
+                  </p>
                 )}
                 {docVigente && (
                   <p className="flex flex-wrap items-center gap-2 text-sm">

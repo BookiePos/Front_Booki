@@ -90,6 +90,7 @@ const DOC_TYPES_NUMERICOS = ["11", "12", "13", "91"]
 export interface FichaFiscal {
   docNumber: string
   dianDocType?: string
+  nitDv?: string
   tipoPersona?: string
   responsabilidadesFiscales?: string[]
   municipioDane?: string
@@ -108,6 +109,8 @@ export function faltaEnFicha(
   salida: DocumentoFiscalSolicitado,
   ficha: FichaFiscal,
   numeroTecleado: string | undefined,
+  /** El correo que escribió el cajero: el backend lo prefiere al de la ficha. */
+  correoTecleado?: string,
 ): string | null {
   if (salida === "pos_anonimo") return null
   const numero = numeroTecleado?.trim()
@@ -119,12 +122,20 @@ export function faltaEnFicha(
   }
   const faltan: string[] = []
   if (!ficha.dianDocType) faltan.push("tipo de documento DIAN")
+  // El DV que valida el backend es el de la ficha (`errorDvCliente`), no el
+  // que haya en el formulario.
+  if (ficha.dianDocType === "31") {
+    const dv = errorDv(ficha.docNumber, ficha.nitDv)
+    if (dv) faltan.push(`DV del NIT (${dv})`)
+  }
   if (salida === "fev") {
     if (ficha.tipoPersona !== "1" && ficha.tipoPersona !== "2") faltan.push("tipo de persona")
     if (!ficha.responsabilidadesFiscales?.length) faltan.push("responsabilidades fiscales")
     if (!/^\d{5}$/.test(ficha.municipioDane ?? "")) faltan.push("municipio (código DANE)")
     if (!ficha.address?.trim()) faltan.push("dirección")
-    if (!(ficha.emailFacturacion || ficha.email)?.trim()) faltan.push("correo de facturación")
+    if (!(ficha.emailFacturacion || correoTecleado || ficha.email)?.trim()) {
+      faltan.push("correo de facturación")
+    }
   }
   if (faltan.length === 0) return null
   return `A la ficha del cliente le falta: ${faltan.join(", ")}. Complétala en Clientes antes de cobrar.`
@@ -138,7 +149,7 @@ export function faltaDatoFiscal(
   if (salida === "pos_anonimo") return null
   const registrado = !!ficha
   if (ficha) {
-    const enFicha = faltaEnFicha(salida, ficha, c?.idNumber)
+    const enFicha = faltaEnFicha(salida, ficha, c?.idNumber, c?.email)
     if (enFicha) return enFicha
   }
   const nombre = c?.name?.trim()
