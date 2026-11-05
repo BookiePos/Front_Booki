@@ -73,9 +73,22 @@ export interface VentaOfflinePayload {
   lines: { productId: string; qty: number }[]
   payment: { method: "cash"; received?: number }
   tip?: number
-  customer?: { name?: string; idNumber?: string; phone?: string; email?: string }
+  customer?: {
+    name?: string
+    idNumber?: string
+    phone?: string
+    email?: string
+    docType?: string
+    nitDv?: string
+  }
   seller?: { employeeId?: string; name?: string }
   orderType: "mostrador"
+  /**
+   * Documento POS pedido sin conexión (Fase 7). El backend lo deja en
+   * `pendiente_contingencia_07` al sincronizar. Nunca `fev`: sin red no se
+   * factura (`motivosNoOffline`).
+   */
+  documentoFiscal?: "pos_anonimo" | "pos_identificado"
   packaging: { productId: string; qty: number }[]
   packagingExplicit: true
 }

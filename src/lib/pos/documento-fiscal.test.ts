@@ -2,11 +2,16 @@ import { describe, expect, it } from "vitest"
 import {
   avisoDocumentoFiscal,
   clienteParaSalida,
+  clienteTiquete,
   contenidoQr,
   faltaDatoFiscal,
+  impuestosDe,
   lineaFabricante,
   lineasResolucion,
+  separarNitConDv,
   tiqueteFiscalDe,
+  tituloTiquete,
+  TITULO_SIN_DOCUMENTO,
 } from "@/lib/pos/documento-fiscal"
 import type { ElectronicDocument } from "@/lib/pos/api-einvoicing"
 
@@ -75,12 +80,35 @@ describe("faltaDatoFiscal", () => {
     expect(faltaDatoFiscal("pos_identificado", { ...base, nitDv: "8" })).toBeNull()
   })
 
-  it("la factura pide nombre y número, y el DV solo si dijeron NIT", () => {
-    expect(faltaDatoFiscal("fev", { name: "Ana" })).toMatch(/factura/)
-    expect(faltaDatoFiscal("fev", { name: "Ana", idNumber: "123" })).toBeNull()
+  it("la factura exige cliente registrado (su ficha trae los datos fiscales)", () => {
+    expect(faltaDatoFiscal("fev", { name: "Ana", idNumber: "123" })).toMatch(/cliente registrado/)
+    const reg = { registrado: true }
+    expect(faltaDatoFiscal("fev", { name: "Ana" }, reg)).toMatch(/factura/)
+    expect(faltaDatoFiscal("fev", { name: "Ana", idNumber: "123" }, reg)).toBeNull()
     expect(
-      faltaDatoFiscal("fev", { name: "Ana", idNumber: "900123456", docType: "31", nitDv: "1" }),
+      faltaDatoFiscal("fev", { name: "Ana", idNumber: "900123456", docType: "31", nitDv: "1" }, reg),
     ).toMatch(/DV/)
+  })
+
+  it("con cliente registrado el POS con datos no exige el tipo (lo pone la ficha)", () => {
+    expect(
+      faltaDatoFiscal("pos_identificado", { name: "Ana", idNumber: "1020304050" }, { registrado: true }),
+    ).toBeNull()
+  })
+
+  it("el NIT con guion toma la base antes del guion y el DV después", () => {
+    const base = { name: "Tienda SAS", docType: "31" }
+    expect(faltaDatoFiscal("pos_identificado", { ...base, idNumber: "900123456-8" })).toBeNull()
+    expect(faltaDatoFiscal("pos_identificado", { ...base, idNumber: "900.123.456-3" })).toMatch(
+      /debería ser 8/,
+    )
+    expect(separarNitConDv("900.123.456-8")).toEqual({ base: "900123456", dv: "8" })
+  })
+
+  it("una cédula de puros ceros no pasa", () => {
+    expect(
+      faltaDatoFiscal("pos_identificado", { name: "Ana", docType: "13", idNumber: "000" }),
+    ).toMatch(/ceros/)
   })
 })
 
@@ -162,7 +190,7 @@ describe("contenidoQr (§14.3)", () => {
 
 describe("tiqueteFiscalDe", () => {
   it("con el documento completo trae resolución, fabricante y el bloque QR", () => {
-    const t = tiqueteFiscalDe({ solicitado: "pos_anonimo", estado: "emitido" }, doc)!
+    const t = tiqueteFiscalDe({ solicitado: "pos_anonimo", estado: "emitido", documentoId: "d1" }, doc)!
     expect(t.tipo).toBe("pos")
     expect(t.fullNumber).toBe("SETP990000001")
     expect(t.qr).toMatch(/^NumFac=/)
@@ -185,12 +213,81 @@ describe("tiqueteFiscalDe", () => {
   })
 
   it("en contingencia lleva la leyenda", () => {
-    expect(tiqueteFiscalDe(undefined, { ...doc, dianStatus: "contingency" })?.contingencia).toBe(true)
+    expect(
+      tiqueteFiscalDe(
+        { solicitado: "pos_anonimo", estado: "emitido", documentoId: "d1" },
+        { ...doc, dianStatus: "contingency" },
+      )?.contingencia,
+    ).toBe(true)
+  })
+
+  it("descarta un documento de otra venta (lectura tardía de la anterior)", () => {
+    const deB = { solicitado: "pos_anonimo", estado: "error" } as const
+    expect(tiqueteFiscalDe(deB, doc)).toBeNull()
+    const t = tiqueteFiscalDe(
+      { solicitado: "pos_anonimo", estado: "emitido", documentoId: "otro", fullNumber: "SETP2", cude: CUDE, qrUrl: URL },
+      doc,
+    )!
+    expect(t.fullNumber).toBe("SETP2")
+    expect(t.resolucion).toBeUndefined()
   })
 
   it("un documento que no se emitió no da tiquete fiscal", () => {
     expect(tiqueteFiscalDe({ solicitado: "pos_anonimo", estado: "error" })).toBeNull()
     expect(tiqueteFiscalDe({ solicitado: "pos_anonimo", estado: "en_proceso" })).toBeNull()
+  })
+})
+
+describe("papel con documento fiscal (§4)", () => {
+  const conDoc = { solicitado: "pos_identificado", estado: "emitido", documentoId: "d1" } as const
+
+  it("título: denominación, comprobante sin documento o el de siempre", () => {
+    const t = tiqueteFiscalDe(conDoc, doc)
+    expect(tituloTiquete({ documentoFiscal: conDoc }, t)[0]).toMatch(/P\.O\.S\./)
+    expect(
+      tituloTiquete({ documentoFiscal: { solicitado: "pos_anonimo", estado: "error" } }, null),
+    ).toEqual(TITULO_SIN_DOCUMENTO)
+    expect(tituloTiquete({}, null)).toEqual(["FACTURA DE VENTA"])
+  })
+
+  it("impuestos discriminados por tributo y tarifa, más la bolsa", () => {
+    const d = {
+      ...doc,
+      lines: [
+        { base: 10000, taxScheme: "01", taxRate: 19, taxAmount: 1900 },
+        { base: 5000, taxScheme: "04", taxRate: 8, taxAmount: 400 },
+        { base: 2000, taxScheme: "01", taxRate: 19, taxAmount: 380 },
+        { base: 1000, taxScheme: "01", taxRate: 0, taxAmount: 0 },
+      ],
+    } as unknown as ElectronicDocument
+    expect(impuestosDe(d)).toEqual([
+      { etiqueta: "IVA 19 %", base: 12000, valor: 2280 },
+      { etiqueta: "INC 8 %", base: 5000, valor: 400 },
+      { etiqueta: "IVA exento", base: 1000, valor: 0 },
+      { etiqueta: "INC bolsas", valor: 66 },
+    ])
+  })
+
+  it("en el POS anónimo no se imprime el nombre tecleado; con datos, el adquiriente del XML", () => {
+    const anon = { solicitado: "pos_anonimo", estado: "emitido", documentoId: "d1" } as const
+    const sale = { customer: { name: "Pepe", phone: "300" }, documentoFiscal: anon }
+    expect(clienteTiquete(sale, tiqueteFiscalDe(anon, doc))).toBeNull()
+
+    const ident = {
+      ...doc,
+      adquiriente: { docType: "31", docNumber: "900123456", name: "Tienda SAS" },
+    } as unknown as ElectronicDocument
+    const c = clienteTiquete(
+      { customer: { name: "tienda", idNumber: "900123456", nitDv: "8" }, documentoFiscal: conDoc },
+      tiqueteFiscalDe(conDoc, ident),
+    )
+    expect(c).toEqual({ name: "Tienda SAS", identificacion: "NIT 900123456-8" })
+  })
+
+  it("la FEV lleva CUFE= en el QR y el rechazado lo marca el tiquete", () => {
+    expect(contenidoQr({ ...doc, type: "invoice" } as ElectronicDocument)).toMatch(/\nCUFE=/)
+    const t = tiqueteFiscalDe(conDoc, { ...doc, dianStatus: "rejected" } as ElectronicDocument)
+    expect(t?.rechazado).toBe(true)
   })
 })
 

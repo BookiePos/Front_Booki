@@ -64,6 +64,8 @@ interface CobroColumnaVentaProps {
    * como antes.
    */
   posFe: boolean
+  /** La sede tiene resolución de factura vigente. */
+  fevDisponible: boolean
   salidaFiscal: DocumentoFiscalSolicitado
   setSalidaFiscal: (v: DocumentoFiscalSolicitado) => void
   /** Lo que falta para la salida elegida (o `null`). */
@@ -141,6 +143,7 @@ interface CobroColumnaVentaProps {
 
 export function CobroColumnaVenta({
   posFe,
+  fevDisponible,
   salidaFiscal,
   setSalidaFiscal,
   faltaFiscal,
@@ -633,6 +636,7 @@ export function CobroColumnaVenta({
         >
           <SelectorDocumentoFiscal
             value={salidaFiscal}
+            fevDisponible={fevDisponible}
             onChange={(v) => {
               setSalidaFiscal(v)
               if (v !== "pos_anonimo") setShowCustomer(true)

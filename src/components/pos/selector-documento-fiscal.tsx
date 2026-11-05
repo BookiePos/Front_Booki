@@ -3,7 +3,11 @@
 import * as React from "react"
 import { Info } from "lucide-react"
 import type { Customer, DocumentoFiscalSolicitado } from "@/lib/pos/api-sales"
-import { AVISO_CONSUMIDOR_FINAL, SALIDAS_FISCALES } from "@/lib/pos/documento-fiscal"
+import {
+  AVISO_CONSUMIDOR_FINAL,
+  SALIDAS_FISCALES,
+  separarNitConDv,
+} from "@/lib/pos/documento-fiscal"
 import { DIAN_DOC_TYPE_OPTIONS, calcularDvNit } from "@/lib/erp/datos-fiscales"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -21,9 +25,12 @@ import { cn } from "@/lib/utils"
 export function SelectorDocumentoFiscal({
   value,
   onChange,
+  fevDisponible = true,
 }: {
   value: DocumentoFiscalSolicitado
   onChange: (v: DocumentoFiscalSolicitado) => void
+  /** Sin resolución de factura vigente, «Quiero factura» se ve pero no se elige. */
+  fevDisponible?: boolean
 }) {
   const id = React.useId()
   return (
@@ -38,6 +45,7 @@ export function SelectorDocumentoFiscal({
       >
         {SALIDAS_FISCALES.map((s) => {
           const activo = value === s.value
+          const deshabilitada = s.value === "fev" && !fevDisponible
           return (
             <label
               key={s.value}
@@ -47,6 +55,7 @@ export function SelectorDocumentoFiscal({
                 activo
                   ? "border-primary/60 bg-primary/5"
                   : "border-border hover:bg-muted/60",
+                deshabilitada && "cursor-not-allowed opacity-60 hover:bg-transparent",
               )}
             >
               <input
@@ -54,6 +63,7 @@ export function SelectorDocumentoFiscal({
                 name={`${id}-salida`}
                 value={s.value}
                 checked={activo}
+                disabled={deshabilitada}
                 onChange={() => onChange(s.value)}
                 aria-describedby={`${id}-${s.value}`}
                 className="mt-0.5 size-5 shrink-0 accent-[var(--primary)]"
@@ -61,7 +71,9 @@ export function SelectorDocumentoFiscal({
               <span className="min-w-0 text-[0.8125rem]">
                 <span className="block font-medium text-foreground">{s.label}</span>
                 <span id={`${id}-${s.value}`} className="block text-xs text-muted-foreground">
-                  {s.descripcion}
+                  {deshabilitada
+                    ? "Esta sede no tiene resolución de factura vigente."
+                    : s.descripcion}
                 </span>
               </span>
             </label>
@@ -100,7 +112,8 @@ export function CamposDocumentoCliente({
 }) {
   const id = React.useId()
   const esNit = customer.docType === "31"
-  const base = (customer.idNumber ?? "").replace(/\D/g, "")
+  // La base es lo que va antes del guion: «900123456-7» no es la base 9001234567.
+  const base = separarNitConDv(customer.idNumber)?.base ?? ""
   const sugerido = esNit && base ? calcularDvNit(base) : undefined
   const dvMal =
     esNit && !!customer.nitDv && sugerido !== undefined && customer.nitDv !== String(sugerido)

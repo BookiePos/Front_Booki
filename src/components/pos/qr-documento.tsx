@@ -17,17 +17,24 @@ export function QrDocumento({
   /** Texto alternativo: qué documento abre el QR. */
   etiqueta: string
 }) {
-  const [src, setSrc] = React.useState<string | null>(null)
+  // La imagen va con el contenido que la generó: al cambiar el contenido (la
+  // URL del cobro → el bloque §14.3) nunca se ve un instante el QR viejo.
+  const [qr, setQr] = React.useState<{ de: string; src: string | null } | null>(null)
   React.useEffect(() => {
     let vivo = true
     QRCode.toDataURL(contenido, { errorCorrectionLevel: "M", margin: 1, width: 320 })
-      .then((url) => vivo && setSrc(url))
-      .catch(() => vivo && setSrc(null))
+      .then((url) => vivo && setQr({ de: contenido, src: url }))
+      .catch(() => vivo && setQr({ de: contenido, src: null }))
     return () => {
       vivo = false
     }
   }, [contenido])
 
+  const listo = qr?.de === contenido ? qr : null
+  // Si no se pudo generar, no se imprime un recuadro de «Generando…»: el
+  // tiquete ya lleva el CUDE, con el que se consulta el documento en la DIAN.
+  if (listo && !listo.src) return null
+  const src = listo?.src
   if (!src) {
     return (
       <div

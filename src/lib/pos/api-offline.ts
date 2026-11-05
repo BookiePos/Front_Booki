@@ -247,6 +247,11 @@ export function ventaOfflineComoSale(
       change: received !== undefined ? Math.max(0, received - v.expectedGrandTotal) : undefined,
     },
     customer: v.sale.customer,
+    // Así la caja avisa que el documento sale al sincronizar y el papel no se
+    // titula «factura».
+    documentoFiscal: v.sale.documentoFiscal
+      ? { solicitado: v.sale.documentoFiscal, estado: "pendiente_contingencia_07" }
+      : undefined,
     createdAt: v.soldAt,
     contingencia: true,
   } as Sale

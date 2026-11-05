@@ -4,10 +4,13 @@ import type { Sede } from "@/lib/pos/api-inventory"
 import { dateTime, money, qty } from "@/lib/pos/format"
 import { LEYENDA_CONTINGENCIA } from "@/lib/offline/cola"
 import {
-  DENOMINACION_POS,
+  ETIQUETA_PROPINA,
   LEYENDA_CONTINGENCIA_DIAN,
+  LEYENDA_RECHAZADO,
+  clienteTiquete,
   lineaFabricante,
   lineasResolucion,
+  tituloTiquete,
   type TiqueteFiscal,
 } from "@/lib/pos/documento-fiscal"
 import {
@@ -70,8 +73,6 @@ export function reciboEscpos(
   const cajero = sale.cashierName || sale.cashierEmail
   const titulo = sede?.businessName || sede?.name || "Punto de venta"
   const subtitulo = sede?.businessName ? sede.name : undefined
-  const c = sale.customer
-  const hayCliente = !!c && !!(c.name || c.idNumber || c.phone || c.email)
   const propina = sale.tip ?? 0
 
   b.alinear("centro").negrita(true).texto(titulo).negrita(false)
@@ -82,13 +83,12 @@ export function reciboEscpos(
   b.texto(dateTime(sale.createdAt))
   b.alinear("izquierda").separador()
 
-  b.alinear("centro").negrita(true)
-  if (fiscal?.tipo === "pos") b.texto(DENOMINACION_POS)
-  else if (fiscal?.tipo === "invoice") b.texto("FACTURA ELECTRÓNICA DE VENTA")
-  else b.texto("FACTURA DE VENTA")
-  b.negrita(false)
+  const encabezado = tituloTiquete(sale, fiscal)
+  b.alinear("centro").negrita(true).texto(encabezado[0]).negrita(false)
+  if (encabezado[1]) b.texto(encabezado[1])
   if (fiscal) {
     b.negrita(true).texto(`No. ${fiscal.fullNumber}`).negrita(false)
+    if (fiscal.rechazado) b.negrita(true).texto(LEYENDA_RECHAZADO).negrita(false)
     for (const l of lineasResolucion(fiscal.resolucion)) b.texto(l)
     if (fiscal.fecha) {
       b.texto(`Generado ${fiscal.fecha} ${(fiscal.hora ?? "").slice(0, 8)}`.trim())
@@ -99,18 +99,22 @@ export function reciboEscpos(
   b.fila("Cajero", cajero)
   if (sale.seller?.name) b.fila("Vendedor", sale.seller.name)
 
-  if (hayCliente) {
-    b.separador().texto("Cliente")
-    if (c!.name) b.texto(c!.name)
-    if (c!.idNumber) b.fila("Identificación", c!.idNumber)
-    if (c!.phone) b.fila("Teléfono", c!.phone)
+  // Con documento fiscal, el cliente es el adquiriente del XML (y en el POS
+  // anónimo no se imprime ninguno). Espeja `receipt.tsx`.
+  const cliente = clienteTiquete(sale, fiscal)
+  if (cliente) {
+    b.separador().texto(fiscal ? "Adquiriente" : "Cliente")
+    if (cliente.name) b.texto(cliente.name)
+    if (cliente.identificacion) b.fila("Identificación", cliente.identificacion)
+    if (cliente.phone) b.fila("Teléfono", cliente.phone)
   }
 
   b.separador()
   for (const l of sale.lines) {
     const desc = l.discountAmount ?? 0
     b.fila(l.name, money(l.lineTotal - desc))
-    b.texto(`  ${qty(l.qty)} ${l.unit} x ${money(l.unitPrice)}`)
+    const codigo = fiscal && l.sku ? `${l.sku} ` : ""
+    b.texto(`  ${codigo}${qty(l.qty)} ${l.unit} x ${money(l.unitPrice)}`)
     if (desc > 0) b.texto(`  Desc. ${l.discountName ?? ""} -${money(desc)}`)
   }
 
@@ -126,11 +130,13 @@ export function reciboEscpos(
       `-${money(sale.discountTotal)}`,
     )
   }
-  if (sale.contingencia) b.fila("Impuestos", "Incluidos")
+  if (fiscal?.impuestos) {
+    for (const t of fiscal.impuestos) b.fila(t.etiqueta, money(t.valor))
+  } else if (sale.contingencia) b.fila("Impuestos", "Incluidos")
   else if (sale.taxTotal > 0) b.fila("Impuestos", money(sale.taxTotal))
   b.negrita(true).fila("TOTAL", money(sale.total)).negrita(false)
   if (propina > 0) {
-    b.fila("Propina", money(propina))
+    b.fila(ETIQUETA_PROPINA, money(propina))
     b.negrita(true)
       .fila("TOTAL A PAGAR", money(sale.total + propina))
       .negrita(false)

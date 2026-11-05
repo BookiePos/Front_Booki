@@ -352,6 +352,10 @@ export default function VentaPage() {
    * DIAN a quien todavía no factura electrónicamente.
    */
   const [posFe, setPosFe] = React.useState(false)
+  /** La sede tiene resolución de factura vigente («Quiero factura»). */
+  const [fevDisponible, setFevDisponible] = React.useState(false)
+  /** No se pudo leer el documento completo: el tiquete sale incompleto. */
+  const [docFiscalFallo, setDocFiscalFallo] = React.useState(false)
   const [salidaFiscal, setSalidaFiscal] =
     React.useState<DocumentoFiscalSolicitado>("pos_anonimo")
   /** El documento electrónico completo de la venta cobrada, para el tiquete. */
@@ -580,12 +584,25 @@ export default function VentaPage() {
   }, [sedeId, aplicaBolsas, modo.online])
 
   // ¿La sede emite POS electrónico? Se pregunta al fijar la sede y al volver
-  // la red; sin red se conserva lo último que se supo. `sedeEmitePos` nunca
-  // lanza: ante cualquier duda responde false y el cobro sigue como antes.
+  // la red. `sedeEmitePos` nunca lanza: `null` (no se pudo saber) conserva lo
+  // último que se supo de ESTA sede, para que un parpadeo de la red no apague
+  // el selector con «Quiero factura» ya elegido.
+  // Al cambiar de sede (o sin permiso de vender) se apaga: la sede nueva no
+  // hereda el selector de la anterior mientras responde.
+  // Durante el render (no en un efecto): así ni un cuadro se pinta con el
+  // selector de la sede anterior.
+  useResetOnChange(() => {
+    setPosFe(false)
+    setFevDisponible(false)
+  }, [sedeId, canSell])
   React.useEffect(() => {
     let vivo = true
     if (!sedeId || !canSell || !modo.online) return
-    void sedeEmitePos(sedeId).then((si) => vivo && setPosFe(si))
+    void sedeEmitePos(sedeId).then((r) => {
+      if (!vivo || r === null) return
+      setPosFe(r.pos)
+      setFevDisponible(r.fev)
+    })
     return () => {
       vivo = false
     }
@@ -1100,6 +1117,7 @@ export default function VentaPage() {
     // D1: cada venta arranca en tiquete POS a consumidor final.
     setSalidaFiscal("pos_anonimo")
     setDocFiscal(null)
+    setDocFiscalFallo(false)
     setCheckoutOpen(true)
   }
 
@@ -1281,7 +1299,11 @@ export default function VentaPage() {
    * la DIAN exige del adquiriente (nombre e identificación).
    */
   /** Lo que falta para la salida fiscal elegida (solo con POS electrónico). */
-  const faltaFiscal = posFe ? faltaDatoFiscal(salidaFiscal, customerToSend) : null
+  const faltaFiscal = posFe
+    ? salidaFiscal === "fev" && !fevDisponible
+      ? "Esta sede no tiene resolución de factura vigente: elige el tiquete POS."
+      : faltaDatoFiscal(salidaFiscal, customerToSend, { registrado: !!custId })
+    : null
   /** Se pidió factura: con POS electrónico es una de las tres salidas. */
   const pideFactura = posFe ? salidaFiscal === "fev" : emitInvoice
   const invoiceDataMissing = posFe
@@ -1490,6 +1512,10 @@ export default function VentaPage() {
         orderType: "mostrador",
         packaging: packagingRows,
         packagingExplicit: true,
+        // Sin red el POS queda en contingencia y se emite al sincronizar.
+        // `fev` nunca llega aquí: `motivosNoOffline` la bloquea.
+        documentoFiscal:
+          posFe && salidaFiscal !== "fev" ? salidaFiscal : undefined,
       },
       lineas: cart.map((i) => ({
         productId: i.product._id,
@@ -1674,13 +1700,15 @@ export default function VentaPage() {
         // registrada». El documento completo (resolución, fabricante, datos del
         // QR) se lee solo para el tiquete: si falla, el tiquete sale con el
         // número, el CUDE y la URL que ya trajo el cobro.
+        // Sin `await`: el cobro ya terminó y no debe quedarse «guardando» ni
+        // retrasar el alta del cliente por esta lectura. Si llega tarde, ya
+        // en otra venta, `tiqueteFiscalDe` la descarta (otro `documentoId`).
         const df = sale.documentoFiscal
         if (df?.estado === "emitido" && df.documentoId) {
-          try {
-            setDocFiscal(await getDocument(df.documentoId))
-          } catch {
-            setDocFiscal(null)
-          }
+          const id = df.documentoId
+          void getDocument(id)
+            .then((d) => setDocFiscal((prev) => (d._id === id ? d : prev)))
+            .catch(() => setDocFiscalFallo(true))
         }
       } else if (emitInvoice) {
         setInvoiceState("emitting")
@@ -2029,6 +2057,7 @@ export default function VentaPage() {
                 invoiceNumber={invoiceNumber}
                 invoiceError={invoiceError}
                 fiscal={tiqueteFiscalDe(completedSale.documentoFiscal, docFiscal)}
+                tiqueteIncompleto={docFiscalFallo}
                 handlePrintReceipt={handlePrintReceipt}
                 backToList={backToList}
               />
@@ -2118,6 +2147,7 @@ export default function VentaPage() {
                     esta venta necesita. */}
                 <CobroColumnaVenta
                   posFe={posFe}
+                  fevDisponible={fevDisponible}
                   salidaFiscal={salidaFiscal}
                   setSalidaFiscal={setSalidaFiscal}
                   faltaFiscal={faltaFiscal}

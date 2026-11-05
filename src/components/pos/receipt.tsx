@@ -4,10 +4,13 @@ import { money, qty, dateTime } from "@/lib/pos/format"
 import { cn } from "@/lib/utils"
 import { LEYENDA_CONTINGENCIA } from "@/lib/offline/cola"
 import {
-  DENOMINACION_POS,
+  ETIQUETA_PROPINA,
   LEYENDA_CONTINGENCIA_DIAN,
+  LEYENDA_RECHAZADO,
+  clienteTiquete,
   lineaFabricante,
   lineasResolucion,
+  tituloTiquete,
   type TiqueteFiscal,
 } from "@/lib/pos/documento-fiscal"
 import { QrDocumento } from "@/components/pos/qr-documento"
@@ -39,10 +42,9 @@ export function Receipt({
   const title = sede?.businessName || sede?.name || "Punto de venta"
   // Subtítulo = sede, solo cuando hay una marca distinta arriba.
   const subtitle = sede?.businessName ? sede?.name : undefined
-  const customer = sale.customer
-  const hasCustomer =
-    !!customer &&
-    !!(customer.name || customer.idNumber || customer.phone || customer.email)
+  // Con documento fiscal, el cliente del papel es el adquiriente del XML.
+  const cliente = clienteTiquete(sale, fiscal ?? null)
+  const titulo = tituloTiquete(sale, fiscal ?? null)
   return (
     <div
       className={cn(
@@ -70,10 +72,11 @@ export function Receipt({
 
       {fiscal ? (
         <div className="mb-2 text-center">
-          <p className="font-semibold leading-snug">
-            {fiscal.tipo === "pos" ? DENOMINACION_POS : "FACTURA ELECTRÓNICA DE VENTA"}
-          </p>
+          <p className="font-semibold leading-snug">{titulo[0]}</p>
           <p className="mt-1 text-sm font-bold">No. {fiscal.fullNumber}</p>
+          {fiscal.rechazado && (
+            <p className="mt-1 font-bold">{LEYENDA_RECHAZADO}</p>
+          )}
           {lineasResolucion(fiscal.resolucion).map((l) => (
             <p key={l} className="text-muted-foreground">
               {l}
@@ -86,9 +89,10 @@ export function Receipt({
           )}
         </div>
       ) : (
-        <p className="mb-2 text-center font-semibold tracking-wide">
-          FACTURA DE VENTA
-        </p>
+        <div className="mb-2 text-center">
+          <p className="font-semibold tracking-wide">{titulo[0]}</p>
+          {titulo[1] && <p className="text-muted-foreground">{titulo[1]}</p>}
+        </div>
       )}
 
       <div className="flex justify-between">
@@ -106,23 +110,23 @@ export function Receipt({
         </div>
       )}
 
-      {hasCustomer && (
+      {cliente && (
         <>
           <Dashed />
-          <p className="mb-1 text-muted-foreground">Cliente</p>
-          {customer!.name && (
-            <p className="font-medium">{customer!.name}</p>
-          )}
-          {customer!.idNumber && (
-            <div className="flex justify-between">
+          <p className="mb-1 text-muted-foreground">
+            {fiscal ? "Adquiriente" : "Cliente"}
+          </p>
+          {cliente.name && <p className="font-medium">{cliente.name}</p>}
+          {cliente.identificacion && (
+            <div className="flex justify-between gap-2">
               <span className="text-muted-foreground">Identificación</span>
-              <span>{customer!.idNumber}</span>
+              <span className="text-right">{cliente.identificacion}</span>
             </div>
           )}
-          {customer!.phone && (
+          {cliente.phone && (
             <div className="flex justify-between">
               <span className="text-muted-foreground">Teléfono</span>
-              <span>{customer!.phone}</span>
+              <span>{cliente.phone}</span>
             </div>
           )}
         </>
@@ -142,6 +146,8 @@ export function Receipt({
                 <span className="tabular-nums">{money(net)}</span>
               </div>
               <div className="text-[11px] text-muted-foreground">
+                {/* §4.5: con documento fiscal, cada artículo lleva su código. */}
+                {fiscal && l.sku ? `${l.sku} · ` : ""}
                 {qty(l.qty)} {l.unit} × {money(l.unitPrice)}
               </div>
               {disc > 0 && (
@@ -172,15 +178,24 @@ export function Receipt({
             muted
           />
         )}
-        {sale.contingencia ? (
-          <Row label="Impuestos" value="Incluidos" muted />
+        {fiscal?.impuestos ? (
+          // §4.6: discriminados por tributo y tarifa, como van en el documento.
+          fiscal.impuestos.map((t) => (
+            <Row key={t.etiqueta} label={t.etiqueta} value={money(t.valor)} muted />
+          ))
         ) : (
-          sale.taxTotal > 0 && (
-            <Row label="Impuestos" value={money(sale.taxTotal)} muted />
-          )
-        )}
-        {(sale.bagTaxTotal ?? 0) > 0 && (
-          <Row label="INC bolsas" value={money(sale.bagTaxTotal ?? 0)} muted />
+          <>
+            {sale.contingencia ? (
+              <Row label="Impuestos" value="Incluidos" muted />
+            ) : (
+              sale.taxTotal > 0 && (
+                <Row label="Impuestos" value={money(sale.taxTotal)} muted />
+              )
+            )}
+            {(sale.bagTaxTotal ?? 0) > 0 && (
+              <Row label="INC bolsas" value={money(sale.bagTaxTotal ?? 0)} muted />
+            )}
+          </>
         )}
         <div className="flex justify-between text-sm font-semibold">
           <span>TOTAL</span>
@@ -188,7 +203,7 @@ export function Receipt({
         </div>
         {(sale.tip ?? 0) > 0 && (
           <>
-            <Row label="Propina" value={money(sale.tip ?? 0)} muted />
+            <Row label={ETIQUETA_PROPINA} value={money(sale.tip ?? 0)} muted />
             <div className="flex justify-between text-sm font-semibold">
               <span>TOTAL A PAGAR</span>
               <span className="tabular-nums">

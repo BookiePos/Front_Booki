@@ -33,6 +33,11 @@ interface CobroCompletadoProps {
   invoiceError: string | null
   /** Tiquete del documento fiscal (Fase 7), si la venta lo tiene. */
   fiscal?: TiqueteFiscal | null
+  /**
+   * No se pudo leer el documento completo: el tiquete sale sin resolución ni
+   * fabricante (num. 3 y 9 del §4). Se avisa para reimprimirlo desde Ventas.
+   */
+  tiqueteIncompleto?: boolean
   handlePrintReceipt: () => void | Promise<void>
   backToList: () => Promise<void>
 }
@@ -46,6 +51,7 @@ export function CobroCompletado({
   invoiceNumber,
   invoiceError,
   fiscal,
+  tiqueteIncompleto,
   handlePrintReceipt,
   backToList,
 }: CobroCompletadoProps) {
@@ -111,6 +117,12 @@ export function CobroCompletado({
           {/* Documento electrónico POS/FEV (Fase 7): mismo principio, aviso
               propio y nunca encima del «Venta registrada». */}
           <AvisoDocumentoFiscal documentoFiscal={completedSale.documentoFiscal} />
+          {tiqueteIncompleto && fiscal && (
+            <p role="status" className="rounded-xl bg-accent px-4 py-3 text-xs text-accent-foreground">
+              No se pudieron traer la resolución y el fabricante del documento:
+              antes de entregar el tiquete, reimprímelo desde Ventas.
+            </p>
+          )}
 
           {invoiceState !== "idle" && (
             <div

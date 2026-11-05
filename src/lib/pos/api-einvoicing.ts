@@ -183,6 +183,8 @@ export async function getDocument(id: string): Promise<ElectronicDocument> {
 /** Fila de `GET /einvoicing/resolutions`: solo lo que usa la caja. */
 interface ResolucionSedeFila {
   sedeId: string
+  /** Estado de la resolución de FACTURA (la fila principal). */
+  status?: { puedeEmitir?: boolean }
   otras?: {
     tipoDocumento: string
     status?: { puedeEmitir?: boolean }
@@ -191,6 +193,8 @@ interface ResolucionSedeFila {
 
 /**
  * ¿La sede puede emitir el documento equivalente POS ahora mismo?
+ * `null` = no se pudo saber (red, 5xx, permiso): quien llama conserva lo
+ * último que supo en vez de apagar el selector a mitad de un cobro.
  *
  * Es la bandera que enciende el selector de las tres salidas en el cobro: un
  * negocio sin resolución POS vigente cobra como siempre (sin `documentoFiscal`)
@@ -202,16 +206,23 @@ interface ResolucionSedeFila {
  * `einvoicing.configure`). Sin PIN, el cobro responde `estado: "error"` y la
  * caja lo muestra como aviso del documento, no del cobro.
  */
-export async function sedeEmitePos(sedeId: string): Promise<boolean> {
+export async function sedeEmitePos(
+  sedeId: string,
+): Promise<{ pos: boolean; fev: boolean } | null> {
   try {
     const res = await authFetch("/einvoicing/resolutions")
     const filas = await parseResponse<ResolucionSedeFila[]>(res)
     const fila = filas.find((f) => f.sedeId === sedeId)
-    return !!fila?.otras?.some(
-      (o) => o.tipoDocumento === "pos" && o.status?.puedeEmitir === true,
-    )
+    return {
+      pos: !!fila?.otras?.some(
+        (o) => o.tipoDocumento === "pos" && o.status?.puedeEmitir === true,
+      ),
+      // Sin resolución de factura vigente, «Quiero factura» fallaría después
+      // de cobrar: la caja la ofrece deshabilitada.
+      fev: fila?.status?.puedeEmitir === true,
+    }
   } catch {
-    return false
+    return null
   }
 }
 

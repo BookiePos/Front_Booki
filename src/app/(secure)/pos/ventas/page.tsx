@@ -99,8 +99,10 @@ export default function VentasPage() {
       setDocSel(null)
     }
   }, [documentoId])
+  /** El documento leído solo vale si es el de la venta abierta ahora. */
+  const docVigente = docSel && docSel._id === documentoId ? docSel : null
   const fiscalSel = selected
-    ? tiqueteFiscalDe(selected.documentoFiscal, docSel)
+    ? tiqueteFiscalDe(selected.documentoFiscal, docVigente)
     : null
 
   // Filtros
@@ -439,15 +441,19 @@ export default function VentasPage() {
                 existe, en qué va ante la DIAN. */}
             {selected.documentoFiscal && (
               <div className="no-print flex flex-col gap-2">
-                <AvisoDocumentoFiscal documentoFiscal={selected.documentoFiscal} />
-                {docSel && (
+                {/* El aviso es el estado AL COBRAR: si ya se leyó el documento,
+                    manda su estado DIAN actual, no el «en proceso» de entonces. */}
+                {!docVigente && (
+                  <AvisoDocumentoFiscal documentoFiscal={selected.documentoFiscal} />
+                )}
+                {docVigente && (
                   <p className="flex flex-wrap items-center gap-2 text-sm">
                     <span className="text-muted-foreground">Estado DIAN</span>
                     <Badge variant="outline">
-                      {DIAN_STATUS_LABELS[docSel.dianStatus] ?? docSel.dianStatus}
+                      {DIAN_STATUS_LABELS[docVigente.dianStatus] ?? docVigente.dianStatus}
                     </Badge>
                     <span className="font-mono text-xs text-muted-foreground">
-                      {docSel.fullNumber}
+                      {docVigente.fullNumber}
                     </span>
                   </p>
                 )}
