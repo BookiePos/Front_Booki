@@ -72,6 +72,12 @@ describe("pasosAsistente", () => {
     expect(paso(pasosAsistente(emisorBase, estadoOk, resolucion(true)), "resolucion").estado).toBe("hecho")
   })
 
+  it("mientras carga la resolución no dice que no se pudo leer", () => {
+    const r = paso(pasosAsistente(emisorBase, estadoOk, undefined, true), "resolucion")
+    expect(r.estado).toBe("cargando")
+    expect(r.detalle).not.toMatch(/No se pudo/)
+  })
+
   it("pruebas y producción dependen de habilitado y del ambiente", () => {
     let ps = pasosAsistente({ ...emisorBase, tieneFacturaTestSetId: true }, estadoOk, null)
     expect(paso(ps, "pruebas")).toMatchObject({ estado: "pendiente", destino: "dian" })
@@ -119,7 +125,7 @@ describe("validarCertificado", () => {
     expect(validarCertificado({ archivo: null, password: "x" })).toMatch(/Elige/)
     expect(validarCertificado({ archivo: f("a.pdf"), password: "x" })).toMatch(/\.p12/)
     expect(validarCertificado({ archivo: f("a.p12", 0), password: "x" })).toMatch(/vacío/)
-    expect(validarCertificado({ archivo: f("a.p12", 5_000_000), password: "x" })).toMatch(/pesa/)
+    expect(validarCertificado({ archivo: f("a.p12", 60_000), password: "x" })).toMatch(/pesa/)
     expect(validarCertificado({ archivo: f("a.p12"), password: "" })).toMatch(/contraseña/)
     expect(validarCertificado({ archivo: f("FIRMA.PFX"), password: "x" })).toBeNull()
   })

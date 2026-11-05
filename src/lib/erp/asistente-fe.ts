@@ -14,7 +14,7 @@ export const esUuid = (v: string): boolean => UUID.test(v.trim())
 
 // ── Checklist ────────────────────────────────────────────────────────────────
 
-export type EstadoPaso = "hecho" | "pendiente" | "sin_dato"
+export type EstadoPaso = "hecho" | "pendiente" | "sin_dato" | "cargando"
 
 /** A dónde lleva el paso para corregirlo. */
 export type DestinoPaso = "sede" | "dian" | "certificado" | "credenciales" | "resoluciones"
@@ -38,6 +38,7 @@ export function pasosAsistente(
   emisor: EmisorVista | null,
   estado: EstadoEmisor | null,
   resolucion: ResolutionRow | null | undefined,
+  cargandoResolucion = false,
 ): PasoAsistente[] {
   const faltanDatos = estado?.datosFiscalesFaltantes ?? []
   const datosOk = !!emisor && faltanDatos.length === 0
@@ -48,7 +49,9 @@ export function pasosAsistente(
   const produccion = habilitado && emisor?.tipoAmbiente === "1"
 
   let resolucionPaso: Pick<PasoAsistente, "estado" | "detalle">
-  if (resolucion === undefined) {
+  if (cargandoResolucion) {
+    resolucionPaso = { estado: "cargando", detalle: "Consultando la resolución…" }
+  } else if (resolucion === undefined) {
     resolucionPaso = {
       estado: "sin_dato",
       detalle: "No se pudo leer la resolución (se necesita el permiso de emitir).",
@@ -182,7 +185,7 @@ export function armarPayloadFactura(
 
 // ── Certificado ──────────────────────────────────────────────────────────────
 
-export const CERT_MAX_BYTES = 1024 * 1024
+export const CERT_MAX_BYTES = 50 * 1024
 export const DIAS_AVISO_CERTIFICADO = 30
 
 export interface FormCertificado {
@@ -195,7 +198,7 @@ export function validarCertificado(f: FormCertificado): string | null {
   if (!f.archivo) return "Elige el archivo del certificado (.p12 o .pfx)."
   if (!/\.(p12|pfx)$/i.test(f.archivo.name)) return "El archivo debe ser .p12 o .pfx."
   if (f.archivo.size <= 0) return "El archivo está vacío."
-  if (f.archivo.size > CERT_MAX_BYTES) return "El archivo pesa demasiado para ser un certificado."
+  if (f.archivo.size > CERT_MAX_BYTES) return "El certificado pesa más de 50 KB: no parece un .p12."
   if (!f.password) return "Escribe la contraseña del certificado."
   return null
 }

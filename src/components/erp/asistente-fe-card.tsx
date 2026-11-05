@@ -52,6 +52,7 @@ export function AsistenteFeCard({
   const [datos, setDatos] = React.useState<EmisorConEstado | null>(null)
   // undefined: no se pudo leer (sin permiso de emitir); null: la sede no aparece.
   const [resolucion, setResolucion] = React.useState<ResolutionRow | null | undefined>(undefined)
+  const [resCargando, setResCargando] = React.useState(true)
   const [cargando, setCargando] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
 
@@ -68,6 +69,7 @@ export function AsistenteFeCard({
     listResolutions()
       .then((rows) => activo && setResolucion(rows.find((r) => r.sedeId === sedeId) ?? null))
       .catch(() => activo && setResolucion(undefined))
+      .finally(() => activo && setResCargando(false))
     return () => {
       activo = false
     }
@@ -76,13 +78,20 @@ export function AsistenteFeCard({
   if (!puedeVer) return null
 
   const emisor = datos?.emisor ?? null
-  const pasos = pasosAsistente(emisor, datos?.estado ?? null, resolucion)
+  const pasos = pasosAsistente(emisor, datos?.estado ?? null, resolucion, resCargando)
   const { hechos, total } = resumenPasos(pasos)
+
+  // Lleva a la sección y deja el foco en su primer campo (teclado y lector de pantalla).
+  function irA(el: HTMLElement | null) {
+    if (!el) return
+    el.scrollIntoView({ behavior: "smooth", block: "center" })
+    el.querySelector<HTMLElement>("input")?.focus({ preventScroll: true })
+  }
 
   function ir(destino: DestinoPaso) {
     if (destino === "sede") onEditarSede?.()
-    else if (destino === "certificado") certRef.current?.scrollIntoView({ behavior: "smooth", block: "center" })
-    else if (destino === "credenciales") credRef.current?.scrollIntoView({ behavior: "smooth", block: "center" })
+    else if (destino === "certificado") irA(certRef.current)
+    else if (destino === "credenciales") irA(credRef.current)
   }
 
   return (
@@ -137,20 +146,30 @@ export function AsistenteFeCard({
   )
 }
 
+const ETIQUETA_ESTADO: Record<PasoAsistente["estado"], string> = {
+  hecho: "Hecho",
+  pendiente: "Pendiente",
+  sin_dato: "Sin dato",
+  cargando: "Cargando",
+}
+
 function FilaPaso({ paso, onIr }: { paso: PasoAsistente; onIr: (d: DestinoPaso) => void }) {
   const hecho = paso.estado === "hecho"
   return (
     <li className="flex items-start gap-3">
       {hecho ? (
-        <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-600" aria-label="Hecho" />
+        <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-600" aria-hidden />
       ) : paso.estado === "sin_dato" ? (
-        <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600" aria-label="Sin dato" />
+        <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600" aria-hidden />
       ) : (
-        <Circle className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-label="Pendiente" />
+        <Circle className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
       )}
       <div className="flex min-w-0 flex-1 flex-wrap items-center justify-between gap-2">
         <div className="min-w-0">
-          <p className="text-sm font-medium">{paso.titulo}</p>
+          <p className="text-sm font-medium">
+            <span className="sr-only">{ETIQUETA_ESTADO[paso.estado]}: </span>
+            {paso.titulo}
+          </p>
           {paso.detalle && <p className="text-xs text-muted-foreground">{paso.detalle}</p>}
         </div>
         {(!hecho || paso.id === "certificado") && <AccionPaso paso={paso} onIr={onIr} />}
