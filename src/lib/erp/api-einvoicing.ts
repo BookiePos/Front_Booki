@@ -331,3 +331,42 @@ export async function registerResolution(
   })
   return parseResponse<ResolutionRow[]>(res)
 }
+
+// ── Nómina electrónica del emisor ────────────────────────────────────────────
+
+/** Lo que el backend revela de la nómina del emisor: nunca el PIN. */
+export interface EmisorNominaVista {
+  nominaConfigurada: boolean
+  nominaSoftwareId?: string
+  tieneNominaPin: boolean
+  tieneNominaTestSetId?: boolean
+}
+
+/** Emisor fiscal de la sede (`null` si la sede aún no lo tiene). */
+export async function getEmisorNomina(
+  sedeId: string,
+): Promise<EmisorNominaVista | null> {
+  const res = await authFetch(`/einvoicing/sedes/${sedeId}/emisor`)
+  const data = await parseResponse<{ emisor: EmisorNominaVista | null }>(res)
+  return data.emisor
+}
+
+export interface ConfigurarNominaPayload {
+  softwareId: string
+  pin: string
+  /** Ausente no toca el guardado; `null` lo borra. */
+  testSetId?: string | null
+}
+
+/** Guarda SoftwareID, PIN (cifrado en el servidor) y TestSetId de nómina. */
+export async function configurarNominaEmisor(
+  sedeId: string,
+  payload: ConfigurarNominaPayload,
+): Promise<EmisorNominaVista | null> {
+  const res = await authFetch(`/einvoicing/sedes/${sedeId}/emisor/nomina`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  })
+  const data = await parseResponse<{ emisor: EmisorNominaVista | null }>(res)
+  return data.emisor
+}

@@ -58,7 +58,21 @@ export interface Employee {
   severanceFund?: string
   bank?: string
   accountType?: AccountType
+  /** Enmascarado por el backend (`••••1234`); nunca el número completo. */
   accountNumber?: string
+  /** El backend lo calcula: hay cuenta registrada. */
+  tieneCuenta?: boolean
+  // Nómina electrónica DIAN (códigos DIAN; ver nomina-electronica-empleado.ts)
+  secondLastName?: string
+  otherNames?: string
+  docTypeDian?: string
+  tipoTrabajador?: string
+  subTipoTrabajador?: string
+  altoRiesgoPension?: boolean
+  tipoContratoDian?: string
+  municipioDaneTrabajo?: string
+  direccionTrabajo?: string
+  medioPago?: string
   documents: LegalDocument[]
   status: EmployeeStatus
   terminationDate?: string
@@ -69,7 +83,9 @@ export interface Employee {
 }
 
 /** Payload de creación/edición (todos los campos opcionales salvo en crear). */
-export type EmployeeInput = Partial<Omit<Employee, "_id" | "createdAt">>
+export type EmployeeInput = Partial<
+  Omit<Employee, "_id" | "createdAt" | "tieneCuenta">
+>
 
 export interface Position {
   _id: string

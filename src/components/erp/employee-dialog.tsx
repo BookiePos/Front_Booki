@@ -13,6 +13,7 @@ import {
   FolderOpen,
   CircleDot,
   Wand2,
+  ReceiptText,
 } from "lucide-react"
 
 import type { Sede } from "@/lib/erp/api-inventory"
@@ -31,6 +32,20 @@ import {
   type ArlRiskLevel,
   type AccountType,
 } from "@/lib/erp/api-employees"
+import {
+  DIAN_DOC_TYPES,
+  DIAN_MEDIOS_PAGO,
+  DIAN_SUBTIPOS_TRABAJADOR,
+  DIAN_TIPOS_CONTRATO,
+  DIAN_TIPOS_TRABAJADOR,
+  cuentaParaEnviar,
+  errorMunicipioDane,
+  nominaDesdeEmpleado,
+  nominaEnBlanco,
+  payloadNomina,
+  textoCuentaRegistrada,
+  type FormNomina,
+} from "@/lib/erp/nomina-electronica-empleado"
 import { getPayrollSettings } from "@/lib/erp/api-payroll"
 import { ApiError } from "@/lib/api"
 
@@ -49,6 +64,7 @@ import {
   Field,
   FieldGrid,
   FieldSpan,
+  CheckboxField,
   NativeSelect,
 } from "@/components/ui/field"
 import { useResetOnChange } from "@/hooks/use-reset-on-change"
@@ -122,7 +138,7 @@ interface DocRow {
   note: string
 }
 
-interface Form {
+interface Form extends FormNomina {
   docType: EmpDocType
   docNumber: string
   firstName: string
@@ -193,6 +209,7 @@ function blankForm(): Form {
     terminationDate: "",
     terminationReason: "",
     notes: "",
+    ...nominaEnBlanco(),
   }
 }
 
@@ -226,11 +243,14 @@ function fromEmployee(e: Employee): Form {
     severanceFund: e.severanceFund ?? "",
     bank: e.bank ?? "",
     accountType: e.accountType ?? "",
-    accountNumber: e.accountNumber ?? "",
+    // El backend lo devuelve enmascarado: el input queda vacío y solo viaja
+    // si el usuario escribe una cuenta nueva.
+    accountNumber: "",
     status: e.status,
     terminationDate: e.terminationDate ?? "",
     terminationReason: e.terminationReason ?? "",
     notes: e.notes ?? "",
+    ...nominaDesdeEmpleado(e),
   }
 }
 
@@ -275,6 +295,7 @@ export function EmployeeDialog({
   const veTodas = user ? actorSeesAllSedes(user) : false
   const [form, setForm] = React.useState<Form>(blankForm)
   const [docs, setDocs] = React.useState<DocRow[]>([])
+  const [quitarCuenta, setQuitarCuenta] = React.useState(false)
   const [saving, setSaving] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   // Salario mínimo legal vigente (SMMLV), tomado de los parámetros de nómina.
@@ -301,6 +322,7 @@ export function EmployeeDialog({
   useResetOnChange(() => {
     if (!open) return
     setError(null)
+    setQuitarCuenta(false)
     if (employee) {
       setForm(fromEmployee(employee))
       setDocs(
@@ -354,6 +376,11 @@ export function EmployeeDialog({
       setError("Nombre, apellido y documento son obligatorios.")
       return
     }
+    const errMunicipio = errorMunicipioDane(form.municipioDaneTrabajo)
+    if (errMunicipio) {
+      setError(errMunicipio)
+      return
+    }
     setSaving(true)
     setError(null)
     const isRetired = form.status === "retirado"
@@ -386,7 +413,7 @@ export function EmployeeDialog({
       severanceFund: form.severanceFund,
       bank: form.bank,
       accountType: (form.accountType || undefined) as AccountType | undefined,
-      accountNumber: form.accountNumber,
+      accountNumber: quitarCuenta ? "" : cuentaParaEnviar(form.accountNumber),
       documents: docs
         .filter((d) => d.type.trim())
         .map((d) => ({
@@ -401,6 +428,7 @@ export function EmployeeDialog({
       terminationDate: isRetired ? form.terminationDate : undefined,
       terminationReason: isRetired ? form.terminationReason : undefined,
       notes: form.notes,
+      ...payloadNomina(form),
     }
     try {
       if (employee) await updateEmployee(employee._id, payload)
@@ -810,15 +838,132 @@ export function EmployeeDialog({
               placeholder="Sin especificar"
             />
           </Field>
-          <Field id="emp-acct" label="Número de cuenta">
+          <Field
+            id="emp-acct"
+            label="Número de cuenta"
+            hint={textoCuentaRegistrada(employee) ?? undefined}
+          >
             <Input
               id="emp-acct"
               inputMode="numeric"
+              autoComplete="off"
+              disabled={quitarCuenta}
               value={form.accountNumber}
               onChange={(e) => set("accountNumber", e.target.value)}
-              placeholder="000-000000-00"
+              placeholder={employee?.tieneCuenta ? "Dejar vacío para conservarla" : "000-000000-00"}
+            />
+            {employee?.tieneCuenta && (
+              <label className="mt-1 flex items-center gap-2 text-xs">
+                <input
+                  type="checkbox"
+                  checked={quitarCuenta}
+                  onChange={(e) => setQuitarCuenta(e.target.checked)}
+                />
+                Quitar la cuenta registrada
+              </label>
+            )}
+          </Field>
+        </FieldGrid>
+      </FormSection>
+
+      {/* ── Nómina electrónica DIAN ──────────────────────────────── */}
+      <FormSection
+        icon={ReceiptText}
+        title="Datos para nómina electrónica"
+        description="Códigos que exige la DIAN en el documento de nómina. Todo es opcional hasta que se emita."
+      >
+        <FieldGrid cols={3}>
+          <Field id="emp-second-last" label="Segundo apellido">
+            <Input
+              id="emp-second-last"
+              maxLength={60}
+              value={form.secondLastName}
+              onChange={(e) => set("secondLastName", e.target.value)}
             />
           </Field>
+          <Field id="emp-other-names" label="Otros nombres">
+            <Input
+              id="emp-other-names"
+              maxLength={60}
+              value={form.otherNames}
+              onChange={(e) => set("otherNames", e.target.value)}
+            />
+          </Field>
+          <Field id="emp-doc-dian" label="Tipo de documento (DIAN)">
+            <NativeSelect
+              id="emp-doc-dian"
+              value={form.docTypeDian}
+              onChange={(v) => set("docTypeDian", v)}
+              options={DIAN_DOC_TYPES}
+              placeholder="Sin especificar"
+            />
+          </Field>
+          <Field id="emp-tipo-trab" label="Tipo de trabajador">
+            <NativeSelect
+              id="emp-tipo-trab"
+              value={form.tipoTrabajador}
+              onChange={(v) => set("tipoTrabajador", v)}
+              options={DIAN_TIPOS_TRABAJADOR}
+              placeholder="Sin especificar"
+            />
+          </Field>
+          <Field id="emp-subtipo-trab" label="Subtipo de trabajador">
+            <NativeSelect
+              id="emp-subtipo-trab"
+              value={form.subTipoTrabajador}
+              onChange={(v) => set("subTipoTrabajador", v)}
+              options={DIAN_SUBTIPOS_TRABAJADOR}
+              placeholder="Sin especificar"
+            />
+          </Field>
+          <Field id="emp-contrato-dian" label="Tipo de contrato (DIAN)">
+            <NativeSelect
+              id="emp-contrato-dian"
+              value={form.tipoContratoDian}
+              onChange={(v) => set("tipoContratoDian", v)}
+              options={DIAN_TIPOS_CONTRATO}
+              placeholder="Sin especificar"
+            />
+          </Field>
+          <Field id="emp-medio-pago" label="Medio de pago">
+            <NativeSelect
+              id="emp-medio-pago"
+              value={form.medioPago}
+              onChange={(v) => set("medioPago", v)}
+              options={DIAN_MEDIOS_PAGO}
+              placeholder="Sin especificar"
+            />
+          </Field>
+          <Field
+            id="emp-municipio"
+            label="Municipio de trabajo (DANE)"
+            hint="Código de 5 dígitos, por ejemplo 11001 para Bogotá."
+            error={errorMunicipioDane(form.municipioDaneTrabajo)}
+          >
+            <Input
+              id="emp-municipio"
+              inputMode="numeric"
+              maxLength={5}
+              value={form.municipioDaneTrabajo}
+              onChange={(e) => set("municipioDaneTrabajo", e.target.value.replace(/\D/g, ""))}
+            />
+          </Field>
+          <Field id="emp-dir-trabajo" label="Dirección de trabajo">
+            <Input
+              id="emp-dir-trabajo"
+              maxLength={200}
+              value={form.direccionTrabajo}
+              onChange={(e) => set("direccionTrabajo", e.target.value)}
+            />
+          </Field>
+          <FieldSpan span={3}>
+            <CheckboxField
+              id="emp-alto-riesgo"
+              label="Cotiza pensión de alto riesgo"
+              checked={form.altoRiesgoPension}
+              onCheckedChange={(v) => set("altoRiesgoPension", v)}
+            />
+          </FieldSpan>
         </FieldGrid>
       </FormSection>
 
