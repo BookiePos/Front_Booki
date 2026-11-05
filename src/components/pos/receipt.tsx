@@ -3,19 +3,37 @@ import type { Sede } from "@/lib/pos/api-inventory"
 import { money, qty, dateTime } from "@/lib/pos/format"
 import { cn } from "@/lib/utils"
 import { LEYENDA_CONTINGENCIA } from "@/lib/offline/cola"
+import {
+  ETIQUETA_PROPINA,
+  LEYENDA_CONTINGENCIA_DIAN,
+  LEYENDA_RECHAZADO,
+  clienteTiquete,
+  lineaFabricante,
+  lineasResolucion,
+  tituloTiquete,
+  type TiqueteFiscal,
+} from "@/lib/pos/documento-fiscal"
+import { QrDocumento } from "@/components/pos/qr-documento"
 
 /**
  * Comprobante estilo tirilla térmica. Se usa tras cobrar y en el detalle del
  * historial. La clase `receipt-printable` la reconoce el CSS de impresión
  * (globals.css) para imprimir solo esta zona.
+ *
+ * Con `fiscal` (Fase 7) es el tiquete del documento equivalente POS o de la
+ * factura electrónica: lleva la denominación, el número con prefijo, la
+ * resolución, el CUDE, el QR y el fabricante del software (§4 del anexo POS).
+ * La tirilla ESC/POS (`lib/impresion/recibo-escpos.ts`) espeja este contenido.
  */
 export function Receipt({
   sale,
   sede,
+  fiscal,
   className,
 }: {
   sale: Sale
   sede?: Pick<Sede, "businessName" | "name" | "nit" | "address" | "phone" | "legalNote">
+  fiscal?: TiqueteFiscal | null
   className?: string
 }) {
   const { payment } = sale
@@ -24,10 +42,9 @@ export function Receipt({
   const title = sede?.businessName || sede?.name || "Punto de venta"
   // Subtítulo = sede, solo cuando hay una marca distinta arriba.
   const subtitle = sede?.businessName ? sede?.name : undefined
-  const customer = sale.customer
-  const hasCustomer =
-    !!customer &&
-    !!(customer.name || customer.idNumber || customer.phone || customer.email)
+  // Con documento fiscal, el cliente del papel es el adquiriente del XML.
+  const cliente = clienteTiquete(sale, fiscal ?? null)
+  const titulo = tituloTiquete(sale, fiscal ?? null)
   return (
     <div
       className={cn(
@@ -53,9 +70,30 @@ export function Receipt({
 
       <Dashed />
 
-      <p className="mb-2 text-center font-semibold tracking-wide">
-        FACTURA DE VENTA
-      </p>
+      {fiscal ? (
+        <div className="mb-2 text-center">
+          <p className="font-semibold leading-snug">{titulo[0]}</p>
+          <p className="mt-1 text-sm font-bold">No. {fiscal.fullNumber}</p>
+          {fiscal.rechazado && (
+            <p className="mt-1 font-bold">{LEYENDA_RECHAZADO}</p>
+          )}
+          {lineasResolucion(fiscal.resolucion).map((l) => (
+            <p key={l} className="text-muted-foreground">
+              {l}
+            </p>
+          ))}
+          {fiscal.fecha && (
+            <p className="text-muted-foreground">
+              Generado {fiscal.fecha} {(fiscal.hora ?? "").slice(0, 8)}
+            </p>
+          )}
+        </div>
+      ) : (
+        <div className="mb-2 text-center">
+          <p className="font-semibold tracking-wide">{titulo[0]}</p>
+          {titulo[1] && <p className="text-muted-foreground">{titulo[1]}</p>}
+        </div>
+      )}
 
       <div className="flex justify-between">
         <span className="text-muted-foreground">Comprobante</span>
@@ -72,23 +110,23 @@ export function Receipt({
         </div>
       )}
 
-      {hasCustomer && (
+      {cliente && (
         <>
           <Dashed />
-          <p className="mb-1 text-muted-foreground">Cliente</p>
-          {customer!.name && (
-            <p className="font-medium">{customer!.name}</p>
-          )}
-          {customer!.idNumber && (
-            <div className="flex justify-between">
+          <p className="mb-1 text-muted-foreground">
+            {fiscal ? "Adquiriente" : "Cliente"}
+          </p>
+          {cliente.name && <p className="font-medium">{cliente.name}</p>}
+          {cliente.identificacion && (
+            <div className="flex justify-between gap-2">
               <span className="text-muted-foreground">Identificación</span>
-              <span>{customer!.idNumber}</span>
+              <span className="text-right">{cliente.identificacion}</span>
             </div>
           )}
-          {customer!.phone && (
+          {cliente.phone && (
             <div className="flex justify-between">
               <span className="text-muted-foreground">Teléfono</span>
-              <span>{customer!.phone}</span>
+              <span>{cliente.phone}</span>
             </div>
           )}
         </>
@@ -108,6 +146,8 @@ export function Receipt({
                 <span className="tabular-nums">{money(net)}</span>
               </div>
               <div className="text-[11px] text-muted-foreground">
+                {/* §4.5: con documento fiscal, cada artículo lleva su código. */}
+                {fiscal && l.sku ? `${l.sku} · ` : ""}
                 {qty(l.qty)} {l.unit} × {money(l.unitPrice)}
               </div>
               {disc > 0 && (
@@ -138,15 +178,24 @@ export function Receipt({
             muted
           />
         )}
-        {sale.contingencia ? (
-          <Row label="Impuestos" value="Incluidos" muted />
+        {fiscal?.impuestos ? (
+          // §4.6: discriminados por tributo y tarifa, como van en el documento.
+          fiscal.impuestos.map((t) => (
+            <Row key={t.etiqueta} label={t.etiqueta} value={money(t.valor)} muted />
+          ))
         ) : (
-          sale.taxTotal > 0 && (
-            <Row label="Impuestos" value={money(sale.taxTotal)} muted />
-          )
-        )}
-        {(sale.bagTaxTotal ?? 0) > 0 && (
-          <Row label="INC bolsas" value={money(sale.bagTaxTotal ?? 0)} muted />
+          <>
+            {sale.contingencia ? (
+              <Row label="Impuestos" value="Incluidos" muted />
+            ) : (
+              sale.taxTotal > 0 && (
+                <Row label="Impuestos" value={money(sale.taxTotal)} muted />
+              )
+            )}
+            {(sale.bagTaxTotal ?? 0) > 0 && (
+              <Row label="INC bolsas" value={money(sale.bagTaxTotal ?? 0)} muted />
+            )}
+          </>
         )}
         <div className="flex justify-between text-sm font-semibold">
           <span>TOTAL</span>
@@ -154,7 +203,7 @@ export function Receipt({
         </div>
         {(sale.tip ?? 0) > 0 && (
           <>
-            <Row label="Propina" value={money(sale.tip ?? 0)} muted />
+            <Row label={ETIQUETA_PROPINA} value={money(sale.tip ?? 0)} muted />
             <div className="flex justify-between text-sm font-semibold">
               <span>TOTAL A PAGAR</span>
               <span className="tabular-nums">
@@ -190,6 +239,36 @@ export function Receipt({
       </div>
 
       <Dashed />
+
+      {fiscal && (
+        <>
+          <div className="flex flex-col items-center gap-2 text-center">
+            {fiscal.cude && (
+              <div className="w-full">
+                <p className="font-semibold">
+                  {fiscal.tipo === "pos" ? "CUDE" : "CUFE"}
+                </p>
+                <p className="break-all text-muted-foreground">{fiscal.cude}</p>
+              </div>
+            )}
+            {fiscal.qr && (
+              <QrDocumento
+                contenido={fiscal.qr}
+                etiqueta={`Código QR de consulta en la DIAN del documento ${fiscal.fullNumber}`}
+              />
+            )}
+            {fiscal.contingencia && (
+              <p className="font-medium">{LEYENDA_CONTINGENCIA_DIAN}</p>
+            )}
+            {lineaFabricante(fiscal.fabricante) && (
+              <p className="text-muted-foreground">
+                {lineaFabricante(fiscal.fabricante)}
+              </p>
+            )}
+          </div>
+          <Dashed />
+        </>
+      )}
 
       {sede?.legalNote && (
         <p className="mb-2 text-center text-[11px] leading-snug text-muted-foreground">

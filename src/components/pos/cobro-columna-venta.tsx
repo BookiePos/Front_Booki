@@ -50,8 +50,26 @@ import {
 import { cn } from "@/lib/utils"
 import { nfCantidad, QUIEN_COBRA } from "@/components/pos/venta-helpers"
 import { type AuthUser } from "@/lib/api"
+import type { DocumentoFiscalSolicitado } from "@/lib/pos/api-sales"
+import { SALIDAS_FISCALES } from "@/lib/pos/documento-fiscal"
+import {
+  CamposDocumentoCliente,
+  SelectorDocumentoFiscal,
+} from "@/components/pos/selector-documento-fiscal"
 
 interface CobroColumnaVentaProps {
+  /**
+   * La sede puede emitir el POS electrónico (Fase 7): el interruptor de la
+   * factura se vuelve el selector de las tres salidas. Sin esto, todo queda
+   * como antes.
+   */
+  posFe: boolean
+  /** La sede tiene resolución de factura vigente. */
+  fevDisponible: boolean
+  salidaFiscal: DocumentoFiscalSolicitado
+  setSalidaFiscal: (v: DocumentoFiscalSolicitado) => void
+  /** Lo que falta para la salida elegida (o `null`). */
+  faltaFiscal: string | null
   user: AuthUser | null
   canDiscount: boolean
   splitMode: "todo" | "items" | "partes"
@@ -124,6 +142,11 @@ interface CobroColumnaVentaProps {
 }
 
 export function CobroColumnaVenta({
+  posFe,
+  fevDisponible,
+  salidaFiscal,
+  setSalidaFiscal,
+  faltaFiscal,
   user,
   canDiscount,
   splitMode,
@@ -597,6 +620,43 @@ export function CobroColumnaVenta({
       {/* ── Factura electrónica ──
           Interruptor explícito, no un trámite aparte: si el cliente
           la pide, se marca aquí y sale con la venta. */}
+      {posFe ? (
+        // Fase 7: tiquete POS por defecto, con datos o factura a pedido (D1).
+        // El documento sale con el cobro; si la DIAN o la emisión fallan, la
+        // venta queda cobrada igual y se avisa aparte.
+        <CheckoutGroup
+          title="Documento electrónico"
+          icon={FileText}
+          defaultOpen={salidaFiscal !== "pos_anonimo"}
+          summary={
+            salidaFiscal === "pos_anonimo"
+              ? "Tiquete POS · consumidor final"
+              : SALIDAS_FISCALES.find((s) => s.value === salidaFiscal)?.label
+          }
+        >
+          <SelectorDocumentoFiscal
+            value={salidaFiscal}
+            fevDisponible={fevDisponible}
+            onChange={(v) => {
+              setSalidaFiscal(v)
+              if (v !== "pos_anonimo") setShowCustomer(true)
+            }}
+          />
+          {salidaFiscal !== "pos_anonimo" && (
+            <label className="flex cursor-pointer items-center gap-3 border-t border-border pt-2.5">
+              <input
+                type="checkbox"
+                checked={saveCustomer}
+                onChange={(e) => setSaveCustomer(e.target.checked)}
+                className="size-5 shrink-0 accent-[var(--primary)]"
+              />
+              <span className="text-[0.8125rem] text-foreground">
+                Guardar el cliente para próximas ventas
+              </span>
+            </label>
+          )}
+        </CheckoutGroup>
+      ) : (
       <CheckoutGroup
         title="Factura electrónica DIAN"
         icon={FileText}
@@ -643,6 +703,7 @@ export function CobroColumnaVenta({
           </label>
         )}
       </CheckoutGroup>
+      )}
 
       {/* Datos del cliente para el papel. Se abren solos al pedir
           factura y dejan de plegarse mientras falten: descubrirlo
@@ -697,11 +758,19 @@ export function CobroColumnaVenta({
             aria-label="Correo del cliente"
           />
         </div>
+        {posFe && salidaFiscal !== "pos_anonimo" && (
+          <CamposDocumentoCliente
+            customer={customer}
+            setCustomer={setCustomer}
+            requerido={salidaFiscal === "pos_identificado"}
+          />
+        )}
         {invoiceDataMissing && (
           <p className="flex items-start gap-2 rounded-xl bg-accent px-3 py-2 text-xs text-accent-foreground">
             <Info className="mt-0.5 size-4 shrink-0" />
-            Para la factura electrónica hace falta el nombre y la
-            cédula o NIT del cliente.
+            {posFe && faltaFiscal
+              ? faltaFiscal
+              : "Para la factura electrónica hace falta el nombre y la cédula o NIT del cliente."}
           </p>
         )}
       </CheckoutGroup>

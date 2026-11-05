@@ -7,6 +7,7 @@ import { Banknote, Printer, Settings2, Usb, Cable } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
 import type { Sale } from "@/lib/pos/api-sales"
 import type { Sede } from "@/lib/pos/api-inventory"
+import type { TiqueteFiscal } from "@/lib/pos/documento-fiscal"
 import {
   EVENTO_CONFIG,
   guardarConfig,
@@ -47,13 +48,17 @@ function mensaje(err: unknown): string {
 export async function imprimirComprobante(
   sale: Sale,
   sede: Sede | undefined,
-  { abrirCajon }: { abrirCajon: boolean },
+  {
+    abrirCajon,
+    fiscal,
+  }: { abrirCajon: boolean; fiscal?: TiqueteFiscal | null },
 ): Promise<void> {
   const c = leerConfig()
   if (c.modo === "termica" && hayTermica()) {
     try {
       await imprimirVentaTermica(sale, sede, c, {
         abrirCajon: abrirCajon && c.cajonAlCobrar && sale.status !== "void",
+        fiscal,
       })
       return
     } catch (err) {

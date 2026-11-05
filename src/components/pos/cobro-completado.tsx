@@ -20,6 +20,8 @@ import {
 } from "@/components/pos/impresora-termica"
 import { cn } from "@/lib/utils"
 import { type Sede } from "@/lib/pos/api-inventory"
+import type { TiqueteFiscal } from "@/lib/pos/documento-fiscal"
+import { AvisoDocumentoFiscal } from "@/components/pos/aviso-documento-fiscal"
 
 interface CobroCompletadoProps {
   sede: Sede | undefined
@@ -29,6 +31,18 @@ interface CobroCompletadoProps {
   invoiceState: "idle" | "emitting" | "done" | "error"
   invoiceNumber: string | null
   invoiceError: string | null
+  /** Tiquete del documento fiscal (Fase 7), si la venta lo tiene. */
+  fiscal?: TiqueteFiscal | null
+  /**
+   * No se pudo leer el documento completo: el tiquete sale sin resolución ni
+   * fabricante (num. 3 y 9 del §4). Se avisa para reimprimirlo desde Ventas.
+   */
+  tiqueteIncompleto?: boolean
+  /**
+   * El documento completo (resolución, fabricante, impuestos por tarifa,
+   * adquiriente) aún no llega: imprimir ahora sacaría un tiquete incompleto.
+   */
+  preparandoTiquete?: boolean
   handlePrintReceipt: () => void | Promise<void>
   backToList: () => Promise<void>
 }
@@ -41,6 +55,9 @@ export function CobroCompletado({
   invoiceState,
   invoiceNumber,
   invoiceError,
+  fiscal,
+  tiqueteIncompleto,
+  preparandoTiquete,
   handlePrintReceipt,
   backToList,
 }: CobroCompletadoProps) {
@@ -103,6 +120,17 @@ export function CobroCompletado({
               éxito de la venta a propósito: la venta está hecha aunque
               la DIAN falle, y mezclarlo haría dudar al cajero de si
               cobró o no. */}
+          {/* Documento electrónico POS/FEV (Fase 7): mismo principio, aviso
+              propio y nunca encima del «Venta registrada». */}
+          <AvisoDocumentoFiscal documentoFiscal={completedSale.documentoFiscal} />
+          {tiqueteIncompleto && fiscal && (
+            <p role="status" className="rounded-xl bg-accent px-4 py-3 text-xs text-accent-foreground">
+              No se pudo traer el documento completo (resolución, fabricante,
+              impuestos por tarifa y datos del cliente): antes de entregar el
+              tiquete, reimprímelo desde Ventas.
+            </p>
+          )}
+
           {invoiceState !== "idle" && (
             <div
               className={cn(
@@ -164,7 +192,7 @@ export function CobroCompletado({
         </div>
 
         <div className="flex flex-col border-t border-border bg-muted/25 px-5 py-4 lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain lg:border-l lg:border-t-0 print:overflow-visible print:border-0 print:bg-transparent print:p-0">
-          <Receipt sale={completedSale} sede={sede} />
+          <Receipt sale={completedSale} sede={sede} fiscal={fiscal} />
         </div>
       </div>
 
@@ -172,7 +200,7 @@ export function CobroCompletado({
         <Button
           variant="outline"
           className="h-12 flex-1 gap-2"
-          disabled={imprimiendo}
+          disabled={imprimiendo || preparandoTiquete}
           onClick={async () => {
             setImprimiendo(true)
             try {
@@ -183,7 +211,7 @@ export function CobroCompletado({
           }}
         >
           <Printer className="size-4" />
-          Imprimir
+          {preparandoTiquete ? "Preparando el tiquete…" : "Imprimir"}
         </Button>
         <ImpresoraTermicaButton />
         <AbrirCajonButton />

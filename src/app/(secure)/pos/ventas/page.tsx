@@ -31,6 +31,13 @@ import { coincide, useBusquedaPendiente } from "@/lib/pos/busqueda"
 import { Receipt } from "@/components/pos/receipt"
 import { imprimirComprobante } from "@/components/pos/impresora-termica"
 import { Factura } from "@/components/pos/factura"
+import { AvisoDocumentoFiscal } from "@/components/pos/aviso-documento-fiscal"
+import {
+  DIAN_STATUS_LABELS,
+  getDocument,
+  type ElectronicDocument,
+} from "@/lib/pos/api-einvoicing"
+import { tiqueteFiscalDe } from "@/lib/pos/documento-fiscal"
 
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -74,6 +81,39 @@ export default function VentasPage() {
   /** Ficha de devolución parcial abierta sobre la venta seleccionada. */
   const [returning, setReturning] = React.useState(false)
   const [voidError, setVoidError] = React.useState<string | null>(null)
+  /**
+   * Documento electrónico de la venta abierta (Fase 7). Se lee aparte porque
+   * el estado DIAN cambia después del cobro (lo transmite y reconsulta el
+   * servidor) y la venta solo guarda el de ese momento.
+   */
+  const [docSel, setDocSel] = React.useState<ElectronicDocument | null>(null)
+  /** `_id` del documento que no se pudo leer (el tiquete saldría incompleto). */
+  const [docFallo, setDocFallo] = React.useState<string | null>(null)
+  const documentoId = selected?.documentoFiscal?.documentoId
+  React.useEffect(() => {
+    let vivo = true
+    if (!documentoId) return
+    getDocument(documentoId)
+      .then((d) => vivo && setDocSel(d))
+      .catch(() => {
+        if (!vivo) return
+        setDocSel(null)
+        setDocFallo(documentoId)
+      })
+    return () => {
+      vivo = false
+      setDocSel(null)
+    }
+  }, [documentoId])
+  /** El documento leído solo vale si es el de la venta abierta ahora. */
+  const docVigente = docSel && docSel._id === documentoId ? docSel : null
+  const fiscalSel = selected
+    ? tiqueteFiscalDe(selected.documentoFiscal, docVigente)
+    : null
+  /** Sin el documento completo la reimpresión saldría sin resolución ni impuestos por tarifa. */
+  const preparandoTiquete =
+    !!documentoId && !docVigente && docFallo !== documentoId
+  const tiqueteIncompleto = !!documentoId && docFallo === documentoId
 
   // Filtros
   const [query, setQuery] = React.useState("")
@@ -381,17 +421,23 @@ export default function VentasPage() {
             <Button
               variant="outline"
               className="no-print"
+              disabled={detailView !== "factura" && preparandoTiquete}
               onClick={() =>
                 detailView === "factura"
                   ? window.print()
                   : selected &&
                     void imprimirComprobante(selected, sede, {
                       abrirCajon: false, // reimpresión: nunca abre el cajón
+                      fiscal: fiscalSel,
                     })
               }
             >
               <Printer />
-              {detailView === "factura" ? "Imprimir / PDF" : "Imprimir"}
+              {detailView === "factura"
+                ? "Imprimir / PDF"
+                : preparandoTiquete
+                  ? "Preparando el tiquete…"
+                  : "Imprimir"}
             </Button>
             <Button onClick={() => setSelected(null)}>Cerrar</Button>
           </>
@@ -404,6 +450,36 @@ export default function VentasPage() {
                 Esta venta está <strong>anulada</strong>: no cuenta en los
                 reportes ni en la caja.
               </FormAlert>
+            )}
+
+            {/* Documento electrónico (Fase 7): cómo quedó al cobrar y, si ya
+                existe, en qué va ante la DIAN. */}
+            {selected.documentoFiscal && (
+              <div className="no-print flex flex-col gap-2">
+                {/* El aviso es el estado AL COBRAR: si ya se leyó el documento,
+                    manda su estado DIAN actual, no el «en proceso» de entonces. */}
+                {!docVigente && (
+                  <AvisoDocumentoFiscal documentoFiscal={selected.documentoFiscal} />
+                )}
+                {tiqueteIncompleto && (
+                  <p role="status" className="rounded-xl bg-accent px-4 py-3 text-xs text-accent-foreground">
+                    No se pudo traer el documento completo: el tiquete saldría sin
+                    resolución, fabricante, impuestos por tarifa ni datos del
+                    cliente. Cierra y vuelve a abrir la venta para reintentar.
+                  </p>
+                )}
+                {docVigente && (
+                  <p className="flex flex-wrap items-center gap-2 text-sm">
+                    <span className="text-muted-foreground">Estado DIAN</span>
+                    <Badge variant="outline">
+                      {DIAN_STATUS_LABELS[docVigente.dianStatus] ?? docVigente.dianStatus}
+                    </Badge>
+                    <span className="font-mono text-xs text-muted-foreground">
+                      {docVigente.fullNumber}
+                    </span>
+                  </p>
+                )}
+              </div>
             )}
 
             {/* Alternar entre factura (carta) y recibo (tirilla) */}
@@ -434,7 +510,7 @@ export default function VentasPage() {
                 }}
               />
             ) : (
-              <Receipt sale={selected} sede={sede} />
+              <Receipt sale={selected} sede={sede} fiscal={fiscalSel} />
             )}
 
             {voidError && (

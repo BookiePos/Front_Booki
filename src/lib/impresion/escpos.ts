@@ -165,6 +165,35 @@ export class EscposBuilder {
     return this.crudo(CMD.cortar)
   }
 
+  /**
+   * Código QR nativo de la impresora (`GS ( k`, modelo 2, corrección M). Lo
+   * dibuja la térmica, así que sale nítido sin rasterizar una imagen. `modulo`
+   * es el lado de cada módulo en puntos (1-16); quien llama lo elige para que
+   * el QR mida al menos 2 cm (§14.3 del anexo).
+   *
+   * El contenido va en ASCII tal cual (CUDE, URL y cifras): no pasa por la
+   * página de códigos, que cambiaría bytes del enlace.
+   */
+  qr(datos: string, modulo: number) {
+    const bytes = Array.from(new TextEncoder().encode(datos))
+    const largoDatos = bytes.length + 3
+    const m = Math.max(1, Math.min(16, Math.round(modulo)))
+    return this.crudo([
+      // Modelo 2.
+      0x1d, 0x28, 0x6b, 0x04, 0x00, 0x31, 0x41, 0x32, 0x00,
+      // Tamaño del módulo.
+      0x1d, 0x28, 0x6b, 0x03, 0x00, 0x31, 0x43, m,
+      // Corrección de errores M (0x31).
+      0x1d, 0x28, 0x6b, 0x03, 0x00, 0x31, 0x45, 0x31,
+      // Guarda los datos en el búfer del símbolo.
+      0x1d, 0x28, 0x6b, largoDatos & 0xff, (largoDatos >> 8) & 0xff, 0x31, 0x50, 0x30,
+      ...bytes,
+      // Imprime el símbolo guardado.
+      0x1d, 0x28, 0x6b, 0x03, 0x00, 0x31, 0x51, 0x30,
+      0x0a,
+    ])
+  }
+
   abrirCajon(pin: 0 | 1 = 0) {
     return this.crudo(pulsoCajon(pin))
   }
