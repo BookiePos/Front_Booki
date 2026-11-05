@@ -153,6 +153,48 @@ export interface Customer {
   idNumber?: string
   phone?: string
   email?: string
+  /**
+   * Tipo de documento DIAN (13 CC, 31 NIT…). Lo exige el POS con datos del
+   * cliente (`documentoFiscal: "pos_identificado"`): sin tipo, un número suelto
+   * no se interpreta.
+   */
+  docType?: string
+  /** DV del NIT (solo con `docType: "31"`). */
+  nitDv?: string
+}
+
+/**
+ * Documento fiscal que se pide al cobrar (Fase 7, D1 del anexo POS). Las tres
+ * salidas son excluyentes por venta. Sin él no se emite nada (el cobro de
+ * siempre y el de los negocios sin resolución POS).
+ */
+export type DocumentoFiscalSolicitado = "pos_anonimo" | "pos_identificado" | "fev"
+
+/**
+ * Cómo quedó el documento fiscal de la venta. NO es el estado DIAN (ese vive en
+ * el documento electrónico): `error` significa que no se emitió, pero la venta
+ * quedó cobrada igual.
+ */
+export type EstadoDocumentoFiscal =
+  | "emitido"
+  | "en_proceso"
+  | "error"
+  | "pendiente_contingencia_07"
+
+/** Lo que viaja en la respuesta del cobro y queda guardado en la venta. */
+export interface DocumentoFiscalVenta {
+  solicitado: DocumentoFiscalSolicitado
+  estado: EstadoDocumentoFiscal
+  /** `_id` del documento electrónico. */
+  documentoId?: string
+  tipo?: "pos" | "invoice"
+  fullNumber?: string
+  /** CUDE (POS) o CUFE (FEV). */
+  cude?: string
+  qrUrl?: string
+  dianStatus?: string
+  /** Por qué no se emitió, en lenguaje de la caja. */
+  error?: string
 }
 
 export interface Sale {
@@ -207,6 +249,8 @@ export interface Sale {
   payments?: ({ method: PaymentMethod; amount: number } & PaymentChannelDetail)[]
   customer?: Customer
   orderId?: string
+  /** Documento fiscal pedido al cobrar (Fase 7). Ausente si no se pidió. */
+  documentoFiscal?: DocumentoFiscalVenta
   createdAt: string
 }
 
@@ -311,6 +355,8 @@ export interface CreateSalePayload {
    * tocó nada, porque lo que se ve en pantalla es lo que tiene que pasar.
    */
   packagingExplicit?: boolean
+  /** Documento fiscal de la venta. Sin él no se emite ninguno. */
+  documentoFiscal?: DocumentoFiscalSolicitado
 }
 
 // ─── Cuentas abiertas (comandas / mesas) ─────────────────────────────────────
@@ -385,6 +431,8 @@ export interface CheckoutOrderPayload {
   packaging?: SalePackagingInput[]
   /** `packaging` es TODO el empaque, no un añadido. Ver `CreateSaleInput`. */
   packagingExplicit?: boolean
+  /** Documento fiscal de la venta. Ver `CreateSalePayload`. */
+  documentoFiscal?: DocumentoFiscalSolicitado
 }
 
 /** Lo que falta por cobrar de cada producto de una comanda. */

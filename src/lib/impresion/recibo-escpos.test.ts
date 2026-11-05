@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest"
-import { reciboEscpos } from "@/lib/impresion/recibo-escpos"
+import QRCode from "qrcode"
+import { moduloQr, reciboEscpos } from "@/lib/impresion/recibo-escpos"
+import type { TiqueteFiscal } from "@/lib/pos/documento-fiscal"
 import { pulsoCajon, CMD } from "@/lib/impresion/escpos"
 import type { Sale } from "@/lib/pos/api-sales"
 
@@ -94,5 +96,62 @@ describe("reciboEscpos", () => {
     expect(t).toContain("Impuestos")
     expect(t).toContain("Incluidos")
     expect(t).toMatch(/contingencia/i)
+  })
+})
+
+describe("reciboEscpos con documento POS electrónico (Fase 7)", () => {
+  const cude = "b".repeat(96)
+  const qr = `NumFac=SETP1\nCUDE=${cude}\nQRCode=https://catalogo-vpfe.dian.gov.co/document/searchqr?documentkey=${cude}`
+  const fiscal: TiqueteFiscal = {
+    tipo: "pos",
+    fullNumber: "SETP990000001",
+    cude,
+    qr,
+    resolucion: { numero: "18760000001", prefijo: "SETP", rangoDesde: 1, rangoHasta: 5000 },
+    fabricante: { razonSocial: "BookiPos SAS", nit: "901234567", nombreSoftware: "BookiPos" },
+    contingencia: false,
+  }
+
+  it.each([58, 80] as const)("en %i mm lleva denominación, número, resolución, CUDE y fabricante", (ancho) => {
+    const t = latin(reciboEscpos(sale, undefined, { ancho, fiscal }))
+    expect(t).toMatch(/Documento equivalente/)
+    expect(t).toMatch(/P\.O\.S\./)
+    expect(t).toContain("No. SETP990000001")
+    expect(t).toContain("Resolución DIAN 18760000001".replace("ó", "\xa2"))
+    expect(t).toContain("CUDE")
+    // El CUDE se parte por el ancho del papel pero va completo.
+    expect(t.replace(/\n/g, "")).toContain(cude)
+    expect(t.replace(/\n/g, " ")).toContain("BookiPos SAS NIT 901234567")
+    expect(t).not.toContain("FACTURA DE VENTA")
+  })
+
+  it("imprime el QR nativo (GS ( k) con módulo de al menos 3 puntos", () => {
+    const b = reciboEscpos(sale, undefined, { ancho: 58, fiscal })
+    // Modelo 2 y la orden de imprimir el símbolo.
+    expect(contiene(b, [0x1d, 0x28, 0x6b, 0x04, 0x00, 0x31, 0x41, 0x32, 0x00])).toBe(true)
+    expect(contiene(b, [0x1d, 0x28, 0x6b, 0x03, 0x00, 0x31, 0x51, 0x30])).toBe(true)
+    const m = moduloQr(qr, 58)
+    expect(m).toBeGreaterThanOrEqual(3)
+    expect(contiene(b, [0x1d, 0x28, 0x6b, 0x03, 0x00, 0x31, 0x43, m])).toBe(true)
+  })
+
+  it("el QR mide ≥ 2 cm y cabe en 58 y 80 mm", () => {
+    for (const ancho of [58, 80] as const) {
+      const m = moduloQr(qr, ancho)
+      const lado = QRCode.create(qr, { errorCorrectionLevel: "M" }).modules.size
+      expect(lado * m).toBeGreaterThanOrEqual(160) // 2 cm a 8 puntos/mm
+      expect(lado * m).toBeLessThanOrEqual(ancho === 58 ? 384 : 576)
+    }
+  })
+
+  it("en contingencia 08 lleva la leyenda de sin validación previa", () => {
+    const t = latin(reciboEscpos(sale, undefined, { ancho: 58, fiscal: { ...fiscal, contingencia: true } }))
+    expect(t.replace(/\n/g, " ")).toMatch(/sin validaci\xa2n previa/)
+  })
+
+  it("sin documento fiscal la tirilla es la de siempre", () => {
+    const t = latin(reciboEscpos(sale, undefined, { ancho: 58 }))
+    expect(t).toContain("FACTURA DE VENTA")
+    expect(t).not.toContain("CUDE")
   })
 })

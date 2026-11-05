@@ -60,7 +60,18 @@ import {
   type DeliveryZone,
   type OrderType,
 } from "@/lib/pos/api-delivery"
-import { createInvoiceFromSale } from "@/lib/pos/api-einvoicing"
+import {
+  createInvoiceFromSale,
+  getDocument,
+  sedeEmitePos,
+  type ElectronicDocument,
+} from "@/lib/pos/api-einvoicing"
+import {
+  clienteParaSalida,
+  faltaDatoFiscal,
+  tiqueteFiscalDe,
+} from "@/lib/pos/documento-fiscal"
+import type { DocumentoFiscalSolicitado } from "@/lib/pos/api-sales"
 import { money } from "@/lib/pos/format"
 
 import { coincide, useBusquedaPendiente } from "@/lib/pos/busqueda"
@@ -333,6 +344,18 @@ export default function VentaPage() {
   >("idle")
   const [invoiceNumber, setInvoiceNumber] = React.useState<string | null>(null)
   const [invoiceError, setInvoiceError] = React.useState<string | null>(null)
+  /**
+   * Documento electrónico POS (Fase 7). `posFe` dice si la sede tiene
+   * resolución POS vigente: solo entonces aparece el selector de las tres
+   * salidas y el cobro manda `documentoFiscal`. Sin ella todo sigue como antes
+   * (el interruptor de la factura de siempre), para no llenar de errores de la
+   * DIAN a quien todavía no factura electrónicamente.
+   */
+  const [posFe, setPosFe] = React.useState(false)
+  const [salidaFiscal, setSalidaFiscal] =
+    React.useState<DocumentoFiscalSolicitado>("pos_anonimo")
+  /** El documento electrónico completo de la venta cobrada, para el tiquete. */
+  const [docFiscal, setDocFiscal] = React.useState<ElectronicDocument | null>(null)
   // Deudor del fiado: cliente registrado (→ CxC) o empleado (→ nómina)
   const [debtorType, setDebtorType] = React.useState<"customer" | "employee">("customer")
   const [custId, setCustId] = React.useState("")
@@ -556,6 +579,18 @@ export default function VentaPage() {
     // También al volver la red: sin ella la lectura anterior pudo fallar.
   }, [sedeId, aplicaBolsas, modo.online])
 
+  // ¿La sede emite POS electrónico? Se pregunta al fijar la sede y al volver
+  // la red; sin red se conserva lo último que se supo. `sedeEmitePos` nunca
+  // lanza: ante cualquier duda responde false y el cobro sigue como antes.
+  React.useEffect(() => {
+    let vivo = true
+    if (!sedeId || !canSell || !modo.online) return
+    void sedeEmitePos(sedeId).then((si) => vivo && setPosFe(si))
+    return () => {
+      vivo = false
+    }
+  }, [sedeId, canSell, modo.online])
+
   async function handleOpenCaja() {
     if (!sedeId) return
     if (openingBills === null && openingCoins === null) {
@@ -606,6 +641,7 @@ export default function VentaPage() {
       cajonYaAbierto.current = completedSale._id
       await imprimirComprobante(completedSale, sede, {
         abrirCajon: primera && ventaConEfectivo(completedSale),
+        fiscal: tiqueteFiscalDe(completedSale.documentoFiscal, docFiscal),
       })
     } else window.print()
     if (!printConfigured) {
@@ -1061,6 +1097,9 @@ export default function VentaPage() {
     setInvoiceState("idle")
     setInvoiceNumber(null)
     setInvoiceError(null)
+    // D1: cada venta arranca en tiquete POS a consumidor final.
+    setSalidaFiscal("pos_anonimo")
+    setDocFiscal(null)
     setCheckoutOpen(true)
   }
 
@@ -1213,10 +1252,13 @@ export default function VentaPage() {
 
   /** Limpia el cliente: descarta campos vacíos. */
   function cleanCustomer(): Customer | undefined {
-    const entries = (["name", "idNumber", "phone", "email"] as const)
+    const entries = (["name", "idNumber", "phone", "email", "docType", "nitDv"] as const)
       .map((k) => [k, customer[k]?.trim()] as const)
       .filter(([, v]) => v)
-    return entries.length > 0 ? Object.fromEntries(entries) : undefined
+    // El tipo y el DV solos no son "datos del cliente": sin nombre ni número
+    // la venta sigue siendo a consumidor final.
+    const conDatos = entries.some(([k]) => k !== "docType" && k !== "nitDv")
+    return conDatos ? Object.fromEntries(entries) : undefined
   }
 
   /**
@@ -1226,7 +1268,11 @@ export default function VentaPage() {
    */
   const customerToSend =
     cleanCustomer() ??
-    (!usesCredit && clienteModo === "final"
+    // El tiquete «con mis datos» es justo lo contrario del consumidor final:
+    // ahí no se rellena nada por el cliente.
+    (!usesCredit &&
+    clienteModo === "final" &&
+    !(posFe && salidaFiscal === "pos_identificado")
       ? CONSUMIDOR_FINAL
       : undefined)
 
@@ -1234,8 +1280,13 @@ export default function VentaPage() {
    * `true` si se pidió factura electrónica pero faltan los datos mínimos que
    * la DIAN exige del adquiriente (nombre e identificación).
    */
-  const invoiceDataMissing =
-    emitInvoice && (!customerToSend?.name || !customerToSend?.idNumber)
+  /** Lo que falta para la salida fiscal elegida (solo con POS electrónico). */
+  const faltaFiscal = posFe ? faltaDatoFiscal(salidaFiscal, customerToSend) : null
+  /** Se pidió factura: con POS electrónico es una de las tres salidas. */
+  const pideFactura = posFe ? salidaFiscal === "fev" : emitInvoice
+  const invoiceDataMissing = posFe
+    ? faltaFiscal !== null
+    : emitInvoice && (!customerToSend?.name || !customerToSend?.idNumber)
 
   const vendedor = empList.find((e) => e._id === sellerKey)
   const sellerPayload = vendedor
@@ -1297,7 +1348,8 @@ export default function VentaPage() {
               (debtorType === "employee" && !empId))
           ? "Elige a quién se le fía para poder cobrar."
           : invoiceDataMissing
-            ? "Para la factura electrónica hace falta el nombre y la cédula o NIT del cliente."
+            ? (faltaFiscal ??
+              "Para la factura electrónica hace falta el nombre y la cédula o NIT del cliente.")
             : split?.error
               ? split.error
               : digitalError
@@ -1411,7 +1463,7 @@ export default function VentaPage() {
       customerId: custId || undefined,
       priceListId: manualListId || undefined,
       orderType,
-      emitInvoice,
+      emitInvoice: pideFactura,
       activeOrder: !!activeOrderId,
     })
     if (no.length > 0) {
@@ -1485,7 +1537,9 @@ export default function VentaPage() {
         })
       : undefined
     const pago = splitOn ? { payments } : { payment }
-    const customerData = customerToSend
+    /** Documento fiscal que se pide con el cobro (solo con POS electrónico). */
+    const documentoFiscal = posFe ? salidaFiscal : undefined
+    const customerData = clienteParaSalida(documentoFiscal, customerToSend)
     /** Si tras este cobro la cuenta sigue con algo pendiente. */
     let quedaAbierta = false
     try {
@@ -1510,6 +1564,7 @@ export default function VentaPage() {
           seller: sellerPayload,
           packaging: packagingRows,
           packagingExplicit: true,
+          documentoFiscal,
         })
         // Con un cobro parcial la cuenta puede seguir abierta con el resto, así
         // que hay que volver a preguntarle al servidor en vez de darla por
@@ -1555,6 +1610,7 @@ export default function VentaPage() {
           // dos haría que el backend pidiera permiso sin necesidad.
           priceListId: !custId ? manualListId || undefined : undefined,
           orderType,
+          documentoFiscal,
           // La tarifa NO viaja cuando hay zona: se manda el id y el servidor
           // pone el precio. El valor a mano solo para el pedido suelto.
           delivery:
@@ -1602,6 +1658,7 @@ export default function VentaPage() {
       setShowCustomer(false)
       setEmitInvoice(false)
       setSaveCustomer(false)
+      setSalidaFiscal("pos_anonimo")
       setEmpaqueSel({})
       setSugerencia(null)
       setEmpaqueAbierto(false)
@@ -1611,7 +1668,21 @@ export default function VentaPage() {
       // cliente) es adicional: si algo de esto falla NO se revierte la venta,
       // solo se avisa. Perder una venta cobrada porque la DIAN no respondió
       // sería mucho peor que quedarse sin la factura.
-      if (emitInvoice) {
+      if (documentoFiscal) {
+        // Fase 7: el documento salió (o no) con el cobro y su estado viene en
+        // `sale.documentoFiscal`; la caja lo muestra aparte del «Venta
+        // registrada». El documento completo (resolución, fabricante, datos del
+        // QR) se lee solo para el tiquete: si falla, el tiquete sale con el
+        // número, el CUDE y la URL que ya trajo el cobro.
+        const df = sale.documentoFiscal
+        if (df?.estado === "emitido" && df.documentoId) {
+          try {
+            setDocFiscal(await getDocument(df.documentoId))
+          } catch {
+            setDocFiscal(null)
+          }
+        }
+      } else if (emitInvoice) {
         setInvoiceState("emitting")
         setInvoiceError(null)
         try {
@@ -1957,6 +2028,7 @@ export default function VentaPage() {
                 invoiceState={invoiceState}
                 invoiceNumber={invoiceNumber}
                 invoiceError={invoiceError}
+                fiscal={tiqueteFiscalDe(completedSale.documentoFiscal, docFiscal)}
                 handlePrintReceipt={handlePrintReceipt}
                 backToList={backToList}
               />
@@ -2045,6 +2117,10 @@ export default function VentaPage() {
                     las opciones siguen estando todas, pero solo grita la que
                     esta venta necesita. */}
                 <CobroColumnaVenta
+                  posFe={posFe}
+                  salidaFiscal={salidaFiscal}
+                  setSalidaFiscal={setSalidaFiscal}
+                  faltaFiscal={faltaFiscal}
                   user={user}
                   canDiscount={canDiscount}
                   splitMode={splitMode}

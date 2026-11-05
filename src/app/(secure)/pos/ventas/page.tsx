@@ -31,6 +31,13 @@ import { coincide, useBusquedaPendiente } from "@/lib/pos/busqueda"
 import { Receipt } from "@/components/pos/receipt"
 import { imprimirComprobante } from "@/components/pos/impresora-termica"
 import { Factura } from "@/components/pos/factura"
+import { AvisoDocumentoFiscal } from "@/components/pos/aviso-documento-fiscal"
+import {
+  DIAN_STATUS_LABELS,
+  getDocument,
+  type ElectronicDocument,
+} from "@/lib/pos/api-einvoicing"
+import { tiqueteFiscalDe } from "@/lib/pos/documento-fiscal"
 
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -74,6 +81,27 @@ export default function VentasPage() {
   /** Ficha de devolución parcial abierta sobre la venta seleccionada. */
   const [returning, setReturning] = React.useState(false)
   const [voidError, setVoidError] = React.useState<string | null>(null)
+  /**
+   * Documento electrónico de la venta abierta (Fase 7). Se lee aparte porque
+   * el estado DIAN cambia después del cobro (lo transmite y reconsulta el
+   * servidor) y la venta solo guarda el de ese momento.
+   */
+  const [docSel, setDocSel] = React.useState<ElectronicDocument | null>(null)
+  const documentoId = selected?.documentoFiscal?.documentoId
+  React.useEffect(() => {
+    let vivo = true
+    if (!documentoId) return
+    getDocument(documentoId)
+      .then((d) => vivo && setDocSel(d))
+      .catch(() => vivo && setDocSel(null))
+    return () => {
+      vivo = false
+      setDocSel(null)
+    }
+  }, [documentoId])
+  const fiscalSel = selected
+    ? tiqueteFiscalDe(selected.documentoFiscal, docSel)
+    : null
 
   // Filtros
   const [query, setQuery] = React.useState("")
@@ -387,6 +415,7 @@ export default function VentasPage() {
                   : selected &&
                     void imprimirComprobante(selected, sede, {
                       abrirCajon: false, // reimpresión: nunca abre el cajón
+                      fiscal: fiscalSel,
                     })
               }
             >
@@ -404,6 +433,25 @@ export default function VentasPage() {
                 Esta venta está <strong>anulada</strong>: no cuenta en los
                 reportes ni en la caja.
               </FormAlert>
+            )}
+
+            {/* Documento electrónico (Fase 7): cómo quedó al cobrar y, si ya
+                existe, en qué va ante la DIAN. */}
+            {selected.documentoFiscal && (
+              <div className="no-print flex flex-col gap-2">
+                <AvisoDocumentoFiscal documentoFiscal={selected.documentoFiscal} />
+                {docSel && (
+                  <p className="flex flex-wrap items-center gap-2 text-sm">
+                    <span className="text-muted-foreground">Estado DIAN</span>
+                    <Badge variant="outline">
+                      {DIAN_STATUS_LABELS[docSel.dianStatus] ?? docSel.dianStatus}
+                    </Badge>
+                    <span className="font-mono text-xs text-muted-foreground">
+                      {docSel.fullNumber}
+                    </span>
+                  </p>
+                )}
+              </div>
             )}
 
             {/* Alternar entre factura (carta) y recibo (tirilla) */}
@@ -434,7 +482,7 @@ export default function VentasPage() {
                 }}
               />
             ) : (
-              <Receipt sale={selected} sede={sede} />
+              <Receipt sale={selected} sede={sede} fiscal={fiscalSel} />
             )}
 
             {voidError && (

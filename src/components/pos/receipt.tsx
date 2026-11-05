@@ -3,19 +3,34 @@ import type { Sede } from "@/lib/pos/api-inventory"
 import { money, qty, dateTime } from "@/lib/pos/format"
 import { cn } from "@/lib/utils"
 import { LEYENDA_CONTINGENCIA } from "@/lib/offline/cola"
+import {
+  DENOMINACION_POS,
+  LEYENDA_CONTINGENCIA_DIAN,
+  lineaFabricante,
+  lineasResolucion,
+  type TiqueteFiscal,
+} from "@/lib/pos/documento-fiscal"
+import { QrDocumento } from "@/components/pos/qr-documento"
 
 /**
  * Comprobante estilo tirilla térmica. Se usa tras cobrar y en el detalle del
  * historial. La clase `receipt-printable` la reconoce el CSS de impresión
  * (globals.css) para imprimir solo esta zona.
+ *
+ * Con `fiscal` (Fase 7) es el tiquete del documento equivalente POS o de la
+ * factura electrónica: lleva la denominación, el número con prefijo, la
+ * resolución, el CUDE, el QR y el fabricante del software (§4 del anexo POS).
+ * La tirilla ESC/POS (`lib/impresion/recibo-escpos.ts`) espeja este contenido.
  */
 export function Receipt({
   sale,
   sede,
+  fiscal,
   className,
 }: {
   sale: Sale
   sede?: Pick<Sede, "businessName" | "name" | "nit" | "address" | "phone" | "legalNote">
+  fiscal?: TiqueteFiscal | null
   className?: string
 }) {
   const { payment } = sale
@@ -53,9 +68,28 @@ export function Receipt({
 
       <Dashed />
 
-      <p className="mb-2 text-center font-semibold tracking-wide">
-        FACTURA DE VENTA
-      </p>
+      {fiscal ? (
+        <div className="mb-2 text-center">
+          <p className="font-semibold leading-snug">
+            {fiscal.tipo === "pos" ? DENOMINACION_POS : "FACTURA ELECTRÓNICA DE VENTA"}
+          </p>
+          <p className="mt-1 text-sm font-bold">No. {fiscal.fullNumber}</p>
+          {lineasResolucion(fiscal.resolucion).map((l) => (
+            <p key={l} className="text-muted-foreground">
+              {l}
+            </p>
+          ))}
+          {fiscal.fecha && (
+            <p className="text-muted-foreground">
+              Generado {fiscal.fecha} {(fiscal.hora ?? "").slice(0, 8)}
+            </p>
+          )}
+        </div>
+      ) : (
+        <p className="mb-2 text-center font-semibold tracking-wide">
+          FACTURA DE VENTA
+        </p>
+      )}
 
       <div className="flex justify-between">
         <span className="text-muted-foreground">Comprobante</span>
@@ -190,6 +224,36 @@ export function Receipt({
       </div>
 
       <Dashed />
+
+      {fiscal && (
+        <>
+          <div className="flex flex-col items-center gap-2 text-center">
+            {fiscal.cude && (
+              <div className="w-full">
+                <p className="font-semibold">
+                  {fiscal.tipo === "pos" ? "CUDE" : "CUFE"}
+                </p>
+                <p className="break-all text-muted-foreground">{fiscal.cude}</p>
+              </div>
+            )}
+            {fiscal.qr && (
+              <QrDocumento
+                contenido={fiscal.qr}
+                etiqueta={`Código QR de consulta en la DIAN del documento ${fiscal.fullNumber}`}
+              />
+            )}
+            {fiscal.contingencia && (
+              <p className="font-medium">{LEYENDA_CONTINGENCIA_DIAN}</p>
+            )}
+            {lineaFabricante(fiscal.fabricante) && (
+              <p className="text-muted-foreground">
+                {lineaFabricante(fiscal.fabricante)}
+              </p>
+            )}
+          </div>
+          <Dashed />
+        </>
+      )}
 
       {sede?.legalNote && (
         <p className="mb-2 text-center text-[11px] leading-snug text-muted-foreground">

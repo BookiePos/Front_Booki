@@ -1,6 +1,7 @@
 import type { Sale } from "@/lib/pos/api-sales"
 import type { Sede } from "@/lib/pos/api-inventory"
 import type { ConfigImpresion } from "@/lib/impresion/config"
+import type { TiqueteFiscal } from "@/lib/pos/documento-fiscal"
 import { pulsoCajon, EscposBuilder } from "@/lib/impresion/escpos"
 import { pruebaEscpos, reciboEscpos } from "@/lib/impresion/recibo-escpos"
 import {
@@ -61,13 +62,14 @@ export function imprimirVentaTermica(
     "businessName" | "name" | "nit" | "address" | "phone" | "legalNote"
   > | undefined,
   c: ConfigImpresion,
-  { abrirCajon }: { abrirCajon: boolean },
+  { abrirCajon, fiscal }: { abrirCajon: boolean; fiscal?: TiqueteFiscal | null },
   resolver: ResolverTransporte = transporteGuardado,
 ) {
   const bytes = reciboEscpos(sale, sede, {
     ancho: c.ancho,
     paginaCodigos: c.paginaCodigos,
     abrirCajon,
+    fiscal,
   })
   return enviar(c, bytes, resolver)
 }

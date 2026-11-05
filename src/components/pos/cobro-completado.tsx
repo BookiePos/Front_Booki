@@ -20,6 +20,8 @@ import {
 } from "@/components/pos/impresora-termica"
 import { cn } from "@/lib/utils"
 import { type Sede } from "@/lib/pos/api-inventory"
+import type { TiqueteFiscal } from "@/lib/pos/documento-fiscal"
+import { AvisoDocumentoFiscal } from "@/components/pos/aviso-documento-fiscal"
 
 interface CobroCompletadoProps {
   sede: Sede | undefined
@@ -29,6 +31,8 @@ interface CobroCompletadoProps {
   invoiceState: "idle" | "emitting" | "done" | "error"
   invoiceNumber: string | null
   invoiceError: string | null
+  /** Tiquete del documento fiscal (Fase 7), si la venta lo tiene. */
+  fiscal?: TiqueteFiscal | null
   handlePrintReceipt: () => void | Promise<void>
   backToList: () => Promise<void>
 }
@@ -41,6 +45,7 @@ export function CobroCompletado({
   invoiceState,
   invoiceNumber,
   invoiceError,
+  fiscal,
   handlePrintReceipt,
   backToList,
 }: CobroCompletadoProps) {
@@ -103,6 +108,10 @@ export function CobroCompletado({
               éxito de la venta a propósito: la venta está hecha aunque
               la DIAN falle, y mezclarlo haría dudar al cajero de si
               cobró o no. */}
+          {/* Documento electrónico POS/FEV (Fase 7): mismo principio, aviso
+              propio y nunca encima del «Venta registrada». */}
+          <AvisoDocumentoFiscal documentoFiscal={completedSale.documentoFiscal} />
+
           {invoiceState !== "idle" && (
             <div
               className={cn(
@@ -164,7 +173,7 @@ export function CobroCompletado({
         </div>
 
         <div className="flex flex-col border-t border-border bg-muted/25 px-5 py-4 lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain lg:border-l lg:border-t-0 print:overflow-visible print:border-0 print:bg-transparent print:p-0">
-          <Receipt sale={completedSale} sede={sede} />
+          <Receipt sale={completedSale} sede={sede} fiscal={fiscal} />
         </div>
       </div>
 

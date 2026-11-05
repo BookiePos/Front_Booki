@@ -101,6 +101,23 @@ export interface DocResolucion {
   vigenciaHasta?: string
 }
 
+/** Caja del POS (`InformacionCajaVenta`), congelada al emitir. */
+export interface DocCajaVenta {
+  placa?: string
+  ubicacion?: string
+  tipo?: string
+  cajero?: string
+  codigoVenta?: string
+}
+
+/** Fabricante del software (art. 19 num. 9), congelado al emitir. */
+export interface DocFabricante {
+  nombreApellido?: string
+  razonSocial?: string
+  nit?: string
+  nombreSoftware?: string
+}
+
 export interface ElectronicDocument {
   _id: string
   type: DocType
@@ -131,6 +148,11 @@ export interface ElectronicDocument {
   formaPago: string
   medioPago?: string
   resolution?: DocResolucion
+  /** Documento equivalente POS (Fase 7). Ausentes en los demás tipos. */
+  cajaVenta?: DocCajaVenta
+  fabricante?: DocFabricante
+  /** '1' producción, '2' habilitación. */
+  tipoAmbiente?: string
   reason?: string
   referenceNumber?: string
   referenceCufe?: string
@@ -156,6 +178,41 @@ export async function listDocuments(
 export async function getDocument(id: string): Promise<ElectronicDocument> {
   const res = await authFetch(`/einvoicing/${id}`)
   return parseResponse<ElectronicDocument>(res)
+}
+
+/** Fila de `GET /einvoicing/resolutions`: solo lo que usa la caja. */
+interface ResolucionSedeFila {
+  sedeId: string
+  otras?: {
+    tipoDocumento: string
+    status?: { puedeEmitir?: boolean }
+  }[]
+}
+
+/**
+ * ¿La sede puede emitir el documento equivalente POS ahora mismo?
+ *
+ * Es la bandera que enciende el selector de las tres salidas en el cobro: un
+ * negocio sin resolución POS vigente cobra como siempre (sin `documentoFiscal`)
+ * en vez de ver en cada venta un error de la DIAN. Usa el mismo endpoint de
+ * /panel/resoluciones (permiso `einvoicing.issue`, que el Cajero ya tiene); si
+ * falla por cualquier motivo, se responde `false`: nunca bloquea el cobro.
+ *
+ * Ojo: no sabe si el emisor tiene el PIN del software (ese endpoint pide
+ * `einvoicing.configure`). Sin PIN, el cobro responde `estado: "error"` y la
+ * caja lo muestra como aviso del documento, no del cobro.
+ */
+export async function sedeEmitePos(sedeId: string): Promise<boolean> {
+  try {
+    const res = await authFetch("/einvoicing/resolutions")
+    const filas = await parseResponse<ResolucionSedeFila[]>(res)
+    const fila = filas.find((f) => f.sedeId === sedeId)
+    return !!fila?.otras?.some(
+      (o) => o.tipoDocumento === "pos" && o.status?.puedeEmitir === true,
+    )
+  } catch {
+    return false
+  }
 }
 
 export async function createInvoiceFromSale(
