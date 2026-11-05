@@ -839,7 +839,7 @@ export default function SedeDetailPage() {
 
       {/* ── Zonas de domicilio ────────────────────────────────────────────── */}
       <DeliveryZonesCard sedeId={sedeId} canManage={canManage} />
-      <NominaElectronicaCard sedeId={sedeId} />
+      <NominaElectronicaCard key={sedeId} sedeId={sedeId} />
 
       {/* ── Descuentos ────────────────────────────────────────────────────── */}
       <Card className="mt-6">

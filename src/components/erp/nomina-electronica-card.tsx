@@ -98,12 +98,13 @@ export function NominaElectronicaCard({ sedeId }: { sedeId: string }) {
         {cargando ? (
           <p className="text-sm text-muted-foreground">Cargando…</p>
         ) : !vista ? (
-          <>
+          error ? (
+            <FormAlert>{error}</FormAlert>
+          ) : (
             <p className="text-sm text-muted-foreground">
               Esta sede aún no tiene emisor fiscal: configura primero sus datos fiscales.
             </p>
-            {error && <FormAlert>{error}</FormAlert>}
-          </>
+          )
         ) : (
           <form
             className="flex flex-col gap-4"

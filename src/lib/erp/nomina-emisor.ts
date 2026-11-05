@@ -41,6 +41,9 @@ export function mensajeErrorNomina(err: unknown): string {
   if (err instanceof ApiError && err.status === 503) {
     return "Falta la llave de cifrado en el servidor; avisa al soporte."
   }
+  if (err instanceof ApiError && err.status === 403) {
+    return "No tienes permiso para ver la configuración fiscal de esta sede."
+  }
   if (err instanceof Error) return err.message
   return "Error desconocido"
 }

@@ -295,6 +295,7 @@ export function EmployeeDialog({
   const veTodas = user ? actorSeesAllSedes(user) : false
   const [form, setForm] = React.useState<Form>(blankForm)
   const [docs, setDocs] = React.useState<DocRow[]>([])
+  const [quitarCuenta, setQuitarCuenta] = React.useState(false)
   const [saving, setSaving] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   // Salario mínimo legal vigente (SMMLV), tomado de los parámetros de nómina.
@@ -321,6 +322,7 @@ export function EmployeeDialog({
   useResetOnChange(() => {
     if (!open) return
     setError(null)
+    setQuitarCuenta(false)
     if (employee) {
       setForm(fromEmployee(employee))
       setDocs(
@@ -411,7 +413,7 @@ export function EmployeeDialog({
       severanceFund: form.severanceFund,
       bank: form.bank,
       accountType: (form.accountType || undefined) as AccountType | undefined,
-      accountNumber: cuentaParaEnviar(form.accountNumber),
+      accountNumber: quitarCuenta ? "" : cuentaParaEnviar(form.accountNumber),
       documents: docs
         .filter((d) => d.type.trim())
         .map((d) => ({
@@ -844,10 +846,22 @@ export function EmployeeDialog({
             <Input
               id="emp-acct"
               inputMode="numeric"
+              autoComplete="off"
+              disabled={quitarCuenta}
               value={form.accountNumber}
               onChange={(e) => set("accountNumber", e.target.value)}
               placeholder={employee?.tieneCuenta ? "Dejar vacío para conservarla" : "000-000000-00"}
             />
+            {employee?.tieneCuenta && (
+              <label className="mt-1 flex items-center gap-2 text-xs">
+                <input
+                  type="checkbox"
+                  checked={quitarCuenta}
+                  onChange={(e) => setQuitarCuenta(e.target.checked)}
+                />
+                Quitar la cuenta registrada
+              </label>
+            )}
           </Field>
         </FieldGrid>
       </FormSection>

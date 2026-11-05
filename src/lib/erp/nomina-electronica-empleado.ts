@@ -32,37 +32,37 @@ export const DIAN_TIPOS_TRABAJADOR: readonly OpcionDian[] = [
   { value: "12", label: "12 — Aprendiz SENA en etapa lectiva" },
   { value: "18", label: "18 — Funcionario público sin tope máximo de IBC" },
   { value: "19", label: "19 — Aprendiz SENA en etapa productiva" },
-  { value: "21", label: "21 — Estudiante (régimen especial Ley 789 de 2002)" },
+  { value: "21", label: "21 — Estudiantes de postgrado en salud" },
   { value: "22", label: "22 — Profesor de establecimiento particular" },
   { value: "23", label: "23 — Estudiante, riesgos laborales" },
   { value: "30", label: "30 — Dependiente de entidad pública con régimen especial en salud" },
   { value: "31", label: "31 — Cooperado o precooperativa de trabajo asociado" },
   { value: "47", label: "47 — Dependiente de entidad beneficiaria del SGP, aportes patronales" },
   { value: "51", label: "51 — Trabajador de tiempo parcial" },
-  { value: "54", label: "54 — Código PILA 54" },
-  { value: "56", label: "56 — Código PILA 56" },
-  { value: "58", label: "58 — Código PILA 58" },
+  { value: "54", label: "54 — Prepensionado de entidad en liquidación" },
+  { value: "56", label: "56 — Prepensionado con aporte voluntario a salud" },
+  { value: "58", label: "58 — Estudiantes de prácticas laborales en el sector público" },
 ]
 
 export const DIAN_SUBTIPOS_TRABAJADOR: readonly OpcionDian[] = [
-  { value: "00", label: "00 — Ninguno" },
+  { value: "00", label: "00 — No aplica" },
   { value: "01", label: "01 — Dependiente pensionado por vejez activo" },
 ]
 
 export const DIAN_TIPOS_CONTRATO: readonly OpcionDian[] = [
   { value: "1", label: "1 — Término fijo" },
-  { value: "2", label: "2 — Indefinido" },
+  { value: "2", label: "2 — Término indefinido" },
   { value: "3", label: "3 — Obra o labor" },
   { value: "4", label: "4 — Aprendizaje" },
-  { value: "5", label: "5 — Prácticas" },
+  { value: "5", label: "5 — Prácticas o pasantías" },
 ]
 
 export const DIAN_MEDIOS_PAGO: readonly OpcionDian[] = [
-  { value: "1", label: "1 — No definido" },
+  { value: "1", label: "1 — Instrumento no definido" },
   { value: "10", label: "10 — Efectivo" },
   { value: "20", label: "20 — Cheque" },
   { value: "42", label: "42 — Consignación" },
-  { value: "47", label: "47 — Transferencia" },
+  { value: "47", label: "47 — Transferencia débito bancaria" },
   { value: "48", label: "48 — Tarjeta crédito" },
   { value: "49", label: "49 — Tarjeta débito" },
 ]
