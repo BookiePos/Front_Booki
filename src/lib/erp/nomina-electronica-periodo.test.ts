@@ -3,6 +3,9 @@ import { describe, expect, it, vi } from "vitest"
 import { ApiError } from "@/lib/api"
 import type { DocumentoNomina, ResultadoEmisionPeriodo } from "@/lib/erp/api-einvoicing"
 import {
+  claveRevision,
+  crearCandado,
+  crearGuardaPeticion,
   emitirEnBucle,
   esMesValido,
   estadoPrevuelo,
@@ -146,5 +149,43 @@ describe("mes y errores", () => {
     )
     expect(mensajeErrorNominaPeriodo(new ApiError(403, "Forbidden"))).toMatch(/permiso/)
     expect(mensajeErrorNominaPeriodo("x")).toBe("Error desconocido")
+  })
+})
+
+describe("guardas de concurrencia", () => {
+  it("descarta respuestas de peticiones viejas (cambio de mes o sede)", () => {
+    const g = crearGuardaPeticion()
+    const vieja = g.nueva()
+    const nueva = g.nueva()
+    expect(g.esVigente(vieja)).toBe(false)
+    expect(g.esVigente(nueva)).toBe(true)
+    g.invalidar()
+    expect(g.esVigente(nueva)).toBe(false)
+  })
+
+  it("el candado rechaza el segundo clic hasta soltarse", () => {
+    const c = crearCandado()
+    expect(c.tomar()).toBe(true)
+    expect(c.tomar()).toBe(false)
+    expect(c.tomado).toBe(true)
+    c.soltar()
+    expect(c.tomar()).toBe(true)
+  })
+
+  it("la clave de revisión distingue sede y mes", () => {
+    expect(claveRevision("s1", "2026-10")).not.toBe(claveRevision("s2", "2026-10"))
+    expect(claveRevision("s1", "2026-10")).not.toBe(claveRevision("s1", "2026-09"))
+  })
+
+  it("abortar al desmontar corta el bucle antes de la siguiente llamada", async () => {
+    const signal = { aborted: false }
+    let n = 0
+    const emitir = vi.fn(async () => {
+      if (++n === 2) signal.aborted = true // el cleanup del desmontaje
+      return lote(["x"], `c${n}`, 5)
+    })
+    const r = await emitirEnBucle({ emitir, signal })
+    expect(emitir).toHaveBeenCalledTimes(2)
+    expect(r.cancelado).toBe(true)
   })
 })

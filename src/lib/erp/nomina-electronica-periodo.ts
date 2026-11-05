@@ -140,7 +140,7 @@ export const DIAN_ESTADO_NOMINA_LABELS: Record<string, string> = {
   sent: "Enviado, en revisión",
   accepted: "Aceptado",
   rejected: "Rechazado",
-  contingency: "Contingencia",
+  contingency: "Pendiente de envío",
 }
 
 export const etiquetaDian = (s: string): string => DIAN_ESTADO_NOMINA_LABELS[s] ?? s
@@ -199,3 +199,40 @@ export function mensajeErrorNominaPeriodo(err: unknown): string {
   if (err instanceof Error) return err.message
   return "Error desconocido"
 }
+
+// ── Guardas de concurrencia ──────────────────────────────────────────────────
+
+/**
+ * Id de petición: solo la última petición lanzada es "vigente". Las respuestas
+ * tardías de un mes o sede anteriores se descartan con `esVigente(id)`.
+ */
+export function crearGuardaPeticion() {
+  let actual = 0
+  return {
+    nueva: (): number => ++actual,
+    esVigente: (id: number): boolean => id === actual,
+    invalidar: (): void => {
+      actual++
+    },
+  }
+}
+
+/** Candado síncrono (sobrevive entre renders, a diferencia de un estado): evita dobles clics. */
+export function crearCandado() {
+  let tomado = false
+  return {
+    tomar: (): boolean => {
+      if (tomado) return false
+      tomado = true
+      return true
+    },
+    soltar: (): void => {
+      tomado = false
+    },
+    get tomado(): boolean {
+      return tomado
+    },
+  }
+}
+
+export const claveRevision = (sedeId: string, periodo: string): string => `${sedeId}|${periodo}`

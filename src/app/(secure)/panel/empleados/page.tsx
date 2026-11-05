@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import {
   Users,
   UserCheck,
@@ -84,6 +85,15 @@ function errorMessage(err: unknown): string {
 }
 
 export default function EmpleadosPage() {
+  // useSearchParams exige Suspense en el build.
+  return (
+    <React.Suspense fallback={null}>
+      <EmpleadosContenido />
+    </React.Suspense>
+  )
+}
+
+function EmpleadosContenido() {
   const { hasPermission } = useAuth()
   const canView = hasPermission("employees.view")
   const canManage = hasPermission("employees.manage")
@@ -117,6 +127,8 @@ export default function EmpleadosPage() {
   )
 
   const deepLinkHecho = React.useRef(false)
+  const router = useRouter()
+  const editarParam = React.useRef(useSearchParams().get("editar"))
 
   const load = React.useCallback(async () => {
     if (!canView) return
@@ -130,14 +142,13 @@ export default function EmpleadosPage() {
       ])
       setEmployees(emps)
       // Enlace profundo desde nómina electrónica (?editar=<id>): abre esa ficha una vez.
-      const editarId = deepLinkHecho.current
-        ? null
-        : new URLSearchParams(window.location.search).get("editar")
+      const editarId = deepLinkHecho.current ? null : editarParam.current
       const objetivo = editarId ? emps.find((x) => x._id === editarId) : undefined
       if (objetivo && canManage) {
         deepLinkHecho.current = true
         setEditing(objetivo)
         setFormOpen(true)
+        router.replace("/panel/empleados", { scroll: false })
       }
       setPositions(pos)
       setSedes(sd.filter((s) => s.active))
@@ -152,7 +163,7 @@ export default function EmpleadosPage() {
     } finally {
       setLoading(false)
     }
-  }, [canView, canManageUsers, canManage])
+  }, [canView, canManageUsers, canManage, router])
 
   useLoadEffect(load)
 

@@ -34,6 +34,9 @@ import {
   ESTADO_EMISION_LABELS,
   ESTADO_PREVUELO_LABELS,
   emitirEnBucle,
+  claveRevision,
+  crearCandado,
+  crearGuardaPeticion,
   esMesValido,
   estadoPrevuelo,
   etiquetaDian,
@@ -96,6 +99,7 @@ export default function NominaElectronicaPage() {
   const { hasPermission } = useAuth()
   const permitido = hasPermission("payroll.einvoice")
   const confirm = useConfirm()
+  const puedeEditarFicha = hasPermission("employees.manage")
 
   const [sedes, setSedes] = React.useState<Sede[]>([])
   const [sedeId, setSedeId] = React.useState("")
@@ -112,6 +116,19 @@ export default function NominaElectronicaPage() {
   const [avisoEmision, setAvisoEmision] = React.useState<string | null>(null)
   const [errorEmision, setErrorEmision] = React.useState<string | null>(null)
   const señal = React.useRef({ aborted: false })
+  const [claveRev, setClaveRev] = React.useState<string | null>(null)
+  const guardaRev = React.useRef(crearGuardaPeticion())
+  const guardaDocs = React.useRef(crearGuardaPeticion())
+  const candadoEmision = React.useRef(crearCandado())
+  const candadoDoc = React.useRef(crearCandado())
+
+  // Al salir de la pantalla se corta el bucle antes de la siguiente llamada.
+  React.useEffect(() => {
+    const s = señal
+    return () => {
+      s.current.aborted = true
+    }
+  }, [])
 
   const [docs, setDocs] = React.useState<DocumentoNomina[] | null>(null)
   const [cargandoDocs, setCargandoDocs] = React.useState(false)
@@ -141,19 +158,26 @@ export default function NominaElectronicaPage() {
 
   const cargarDocs = React.useCallback(async () => {
     if (!listo) return
+    const id = guardaDocs.current.nueva()
     setCargandoDocs(true)
     setErrorDocs(null)
     try {
-      setDocs(await listarNominaDocumentos(periodo, sedeId))
+      const r = await listarNominaDocumentos(periodo, sedeId)
+      if (guardaDocs.current.esVigente(id)) setDocs(r)
     } catch (e) {
-      setErrorDocs(mensajeErrorNominaPeriodo(e))
+      if (guardaDocs.current.esVigente(id)) setErrorDocs(mensajeErrorNominaPeriodo(e))
     } finally {
-      setCargandoDocs(false)
+      if (guardaDocs.current.esVigente(id)) setCargandoDocs(false)
     }
   }, [listo, periodo, sedeId])
 
   // Al cambiar de sede o mes, lo mostrado deja de corresponder: se limpia.
   function limpiar() {
+    guardaRev.current.invalidar()
+    guardaDocs.current.invalidar()
+    setRevisando(false)
+    setCargandoDocs(false)
+    setClaveRev(null)
     setPrevuelo(null)
     setResultados(null)
     setAvisoEmision(null)
@@ -165,25 +189,38 @@ export default function NominaElectronicaPage() {
 
   useLoadEffect(cargarDocs, permitido && listo)
 
-  async function revisar() {
+  // `conservarResultados`: el refresco posterior a emitir no borra la tarjeta de resultado.
+  async function revisar(conservarResultados = false) {
+    const id = guardaRev.current.nueva()
+    const clave = claveRevision(sedeId, periodo)
     setRevisando(true)
     setErrorRevision(null)
-    setResultados(null)
+    if (!conservarResultados) setResultados(null)
     try {
       const r = await prepararNominaPeriodo(periodo, sedeId)
+      if (!guardaRev.current.esVigente(id)) return
       setPrevuelo(r.trabajadores)
+      setClaveRev(clave)
     } catch (e) {
+      if (!guardaRev.current.esVigente(id)) return
       setPrevuelo(null)
+      setClaveRev(null)
       setErrorRevision(mensajeErrorNominaPeriodo(e))
     } finally {
-      setRevisando(false)
+      if (guardaRev.current.esVigente(id)) setRevisando(false)
     }
   }
+
+  // Mientras algo está en vuelo no se cambia de sede/mes ni se lanzan otras acciones.
+  const bloqueado = revisando || cargandoDocs || emitiendo || ocupado !== null
 
   const resumen = prevuelo ? resumenPrevuelo(prevuelo) : null
 
   async function emitir() {
-    if (!resumen) return
+    if (!resumen || claveRev !== claveRevision(sedeId, periodo)) return
+    if (!candadoEmision.current.tomar()) return
+    const sedeEmitir = sedeId
+    const periodoEmitir = periodo
     const ok = await confirm({
       title: `Emitir ${resumen.listo} documento(s) ante la DIAN`,
       description: (
@@ -195,7 +232,10 @@ export default function NominaElectronicaPage() {
       ),
       confirmLabel: "Emitir ante la DIAN",
     })
-    if (!ok) return
+    if (!ok) {
+      candadoEmision.current.soltar()
+      return
+    }
     señal.current = { aborted: false }
     setEmitiendo(true)
     setProgreso({ llamadas: 0, procesados: 0, pendientes: null })
@@ -203,7 +243,7 @@ export default function NominaElectronicaPage() {
     setAvisoEmision(null)
     setErrorEmision(null)
     const r = await emitirEnBucle({
-      emitir: (cursor) => emitirNominaPeriodo(periodo, sedeId, cursor),
+      emitir: (cursor) => emitirNominaPeriodo(periodoEmitir, sedeEmitir, cursor),
       signal: señal.current,
       onProgreso: setProgreso,
     })
@@ -213,11 +253,13 @@ export default function NominaElectronicaPage() {
       setAvisoEmision("Emisión cancelada. Lo ya enviado a la DIAN se conserva; puedes continuar emitiendo después.")
     }
     setEmitiendo(false)
+    candadoEmision.current.soltar()
     void cargarDocs()
-    void revisar()
+    void revisar(true)
   }
 
-  async function accionDoc(d: DocumentoNomina, fn: () => Promise<{ mensajes: string[]; dianStatus?: string }>, ok: string) {
+  async function accionDoc(d: DocumentoNomina, fn: () => Promise<{ mensajes: string[]; dianStatus?: string }>, ok: string, yaTomado = false) {
+    if (!yaTomado && !candadoDoc.current.tomar()) return
     setOcupado(d.id)
     setMensajeDoc(null)
     try {
@@ -233,33 +275,43 @@ export default function NominaElectronicaPage() {
       setMensajeDoc({ id: d.id, texto: mensajeErrorNominaPeriodo(e), error: true })
     } finally {
       setOcupado(null)
+      candadoDoc.current.soltar()
     }
   }
 
   async function ajustar(d: DocumentoNomina, tipo: TipoNotaAjuste) {
     const reemplazar = tipo === "reemplazar"
+    if (!candadoDoc.current.tomar()) return
     const ok = await confirm({
       title: reemplazar ? `Corregir (reemplazar) ${d.fullNumber}` : `Eliminar ${d.fullNumber}`,
       description: reemplazar ? (
         <>
-          Se emite ante la DIAN una nota de ajuste que reemplaza este documento con los valores
-          recalculados desde las corridas de nómina actuales. El documento original queda
-          superado. Si cambió la identidad del trabajador no se puede reemplazar.
+          Úsalo para corregir valores o datos del MISMO trabajador y periodo. Se emite ante la
+          DIAN una nota de ajuste que reemplaza el documento: lleva el periodo completo
+          recalculado desde las corridas de nómina actuales, no solo la diferencia. El original
+          queda superado. Si cambió la identidad del trabajador no se puede reemplazar: elimina
+          el documento y emite uno nuevo.
         </>
       ) : (
         <>
-          Se emite ante la DIAN una nota de ajuste que anula este documento: el trabajador queda
-          sin nómina electrónica en {d.periodo}. Después puedes emitir uno nuevo.
+          Úsalo si el documento se emitió por error, a quien no correspondía, o si cambió la
+          identidad del trabajador. Se emite ante la DIAN una nota de ajuste que lo anula y el
+          trabajador queda sin nómina electrónica en {d.periodo}. Si el trabajador sí tuvo pagos
+          ese mes, después es obligatorio emitir el documento nuevo.
         </>
       ),
       confirmLabel: reemplazar ? "Emitir ajuste" : "Eliminar ante la DIAN",
       destructive: !reemplazar,
     })
-    if (!ok) return
+    if (!ok) {
+      candadoDoc.current.soltar()
+      return
+    }
     await accionDoc(
       d,
       () => ajustarNomina(d.id, tipo),
       reemplazar ? "Nota de ajuste de reemplazo enviada." : "Nota de eliminación enviada.",
+      true,
     )
   }
 
@@ -269,7 +321,7 @@ export default function NominaElectronicaPage() {
         <PageHeader section="Personal" title="Nómina electrónica" />
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-14 text-center">
-            <ShieldOff className="size-10 text-muted-foreground" />
+            <ShieldOff className="size-10 text-muted-foreground" aria-hidden />
             <p className="font-display text-lg text-foreground">Sin acceso</p>
             <p className="max-w-xs text-sm text-muted-foreground">
               Necesitas el permiso <code>payroll.einvoice</code>.
@@ -298,7 +350,7 @@ export default function NominaElectronicaPage() {
                 limpiar()
                 setSedeId(v)
               }}
-              disabled={cargandoSedes || emitiendo}
+              disabled={cargandoSedes || bloqueado}
               placeholder={cargandoSedes ? "Cargando…" : "Selecciona una sede"}
               options={sedes.map((s) => ({ value: s._id, label: s.name }))}
             />
@@ -317,11 +369,11 @@ export default function NominaElectronicaPage() {
                 limpiar()
                 setPeriodo(e.target.value)
               }}
-              disabled={emitiendo}
+              disabled={bloqueado}
             />
           </Field>
-          <Button onClick={() => void revisar()} disabled={!listo || revisando || emitiendo} className="gap-1.5">
-            {revisando ? <Loader2 className="size-4 animate-spin" /> : <ClipboardCheck className="size-4" />}
+          <Button onClick={() => void revisar()} disabled={!listo || bloqueado} className="gap-1.5">
+            {revisando ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <ClipboardCheck className="size-4" aria-hidden />}
             Revisar mes
           </Button>
         </CardContent>
@@ -396,7 +448,7 @@ export default function NominaElectronicaPage() {
                           </TableCell>
                           <TableCell className="text-right">
                             {e === "bloqueado" && (
-                              <Link
+                              puedeEditarFicha && <Link
                                 href={`/panel/empleados?editar=${t.empleadoId}`}
                                 className="text-sm text-primary underline-offset-4 hover:underline"
                               >
@@ -412,8 +464,8 @@ export default function NominaElectronicaPage() {
               </div>
             )}
             <div className="flex flex-wrap items-center justify-end gap-2 px-4 pt-3">
-              <Button onClick={() => void emitir()} disabled={emitiendo || resumen.listo === 0} className="gap-1.5">
-                <Send className="size-4" />
+              <Button onClick={() => void emitir()} disabled={bloqueado || resumen.listo === 0 || claveRev !== claveRevision(sedeId, periodo)} className="gap-1.5">
+                <Send className="size-4" aria-hidden />
                 Emitir los listos ({resumen.listo})
               </Button>
             </div>
@@ -438,7 +490,7 @@ export default function NominaElectronicaPage() {
                   {progreso.pendientes !== null ? ` · ${progreso.pendientes} pendientes` : ""}
                 </span>
                 <Button variant="outline" size="sm" className="gap-1.5" onClick={() => (señal.current.aborted = true)}>
-                  <Square className="size-3.5" />
+                  <Square className="size-3.5" aria-hidden />
                   Cancelar
                 </Button>
               </div>
@@ -489,7 +541,7 @@ export default function NominaElectronicaPage() {
               disabled={!listo || cargandoDocs}
               onClick={() => void cargarDocs()}
             >
-              <RefreshCw className={`size-4 ${cargandoDocs ? "animate-spin" : ""}`} />
+              <RefreshCw className={`size-4 ${cargandoDocs ? "animate-spin" : ""}`} aria-hidden />
             </Button>
           </CardTitle>
         </CardHeader>
@@ -540,6 +592,11 @@ export default function NominaElectronicaPage() {
                         <TableCell>{fmtDate(d.issueDate)}</TableCell>
                         <TableCell>
                           <Badge variant={VARIANTE_DIAN[tonoDian(d.dianStatus)]}>{etiquetaDian(d.dianStatus)}</Badge>
+                          {d.dianStatus === "rejected" && puedeReintentar(d) && (
+                            <span className="mt-1 block max-w-xs whitespace-normal text-xs text-muted-foreground">
+                              Corrige primero el motivo del rechazo; reintentar sin corregirlo lo rechazará de nuevo.
+                            </span>
+                          )}
                           {d.rechazoMotivo && (
                             <span className="mt-1 block max-w-xs whitespace-normal text-xs text-destructive">
                               {d.rechazoMotivo}
@@ -552,12 +609,12 @@ export default function NominaElectronicaPage() {
                               <Button
                                 size="sm"
                                 variant="outline"
-                                disabled={ocupado === d.id}
+                                disabled={bloqueado}
                                 onClick={() =>
                                   void accionDoc(d, () => transmitirNomina(d.id), "Reintento de envío realizado.")
                                 }
                               >
-                                <Send className="size-3.5" />
+                                <Send className="size-3.5" aria-hidden />
                                 Reintentar envío
                               </Button>
                             )}
@@ -565,10 +622,10 @@ export default function NominaElectronicaPage() {
                               <Button
                                 size="sm"
                                 variant="outline"
-                                disabled={ocupado === d.id}
+                                disabled={bloqueado}
                                 onClick={() => void accionDoc(d, () => consultarNomina(d.id), "Estado consultado.")}
                               >
-                                <Search className="size-3.5" />
+                                <Search className="size-3.5" aria-hidden />
                                 Consultar estado
                               </Button>
                             )}
@@ -577,19 +634,19 @@ export default function NominaElectronicaPage() {
                                 <Button
                                   size="sm"
                                   variant="outline"
-                                  disabled={ocupado === d.id}
+                                  disabled={bloqueado}
                                   onClick={() => void ajustar(d, "reemplazar")}
                                 >
-                                  <Pencil className="size-3.5" />
+                                  <Pencil className="size-3.5" aria-hidden />
                                   Corregir (reemplazar)
                                 </Button>
                                 <Button
                                   size="sm"
                                   variant="outline"
-                                  disabled={ocupado === d.id}
+                                  disabled={bloqueado}
                                   onClick={() => void ajustar(d, "eliminar")}
                                 >
-                                  <Trash2 className="size-3.5" />
+                                  <Trash2 className="size-3.5" aria-hidden />
                                   Eliminar
                                 </Button>
                               </>

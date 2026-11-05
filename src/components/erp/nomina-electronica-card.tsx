@@ -22,6 +22,7 @@ import {
   mensajeErrorNomina,
 } from "@/lib/erp/nomina-emisor"
 
+import { useConfirm } from "@/components/ui/confirm-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -36,6 +37,7 @@ import { FormAlert } from "@/components/ui/form-dialog"
  */
 export function NominaElectronicaCard({ sedeId }: { sedeId: string }) {
   const { hasPermission } = useAuth()
+  const confirm = useConfirm()
   const permitido = hasPermission("einvoicing.certificate")
   const [vista, setVista] = React.useState<EmisorNominaVista | null>(null)
   const [cargando, setCargando] = React.useState(true)
@@ -90,6 +92,15 @@ export function NominaElectronicaCard({ sedeId }: { sedeId: string }) {
   // El 409 del backend (ambiente de producción, TestSetId faltante, corrida en
   // curso…) ya viene explicado en español: se muestra tal cual.
   async function habilitacion(accion: "iniciar" | "consultar") {
+    if (accion === "iniciar") {
+      const ok = await confirm({
+        title: "Correr el set de pruebas de habilitación",
+        description:
+          "Se firmarán y enviarán a la DIAN (ambiente de habilitación) los documentos de prueba con un trabajador sintético. Solo corre si la sede está en ambiente de habilitación y tiene el TestSetId guardado.",
+        confirmLabel: "Correr set de pruebas",
+      })
+      if (!ok) return
+    }
     setHabBusy(true)
     setHabError(null)
     try {
