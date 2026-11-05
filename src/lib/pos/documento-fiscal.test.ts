@@ -5,6 +5,7 @@ import {
   clienteTiquete,
   contenidoQr,
   faltaDatoFiscal,
+  faltaEnFicha,
   impuestosDe,
   lineaFabricante,
   lineasResolucion,
@@ -53,6 +54,34 @@ const doc = {
   createdAt: "2026-10-31T15:15:30.000Z",
 } as unknown as ElectronicDocument
 
+const FICHA_COMPLETA = {
+  docNumber: "123",
+  dianDocType: "13",
+  tipoPersona: "2",
+  responsabilidadesFiscales: ["R-99-PN"],
+  municipioDane: "11001",
+  address: "Cra 1 # 2-3",
+  email: "ana@x.co",
+}
+
+describe("faltaEnFicha", () => {
+  it("POS con datos: la ficha sin tipo DIAN se avisa antes de cobrar", () => {
+    const sinTipo = { ...FICHA_COMPLETA, dianDocType: undefined }
+    expect(faltaEnFicha("pos_identificado", sinTipo, "123")).toMatch(/tipo de documento DIAN/)
+    expect(faltaEnFicha("pos_identificado", FICHA_COMPLETA, "123")).toBeNull()
+  })
+
+  it("factura: lista todo lo que le falta a la ficha", () => {
+    const m = faltaEnFicha("fev", { docNumber: "123", dianDocType: "13" }, "123")
+    expect(m).toMatch(/tipo de persona, responsabilidades fiscales, municipio .*, dirección, correo de facturación/)
+    expect(faltaEnFicha("fev", FICHA_COMPLETA, "123")).toBeNull()
+  })
+
+  it("factura con un número distinto al de la ficha: el backend la descartaría", () => {
+    expect(faltaEnFicha("fev", FICHA_COMPLETA, "123-4")).toMatch(/no es el de la ficha/)
+  })
+})
+
 describe("faltaDatoFiscal", () => {
   it("el POS anónimo no pide nada", () => {
     expect(faltaDatoFiscal("pos_anonimo", undefined)).toBeNull()
@@ -82,17 +111,21 @@ describe("faltaDatoFiscal", () => {
 
   it("la factura exige cliente registrado (su ficha trae los datos fiscales)", () => {
     expect(faltaDatoFiscal("fev", { name: "Ana", idNumber: "123" })).toMatch(/cliente registrado/)
-    const reg = { registrado: true }
+    const reg = { ficha: FICHA_COMPLETA }
     expect(faltaDatoFiscal("fev", { name: "Ana" }, reg)).toMatch(/factura/)
     expect(faltaDatoFiscal("fev", { name: "Ana", idNumber: "123" }, reg)).toBeNull()
     expect(
-      faltaDatoFiscal("fev", { name: "Ana", idNumber: "900123456", docType: "31", nitDv: "1" }, reg),
+      faltaDatoFiscal(
+        "fev",
+        { name: "Ana", idNumber: "900123456", docType: "31", nitDv: "1" },
+        { ficha: { ...FICHA_COMPLETA, docNumber: "900123456", dianDocType: "31" } },
+      ),
     ).toMatch(/DV/)
   })
 
   it("con cliente registrado el POS con datos no exige el tipo (lo pone la ficha)", () => {
     expect(
-      faltaDatoFiscal("pos_identificado", { name: "Ana", idNumber: "1020304050" }, { registrado: true }),
+      faltaDatoFiscal("pos_identificado", { name: "Ana", idNumber: "123" }, { ficha: FICHA_COMPLETA }),
     ).toBeNull()
   })
 

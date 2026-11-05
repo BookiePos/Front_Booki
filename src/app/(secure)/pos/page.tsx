@@ -355,7 +355,8 @@ export default function VentaPage() {
   /** La sede tiene resolución de factura vigente («Quiero factura»). */
   const [fevDisponible, setFevDisponible] = React.useState(false)
   /** No se pudo leer el documento completo: el tiquete sale incompleto. */
-  const [docFiscalFallo, setDocFiscalFallo] = React.useState(false)
+  /** `_id` del documento que no se pudo leer: el tiquete de ESA venta sale incompleto. */
+  const [docFiscalFallo, setDocFiscalFallo] = React.useState<string | null>(null)
   const [salidaFiscal, setSalidaFiscal] =
     React.useState<DocumentoFiscalSolicitado>("pos_anonimo")
   /** El documento electrónico completo de la venta cobrada, para el tiquete. */
@@ -1117,7 +1118,7 @@ export default function VentaPage() {
     // D1: cada venta arranca en tiquete POS a consumidor final.
     setSalidaFiscal("pos_anonimo")
     setDocFiscal(null)
-    setDocFiscalFallo(false)
+    setDocFiscalFallo(null)
     setCheckoutOpen(true)
   }
 
@@ -1302,7 +1303,9 @@ export default function VentaPage() {
   const faltaFiscal = posFe
     ? salidaFiscal === "fev" && !fevDisponible
       ? "Esta sede no tiene resolución de factura vigente: elige el tiquete POS."
-      : faltaDatoFiscal(salidaFiscal, customerToSend, { registrado: !!custId })
+      : faltaDatoFiscal(salidaFiscal, customerToSend, {
+          ficha: custId ? regCustomers.find((c) => c._id === custId) : undefined,
+        })
     : null
   /** Se pidió factura: con POS electrónico es una de las tres salidas. */
   const pideFactura = posFe ? salidaFiscal === "fev" : emitInvoice
@@ -1707,8 +1710,8 @@ export default function VentaPage() {
         if (df?.estado === "emitido" && df.documentoId) {
           const id = df.documentoId
           void getDocument(id)
-            .then((d) => setDocFiscal((prev) => (d._id === id ? d : prev)))
-            .catch(() => setDocFiscalFallo(true))
+            .then(setDocFiscal)
+            .catch(() => setDocFiscalFallo(id))
         }
       } else if (emitInvoice) {
         setInvoiceState("emitting")
@@ -2057,7 +2060,16 @@ export default function VentaPage() {
                 invoiceNumber={invoiceNumber}
                 invoiceError={invoiceError}
                 fiscal={tiqueteFiscalDe(completedSale.documentoFiscal, docFiscal)}
-                tiqueteIncompleto={docFiscalFallo}
+                preparandoTiquete={
+                  completedSale.documentoFiscal?.estado === "emitido" &&
+                  !!completedSale.documentoFiscal.documentoId &&
+                  docFiscal?._id !== completedSale.documentoFiscal.documentoId &&
+                  docFiscalFallo !== completedSale.documentoFiscal.documentoId
+                }
+                tiqueteIncompleto={
+                  !!docFiscalFallo &&
+                  docFiscalFallo === completedSale.documentoFiscal?.documentoId
+                }
                 handlePrintReceipt={handlePrintReceipt}
                 backToList={backToList}
               />

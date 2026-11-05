@@ -86,12 +86,61 @@ const DOC_TYPES_NUMERICOS = ["11", "12", "13", "91"]
  * `null` si está completo. Se valida ANTES de cobrar: descubrir el faltante
  * después dejaría la venta cobrada y sin su documento.
  */
+/** Lo de la ficha del cliente registrado que usa el documento fiscal. */
+export interface FichaFiscal {
+  docNumber: string
+  dianDocType?: string
+  tipoPersona?: string
+  responsabilidadesFiscales?: string[]
+  municipioDane?: string
+  address?: string
+  email?: string
+  emailFacturacion?: string
+}
+
+/**
+ * Lo que le falta a la ficha del cliente registrado, con las reglas de
+ * `validarAdquirienteParaFactura` / `adquirientePos` del backend. Con cliente
+ * registrado el backend REEMPLAZA lo tecleado por la ficha (si el número
+ * coincide), así que es la ficha la que tiene que estar completa.
+ */
+export function faltaEnFicha(
+  salida: DocumentoFiscalSolicitado,
+  ficha: FichaFiscal,
+  numeroTecleado: string | undefined,
+): string | null {
+  if (salida === "pos_anonimo") return null
+  const numero = numeroTecleado?.trim()
+  if (numero && numero !== ficha.docNumber) {
+    // El backend descarta la ficha si el número no es el suyo.
+    return salida === "fev"
+      ? `El número no es el de la ficha del cliente (${ficha.docNumber}): déjalo igual para facturar.`
+      : null
+  }
+  const faltan: string[] = []
+  if (!ficha.dianDocType) faltan.push("tipo de documento DIAN")
+  if (salida === "fev") {
+    if (ficha.tipoPersona !== "1" && ficha.tipoPersona !== "2") faltan.push("tipo de persona")
+    if (!ficha.responsabilidadesFiscales?.length) faltan.push("responsabilidades fiscales")
+    if (!/^\d{5}$/.test(ficha.municipioDane ?? "")) faltan.push("municipio (código DANE)")
+    if (!ficha.address?.trim()) faltan.push("dirección")
+    if (!(ficha.emailFacturacion || ficha.email)?.trim()) faltan.push("correo de facturación")
+  }
+  if (faltan.length === 0) return null
+  return `A la ficha del cliente le falta: ${faltan.join(", ")}. Complétala en Clientes antes de cobrar.`
+}
+
 export function faltaDatoFiscal(
   salida: DocumentoFiscalSolicitado,
   c: Customer | undefined,
-  { registrado = false }: { registrado?: boolean } = {},
+  { ficha }: { ficha?: FichaFiscal } = {},
 ): string | null {
   if (salida === "pos_anonimo") return null
+  const registrado = !!ficha
+  if (ficha) {
+    const enFicha = faltaEnFicha(salida, ficha, c?.idNumber)
+    if (enFicha) return enFicha
+  }
   const nombre = c?.name?.trim()
   const numero = c?.idNumber?.replace(/\s/g, "") ?? ""
   if (salida === "fev") {

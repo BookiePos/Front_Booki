@@ -38,6 +38,11 @@ interface CobroCompletadoProps {
    * fabricante (num. 3 y 9 del §4). Se avisa para reimprimirlo desde Ventas.
    */
   tiqueteIncompleto?: boolean
+  /**
+   * El documento completo (resolución, fabricante, impuestos por tarifa,
+   * adquiriente) aún no llega: imprimir ahora sacaría un tiquete incompleto.
+   */
+  preparandoTiquete?: boolean
   handlePrintReceipt: () => void | Promise<void>
   backToList: () => Promise<void>
 }
@@ -52,6 +57,7 @@ export function CobroCompletado({
   invoiceError,
   fiscal,
   tiqueteIncompleto,
+  preparandoTiquete,
   handlePrintReceipt,
   backToList,
 }: CobroCompletadoProps) {
@@ -119,8 +125,9 @@ export function CobroCompletado({
           <AvisoDocumentoFiscal documentoFiscal={completedSale.documentoFiscal} />
           {tiqueteIncompleto && fiscal && (
             <p role="status" className="rounded-xl bg-accent px-4 py-3 text-xs text-accent-foreground">
-              No se pudieron traer la resolución y el fabricante del documento:
-              antes de entregar el tiquete, reimprímelo desde Ventas.
+              No se pudo traer el documento completo (resolución, fabricante,
+              impuestos por tarifa y datos del cliente): antes de entregar el
+              tiquete, reimprímelo desde Ventas.
             </p>
           )}
 
@@ -193,7 +200,7 @@ export function CobroCompletado({
         <Button
           variant="outline"
           className="h-12 flex-1 gap-2"
-          disabled={imprimiendo}
+          disabled={imprimiendo || preparandoTiquete}
           onClick={async () => {
             setImprimiendo(true)
             try {
@@ -204,7 +211,7 @@ export function CobroCompletado({
           }}
         >
           <Printer className="size-4" />
-          Imprimir
+          {preparandoTiquete ? "Preparando el tiquete…" : "Imprimir"}
         </Button>
         <ImpresoraTermicaButton />
         <AbrirCajonButton />

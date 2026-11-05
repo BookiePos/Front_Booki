@@ -16,6 +16,19 @@ export interface Customer {
    */
   priceListId?: string
   active: boolean
+  /**
+   * Datos fiscales de la ficha (FE). El backend los copia a la venta cuando el
+   * documento coincide; la caja los lee para avisar ANTES de cobrar lo que le
+   * falta a la ficha para el POS con datos o la factura.
+   */
+  email?: string
+  address?: string
+  dianDocType?: string
+  nitDv?: string
+  tipoPersona?: string
+  responsabilidadesFiscales?: string[]
+  municipioDane?: string
+  emailFacturacion?: string
 }
 
 export async function listCustomers(search?: string): Promise<Customer[]> {
