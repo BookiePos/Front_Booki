@@ -80,6 +80,9 @@ export interface PayrollBreakdown {
     bonificacionSalarial: number
     bonificacionNoSalarial: number
     comisiones: number
+    /** Vacaciones disfrutadas, incapacidades y licencias remuneradas del mes. */
+    ausencias?: number
+    ausenciaDetalle?: AusenciaLinea[]
     total: number
   }
   ibc: number
@@ -88,6 +91,8 @@ export interface PayrollBreakdown {
     pension: number
     fsp: number
     retencionFuente: number
+    /** 4 % de pensión de la licencia no remunerada, a cargo del trabajador. */
+    pensionLicenciaNR?: number
     otras: number
     total: number
   }
@@ -281,7 +286,80 @@ export async function anularLiquidacion(id: string): Promise<PayrollLiquidacion 
   return parseResponse<PayrollLiquidacion & { advertencias: string[] }>(res)
 }
 
+/** Novedades de ausencia (decisión 3 del dueño). */
+export const TIPOS_NOVEDAD = [
+  { value: "vacaciones", label: "Vacaciones disfrutadas" },
+  { value: "incapacidad_comun", label: "Incapacidad común (EPS)" },
+  { value: "incapacidad_laboral", label: "Incapacidad por accidente de trabajo (ARL)" },
+  { value: "incapacidad_profesional", label: "Incapacidad por enfermedad profesional (ARL)" },
+  { value: "licencia_maternidad", label: "Licencia de maternidad" },
+  { value: "licencia_paternidad", label: "Licencia de paternidad" },
+  { value: "licencia_remunerada", label: "Licencia remunerada" },
+  { value: "licencia_no_remunerada", label: "Licencia no remunerada" },
+] as const
+
+export const PAGADOR_NOVEDAD: Record<string, string> = {
+  empleador: "empleador",
+  eps: "EPS",
+  arl: "ARL",
+  fondo_pensiones: "fondo de pensiones",
+  ninguno: "sin pago",
+}
+
+export interface AusenciaLinea {
+  tipo: string
+  fechaInicio: string
+  fechaFin: string
+  dias: number
+  valor: number
+  pagador: string
+  diasPorPagador?: Record<string, number>
+}
+
+export interface PayrollNovedad {
+  _id: string
+  employeeId: string
+  employeeName?: string
+  tipo: string
+  fechaInicio: string
+  fechaFin: string
+  diasPreviosProrroga?: number
+  diasHabiles?: number
+  salarioPromedio?: number
+  observacion?: string
+  estado: "activa" | "anulada"
+}
+
+/** Respuesta de crear o anular: avisos y corridas en borrador que se recalcularon. */
+export type NovedadRespuesta = PayrollNovedad & { advertencias: string[]; corridasRecalculadas: string[] }
+
+export async function crearNovedad(payload: {
+  employeeId: string
+  tipo: string
+  fechaInicio: string
+  fechaFin: string
+  diasPreviosProrroga?: number
+  diasHabiles?: number
+  salarioPromedio?: number
+  observacion?: string
+}): Promise<NovedadRespuesta> {
+  const res = await authFetch("/payroll/novedades", { method: "POST", body: JSON.stringify(payload) })
+  return parseResponse<NovedadRespuesta>(res)
+}
+
+export async function listarNovedades(periodo: string): Promise<PayrollNovedad[]> {
+  const res = await authFetch(`/payroll/novedades?periodo=${encodeURIComponent(periodo)}`)
+  return parseResponse<PayrollNovedad[]>(res)
+}
+
+export async function anularNovedad(id: string): Promise<NovedadRespuesta> {
+  const res = await authFetch(`/payroll/novedades/${id}/anular`, { method: "POST" })
+  return parseResponse<NovedadRespuesta>(res)
+}
+
 export interface LiquidacionResult {
+  /** Días de vacaciones disfrutados según las novedades registradas (para precargar). */
+  sugerencias?: { vacacionesDisfrutadasDias: number }
   /** Avisos que no bloquean (p. ej. devengos variables, art. 253 CST). */
   advertencias?: string[]
   input: {

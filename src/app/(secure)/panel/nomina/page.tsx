@@ -37,6 +37,11 @@ import {
   closePayrollRun,
   declararPagoNomina,
   guardarLiquidacion,
+  crearNovedad,
+  listarNovedades,
+  anularNovedad,
+  TIPOS_NOVEDAD,
+  type PayrollNovedad,
   listarLiquidaciones,
   aprobarLiquidacion,
   anularLiquidacion,
@@ -108,7 +113,7 @@ function numOr(v: string, d = 0): number {
   return Number.isFinite(n) ? n : d
 }
 
-type Tab = "correr" | "simulador" | "liquidacion" | "historial" | "parametros"
+type Tab = "correr" | "novedades" | "simulador" | "liquidacion" | "historial" | "parametros"
 
 export default function NominaPage() {
   const { hasPermission } = useAuth()
@@ -176,6 +181,7 @@ export default function NominaPage() {
 
   const tabs: { key: Tab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
     { key: "correr", label: "Correr nómina", icon: Play },
+    { key: "novedades", label: "Novedades", icon: CalendarClock },
     { key: "simulador", label: "Simulador", icon: Calculator },
     { key: "liquidacion", label: "Liquidación", icon: LogOut },
     { key: "historial", label: "Historial", icon: History },
@@ -237,6 +243,7 @@ export default function NominaPage() {
               onRan={() => void refreshRuns()}
             />
           )}
+          {tab === "novedades" && <Novedades employees={employees} />}
           {tab === "simulador" && (
             <Simulador employees={employees} />
           )}
@@ -1149,6 +1156,8 @@ function Liquidacion({ employees }: { employees: Employee[] }) {
     try {
       const r = await computeLiquidacion(payload())
       setResult(r)
+      // Precarga los días disfrutados con las vacaciones registradas como novedad (se puede corregir).
+      if (vacDisfrutadas === "" && r.sugerencias) setVacDisfrutadas(String(r.sugerencias.vacacionesDisfrutadasDias))
     } catch (err) {
       setError(errorMessage(err))
     } finally {
@@ -1541,6 +1550,196 @@ function LiqRow({ label, value }: { label: string; value: number }) {
 }
 
 // ── Historial ────────────────────────────────────────────────────────────────
+/**
+ * Novedades del mes (decisión 3 del dueño): vacaciones disfrutadas,
+ * incapacidades y licencias. La corrida del mes las liquida; si ya está en
+ * borrador, recalcúlala para tomarlas. Con la nómina cerrada no se tocan.
+ */
+function Novedades({ employees }: { employees: Employee[] }) {
+  const [periodo, setPeriodo] = React.useState(currentMonth())
+  const [filas, setFilas] = React.useState<PayrollNovedad[]>([])
+  const [error, setError] = React.useState<string | null>(null)
+  const [busy, setBusy] = React.useState(false)
+  const [employeeId, setEmployeeId] = React.useState("")
+  const [tipo, setTipo] = React.useState<string>("vacaciones")
+  const [desde, setDesde] = React.useState("")
+  const [hasta, setHasta] = React.useState("")
+  const [diasHabiles, setDiasHabiles] = React.useState("")
+  const [previos, setPrevios] = React.useState("")
+  const [promedio, setPromedio] = React.useState("")
+  const [observacion, setObservacion] = React.useState("")
+  const [avisos, setAvisos] = React.useState<string[]>([])
+  const confirm = useConfirm()
+
+  const cargar = React.useCallback(async () => {
+    try {
+      setFilas(await listarNovedades(periodo))
+      setError(null)
+    } catch (err) {
+      setError(errorMessage(err))
+    }
+  }, [periodo])
+  useLoadEffect(cargar)
+
+  async function guardar() {
+    setBusy(true)
+    setError(null)
+    try {
+      const r = await crearNovedad({
+        employeeId,
+        tipo,
+        fechaInicio: desde,
+        fechaFin: hasta,
+        ...(tipo === "vacaciones" ? { diasHabiles: numOr(diasHabiles) } : {}),
+        ...(tipo === "incapacidad_comun" && previos !== "" ? { diasPreviosProrroga: numOr(previos) } : {}),
+        ...(tipo === "vacaciones" && numOr(promedio) > 0 ? { salarioPromedio: numOr(promedio) } : {}),
+        ...(observacion ? { observacion } : {}),
+      })
+      setDesde("")
+      setHasta("")
+      setDiasHabiles("")
+      setPrevios("")
+      setPromedio("")
+      setObservacion("")
+      setAvisos([
+        ...r.advertencias,
+        ...(r.corridasRecalculadas.length > 0 ? [`Se recalculó la nómina en borrador (${r.corridasRecalculadas.length}).`] : []),
+      ])
+      await cargar()
+    } catch (err) {
+      setError(errorMessage(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function anular(n: PayrollNovedad) {
+    if (!(await confirm({ title: "¿Anular esta novedad?", description: "Si la nómina del mes está en borrador, recalcúlala después.", destructive: true })))
+      return
+    try {
+      const r = await anularNovedad(n._id)
+      setAvisos([
+        ...r.advertencias,
+        ...(r.corridasRecalculadas.length > 0 ? [`Se recalculó la nómina en borrador (${r.corridasRecalculadas.length}).`] : []),
+      ])
+      await cargar()
+    } catch (err) {
+      setError(errorMessage(err))
+    }
+  }
+
+  const listo = employeeId && desde && hasta && (tipo !== "vacaciones" || numOr(diasHabiles) > 0)
+  return (
+    <div className="grid gap-4 lg:grid-cols-[380px_1fr]">
+      <Card>
+        <CardContent className="flex flex-col gap-3 py-4">
+          <p className="text-sm font-semibold">Registrar novedad</p>
+          <div className="flex flex-col gap-1">
+            <Label className="text-xs" htmlFor="nov-emp">Empleado</Label>
+            <select id="nov-emp" className={inputClass} value={employeeId} onChange={(e) => setEmployeeId(e.target.value)}>
+              <option value="">Elige</option>
+              {employees.map((e) => (
+                <option key={e._id} value={e._id}>
+                  {`${e.firstName} ${e.lastName}`.trim()}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label className="text-xs" htmlFor="nov-tipo">Tipo</Label>
+            <select id="nov-tipo" className={inputClass} value={tipo} onChange={(e) => setTipo(e.target.value)}>
+              {TIPOS_NOVEDAD.map((t) => (
+                <option key={t.value} value={t.value}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <div className="flex flex-col gap-1">
+              <Label className="text-xs" htmlFor="nov-desde">Desde</Label>
+              <Input id="nov-desde" type="date" value={desde} onChange={(e) => setDesde(e.target.value)} />
+            </div>
+            <div className="flex flex-col gap-1">
+              <Label className="text-xs" htmlFor="nov-hasta">Hasta (incluido)</Label>
+              <Input id="nov-hasta" type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} />
+            </div>
+          </div>
+          {tipo === "vacaciones" && (
+            <>
+              <Field label="Días hábiles que disfruta" value={diasHabiles} onChange={setDiasHabiles} />
+              <Field
+                label="Salario promedio del último año (opcional, si el salario es variable)"
+                value={promedio}
+                onChange={setPromedio}
+              />
+            </>
+          )}
+          {tipo === "incapacidad_comun" && (
+            <Field label="Días previos si es prórroga (opcional)" value={previos} onChange={setPrevios} />
+          )}
+          <div className="flex flex-col gap-1">
+            <Label className="text-xs" htmlFor="nov-obs">Observación</Label>
+            <Input id="nov-obs" value={observacion} maxLength={300} onChange={(e) => setObservacion(e.target.value)} />
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            La incapacidad común paga 2/3 del salario (nunca menos del mínimo): los 2 primeros días el empleador y luego la
+            EPS. La laboral paga el 100 % (ARL). La licencia no remunerada no se paga, pero cotiza pensión: el trabajador
+            aporta su 4 %. La nómina del mes en borrador se recalcula sola.
+          </p>
+          {error && <p className="text-sm text-destructive">{error}</p>}
+          {avisos.map((a) => (
+            <p key={a} className="text-sm text-warning-ink" role="status">
+              {a}
+            </p>
+          ))}
+          <Button disabled={!listo || busy} onClick={() => void guardar()}>
+            {busy && <Loader2 className="size-4 animate-spin" />}
+            Registrar
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent className="flex flex-col gap-3 py-4">
+          <div className="flex flex-wrap items-end justify-between gap-2">
+            <p className="text-sm font-semibold">Novedades del mes</p>
+            <div className="flex flex-col gap-1">
+              <Label className="text-xs" htmlFor="nov-periodo">Mes</Label>
+              <Input id="nov-periodo" type="month" value={periodo} onChange={(e) => setPeriodo(e.target.value)} />
+            </div>
+          </div>
+          {filas.length === 0 ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">Sin novedades en este mes.</p>
+          ) : (
+            filas.map((n) => (
+              <div key={n._id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border p-3">
+                <div className="text-sm">
+                  <p className="font-medium">
+                    {n.employeeName ?? n.employeeId} · {TIPOS_NOVEDAD.find((t) => t.value === n.tipo)?.label ?? n.tipo}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {n.fechaInicio} a {n.fechaFin}
+                    {n.diasHabiles ? ` · ${n.diasHabiles} días hábiles` : ""}
+                    {n.observacion ? ` · ${n.observacion}` : ""}
+                  </p>
+                </div>
+                {n.estado === "activa" ? (
+                  <Button size="sm" variant="ghost" className="text-destructive" onClick={() => void anular(n)}>
+                    Anular
+                  </Button>
+                ) : (
+                  <Badge className="bg-muted text-muted-foreground">Anulada</Badge>
+                )}
+              </div>
+            ))
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
 function Historial({
   runs,
   onChanged,
