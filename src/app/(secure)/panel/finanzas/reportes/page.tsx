@@ -18,6 +18,7 @@ import {
 import { money, monthStart, todayLocal, fmtDate, errorMessage } from "@/lib/erp/finance-format"
 
 import { PageHeader } from "@/components/erp/page-header"
+import { CierreAnualCard } from "@/components/erp/cierre-anual-card"
 import { Termino } from "@/components/ui/help-tip"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -178,6 +179,12 @@ export default function ReportesPage() {
         <>
           {report === "income-statement" && data && <IncomeView r={data as IncomeStatement} />}
           {report === "balance-sheet" && data && <BalanceView r={data as BalanceSheet} />}
+          {/* El cierre anual vive junto a los estados que cambia (R4, 1.16). */}
+          {(report === "balance-sheet" || report === "income-statement") && (
+            <div className="mt-4">
+              <CierreAnualCard />
+            </div>
+          )}
           {report === "trial-balance" && data && <TrialView r={data as TrialBalance} />}
           {report === "sales" && data && (
             <SalesView r={data as SalesReport} sedes={sedes} />
@@ -246,7 +253,20 @@ function BalanceView({ r }: { r: BalanceSheet }) {
         <LineTable title="Pasivo" lines={r.pasivos} total={r.totalPasivo} />
         <LineTable
           title="Patrimonio"
-          lines={[...r.patrimonio, { code: "36", name: "Resultado del ejercicio", amount: r.resultadoEjercicio }]}
+          lines={[
+            ...r.patrimonio,
+            // Lo de años anteriores sin cerrar va aparte (R4, revisión 1.16).
+            ...(r.resultadoAnterioresSinCerrar
+              ? [
+                  {
+                    code: "37",
+                    name: "Resultados de años anteriores sin cerrar",
+                    amount: r.resultadoAnterioresSinCerrar,
+                  },
+                ]
+              : []),
+            { code: "36", name: "Resultado del ejercicio", amount: r.resultadoEjercicio },
+          ]}
           total={r.totalPatrimonio}
         />
       </div>
@@ -314,18 +334,46 @@ const SALES_METHOD_LABELS: Record<string, string> = {
   credit: "Fiado",
 }
 
+/** Cómo se devolvió la plata (`REFUND_METHODS` del backend). */
+const REFUND_METHOD_LABELS: Record<string, string> = {
+  cash: "Efectivo",
+  transfer: "Transferencia",
+  credit_note: "Saldo a favor",
+  none: "Cambio por otro producto",
+}
+
+/** Por qué volvió (`RETURN_REASONS` del backend). */
+const RETURN_REASON_LABELS: Record<string, string> = {
+  defectuoso: "Defectuoso",
+  equivocado: "Equivocado",
+  sobrante: "Sobrante",
+  garantia: "Garantía",
+  otro: "Otro",
+}
+
 function SalesView({ r, sedes }: { r: SalesReport; sedes: Sede[] }) {
   const sedeName = (id: string | null) =>
     id ? (sedes.find((s) => s._id === id)?.name ?? "—") : "—"
+  // Por medio de pago va en bruto (lo cobrado): su % es sobre las brutas.
+  // Por sede va neto: su % es sobre las netas.
   const share = (v: number) => (r.totalRevenue > 0 ? (v / r.totalRevenue) * 100 : 0)
+  const shareBruto = (v: number) =>
+    r.totalGrossRevenue > 0 ? (v / r.totalGrossRevenue) * 100 : 0
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <Kpi label="Ingresos" value={money.format(r.totalRevenue)} />
+      {/* Netas de devoluciones (R3, revisión 1.16): la devolución resta el
+          día en que ocurre, como la 4175 en el libro. */}
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
+        <Kpi label="Ventas brutas" value={money.format(r.totalGrossRevenue)} />
+        <Kpi
+          label={`Devoluciones (${r.totalReturnsCount})`}
+          value={money.format(-r.totalReturns)}
+        />
+        <Kpi label="Ventas netas" value={money.format(r.totalRevenue)} />
         <Kpi label="Tiquetes" value={String(r.totalTickets)} />
-        <Kpi label="Ticket promedio" value={money.format(r.avgTicket)} />
-        <Kpi label="IVA generado" value={money.format(r.totalTax)} />
+        <Kpi label="Ticket promedio neto" value={money.format(r.avgTicket)} />
+        <Kpi label="Impuestos netos" value={money.format(r.totalTax)} />
       </div>
 
       {/* Desglose por medio de pago y por sede */}
@@ -362,7 +410,7 @@ function SalesView({ r, sedes }: { r: SalesReport; sedes: Sede[] }) {
                       {money.format(m.revenue)}
                     </TableCell>
                     <TableCell className="tnum text-right text-muted-foreground">
-                      {share(m.revenue).toFixed(0)}%
+                      {shareBruto(m.revenue).toFixed(0)}%
                     </TableCell>
                   </TableRow>
                 ))}
@@ -381,14 +429,15 @@ function SalesView({ r, sedes }: { r: SalesReport; sedes: Sede[] }) {
                 <TableRow>
                   <TableHead>Sede</TableHead>
                   <TableHead className="text-right">Tiquetes</TableHead>
-                  <TableHead className="text-right">Ingresos</TableHead>
+                  <TableHead className="text-right">Devoluciones</TableHead>
+                  <TableHead className="text-right">Netas</TableHead>
                   <TableHead className="text-right">%</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {r.bySede.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={4} className="py-6 text-center text-sm text-muted-foreground">
+                    <TableCell colSpan={5} className="py-6 text-center text-sm text-muted-foreground">
                       Sin ventas.
                     </TableCell>
                   </TableRow>
@@ -398,6 +447,9 @@ function SalesView({ r, sedes }: { r: SalesReport; sedes: Sede[] }) {
                     <TableCell>{sedeName(s.sedeId)}</TableCell>
                     <TableCell className="tnum text-right text-muted-foreground">
                       {s.tickets}
+                    </TableCell>
+                    <TableCell className="tnum text-right text-muted-foreground">
+                      {s.returns ? money.format(-s.returns) : "—"}
                     </TableCell>
                     <TableCell className="tnum text-right font-medium">
                       {money.format(s.revenue)}
@@ -417,20 +469,21 @@ function SalesView({ r, sedes }: { r: SalesReport; sedes: Sede[] }) {
       <Card>
         <CardContent className="px-0 sm:px-2">
           <p className="px-4 pt-3 text-sm font-semibold text-foreground">
-            Top productos (por ingresos)
+            Top productos (por ventas netas)
           </p>
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Producto</TableHead>
-                <TableHead className="text-right">Cantidad</TableHead>
-                <TableHead className="text-right">Ingresos</TableHead>
+                <TableHead className="text-right">Cantidad neta</TableHead>
+                <TableHead className="text-right">Devuelto</TableHead>
+                <TableHead className="text-right">Netas</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {r.topProducts.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={3} className="py-6 text-center text-sm text-muted-foreground">
+                  <TableCell colSpan={4} className="py-6 text-center text-sm text-muted-foreground">
                     Sin ventas de productos en este rango.
                   </TableCell>
                 </TableRow>
@@ -445,6 +498,9 @@ function SalesView({ r, sedes }: { r: SalesReport; sedes: Sede[] }) {
                   </TableCell>
                   <TableCell className="tnum text-right text-muted-foreground">
                     {p.qty}
+                  </TableCell>
+                  <TableCell className="tnum text-right text-muted-foreground">
+                    {p.returnedQty ? `${p.returnedQty} · ${money.format(-p.returned)}` : "—"}
                   </TableCell>
                   <TableCell className="tnum text-right font-medium">
                     {money.format(p.revenue)}
@@ -467,14 +523,16 @@ function SalesView({ r, sedes }: { r: SalesReport; sedes: Sede[] }) {
               <TableRow>
                 <TableHead>Día</TableHead>
                 <TableHead className="text-right">Tiquetes</TableHead>
-                <TableHead className="text-right">Ingresos</TableHead>
+                <TableHead className="text-right">Brutas</TableHead>
+                <TableHead className="text-right">Devoluciones</TableHead>
+                <TableHead className="text-right">Netas</TableHead>
                 <TableHead className="text-right">Ticket prom.</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {r.days.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={4} className="py-8 text-center text-sm text-muted-foreground">
+                  <TableCell colSpan={6} className="py-8 text-center text-sm text-muted-foreground">
                     Sin ventas en este rango.
                   </TableCell>
                 </TableRow>
@@ -483,15 +541,95 @@ function SalesView({ r, sedes }: { r: SalesReport; sedes: Sede[] }) {
                 <TableRow key={d.date}>
                   <TableCell>{fmtDate(d.date)}</TableCell>
                   <TableCell className="tnum text-right">{d.tickets}</TableCell>
+                  <TableCell className="tnum text-right">{money.format(d.grossRevenue)}</TableCell>
+                  <TableCell className="tnum text-right text-muted-foreground">
+                    {d.returnsCount ? `${money.format(-d.returns)} (${d.returnsCount})` : "—"}
+                  </TableCell>
                   <TableCell className="tnum text-right font-medium">{money.format(d.revenue)}</TableCell>
                   <TableCell className="tnum text-right text-muted-foreground">{money.format(d.avgTicket)}</TableCell>
                 </TableRow>
               ))}
+              {r.days.length > 0 && (
+                <TableRow className="border-t-2 font-semibold">
+                  <TableCell>Total</TableCell>
+                  <TableCell className="tnum text-right">{r.totalTickets}</TableCell>
+                  <TableCell className="tnum text-right">{money.format(r.totalGrossRevenue)}</TableCell>
+                  <TableCell className="tnum text-right">
+                    {r.totalReturnsCount
+                      ? `${money.format(-r.totalReturns)} (${r.totalReturnsCount})`
+                      : "—"}
+                  </TableCell>
+                  <TableCell className="tnum text-right">{money.format(r.totalRevenue)}</TableCell>
+                  <TableCell className="tnum text-right">{money.format(r.avgTicket)}</TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
+
+      {/* Devoluciones del rango, por motivo y por medio */}
+      {r.returns.count > 0 && (
+        <div className="grid gap-4 lg:grid-cols-2">
+          <BreakdownTable
+            title="Devoluciones por motivo"
+            head="Motivo"
+            rows={r.returns.byReason.map((x) => ({
+              key: x.reason,
+              label: RETURN_REASON_LABELS[x.reason] ?? x.reason,
+              count: x.count,
+              amount: x.amount,
+            }))}
+          />
+          <BreakdownTable
+            title="Devoluciones por medio"
+            head="Medio"
+            rows={r.returns.byMethod.map((x) => ({
+              key: x.method,
+              label: REFUND_METHOD_LABELS[x.method] ?? x.method,
+              count: x.count,
+              amount: x.amount,
+            }))}
+          />
+        </div>
+      )}
     </div>
+  )
+}
+
+function BreakdownTable({
+  title,
+  head,
+  rows,
+}: {
+  title: string
+  head: string
+  rows: { key: string; label: string; count: number; amount: number }[]
+}) {
+  return (
+    <Card>
+      <CardContent className="px-0 sm:px-2">
+        <p className="px-4 pt-3 text-sm font-semibold text-foreground">{title}</p>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>{head}</TableHead>
+              <TableHead className="text-right">Cantidad</TableHead>
+              <TableHead className="text-right">Monto</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map((x) => (
+              <TableRow key={x.key}>
+                <TableCell>{x.label}</TableCell>
+                <TableCell className="tnum text-right text-muted-foreground">{x.count}</TableCell>
+                <TableCell className="tnum text-right font-medium">{money.format(x.amount)}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
   )
 }
 
