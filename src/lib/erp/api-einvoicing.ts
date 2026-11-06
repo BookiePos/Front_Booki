@@ -661,3 +661,89 @@ export async function traerRangosDian(
   const res = await authFetch(`/einvoicing/sedes/${sedeId}/rangos-dian`)
   return parseResponse<RangosDianVista>(res)
 }
+
+// ── Emisor de factura electrónica: asistente y certificado ───────────────────
+
+export type AvisoCertificado = "por-vencer" | "vencido"
+
+/** Emisor fiscal de la sede tal como lo expone el backend. Nunca trae secretos. */
+export interface EmisorVista {
+  id: string
+  razonSocial?: string
+  nit: string
+  nitDv?: string
+  tipoPersona?: string
+  responsabilidadFiscal?: string
+  direccion?: string
+  departamento?: string
+  ciudad?: string
+  municipioDane?: string
+  emailFacturacion?: string
+  /** '1' producción, '2' habilitación. */
+  tipoAmbiente: string
+  habilitado: boolean
+  facturaSoftwareId?: string
+  certVenceAt?: string
+  certTitular?: string
+  certHuella?: string
+  certificadoVigente: boolean
+  certAviso: AvisoCertificado | null
+  tieneFacturaPin: boolean
+  tieneFacturaTestSetId: boolean
+  tieneCertificado: boolean
+}
+
+/** Lo que le falta al emisor (espejo de `EstadoConfiguracion` del backend). */
+export interface EstadoEmisor {
+  faltaParaTransmitir: string[]
+  datosFiscalesFaltantes: string[]
+  tieneTestSetId: boolean
+}
+
+export interface EmisorConEstado {
+  emisor: EmisorVista | null
+  estado: EstadoEmisor | null
+}
+
+export async function getEmisorConEstado(sedeId: string): Promise<EmisorConEstado> {
+  const res = await authFetch(`/einvoicing/sedes/${sedeId}/emisor`)
+  return parseResponse<EmisorConEstado>(res)
+}
+
+export interface ConfigurarFacturaPayload {
+  softwareId: string
+  pin: string
+  /** Ausente no toca el guardado; `null` lo borra. */
+  testSetId?: string | null
+}
+
+/** Guarda SoftwareID, PIN (cifrado en el servidor) y TestSetId de factura. */
+export async function configurarFacturaEmisor(
+  sedeId: string,
+  payload: ConfigurarFacturaPayload,
+): Promise<EmisorConEstado> {
+  const res = await authFetch(`/einvoicing/sedes/${sedeId}/emisor/factura`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  })
+  return parseResponse<EmisorConEstado>(res)
+}
+
+/**
+ * Sube o reemplaza el .p12. FormData sin Content-Type a mano (el navegador
+ * agrega el boundary). La contraseña viaja solo en esta petición.
+ */
+export async function cargarCertificadoEmisor(
+  sedeId: string,
+  archivo: File,
+  password: string,
+): Promise<{ emisor: EmisorVista | null; reemplazado: boolean }> {
+  const body = new FormData()
+  body.append("file", archivo)
+  body.append("password", password)
+  const res = await authFetch(`/einvoicing/sedes/${sedeId}/emisor/certificado`, {
+    method: "POST",
+    body,
+  })
+  return parseResponse<{ emisor: EmisorVista | null; reemplazado: boolean }>(res)
+}
