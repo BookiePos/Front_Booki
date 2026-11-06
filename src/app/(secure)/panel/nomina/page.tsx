@@ -1566,7 +1566,9 @@ function Novedades({ employees }: { employees: Employee[] }) {
   const [hasta, setHasta] = React.useState("")
   const [diasHabiles, setDiasHabiles] = React.useState("")
   const [previos, setPrevios] = React.useState("")
+  const [promedio, setPromedio] = React.useState("")
   const [observacion, setObservacion] = React.useState("")
+  const [avisos, setAvisos] = React.useState<string[]>([])
   const confirm = useConfirm()
 
   const cargar = React.useCallback(async () => {
@@ -1583,20 +1585,26 @@ function Novedades({ employees }: { employees: Employee[] }) {
     setBusy(true)
     setError(null)
     try {
-      await crearNovedad({
+      const r = await crearNovedad({
         employeeId,
         tipo,
         fechaInicio: desde,
         fechaFin: hasta,
         ...(tipo === "vacaciones" ? { diasHabiles: numOr(diasHabiles) } : {}),
         ...(tipo === "incapacidad_comun" && previos !== "" ? { diasPreviosProrroga: numOr(previos) } : {}),
+        ...(tipo === "vacaciones" && numOr(promedio) > 0 ? { salarioPromedio: numOr(promedio) } : {}),
         ...(observacion ? { observacion } : {}),
       })
       setDesde("")
       setHasta("")
       setDiasHabiles("")
       setPrevios("")
+      setPromedio("")
       setObservacion("")
+      setAvisos([
+        ...r.advertencias,
+        ...(r.corridasRecalculadas.length > 0 ? [`Se recalculó la nómina en borrador (${r.corridasRecalculadas.length}).`] : []),
+      ])
       await cargar()
     } catch (err) {
       setError(errorMessage(err))
@@ -1609,7 +1617,11 @@ function Novedades({ employees }: { employees: Employee[] }) {
     if (!(await confirm({ title: "¿Anular esta novedad?", description: "Si la nómina del mes está en borrador, recalcúlala después.", destructive: true })))
       return
     try {
-      await anularNovedad(n._id)
+      const r = await anularNovedad(n._id)
+      setAvisos([
+        ...r.advertencias,
+        ...(r.corridasRecalculadas.length > 0 ? [`Se recalculó la nómina en borrador (${r.corridasRecalculadas.length}).`] : []),
+      ])
       await cargar()
     } catch (err) {
       setError(errorMessage(err))
@@ -1654,7 +1666,14 @@ function Novedades({ employees }: { employees: Employee[] }) {
             </div>
           </div>
           {tipo === "vacaciones" && (
-            <Field label="Días hábiles que disfruta" value={diasHabiles} onChange={setDiasHabiles} />
+            <>
+              <Field label="Días hábiles que disfruta" value={diasHabiles} onChange={setDiasHabiles} />
+              <Field
+                label="Salario promedio del último año (opcional, si el salario es variable)"
+                value={promedio}
+                onChange={setPromedio}
+              />
+            </>
           )}
           {tipo === "incapacidad_comun" && (
             <Field label="Días previos si es prórroga (opcional)" value={previos} onChange={setPrevios} />
@@ -1665,10 +1684,15 @@ function Novedades({ employees }: { employees: Employee[] }) {
           </div>
           <p className="text-[11px] text-muted-foreground">
             La incapacidad común paga 2/3 del salario (nunca menos del mínimo): los 2 primeros días el empleador y luego la
-            EPS. La laboral paga el 100 % (ARL). La licencia no remunerada no se paga. Si la nómina del mes está en borrador,
-            recalcúlala para tomar la novedad.
+            EPS. La laboral paga el 100 % (ARL). La licencia no remunerada no se paga, pero cotiza pensión: el trabajador
+            aporta su 4 %. La nómina del mes en borrador se recalcula sola.
           </p>
           {error && <p className="text-sm text-destructive">{error}</p>}
+          {avisos.map((a) => (
+            <p key={a} className="text-sm text-warning-ink" role="status">
+              {a}
+            </p>
+          ))}
           <Button disabled={!listo || busy} onClick={() => void guardar()}>
             {busy && <Loader2 className="size-4 animate-spin" />}
             Registrar

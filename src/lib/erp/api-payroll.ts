@@ -91,6 +91,8 @@ export interface PayrollBreakdown {
     pension: number
     fsp: number
     retencionFuente: number
+    /** 4 % de pensión de la licencia no remunerada, a cargo del trabajador. */
+    pensionLicenciaNR?: number
     otras: number
     total: number
   }
@@ -323,9 +325,13 @@ export interface PayrollNovedad {
   fechaFin: string
   diasPreviosProrroga?: number
   diasHabiles?: number
+  salarioPromedio?: number
   observacion?: string
   estado: "activa" | "anulada"
 }
+
+/** Respuesta de crear o anular: avisos y corridas en borrador que se recalcularon. */
+export type NovedadRespuesta = PayrollNovedad & { advertencias: string[]; corridasRecalculadas: string[] }
 
 export async function crearNovedad(payload: {
   employeeId: string
@@ -334,10 +340,11 @@ export async function crearNovedad(payload: {
   fechaFin: string
   diasPreviosProrroga?: number
   diasHabiles?: number
+  salarioPromedio?: number
   observacion?: string
-}): Promise<PayrollNovedad> {
+}): Promise<NovedadRespuesta> {
   const res = await authFetch("/payroll/novedades", { method: "POST", body: JSON.stringify(payload) })
-  return parseResponse<PayrollNovedad>(res)
+  return parseResponse<NovedadRespuesta>(res)
 }
 
 export async function listarNovedades(periodo: string): Promise<PayrollNovedad[]> {
@@ -345,9 +352,9 @@ export async function listarNovedades(periodo: string): Promise<PayrollNovedad[]
   return parseResponse<PayrollNovedad[]>(res)
 }
 
-export async function anularNovedad(id: string): Promise<PayrollNovedad> {
+export async function anularNovedad(id: string): Promise<NovedadRespuesta> {
   const res = await authFetch(`/payroll/novedades/${id}/anular`, { method: "POST" })
-  return parseResponse<PayrollNovedad>(res)
+  return parseResponse<NovedadRespuesta>(res)
 }
 
 export interface LiquidacionResult {

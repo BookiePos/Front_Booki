@@ -104,6 +104,7 @@ export function PayrollSlipView({
       <Row label="Salud (4%)" value={de.salud} sign="-" />
       <Row label="Pensión (4%)" value={de.pension} sign="-" />
       <Row label="Fondo de solidaridad pensional" value={de.fsp} hideZero sign="-" />
+      <Row label="Aporte pensión licencia no remunerada" value={de.pensionLicenciaNR ?? 0} hideZero sign="-" />
       <Row
         label={`Retención en la fuente (${b.baseRetencionUvt} UVT)`}
         value={de.retencionFuente}
