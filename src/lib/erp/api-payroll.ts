@@ -230,6 +230,48 @@ export interface LiquidacionBreakdown {
   total: number
 }
 
+/** Liquidación de retiro guardada (decisión 4 del dueño): la aprobada es la que reporta la nómina electrónica. */
+export interface PayrollLiquidacion {
+  _id: string
+  employeeId: string
+  employeeName?: string
+  fechaInicio: string
+  fechaRetiro: string
+  motivo: string
+  breakdown: LiquidacionBreakdown
+  estado: "borrador" | "aprobada" | "anulada"
+  pago?: { medio: string; fecha: string }
+  aprobadaPor?: string
+  createdAt: string
+}
+
+type LiquidacionPayload = Parameters<typeof computeLiquidacion>[0]
+
+/** Calcula y guarda la liquidación como borrador (sin salarios pendientes: el último sueldo va en la nómina del mes). */
+export async function guardarLiquidacion(payload: LiquidacionPayload): Promise<PayrollLiquidacion> {
+  const res = await authFetch("/payroll/liquidaciones", { method: "POST", body: JSON.stringify(payload) })
+  return parseResponse<PayrollLiquidacion>(res)
+}
+
+export async function listarLiquidaciones(employeeId?: string): Promise<PayrollLiquidacion[]> {
+  const q = employeeId ? `?employeeId=${encodeURIComponent(employeeId)}` : ""
+  const res = await authFetch(`/payroll/liquidaciones${q}`)
+  return parseResponse<PayrollLiquidacion[]>(res)
+}
+
+export async function aprobarLiquidacion(
+  id: string,
+  pago: { medioPago: string; fechaPago: string },
+): Promise<PayrollLiquidacion> {
+  const res = await authFetch(`/payroll/liquidaciones/${id}/aprobar`, { method: "POST", body: JSON.stringify(pago) })
+  return parseResponse<PayrollLiquidacion>(res)
+}
+
+export async function anularLiquidacion(id: string): Promise<PayrollLiquidacion> {
+  const res = await authFetch(`/payroll/liquidaciones/${id}/anular`, { method: "POST" })
+  return parseResponse<PayrollLiquidacion>(res)
+}
+
 export interface LiquidacionResult {
   input: {
     employeeId?: string

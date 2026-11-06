@@ -36,6 +36,11 @@ import {
   deletePayrollRun,
   closePayrollRun,
   declararPagoNomina,
+  guardarLiquidacion,
+  listarLiquidaciones,
+  aprobarLiquidacion,
+  anularLiquidacion,
+  type PayrollLiquidacion,
   MEDIOS_PAGO_NOMINA,
   recalcPayrollRun,
   computeLiquidacion,
@@ -1102,22 +1107,41 @@ function Liquidacion({ employees }: { employees: Employee[] }) {
   const [result, setResult] = React.useState<LiquidacionResult | null>(null)
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+  const [guardando, setGuardando] = React.useState(false)
+  const [guardadas, setGuardadas] = React.useState(0)
+
+  function payload() {
+    return {
+      employeeId: employeeId || undefined,
+      salarioBase: employeeId ? undefined : numOr(salarioBase),
+      salaryType: employeeId ? undefined : salaryType,
+      contractType: employeeId ? undefined : contractType,
+      fechaInicio: fechaInicio || undefined,
+      fechaFin,
+      motivo,
+      salariosPendientes: numOr(salariosPend),
+      diasFaltantesContrato: numOr(diasFaltantes),
+    }
+  }
+
+  async function guardar() {
+    setGuardando(true)
+    setError(null)
+    try {
+      await guardarLiquidacion(payload())
+      setGuardadas((n) => n + 1)
+    } catch (err) {
+      setError(errorMessage(err))
+    } finally {
+      setGuardando(false)
+    }
+  }
 
   async function calc() {
     setBusy(true)
     setError(null)
     try {
-      const r = await computeLiquidacion({
-        employeeId: employeeId || undefined,
-        salarioBase: employeeId ? undefined : numOr(salarioBase),
-        salaryType: employeeId ? undefined : salaryType,
-        contractType: employeeId ? undefined : contractType,
-        fechaInicio: fechaInicio || undefined,
-        fechaFin,
-        motivo,
-        salariosPendientes: numOr(salariosPend),
-        diasFaltantesContrato: numOr(diasFaltantes),
-      })
+      const r = await computeLiquidacion(payload())
       setResult(r)
     } catch (err) {
       setError(errorMessage(err))
@@ -1271,12 +1295,31 @@ function Liquidacion({ employees }: { employees: Employee[] }) {
                 Estimación. La indemnización y casos especiales pueden requerir
                 revisión del contador o abogado.
               </p>
+              {employeeId && (
+                <div className="mt-3 space-y-1 border-t border-border pt-3">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={guardando || numOr(salariosPend) > 0}
+                    onClick={() => void guardar()}
+                  >
+                    {guardando && <Loader2 className="size-4 animate-spin" />}
+                    Guardar como borrador
+                  </Button>
+                  {numOr(salariosPend) > 0 && (
+                    <p className="text-[11px] text-muted-foreground">
+                      Para guardarla deja «salarios pendientes» en 0: el último sueldo
+                      se paga en la nómina del mes del retiro, con salud y pensión.
+                    </p>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
         ) : (
           <Card>
             <CardContent className="flex flex-col items-center gap-2 py-14 text-center">
-              <LogOut className="size-9 text-muted-foreground" />
+              <LogOut className="size-9 text-muted-foreground" aria-hidden />
               <p className="max-w-xs text-sm text-muted-foreground">
                 Calcula cesantías, intereses, prima y vacaciones proporcionales
                 más la indemnización al terminar el contrato.
@@ -1284,8 +1327,152 @@ function Liquidacion({ employees }: { employees: Employee[] }) {
             </CardContent>
           </Card>
         )}
+        {employeeId && <LiquidacionesGuardadas employeeId={employeeId} recargar={guardadas} />}
       </div>
     </div>
+  )
+}
+
+/**
+ * Liquidaciones guardadas del empleado. La aprobada (con el medio y la fecha
+ * real del pago) es la que la nómina electrónica del mes del retiro reporta.
+ */
+function LiquidacionesGuardadas({ employeeId, recargar }: { employeeId: string; recargar: number }) {
+  const [filas, setFilas] = React.useState<PayrollLiquidacion[]>([])
+  const [error, setError] = React.useState<string | null>(null)
+  const [ocupada, setOcupada] = React.useState<string | null>(null)
+  const [medio, setMedio] = React.useState("")
+  const [fecha, setFecha] = React.useState("")
+  const confirm = useConfirm()
+
+  const cargar = React.useCallback(async () => {
+    try {
+      setFilas(await listarLiquidaciones(employeeId))
+      setError(null)
+    } catch (err) {
+      setError(errorMessage(err))
+    }
+    // `recargar` sube cuando se guarda una liquidación nueva: vuelve a pedir la lista.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [employeeId, recargar])
+
+  useLoadEffect(cargar)
+
+  async function aprobar(l: PayrollLiquidacion) {
+    setOcupada(l._id)
+    setError(null)
+    try {
+      await aprobarLiquidacion(l._id, { medioPago: medio, fechaPago: fecha })
+      await cargar()
+    } catch (err) {
+      setError(errorMessage(err))
+    } finally {
+      setOcupada(null)
+    }
+  }
+
+  async function anular(l: PayrollLiquidacion) {
+    if (
+      !(await confirm({
+        title: "¿Anular esta liquidación?",
+        description:
+          l.estado === "aprobada"
+            ? "Si ya salió en la nómina electrónica, corrige ese documento con una nota de ajuste."
+            : "El borrador queda anulado.",
+        destructive: true,
+      }))
+    )
+      return
+    setOcupada(l._id)
+    try {
+      await anularLiquidacion(l._id)
+      await cargar()
+    } catch (err) {
+      setError(errorMessage(err))
+    } finally {
+      setOcupada(null)
+    }
+  }
+
+  if (filas.length === 0 && !error) return null
+  return (
+    <Card className="mt-4">
+      <CardContent className="space-y-3 py-4">
+        <p className="text-sm font-semibold">Liquidaciones guardadas</p>
+        {error && <p className="text-sm text-destructive">{error}</p>}
+        {filas.map((l) => (
+          <div key={l._id} className="space-y-2 rounded-md border border-border p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-sm">
+                Retiro {l.fechaRetiro} · {money.format(l.breakdown.total)}
+              </span>
+              <Badge
+                className={
+                  l.estado === "aprobada"
+                    ? "bg-success/10 text-success-ink"
+                    : l.estado === "borrador"
+                      ? "bg-warning/10 text-warning-ink"
+                      : "bg-muted text-muted-foreground"
+                }
+              >
+                {l.estado === "aprobada" ? "Aprobada" : l.estado === "borrador" ? "Borrador" : "Anulada"}
+              </Badge>
+            </div>
+            {l.estado === "aprobada" && l.pago && (
+              <p className="text-xs text-muted-foreground">
+                Pagada el {l.pago.fecha} ·{" "}
+                {MEDIOS_PAGO_NOMINA.find((m) => m.value === l.pago!.medio)?.label ?? l.pago.medio}
+              </p>
+            )}
+            {l.estado === "borrador" && (
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                <div className="space-y-1">
+                  <Label htmlFor={`liq-medio-${l._id}`}>Medio de pago</Label>
+                  <select
+                    id={`liq-medio-${l._id}`}
+                    className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm sm:w-40"
+                    value={medio}
+                    onChange={(e) => setMedio(e.target.value)}
+                  >
+                    <option value="">Elige</option>
+                    {MEDIOS_PAGO_NOMINA.map((m) => (
+                      <option key={m.value} value={m.value}>
+                        {m.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor={`liq-fecha-${l._id}`}>Fecha real de pago</Label>
+                  <Input
+                    id={`liq-fecha-${l._id}`}
+                    type="date"
+                    className="sm:w-40"
+                    value={fecha}
+                    onChange={(e) => setFecha(e.target.value)}
+                  />
+                </div>
+                <Button size="sm" disabled={!medio || !fecha || ocupada === l._id} onClick={() => void aprobar(l)}>
+                  {ocupada === l._id && <Loader2 className="size-4 animate-spin" />}
+                  Aprobar
+                </Button>
+              </div>
+            )}
+            {l.estado !== "anulada" && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="text-destructive"
+                disabled={ocupada === l._id}
+                onClick={() => void anular(l)}
+              >
+                Anular
+              </Button>
+            )}
+          </div>
+        ))}
+      </CardContent>
+    </Card>
   )
 }
 
