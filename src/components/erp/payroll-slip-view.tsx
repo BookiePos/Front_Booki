@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import type { PayrollBreakdown } from "@/lib/erp/api-payroll"
+import { PAGADOR_NOVEDAD, TIPOS_NOVEDAD, type PayrollBreakdown } from "@/lib/erp/api-payroll"
 
 const money = new Intl.NumberFormat("es-CO", {
   style: "currency",
@@ -88,6 +88,14 @@ export function PayrollSlipView({
       <Row label="Bonificación salarial" value={d.bonificacionSalarial} hideZero />
       <Row label="Bonificación no salarial" value={d.bonificacionNoSalarial} hideZero />
       <Row label="Comisiones" value={d.comisiones} hideZero />
+      {(d.ausenciaDetalle ?? []).map((a) => (
+        <Row
+          key={`${a.tipo}-${a.fechaInicio}`}
+          label={`${TIPOS_NOVEDAD.find((t) => t.value === a.tipo)?.label ?? a.tipo} (${a.dias} días, ${PAGADOR_NOVEDAD[a.pagador] ?? a.pagador})`}
+          value={a.valor}
+          muted
+        />
+      ))}
       <div className="border-t border-border">
         <Row label="Total devengado" value={d.total} strong />
       </div>
