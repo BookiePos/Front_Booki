@@ -36,6 +36,11 @@ import {
   deletePayrollRun,
   closePayrollRun,
   declararPagoNomina,
+  guardarLiquidacion,
+  listarLiquidaciones,
+  aprobarLiquidacion,
+  anularLiquidacion,
+  type PayrollLiquidacion,
   MEDIOS_PAGO_NOMINA,
   recalcPayrollRun,
   computeLiquidacion,
@@ -1099,25 +1104,50 @@ function Liquidacion({ employees }: { employees: Employee[] }) {
   const [motivo, setMotivo] = React.useState("sin_justa_causa")
   const [salariosPend, setSalariosPend] = React.useState("")
   const [diasFaltantes, setDiasFaltantes] = React.useState("")
+  // Revisión contable: las cesantías de años anteriores ya se consignaron y las
+  // vacaciones disfrutadas se descuentan (CST arts. 186 y 189).
+  const [inicioCesantias, setInicioCesantias] = React.useState("")
+  const [vacDisfrutadas, setVacDisfrutadas] = React.useState("")
   const [result, setResult] = React.useState<LiquidacionResult | null>(null)
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+  const [guardando, setGuardando] = React.useState(false)
+  const [guardadas, setGuardadas] = React.useState(0)
+
+  function payload() {
+    return {
+      employeeId: employeeId || undefined,
+      salarioBase: employeeId ? undefined : numOr(salarioBase),
+      salaryType: employeeId ? undefined : salaryType,
+      contractType: employeeId ? undefined : contractType,
+      fechaInicio: fechaInicio || undefined,
+      fechaFin,
+      motivo,
+      salariosPendientes: numOr(salariosPend),
+      diasFaltantesContrato: numOr(diasFaltantes),
+      inicioCesantias: inicioCesantias || undefined,
+      vacacionesDisfrutadasDias: vacDisfrutadas === "" ? undefined : numOr(vacDisfrutadas),
+    }
+  }
+
+  async function guardar() {
+    setGuardando(true)
+    setError(null)
+    try {
+      await guardarLiquidacion(payload())
+      setGuardadas((n) => n + 1)
+    } catch (err) {
+      setError(errorMessage(err))
+    } finally {
+      setGuardando(false)
+    }
+  }
 
   async function calc() {
     setBusy(true)
     setError(null)
     try {
-      const r = await computeLiquidacion({
-        employeeId: employeeId || undefined,
-        salarioBase: employeeId ? undefined : numOr(salarioBase),
-        salaryType: employeeId ? undefined : salaryType,
-        contractType: employeeId ? undefined : contractType,
-        fechaInicio: fechaInicio || undefined,
-        fechaFin,
-        motivo,
-        salariosPendientes: numOr(salariosPend),
-        diasFaltantesContrato: numOr(diasFaltantes),
-      })
+      const r = await computeLiquidacion(payload())
       setResult(r)
     } catch (err) {
       setError(errorMessage(err))
@@ -1227,6 +1257,22 @@ function Liquidacion({ employees }: { employees: Employee[] }) {
             )}
           </div>
 
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <Field
+              label="Días de vacaciones ya disfrutados (obligatorio para aprobar)"
+              value={vacDisfrutadas}
+              onChange={setVacDisfrutadas}
+            />
+            <div className="flex flex-col gap-1">
+              <Label className="text-xs">Cesantías desde (vacío = 1-ene del año del retiro)</Label>
+              <Input
+                type="date"
+                value={inicioCesantias}
+                onChange={(e) => setInicioCesantias(e.target.value)}
+              />
+            </div>
+          </div>
+
           {error && <p className="text-sm text-destructive">{error}</p>}
           <Button className="gap-2" disabled={busy} onClick={() => void calc()}>
             {busy ? <Loader2 className="size-4 animate-spin" /> : <LogOut className="size-4" />}
@@ -1247,6 +1293,12 @@ function Liquidacion({ employees }: { employees: Employee[] }) {
                   {b.diasLiquidados} días · base prestacional{" "}
                   {money.format(b.basePrestacional)}
                 </p>
+                {b.diasCesantias !== undefined && (
+                  <p className="text-xs text-muted-foreground">
+                    Cesantías desde {b.inicioCesantias} ({b.diasCesantias} días) · vacaciones
+                    pendientes {b.diasVacacionesPendientes} de {b.diasVacacionesCausados} días
+                  </p>
+                )}
               </div>
               <LiqRow label="Cesantías" value={b.cesantias} />
               <LiqRow label="Intereses de cesantías" value={b.interesesCesantias} />
@@ -1271,12 +1323,41 @@ function Liquidacion({ employees }: { employees: Employee[] }) {
                 Estimación. La indemnización y casos especiales pueden requerir
                 revisión del contador o abogado.
               </p>
+              {(result?.advertencias ?? []).map((a) => (
+                <p key={a} className="mt-2 text-[11px] text-warning-ink" role="status">
+                  {a}
+                </p>
+              ))}
+              {employeeId && (
+                <div className="mt-3 space-y-1 border-t border-border pt-3">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={guardando || numOr(salariosPend) > 0 || vacDisfrutadas === ""}
+                    onClick={() => void guardar()}
+                  >
+                    {guardando && <Loader2 className="size-4 animate-spin" />}
+                    Guardar como borrador
+                  </Button>
+                  {vacDisfrutadas === "" && (
+                    <p className="text-[11px] text-muted-foreground">
+                      Indica cuántos días de vacaciones ya disfrutó (0 si ninguno): se descuentan de las pendientes.
+                    </p>
+                  )}
+                  {numOr(salariosPend) > 0 && (
+                    <p className="text-[11px] text-muted-foreground">
+                      Para guardarla deja «salarios pendientes» en 0: el último sueldo
+                      se paga en la nómina del mes del retiro, con salud y pensión.
+                    </p>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
         ) : (
           <Card>
             <CardContent className="flex flex-col items-center gap-2 py-14 text-center">
-              <LogOut className="size-9 text-muted-foreground" />
+              <LogOut className="size-9 text-muted-foreground" aria-hidden />
               <p className="max-w-xs text-sm text-muted-foreground">
                 Calcula cesantías, intereses, prima y vacaciones proporcionales
                 más la indemnización al terminar el contrato.
@@ -1284,8 +1365,169 @@ function Liquidacion({ employees }: { employees: Employee[] }) {
             </CardContent>
           </Card>
         )}
+        {employeeId && <LiquidacionesGuardadas employeeId={employeeId} recargar={guardadas} />}
       </div>
     </div>
+  )
+}
+
+/**
+ * Liquidaciones guardadas del empleado. La aprobada (con el medio y la fecha
+ * real del pago) es la que la nómina electrónica del mes del retiro reporta.
+ */
+function LiquidacionesGuardadas({ employeeId, recargar }: { employeeId: string; recargar: number }) {
+  const [filas, setFilas] = React.useState<PayrollLiquidacion[]>([])
+  const [error, setError] = React.useState<string | null>(null)
+  const [ocupada, setOcupada] = React.useState<string | null>(null)
+  const [avisos, setAvisos] = React.useState<string[]>([])
+  const [medio, setMedio] = React.useState("")
+  const [fecha, setFecha] = React.useState("")
+  const confirm = useConfirm()
+
+  const cargar = React.useCallback(async () => {
+    try {
+      setFilas(await listarLiquidaciones(employeeId))
+      setError(null)
+    } catch (err) {
+      setError(errorMessage(err))
+    }
+    // `recargar` sube cuando se guarda una liquidación nueva: vuelve a pedir la lista.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [employeeId, recargar])
+
+  useLoadEffect(cargar)
+
+  async function aprobar(l: PayrollLiquidacion) {
+    setOcupada(l._id)
+    setError(null)
+    try {
+      const r = await aprobarLiquidacion(l._id, { medioPago: medio, fechaPago: fecha })
+      setAvisos(r.advertencias ?? [])
+      await cargar()
+    } catch (err) {
+      setError(errorMessage(err))
+    } finally {
+      setOcupada(null)
+    }
+  }
+
+  async function anular(l: PayrollLiquidacion) {
+    if (
+      !(await confirm({
+        title: "¿Anular esta liquidación?",
+        description:
+          l.estado === "aprobada"
+            ? "Si ya salió en la nómina electrónica, corrige ese documento con una nota de ajuste."
+            : "El borrador queda anulado.",
+        destructive: true,
+      }))
+    )
+      return
+    setOcupada(l._id)
+    try {
+      const r = await anularLiquidacion(l._id)
+      setAvisos(r.advertencias ?? [])
+      await cargar()
+    } catch (err) {
+      setError(errorMessage(err))
+    } finally {
+      setOcupada(null)
+    }
+  }
+
+  if (filas.length === 0 && !error) return null
+  return (
+    <Card className="mt-4">
+      <CardContent className="space-y-3 py-4">
+        <p className="text-sm font-semibold">Liquidaciones guardadas</p>
+        <p className="text-xs text-muted-foreground">
+          Conviene aprobar la liquidación ANTES de cerrar la nómina del mes del retiro: así la nómina le paga solo
+          los días hasta el retiro, con salud y pensión.
+        </p>
+        {avisos.map((a) => (
+          <p key={a} className="text-sm text-warning-ink" role="status">
+            {a}
+          </p>
+        ))}
+        {error && <p className="text-sm text-destructive">{error}</p>}
+        {filas.map((l) => (
+          <div key={l._id} className="space-y-2 rounded-md border border-border p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-sm">
+                Retiro {l.fechaRetiro} · {money.format(l.breakdown.total)}
+              </span>
+              <Badge
+                className={
+                  l.estado === "aprobada"
+                    ? "bg-success/10 text-success-ink"
+                    : l.estado === "borrador"
+                      ? "bg-warning/10 text-warning-ink"
+                      : "bg-muted text-muted-foreground"
+                }
+              >
+                {l.estado === "aprobada" ? "Aprobada" : l.estado === "borrador" ? "Borrador" : "Anulada"}
+              </Badge>
+            </div>
+            {l.estado === "aprobada" && l.pago && (
+              <p className="text-xs text-muted-foreground">
+                Pagada el {l.pago.fecha} ·{" "}
+                {MEDIOS_PAGO_NOMINA.find((m) => m.value === l.pago!.medio)?.label ?? l.pago.medio}
+              </p>
+            )}
+            {l.estado === "borrador" && (
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                <div className="space-y-1">
+                  <Label htmlFor={`liq-medio-${l._id}`}>Medio de pago</Label>
+                  <select
+                    id={`liq-medio-${l._id}`}
+                    className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm sm:w-40"
+                    value={medio}
+                    onChange={(e) => setMedio(e.target.value)}
+                  >
+                    <option value="">Elige</option>
+                    {MEDIOS_PAGO_NOMINA.map((m) => (
+                      <option key={m.value} value={m.value}>
+                        {m.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor={`liq-fecha-${l._id}`}>Fecha real de pago</Label>
+                  <Input
+                    id={`liq-fecha-${l._id}`}
+                    type="date"
+                    className="sm:w-40"
+                    value={fecha}
+                    onChange={(e) => setFecha(e.target.value)}
+                  />
+                </div>
+                <Button
+                  size="sm"
+                  disabled={!medio || !fecha || ocupada === l._id || l.breakdown.vacacionesDisfrutadasDias === undefined}
+                  title={l.breakdown.vacacionesDisfrutadasDias === undefined ? "Guárdala de nuevo con los días de vacaciones disfrutados" : undefined}
+                  onClick={() => void aprobar(l)}
+                >
+                  {ocupada === l._id && <Loader2 className="size-4 animate-spin" />}
+                  Aprobar
+                </Button>
+              </div>
+            )}
+            {l.estado !== "anulada" && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="text-destructive"
+                disabled={ocupada === l._id}
+                onClick={() => void anular(l)}
+              >
+                Anular
+              </Button>
+            )}
+          </div>
+        ))}
+      </CardContent>
+    </Card>
   )
 }
 
