@@ -306,6 +306,8 @@ export interface RegisterResolutionPayload {
   claveTecnica?: string
   /** Número por el que arranca el consecutivo. */
   empezarEn?: number
+  /** El servidor lee la clave técnica de la DIAN (no viaja al navegador). */
+  traerClaveDeDian?: boolean
 }
 
 /** Estado de la resolución de cada sede a la que el usuario tiene acceso. */
@@ -637,6 +639,10 @@ export interface RangoDian {
   desde: number
   hasta: number
   resolucion?: string
+  /** YYYY-MM-DD, como los da la DIAN. */
+  fechaResolucion?: string
+  vigenciaDesde?: string
+  vigenciaHasta?: string
   /** Ya hay una resolución registrada en la sede con ese número y prefijo. */
   registrada: boolean
 }

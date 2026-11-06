@@ -29,7 +29,15 @@ import {
   type ResolutionRow,
   type TipoResolucion,
 } from "@/lib/erp/api-einvoicing"
-import { mensajeRangosFallidos, payloadDeRango, textoRango } from "@/lib/erp/documento-fe"
+import {
+  claveRango,
+  coincideConRango,
+  mensajeRangosFallidos,
+  payloadDeRango,
+  rangoVencido,
+  textoRango,
+  textoVigencia,
+} from "@/lib/erp/documento-fe"
 import { errorMessage, fmtDate } from "@/lib/erp/finance-format"
 
 import { PageHeader } from "@/components/erp/page-header"
@@ -179,14 +187,26 @@ function ResolutionSheet({ open, onOpenChange, row, initialTipo, prefill, onSave
     setTipo(initialTipo)
     cargar(row, initialTipo)
     if (prefill) {
-      setF((prev) => ({ ...prev, ...prefill }))
-      if (prefill.rangoDesde !== undefined) setEmpezarEn(String(prefill.rangoDesde))
+      // Encima de lo guardado de ese tipo: solo se pisa lo que trae la DIAN.
+      const definidos = Object.fromEntries(
+        Object.entries(prefill).filter(([, v]) => v !== undefined && v !== ""),
+      )
+      setF((prev) => ({ ...prev, ...definidos }))
+      // Una resolución nueva arranca en el inicio del rango; la misma no mueve el consecutivo.
+      const guardada = resolucionDeTipo(row, initialTipo)?.resolucion
+      if (guardada?.numero !== prefill.numero && prefill.rangoDesde !== undefined) {
+        setEmpezarEn(String(prefill.rangoDesde))
+      }
     }
     setClaveTecnica("")
     setError(null)
     setErrorPrefijo(null)
   }, [open, row, initialTipo, prefill, cargar])
 
+  // Si el formulario sigue siendo el del rango de la DIAN, el servidor lee la
+  // clave técnica solo (no se pide ni viaja); si el usuario la teclea, manda esa.
+  const claveDeLaDian =
+    Boolean(prefill) && !claveTecnica.trim() && coincideConRango(f, prefill ?? {})
   const exigePrefijo = tipoExigePrefijo(tipo)
   const nombreTipo = TIPO_RESOLUCION_LABELS[tipo].toLowerCase()
 
@@ -249,6 +269,7 @@ function ResolutionSheet({ open, onOpenChange, row, initialTipo, prefill, onSave
         vigenciaDesde: f.vigenciaDesde || undefined,
         vigenciaHasta: f.vigenciaHasta || undefined,
         claveTecnica: claveTecnica.trim() || undefined,
+        traerClaveDeDian: claveDeLaDian || undefined,
         empezarEn: empezarEn ? Number(empezarEn) : undefined,
       })
       onSaved(rows)
@@ -302,6 +323,7 @@ function ResolutionSheet({ open, onOpenChange, row, initialTipo, prefill, onSave
             id="r-tipo"
             value={tipo}
             onChange={(e) => cambiarTipo(e.target.value as TipoResolucion)}
+            disabled={Boolean(prefill)}
             className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm"
           >
             {TIPOS_RESOLUCION.map((t) => (
@@ -446,7 +468,11 @@ function ResolutionSheet({ open, onOpenChange, row, initialTipo, prefill, onSave
         <Field
           id="r-clave"
           label="Clave técnica"
-          hint="Entra en el cálculo del CUFE. Sin ella no se puede emitir ninguna factura electrónica."
+          hint={
+            claveDeLaDian
+              ? "Se obtiene de la DIAN al guardar: no hace falta escribirla."
+              : "Entra en el cálculo del CUFE. Sin ella no se puede emitir ninguna factura electrónica."
+          }
         >
           <Input
             id="r-clave"
@@ -479,6 +505,7 @@ export default function ResolucionesPage() {
   const [rangosDe, setRangosDe] = React.useState<ResolutionRow | null>(null)
   const [rangos, setRangos] = React.useState<RangosDianVista | null>(null)
   const [cargandoRangos, setCargandoRangos] = React.useState(false)
+  const [tipoRango, setTipoRango] = React.useState<TipoResolucion>("invoice")
 
   function abrir(row: ResolutionRow, tipo: TipoResolucion) {
     setPrefill(null)
@@ -501,12 +528,9 @@ export default function ResolucionesPage() {
   }
 
   function usarRango(row: ResolutionRow, r: RangosDianVista["rangos"][number]) {
-    // Un rango con prefijo distinto al de la factura se registra como otro tipo.
-    const factura = row.resolucion?.prefijo ?? ""
-    const tipo: TipoResolucion =
-      !factura || (r.prefijo ?? "") === factura ? "invoice" : "pos"
+    // El tipo lo elige la persona: el prefijo no dice de qué documento es.
     setPrefill(payloadDeRango(r))
-    setEditingTipo(tipo)
+    setEditingTipo(tipoRango)
     setEditing(row)
     setRangosDe(null)
   }
@@ -620,7 +644,7 @@ export default function ResolucionesPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     <EstadoBadge estado={row.status.estado} />
-                    <Button size="sm" variant="outline" onClick={() => void traerRangos(row)}>
+                    <Button size="sm" variant="outline" disabled={cargandoRangos} onClick={() => void traerRangos(row)}>
                       <CloudDownload className="size-4" aria-hidden />
                       Traer rangos de la DIAN
                     </Button>
@@ -826,19 +850,41 @@ export default function ResolucionesPage() {
             La DIAN no tiene rangos autorizados para este emisor en este ambiente.
           </p>
         ) : (
+          <>
+          <Field id="rango-tipo" label="Registrar el rango elegido como">
+            <select
+              id="rango-tipo"
+              value={tipoRango}
+              onChange={(e) => setTipoRango(e.target.value as TipoResolucion)}
+              className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm"
+            >
+              {TIPOS_RESOLUCION.map((t) => (
+                <option key={t} value={t}>
+                  {TIPO_RESOLUCION_LABELS[t]}
+                </option>
+              ))}
+            </select>
+          </Field>
           <ul className="flex flex-col gap-2">
-            {rangos.rangos.map((r, i) => (
+            {rangos.rangos.map((r) => (
               <li
-                key={i}
+                key={claveRango(r)}
                 className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-sm"
               >
                 <div className="flex flex-col">
                   <span className="font-medium tabular-nums">{textoRango(r)}</span>
                   <span className="text-xs text-muted-foreground">
-                    Resolución {r.resolucion ?? "—"}
+                    Resolución {r.resolucion ?? "—"} · {textoVigencia(r)}
                   </span>
+                  {rangoVencido(r) && (
+                    <span className="text-xs font-medium text-destructive">
+                      Vencido: no se puede registrar.
+                    </span>
+                  )}
                 </div>
-                {r.registrada ? (
+                {rangoVencido(r) ? (
+                  <Badge variant="destructive">Vencido</Badge>
+                ) : r.registrada ? (
                   <Badge className="border-transparent bg-success/15 text-success-ink">
                     Ya registrada
                   </Badge>
@@ -854,11 +900,13 @@ export default function ResolucionesPage() {
               </li>
             ))}
           </ul>
+          </>
         )}
         {rangos?.ok && (
           <p className="text-xs text-muted-foreground">
-            La DIAN no entrega la clave técnica por aquí ni las fechas de
-            vigencia: se completan al registrar.
+            Al registrar, el servidor lee la clave técnica directamente de la
+            DIAN: no viaja al navegador ni hay que escribirla. Revisa el resto de
+            los datos antes de guardar.
           </p>
         )}
       </FormDialog>

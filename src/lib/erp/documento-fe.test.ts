@@ -6,6 +6,10 @@ import {
   mensajeRangosFallidos,
   motivoSinCorreo,
   payloadDeRango,
+  rangoVencido,
+  coincideConRango,
+  claveRango,
+  textoVigencia,
   textoEntrega,
   textoRango,
   tonoEstadoDian,
@@ -95,6 +99,21 @@ describe("CUFE y rangos", () => {
     })
     // La clave técnica nunca viene del rango.
     expect(payloadDeRango(r)).not.toHaveProperty("claveTecnica")
+  })
+  it("detecta rangos vencidos y arma la vigencia", () => {
+    const r = { desde: 1, hasta: 2, vigenciaDesde: "2020-01-01", vigenciaHasta: "2021-01-01", registrada: false }
+    expect(rangoVencido(r, new Date(2026, 10, 5))).toBe(true)
+    expect(rangoVencido({ ...r, vigenciaHasta: "2026-11-05" }, new Date(2026, 10, 5))).toBe(false)
+    expect(rangoVencido({ ...r, vigenciaHasta: undefined })).toBe(false)
+    expect(textoVigencia(r)).toBe("Vigente del 2020-01-01 al 2021-01-01")
+    expect(textoVigencia({ ...r, vigenciaDesde: undefined, vigenciaHasta: undefined })).toMatch(/Sin fechas/)
+  })
+  it("compara el formulario con el rango y da clave estable", () => {
+    const r = { prefijo: "FE", desde: 1, hasta: 5, resolucion: "9", registrada: false }
+    const base = payloadDeRango(r)
+    expect(coincideConRango({ ...base, prefijo: "fe" }, base)).toBe(true)
+    expect(coincideConRango({ ...base, rangoHasta: 6 }, base)).toBe(false)
+    expect(claveRango(r)).toBe("9|FE|1|5")
   })
   it("explica por qué no se pudieron traer los rangos", () => {
     expect(mensajeRangosFallidos({ ok: true, mensajes: [] })).toBeNull()

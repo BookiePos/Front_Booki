@@ -29,7 +29,9 @@ import {
   textoEntrega,
   tonoEstadoDian,
 } from "@/lib/erp/documento-fe"
+import { useAuth } from "@/lib/auth-context"
 import { errorMessage } from "@/lib/erp/finance-format"
+import { ApiError } from "@/lib/api"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -85,19 +87,12 @@ export function DetalleDocumentoFe({
   /** Avisa que el estado cambió (para refrescar la lista de atrás). */
   onCambio?: () => void
 }) {
+  const { hasPermission } = useAuth()
+  const puedeOtroCorreo = hasPermission("einvoicing.configure")
   const [d, setD] = React.useState<DetalleDocumentoFe | null>(null)
   const [error, setError] = React.useState<string | null>(null)
   const [busy, setBusy] = React.useState<string | null>(null)
   const [correo, setCorreo] = React.useState("")
-
-  const cargar = React.useCallback(async () => {
-    try {
-      setD(await getDetalleDocumento(docId))
-      setError(null)
-    } catch (err) {
-      setError(errorMessage(err))
-    }
-  }, [docId])
 
   React.useEffect(() => {
     let vivo = true
@@ -116,8 +111,13 @@ export function DetalleDocumentoFe({
       if (r.dianStatus === "accepted") toast.success("La DIAN aceptó el documento")
       else if (r.dianStatus === "rejected") toast.error("La DIAN rechazó el documento")
       else toast.info(r.mensajes[0] ?? `Estado: ${DIAN_STATUS_LABELS[r.dianStatus]}`)
-      await cargar()
       onCambio?.()
+      try {
+        setD(await getDetalleDocumento(docId))
+      } catch {
+        // El envío ya ocurrió: no se tapa el detalle con un error de recarga.
+        toast.warning("No se pudo actualizar el detalle. Ciérralo y ábrelo de nuevo.")
+      }
     } catch (err) {
       toast.error(errorMessage(err))
     } finally {
@@ -137,7 +137,7 @@ export function DetalleDocumentoFe({
       }
       const a = document.createElement("a")
       a.href = url
-      a.rel = "noopener"
+      a.rel = "noopener noreferrer"
       a.target = "_blank"
       document.body.appendChild(a)
       a.click()
@@ -160,9 +160,17 @@ export function DetalleDocumentoFe({
       const r = await enviarDocumentoPorCorreo(docId, indicado || undefined)
       toast.success(`Enviado a ${r.para}`)
       setCorreo("")
-      await cargar()
+      try {
+        setD(await getDetalleDocumento(docId))
+      } catch {
+        toast.warning("El correo salió, pero no se pudo actualizar el detalle.")
+      }
     } catch (err) {
-      toast.error(errorMessage(err))
+      toast.error(
+        err instanceof ApiError && err.status === 429
+          ? "Este documento se acaba de enviar o llegó al máximo de envíos. Espera un minuto."
+          : errorMessage(err),
+      )
     } finally {
       setBusy(null)
     }
@@ -298,14 +306,16 @@ export function DetalleDocumentoFe({
                 onChange={(e) => setCorreo(e.target.value)}
                 placeholder={correoAdquiriente ?? "correo@cliente.com"}
                 aria-label="Correo del destinatario"
-                disabled={sinCorreo !== null}
+                disabled={sinCorreo !== null || !puedeOtroCorreo}
+                title={puedeOtroCorreo ? undefined : "Enviar a otra dirección requiere permiso de configuración"}
               />
               <Button
                 size="sm"
                 disabled={
                   sinCorreo !== null ||
                   busy !== null ||
-                  (!correo.trim() && !correoAdquiriente)
+                  (!correo.trim() && !correoAdquiriente) ||
+                  (!puedeOtroCorreo && !correoAdquiriente)
                 }
                 onClick={() => void enviarCorreo()}
               >

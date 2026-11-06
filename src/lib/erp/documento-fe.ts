@@ -63,9 +63,9 @@ export function textoEntrega(d: DetalleDocumentoFe): string | null {
   if (!e?.estado) return "La entrega al cliente (PDF y ZIP) aún no se genera."
   if (e.estado === "completa") return "Entrega lista: XML firmado, PDF y ZIP."
   if (e.estado === "incompleta")
-    return "Solo el PDF está listo: falta el XML firmado para el cliente. Reintenta la generación."
+    return "Solo el PDF está listo: falta el XML firmado para el cliente."
   if (e.estado === "fallida")
-    return "La generación de los archivos para el cliente falló. Reintenta."
+    return "Falló la generación de los archivos para el cliente."
   return null
 }
 
@@ -91,7 +91,43 @@ export function payloadDeRango(r: RangoDian): RegisterResolutionPayload {
     prefijo: r.prefijo,
     rangoDesde: r.desde,
     rangoHasta: r.hasta,
+    fechaResolucion: r.fechaResolucion,
+    vigenciaDesde: r.vigenciaDesde,
+    vigenciaHasta: r.vigenciaHasta,
   }
+}
+
+/** ¿El rango de la DIAN ya venció? Compara por día (YYYY-MM-DD). */
+export function rangoVencido(r: RangoDian, hoy: Date = new Date()): boolean {
+  if (!r.vigenciaHasta) return false
+  const h = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, "0")}-${String(hoy.getDate()).padStart(2, "0")}`
+  return r.vigenciaHasta < h
+}
+
+/** «Vigente 2026-01-02 a 2028-01-02» o lo que se sepa. */
+export function textoVigencia(r: RangoDian): string {
+  if (r.vigenciaDesde && r.vigenciaHasta)
+    return `Vigente del ${r.vigenciaDesde} al ${r.vigenciaHasta}`
+  if (r.vigenciaHasta) return `Vigente hasta ${r.vigenciaHasta}`
+  return "Sin fechas de vigencia"
+}
+
+/** ¿Los datos del formulario siguen siendo los del rango traído de la DIAN? */
+export function coincideConRango(
+  f: RegisterResolutionPayload,
+  base: RegisterResolutionPayload,
+): boolean {
+  return (
+    (f.numero ?? "") === (base.numero ?? "") &&
+    (f.prefijo ?? "").toUpperCase() === (base.prefijo ?? "").toUpperCase() &&
+    f.rangoDesde === base.rangoDesde &&
+    f.rangoHasta === base.rangoHasta
+  )
+}
+
+/** Clave estable de un rango en la lista. */
+export function claveRango(r: RangoDian): string {
+  return `${r.resolucion ?? ""}|${r.prefijo ?? ""}|${r.desde}|${r.hasta}`
 }
 
 /** Mensaje al usuario cuando la consulta de rangos no salió bien. */
