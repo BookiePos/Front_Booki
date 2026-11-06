@@ -1104,6 +1104,10 @@ function Liquidacion({ employees }: { employees: Employee[] }) {
   const [motivo, setMotivo] = React.useState("sin_justa_causa")
   const [salariosPend, setSalariosPend] = React.useState("")
   const [diasFaltantes, setDiasFaltantes] = React.useState("")
+  // Revisión contable: las cesantías de años anteriores ya se consignaron y las
+  // vacaciones disfrutadas se descuentan (CST arts. 186 y 189).
+  const [inicioCesantias, setInicioCesantias] = React.useState("")
+  const [vacDisfrutadas, setVacDisfrutadas] = React.useState("")
   const [result, setResult] = React.useState<LiquidacionResult | null>(null)
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
@@ -1121,6 +1125,8 @@ function Liquidacion({ employees }: { employees: Employee[] }) {
       motivo,
       salariosPendientes: numOr(salariosPend),
       diasFaltantesContrato: numOr(diasFaltantes),
+      inicioCesantias: inicioCesantias || undefined,
+      vacacionesDisfrutadasDias: vacDisfrutadas === "" ? undefined : numOr(vacDisfrutadas),
     }
   }
 
@@ -1251,6 +1257,22 @@ function Liquidacion({ employees }: { employees: Employee[] }) {
             )}
           </div>
 
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <Field
+              label="Días de vacaciones ya disfrutados (obligatorio para aprobar)"
+              value={vacDisfrutadas}
+              onChange={setVacDisfrutadas}
+            />
+            <div className="flex flex-col gap-1">
+              <Label className="text-xs">Cesantías desde (vacío = 1-ene del año del retiro)</Label>
+              <Input
+                type="date"
+                value={inicioCesantias}
+                onChange={(e) => setInicioCesantias(e.target.value)}
+              />
+            </div>
+          </div>
+
           {error && <p className="text-sm text-destructive">{error}</p>}
           <Button className="gap-2" disabled={busy} onClick={() => void calc()}>
             {busy ? <Loader2 className="size-4 animate-spin" /> : <LogOut className="size-4" />}
@@ -1271,6 +1293,12 @@ function Liquidacion({ employees }: { employees: Employee[] }) {
                   {b.diasLiquidados} días · base prestacional{" "}
                   {money.format(b.basePrestacional)}
                 </p>
+                {b.diasCesantias !== undefined && (
+                  <p className="text-xs text-muted-foreground">
+                    Cesantías desde {b.inicioCesantias} ({b.diasCesantias} días) · vacaciones
+                    pendientes {b.diasVacacionesPendientes} de {b.diasVacacionesCausados} días
+                  </p>
+                )}
               </div>
               <LiqRow label="Cesantías" value={b.cesantias} />
               <LiqRow label="Intereses de cesantías" value={b.interesesCesantias} />
@@ -1300,12 +1328,17 @@ function Liquidacion({ employees }: { employees: Employee[] }) {
                   <Button
                     size="sm"
                     variant="outline"
-                    disabled={guardando || numOr(salariosPend) > 0}
+                    disabled={guardando || numOr(salariosPend) > 0 || vacDisfrutadas === ""}
                     onClick={() => void guardar()}
                   >
                     {guardando && <Loader2 className="size-4 animate-spin" />}
                     Guardar como borrador
                   </Button>
+                  {vacDisfrutadas === "" && (
+                    <p className="text-[11px] text-muted-foreground">
+                      Indica cuántos días de vacaciones ya disfrutó (0 si ninguno): se descuentan de las pendientes.
+                    </p>
+                  )}
                   {numOr(salariosPend) > 0 && (
                     <p className="text-[11px] text-muted-foreground">
                       Para guardarla deja «salarios pendientes» en 0: el último sueldo
@@ -1452,7 +1485,12 @@ function LiquidacionesGuardadas({ employeeId, recargar }: { employeeId: string; 
                     onChange={(e) => setFecha(e.target.value)}
                   />
                 </div>
-                <Button size="sm" disabled={!medio || !fecha || ocupada === l._id} onClick={() => void aprobar(l)}>
+                <Button
+                  size="sm"
+                  disabled={!medio || !fecha || ocupada === l._id || l.breakdown.vacacionesDisfrutadasDias === undefined}
+                  title={l.breakdown.vacacionesDisfrutadasDias === undefined ? "Guárdala de nuevo con los días de vacaciones disfrutados" : undefined}
+                  onClick={() => void aprobar(l)}
+                >
                   {ocupada === l._id && <Loader2 className="size-4 animate-spin" />}
                   Aprobar
                 </Button>

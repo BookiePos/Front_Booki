@@ -217,6 +217,14 @@ export interface PagoNomina {
 
 export interface LiquidacionBreakdown {
   diasLiquidados: number
+  diasPrima?: number
+  /** Cesantías e intereses: solo desde max(ingreso, 1-ene del año del retiro), o lo que se indique. */
+  inicioCesantias?: string
+  diasCesantias?: number
+  /** Días hábiles de vacaciones: causados, ya disfrutados y pendientes (los que se pagan). */
+  diasVacacionesCausados?: number
+  vacacionesDisfrutadasDias?: number
+  diasVacacionesPendientes?: number
   salarioBase: number
   auxilioTransporte: number
   basePrestacional: number
@@ -296,6 +304,8 @@ export async function computeLiquidacion(payload: {
   motivo: string
   salariosPendientes?: number
   diasFaltantesContrato?: number
+  inicioCesantias?: string
+  vacacionesDisfrutadasDias?: number
 }): Promise<LiquidacionResult> {
   const res = await authFetch("/payroll/liquidacion", {
     method: "POST",
