@@ -1323,6 +1323,11 @@ function Liquidacion({ employees }: { employees: Employee[] }) {
                 Estimación. La indemnización y casos especiales pueden requerir
                 revisión del contador o abogado.
               </p>
+              {(result?.advertencias ?? []).map((a) => (
+                <p key={a} className="mt-2 text-[11px] text-warning-ink" role="status">
+                  {a}
+                </p>
+              ))}
               {employeeId && (
                 <div className="mt-3 space-y-1 border-t border-border pt-3">
                   <Button
@@ -1374,6 +1379,7 @@ function LiquidacionesGuardadas({ employeeId, recargar }: { employeeId: string; 
   const [filas, setFilas] = React.useState<PayrollLiquidacion[]>([])
   const [error, setError] = React.useState<string | null>(null)
   const [ocupada, setOcupada] = React.useState<string | null>(null)
+  const [avisos, setAvisos] = React.useState<string[]>([])
   const [medio, setMedio] = React.useState("")
   const [fecha, setFecha] = React.useState("")
   const confirm = useConfirm()
@@ -1395,7 +1401,8 @@ function LiquidacionesGuardadas({ employeeId, recargar }: { employeeId: string; 
     setOcupada(l._id)
     setError(null)
     try {
-      await aprobarLiquidacion(l._id, { medioPago: medio, fechaPago: fecha })
+      const r = await aprobarLiquidacion(l._id, { medioPago: medio, fechaPago: fecha })
+      setAvisos(r.advertencias ?? [])
       await cargar()
     } catch (err) {
       setError(errorMessage(err))
@@ -1418,7 +1425,8 @@ function LiquidacionesGuardadas({ employeeId, recargar }: { employeeId: string; 
       return
     setOcupada(l._id)
     try {
-      await anularLiquidacion(l._id)
+      const r = await anularLiquidacion(l._id)
+      setAvisos(r.advertencias ?? [])
       await cargar()
     } catch (err) {
       setError(errorMessage(err))
@@ -1432,6 +1440,15 @@ function LiquidacionesGuardadas({ employeeId, recargar }: { employeeId: string; 
     <Card className="mt-4">
       <CardContent className="space-y-3 py-4">
         <p className="text-sm font-semibold">Liquidaciones guardadas</p>
+        <p className="text-xs text-muted-foreground">
+          Conviene aprobar la liquidación ANTES de cerrar la nómina del mes del retiro: así la nómina le paga solo
+          los días hasta el retiro, con salud y pensión.
+        </p>
+        {avisos.map((a) => (
+          <p key={a} className="text-sm text-warning-ink" role="status">
+            {a}
+          </p>
+        ))}
         {error && <p className="text-sm text-destructive">{error}</p>}
         {filas.map((l) => (
           <div key={l._id} className="space-y-2 rounded-md border border-border p-3">

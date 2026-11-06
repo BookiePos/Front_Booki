@@ -270,17 +270,20 @@ export async function listarLiquidaciones(employeeId?: string): Promise<PayrollL
 export async function aprobarLiquidacion(
   id: string,
   pago: { medioPago: string; fechaPago: string },
-): Promise<PayrollLiquidacion> {
+): Promise<PayrollLiquidacion & { advertencias: string[] }> {
   const res = await authFetch(`/payroll/liquidaciones/${id}/aprobar`, { method: "POST", body: JSON.stringify(pago) })
-  return parseResponse<PayrollLiquidacion>(res)
+  return parseResponse<PayrollLiquidacion & { advertencias: string[] }>(res)
 }
 
-export async function anularLiquidacion(id: string): Promise<PayrollLiquidacion> {
+/** Anula; no deshace el retiro del expediente (la respuesta lo avisa). */
+export async function anularLiquidacion(id: string): Promise<PayrollLiquidacion & { advertencias: string[] }> {
   const res = await authFetch(`/payroll/liquidaciones/${id}/anular`, { method: "POST" })
-  return parseResponse<PayrollLiquidacion>(res)
+  return parseResponse<PayrollLiquidacion & { advertencias: string[] }>(res)
 }
 
 export interface LiquidacionResult {
+  /** Avisos que no bloquean (p. ej. devengos variables, art. 253 CST). */
+  advertencias?: string[]
   input: {
     employeeId?: string
     employeeName?: string
