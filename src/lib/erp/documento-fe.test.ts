@@ -6,6 +6,9 @@ import {
   mensajeRangosFallidos,
   motivoSinCorreo,
   payloadDeRango,
+  motivoRangoNoRegistrable,
+  formularioDesdeRango,
+  exigeClaveManual,
   rangoVencido,
   coincideConRango,
   claveRango,
@@ -120,5 +123,66 @@ describe("CUFE y rangos", () => {
     expect(mensajeRangosFallidos({ ok: false, codigo: "CONFIG_FALTANTE", mensajes: [] })).toMatch(/Falta configurar/)
     expect(mensajeRangosFallidos({ ok: false, mensajes: ["x"] })).toBe("x")
     expect(mensajeRangosFallidos({ ok: false, mensajes: [] })).toMatch(/no respondió/)
+  })
+})
+
+describe("registrar desde un rango de la DIAN", () => {
+  const rango = {
+    numero: "9",
+    prefijo: "FE",
+    rangoDesde: 1,
+    rangoHasta: 5,
+    fechaResolucion: "2026-01-01",
+    vigenciaDesde: "2026-01-02",
+    vigenciaHasta: "2099-01-01",
+  }
+  it("otra resolución parte en blanco y copia todo, también lo vacío", () => {
+    const guardado = {
+      numero: "1",
+      prefijo: "OLD",
+      rangoDesde: 10,
+      rangoHasta: 20,
+      vigenciaDesde: "2020-01-01",
+      vigenciaHasta: "2021-01-01",
+      fechaResolucion: "2020-01-01",
+      claveTecnica: "vieja",
+    }
+    const { form, reiniciaConsecutivo } = formularioDesdeRango(guardado, {
+      ...rango,
+      prefijo: undefined,
+      vigenciaDesde: undefined,
+    })
+    expect(form.prefijo).toBe("")
+    expect(form.vigenciaDesde).toBe("")
+    expect(form.numero).toBe("9")
+    expect(form.rangoHasta).toBe(5)
+    expect(form).not.toHaveProperty("claveTecnica")
+    expect(reiniciaConsecutivo).toBe(true)
+  })
+  it("la misma resolución conserva lo guardado y no mueve el consecutivo", () => {
+    const { form, reiniciaConsecutivo } = formularioDesdeRango(
+      { numero: "9", prefijo: "FE", claveTecnica: "x" },
+      rango,
+    )
+    expect(form.claveTecnica).toBe("x")
+    expect(form.vigenciaHasta).toBe("2099-01-01")
+    expect(reiniciaConsecutivo).toBe(false)
+  })
+  it("sin guardado parte en blanco", () => {
+    expect(formularioDesdeRango(undefined, rango).form.numero).toBe("9")
+  })
+  it("sin vigenciaHasta o vencido no se registra", () => {
+    const r = { desde: 1, hasta: 2, registrada: false }
+    expect(motivoRangoNoRegistrable(r)).toMatch(/no informa/)
+    expect(motivoRangoNoRegistrable({ ...r, vigenciaHasta: "2020-01-01" })).toMatch(/Vencido/)
+    expect(motivoRangoNoRegistrable({ ...r, vigenciaHasta: "2099-01-01" })).toBeNull()
+  })
+  it("la clave se exige a mano si el servidor no puede leerla", () => {
+    const ok = { desdeRango: true, coincide: true, puedeConfigurar: true, claveTecleada: false }
+    expect(exigeClaveManual(ok)).toBe(false)
+    expect(exigeClaveManual({ ...ok, coincide: false })).toBe(true)
+    expect(exigeClaveManual({ ...ok, puedeConfigurar: false })).toBe(true)
+    expect(exigeClaveManual({ ...ok, desdeRango: false })).toBe(true)
+    expect(exigeClaveManual({ ...ok, coincide: false, claveTecleada: true })).toBe(false)
   })
 })

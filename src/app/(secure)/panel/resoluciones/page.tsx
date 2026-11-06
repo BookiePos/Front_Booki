@@ -32,6 +32,9 @@ import {
 import {
   claveRango,
   coincideConRango,
+  exigeClaveManual,
+  formularioDesdeRango,
+  motivoRangoNoRegistrable,
   mensajeRangosFallidos,
   payloadDeRango,
   rangoVencido,
@@ -148,6 +151,7 @@ interface ResolutionSheetProps {
 }
 
 function ResolutionSheet({ open, onOpenChange, row, initialTipo, prefill, onSaved }: ResolutionSheetProps) {
+  const { hasPermission } = useAuth()
   const [tipo, setTipo] = React.useState<TipoResolucion>("invoice")
   const [f, setF] = React.useState<RegisterResolutionPayload>({})
   const [empezarEn, setEmpezarEn] = React.useState("")
@@ -187,15 +191,26 @@ function ResolutionSheet({ open, onOpenChange, row, initialTipo, prefill, onSave
     setTipo(initialTipo)
     cargar(row, initialTipo)
     if (prefill) {
-      // Encima de lo guardado de ese tipo: solo se pisa lo que trae la DIAN.
-      const definidos = Object.fromEntries(
-        Object.entries(prefill).filter(([, v]) => v !== undefined && v !== ""),
-      )
-      setF((prev) => ({ ...prev, ...definidos }))
-      // Una resolución nueva arranca en el inicio del rango; la misma no mueve el consecutivo.
+      // Otra resolución: formulario en blanco con TODO lo del rango; la misma, encima de lo guardado.
       const guardada = resolucionDeTipo(row, initialTipo)?.resolucion
-      if (guardada?.numero !== prefill.numero && prefill.rangoDesde !== undefined) {
-        setEmpezarEn(String(prefill.rangoDesde))
+      const { form, reiniciaConsecutivo } = formularioDesdeRango(
+        guardada
+          ? {
+              numero: guardada.numero,
+              prefijo: guardada.prefijo,
+              rangoDesde: guardada.rangoDesde,
+              rangoHasta: guardada.rangoHasta,
+              fechaResolucion: guardada.fechaResolucion?.slice(0, 10),
+              vigenciaDesde: guardada.vigenciaDesde?.slice(0, 10),
+              vigenciaHasta: guardada.vigenciaHasta?.slice(0, 10),
+            }
+          : undefined,
+        prefill,
+      )
+      baseline.current = JSON.stringify(form)
+      setF(form)
+      if (reiniciaConsecutivo) {
+        setEmpezarEn(prefill.rangoDesde !== undefined ? String(prefill.rangoDesde) : "")
       }
     }
     setClaveTecnica("")
@@ -205,8 +220,15 @@ function ResolutionSheet({ open, onOpenChange, row, initialTipo, prefill, onSave
 
   // Si el formulario sigue siendo el del rango de la DIAN, el servidor lee la
   // clave técnica solo (no se pide ni viaja); si el usuario la teclea, manda esa.
-  const claveDeLaDian =
-    Boolean(prefill) && !claveTecnica.trim() && coincideConRango(f, prefill ?? {})
+  const puedeConfigurar = hasPermission("einvoicing.configure")
+  const coincide = coincideConRango(f, prefill ?? {})
+  const claveManual = exigeClaveManual({
+    desdeRango: Boolean(prefill),
+    coincide,
+    puedeConfigurar,
+    claveTecleada: Boolean(claveTecnica.trim()),
+  })
+  const claveDeLaDian = Boolean(prefill) && !claveTecnica.trim() && !claveManual
   const exigePrefijo = tipoExigePrefijo(tipo)
   const nombreTipo = TIPO_RESOLUCION_LABELS[tipo].toLowerCase()
 
@@ -257,6 +279,15 @@ function ResolutionSheet({ open, onOpenChange, row, initialTipo, prefill, onSave
       return
     }
     setErrorPrefijo(null)
+    if (prefill && claveManual) {
+      setError(
+        puedeConfigurar
+          ? "Cambiaste datos del rango de la DIAN: escribe la clave técnica a mano."
+          : "No tienes permiso de configuración para traer la clave de la DIAN: escríbela a mano.",
+      )
+      document.getElementById("r-clave")?.focus()
+      return
+    }
     setSaving(true)
     setError(null)
     try {
@@ -495,6 +526,7 @@ function ResolutionSheet({ open, onOpenChange, row, initialTipo, prefill, onSave
 export default function ResolucionesPage() {
   const { hasPermission } = useAuth()
   const canIssue = hasPermission("einvoicing.issue")
+  const canConfigure = hasPermission("einvoicing.configure")
 
   const [rows, setRows] = React.useState<ResolutionRow[]>([])
   const [loading, setLoading] = React.useState(true)
@@ -644,7 +676,9 @@ export default function ResolucionesPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     <EstadoBadge estado={row.status.estado} />
-                    <Button size="sm" variant="outline" disabled={cargandoRangos} onClick={() => void traerRangos(row)}>
+                    <Button size="sm" variant="outline" disabled={cargandoRangos || !canConfigure}
+                      title={canConfigure ? undefined : "Requiere permiso de configuración de facturación electrónica"}
+                      onClick={() => void traerRangos(row)}>
                       <CloudDownload className="size-4" aria-hidden />
                       Traer rangos de la DIAN
                     </Button>
@@ -876,14 +910,14 @@ export default function ResolucionesPage() {
                   <span className="text-xs text-muted-foreground">
                     Resolución {r.resolucion ?? "—"} · {textoVigencia(r)}
                   </span>
-                  {rangoVencido(r) && (
+                  {motivoRangoNoRegistrable(r) && (
                     <span className="text-xs font-medium text-destructive">
-                      Vencido: no se puede registrar.
+                      {motivoRangoNoRegistrable(r)}
                     </span>
                   )}
                 </div>
-                {rangoVencido(r) ? (
-                  <Badge variant="destructive">Vencido</Badge>
+                {motivoRangoNoRegistrable(r) ? (
+                  <Badge variant="destructive">{rangoVencido(r) ? "Vencido" : "Sin vigencia"}</Badge>
                 ) : r.registrada ? (
                   <Badge className="border-transparent bg-success/15 text-success-ink">
                     Ya registrada

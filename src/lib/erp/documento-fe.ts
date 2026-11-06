@@ -143,3 +143,64 @@ export function mensajeRangosFallidos(
   }
   return r.mensajes[0] ?? "La DIAN no respondió los rangos. Inténtalo de nuevo."
 }
+
+/** Por qué un rango de la DIAN no se puede registrar (o `null` si sí). */
+export function motivoRangoNoRegistrable(
+  r: RangoDian,
+  hoy: Date = new Date(),
+): string | null {
+  if (!r.vigenciaHasta) return "La DIAN no informa la vigencia final: no se puede registrar."
+  if (rangoVencido(r, hoy)) return "Vencido: no se puede registrar."
+  return null
+}
+
+const CAMPOS_RANGO = [
+  "numero",
+  "fechaResolucion",
+  "prefijo",
+  "rangoDesde",
+  "rangoHasta",
+  "vigenciaDesde",
+  "vigenciaHasta",
+] as const
+
+/**
+ * Formulario al registrar desde un rango de la DIAN.
+ *
+ * - Misma resolución que la guardada (mismo número): parte de lo guardado y se
+ *   pisa con lo que trae el rango.
+ * - Otra resolución: parte EN BLANCO y copia TODOS los campos del rango, también
+ *   los vacíos, para que no quede nada de la resolución anterior.
+ * `reiniciaConsecutivo` dice si el consecutivo arranca en el inicio del rango.
+ */
+export function formularioDesdeRango(
+  guardado: RegisterResolutionPayload | undefined,
+  rango: RegisterResolutionPayload,
+): { form: RegisterResolutionPayload; reiniciaConsecutivo: boolean } {
+  const misma = Boolean(guardado?.numero) && guardado?.numero === rango.numero
+  const form: Record<string, unknown> = misma ? { ...guardado } : {}
+  for (const k of CAMPOS_RANGO) {
+    const v = rango[k]
+    if (misma) {
+      if (v !== undefined && v !== "") form[k] = v
+    } else {
+      form[k] = v ?? (k === "rangoDesde" || k === "rangoHasta" ? undefined : "")
+    }
+  }
+  return { form: form as RegisterResolutionPayload, reiniciaConsecutivo: !misma }
+}
+
+/**
+ * ¿Se pide la clave técnica a mano? Sí cuando el servidor no la puede leer de
+ * la DIAN: no hay rango, el formulario ya no coincide con el rango, o el
+ * usuario no tiene `einvoicing.configure`. Si ya la tecleó, no se vuelve a pedir.
+ */
+export function exigeClaveManual(o: {
+  desdeRango: boolean
+  coincide: boolean
+  puedeConfigurar: boolean
+  claveTecleada: boolean
+}): boolean {
+  if (o.claveTecleada) return false
+  return !(o.desdeRango && o.coincide && o.puedeConfigurar)
+}
