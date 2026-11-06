@@ -35,6 +35,8 @@ import {
   getPayrollRun,
   deletePayrollRun,
   closePayrollRun,
+  declararPagoNomina,
+  MEDIOS_PAGO_NOMINA,
   recalcPayrollRun,
   computeLiquidacion,
   novedadesTurnos,
@@ -482,6 +484,28 @@ function RunDetail({
   const confirm = useConfirm()
 
   const isClosed = run.status === "cerrada"
+  // Medio y fecha real del pago (nómina electrónica): se declaran al cerrar o después.
+  const [medioPago, setMedioPago] = React.useState(run.pago?.medio ?? "")
+  const [fechaPago, setFechaPago] = React.useState(run.pago?.fecha ?? "")
+  const [savingPago, setSavingPago] = React.useState(false)
+  const [pagoMsg, setPagoMsg] = React.useState<{ ok: boolean; text: string } | null>(null)
+  const pagoCompleto = medioPago !== "" && fechaPago !== ""
+  const pagoAMedias = (medioPago !== "") !== (fechaPago !== "")
+
+  async function handleGuardarPago() {
+    if (!pagoCompleto) return
+    setSavingPago(true)
+    setPagoMsg(null)
+    try {
+      const updated = await declararPagoNomina(run._id, { medioPago, fechaPago })
+      onChanged?.(updated)
+      setPagoMsg({ ok: true, text: "Pago guardado." })
+    } catch (e) {
+      setPagoMsg({ ok: false, text: e instanceof ApiError ? e.message : "No se pudo guardar el pago." })
+    } finally {
+      setSavingPago(false)
+    }
+  }
 
   async function handleRecalc() {
     setRecalcing(true)
@@ -506,15 +530,19 @@ function RunDetail({
     if (
       !(await confirm({
         title: `¿Generar el cierre de la nómina de ${run.period}?`,
-        description:
-          "Quedará fija en el historial y no se podrá eliminar.",
+        description: pagoCompleto
+          ? "Quedará fija en el historial y no se podrá eliminar."
+          : "Quedará fija en el historial y no se podrá eliminar. No declaraste el medio y la fecha del pago: decláralos después, sin ellos no sale la nómina electrónica del mes.",
         destructive: true,
       }))
     )
       return
     setClosing(true)
     try {
-      const updated = await closePayrollRun(run._id)
+      const updated = await closePayrollRun(
+        run._id,
+        pagoCompleto ? { medioPago, fechaPago } : undefined,
+      )
       onChanged?.(updated)
     } catch (e) {
       alert(e instanceof ApiError ? e.message : "No se pudo cerrar la nómina.")
@@ -598,7 +626,7 @@ function RunDetail({
               <Button
                 size="sm"
                 className="gap-2"
-                disabled={closing || recalcing || run.slips.length === 0}
+                disabled={closing || recalcing || run.slips.length === 0 || pagoAMedias}
                 onClick={() => void handleClose()}
               >
                 {closing ? (
@@ -612,6 +640,67 @@ function RunDetail({
           )
         )}
       </div>
+
+      {onChanged && (
+        <Card>
+          <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-end">
+            <div className="flex-1 space-y-1">
+              <p className="text-sm font-medium">Pago de la nómina</p>
+              <p className="text-xs text-muted-foreground">
+                {isClosed && run.pago
+                  ? "Declarado. Si ya emitiste la nómina electrónica del mes, al cambiarlo corrígela con una nota de ajuste."
+                  : "Cómo y qué día pagaste de verdad. Sin estos datos no sale la nómina electrónica del mes."}
+              </p>
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor={`medio-${run._id}`}>Medio</Label>
+              <select
+                id={`medio-${run._id}`}
+                className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm sm:w-44"
+                value={medioPago}
+                onChange={(e) => setMedioPago(e.target.value)}
+              >
+                <option value="">Sin declarar</option>
+                {MEDIOS_PAGO_NOMINA.map((m) => (
+                  <option key={m.value} value={m.value}>
+                    {m.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor={`fecha-${run._id}`}>Fecha real de pago</Label>
+              <Input
+                id={`fecha-${run._id}`}
+                type="date"
+                className="sm:w-44"
+                value={fechaPago}
+                min={`${run.period}-01`}
+                onChange={(e) => setFechaPago(e.target.value)}
+              />
+            </div>
+            {isClosed && (
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!pagoCompleto || savingPago}
+                onClick={() => void handleGuardarPago()}
+              >
+                {savingPago && <Loader2 className="size-4 animate-spin" />}
+                Guardar pago
+              </Button>
+            )}
+          </CardContent>
+          {(pagoAMedias || pagoMsg) && (
+            <p
+              className={`px-4 pb-3 text-xs ${pagoMsg?.ok ? "text-success-ink" : "text-destructive"}`}
+              role="status"
+            >
+              {pagoMsg ? pagoMsg.text : "Declara el medio y la fecha, o ninguno de los dos."}
+            </p>
+          )}
+        </Card>
+      )}
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <Kpi label="Neto a pagar" value={money.format(run.totals.neto)} accent />

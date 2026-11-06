@@ -195,6 +195,24 @@ export interface PayrollRun {
   createdAt: string
   /** Fecha de cierre (si status === "cerrada"). */
   closedAt?: string
+  /** Medio (código DIAN) y fecha real del pago; sin ellos no sale la nómina electrónica del mes. */
+  pago?: PagoNomina
+}
+
+/** Medios con que se paga una nómina (tabla 5.3.3.2 de la DIAN). */
+export const MEDIOS_PAGO_NOMINA = [
+  { value: "10", label: "Efectivo" },
+  { value: "47", label: "Transferencia" },
+  { value: "42", label: "Consignación" },
+  { value: "20", label: "Cheque" },
+] as const
+
+export interface PagoNomina {
+  medio: string
+  /** YYYY-MM-DD */
+  fecha: string
+  declaradoPor?: string
+  declaradoEn?: string
 }
 
 export interface LiquidacionBreakdown {
@@ -356,9 +374,31 @@ export async function recalcPayrollRun(id: string): Promise<PayrollRun> {
   return parseResponse<PayrollRun>(res)
 }
 
-/** Cierra una corrida (borrador → cerrada); queda fija en el historial. */
-export async function closePayrollRun(id: string): Promise<PayrollRun> {
-  const res = await authFetch(`/payroll/runs/${id}/close`, { method: "POST" })
+/**
+ * Cierra una corrida (borrador → cerrada); queda fija en el historial. El
+ * medio y la fecha real del pago van juntos o no van (se pueden declarar
+ * después con `declararPagoNomina`).
+ */
+export async function closePayrollRun(
+  id: string,
+  pago?: { medioPago: string; fechaPago: string },
+): Promise<PayrollRun> {
+  const res = await authFetch(`/payroll/runs/${id}/close`, {
+    method: "POST",
+    body: JSON.stringify(pago ?? {}),
+  })
+  return parseResponse<PayrollRun>(res)
+}
+
+/** Declara (o corrige) el medio y la fecha real del pago de una corrida cerrada. */
+export async function declararPagoNomina(
+  id: string,
+  pago: { medioPago: string; fechaPago: string },
+): Promise<PayrollRun> {
+  const res = await authFetch(`/payroll/runs/${id}/pago`, {
+    method: "PUT",
+    body: JSON.stringify(pago),
+  })
   return parseResponse<PayrollRun>(res)
 }
 
