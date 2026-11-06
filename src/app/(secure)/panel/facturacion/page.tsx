@@ -6,7 +6,6 @@ import {
   ShieldOff,
   Printer,
   Ban,
-  CheckCircle2,
   Loader2,
   Receipt as ReceiptIcon,
   AlertTriangle,
@@ -27,6 +26,7 @@ import { ApiError } from "@/lib/api"
 
 import { PageHeader } from "@/components/erp/page-header"
 import { FacturaElectronica } from "@/components/erp/factura-electronica"
+import { DetalleDocumentoFe } from "@/components/erp/detalle-documento-fe"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -39,7 +39,6 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { FormDialog } from "@/components/ui/form-dialog"
-import { Termino } from "@/components/ui/help-tip"
 
 const money = new Intl.NumberFormat("es-CO", {
   style: "currency",
@@ -407,7 +406,7 @@ export default function FacturacionPage() {
         size="3xl"
         icon={FileText}
         title={selected?.fullNumber ?? "Factura"}
-        description="Representación gráfica de la factura electrónica."
+        description="Estado ante la DIAN, descargas y representación gráfica."
         footer={
           <>
             <Button
@@ -418,27 +417,14 @@ export default function FacturacionPage() {
               <Printer />
               Imprimir / PDF
             </Button>
-            <Button
-              variant="outline"
-              className="no-print"
-              disabled
-              title="Requiere integración con la DIAN"
-            >
-              <CheckCircle2 />
-              Enviar a DIAN
-            </Button>
             <Button onClick={() => setSelected(null)}>Cerrar</Button>
           </>
         }
       >
         {selected && (
           <>
+            <DetalleDocumentoFe key={selected._id} docId={selected._id} onCambio={() => void load()} />
             <FacturaElectronica doc={selected} />
-            <p className="no-print text-center text-xs text-muted-foreground">
-              El envío y la validación ante la{" "}
-              <Termino>DIAN</Termino> se habilitan al integrar el{" "}
-              <Termino>proveedor tecnológico</Termino>.
-            </p>
           </>
         )}
       </FormDialog>

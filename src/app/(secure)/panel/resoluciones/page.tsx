@@ -5,6 +5,7 @@ import Link from "next/link"
 import {
   CircleCheck,
   ClipboardList,
+  CloudDownload,
   Loader2,
   Pencil,
   ScrollText,
@@ -20,12 +21,26 @@ import {
   TIPOS_RESOLUCION,
   TIPO_RESOLUCION_LABELS,
   resolucionDeTipo,
+  traerRangosDian,
+  type RangosDianVista,
   tipoExigePrefijo,
   type EstadoResolucion,
   type RegisterResolutionPayload,
   type ResolutionRow,
   type TipoResolucion,
 } from "@/lib/erp/api-einvoicing"
+import {
+  claveRango,
+  coincideConRango,
+  exigeClaveManual,
+  formularioDesdeRango,
+  motivoRangoNoRegistrable,
+  mensajeRangosFallidos,
+  payloadDeRango,
+  rangoVencido,
+  textoRango,
+  textoVigencia,
+} from "@/lib/erp/documento-fe"
 import { errorMessage, fmtDate } from "@/lib/erp/finance-format"
 
 import { PageHeader } from "@/components/erp/page-header"
@@ -130,10 +145,13 @@ interface ResolutionSheetProps {
   row: ResolutionRow | null
   /** Tipo con el que abre el formulario. */
   initialTipo: TipoResolucion
+  /** Datos de un rango de la DIAN para pre-llenar (la clave técnica no viene). */
+  prefill?: RegisterResolutionPayload | null
   onSaved: (rows: ResolutionRow[]) => void
 }
 
-function ResolutionSheet({ open, onOpenChange, row, initialTipo, onSaved }: ResolutionSheetProps) {
+function ResolutionSheet({ open, onOpenChange, row, initialTipo, prefill, onSaved }: ResolutionSheetProps) {
+  const { hasPermission } = useAuth()
   const [tipo, setTipo] = React.useState<TipoResolucion>("invoice")
   const [f, setF] = React.useState<RegisterResolutionPayload>({})
   const [empezarEn, setEmpezarEn] = React.useState("")
@@ -172,11 +190,45 @@ function ResolutionSheet({ open, onOpenChange, row, initialTipo, onSaved }: Reso
     if (!open || !row) return
     setTipo(initialTipo)
     cargar(row, initialTipo)
+    if (prefill) {
+      // Otra resolución: formulario en blanco con TODO lo del rango; la misma, encima de lo guardado.
+      const guardada = resolucionDeTipo(row, initialTipo)?.resolucion
+      const { form, reiniciaConsecutivo } = formularioDesdeRango(
+        guardada
+          ? {
+              numero: guardada.numero,
+              prefijo: guardada.prefijo,
+              rangoDesde: guardada.rangoDesde,
+              rangoHasta: guardada.rangoHasta,
+              fechaResolucion: guardada.fechaResolucion?.slice(0, 10),
+              vigenciaDesde: guardada.vigenciaDesde?.slice(0, 10),
+              vigenciaHasta: guardada.vigenciaHasta?.slice(0, 10),
+            }
+          : undefined,
+        prefill,
+      )
+      baseline.current = JSON.stringify(form)
+      setF(form)
+      if (reiniciaConsecutivo) {
+        setEmpezarEn(prefill.rangoDesde !== undefined ? String(prefill.rangoDesde) : "")
+      }
+    }
     setClaveTecnica("")
     setError(null)
     setErrorPrefijo(null)
-  }, [open, row, initialTipo, cargar])
+  }, [open, row, initialTipo, prefill, cargar])
 
+  // Si el formulario sigue siendo el del rango de la DIAN, el servidor lee la
+  // clave técnica solo (no se pide ni viaja); si el usuario la teclea, manda esa.
+  const puedeConfigurar = hasPermission("einvoicing.configure")
+  const coincide = coincideConRango(f, prefill ?? {})
+  const claveManual = exigeClaveManual({
+    desdeRango: Boolean(prefill),
+    coincide,
+    puedeConfigurar,
+    claveTecleada: Boolean(claveTecnica.trim()),
+  })
+  const claveDeLaDian = Boolean(prefill) && !claveTecnica.trim() && !claveManual
   const exigePrefijo = tipoExigePrefijo(tipo)
   const nombreTipo = TIPO_RESOLUCION_LABELS[tipo].toLowerCase()
 
@@ -227,6 +279,15 @@ function ResolutionSheet({ open, onOpenChange, row, initialTipo, onSaved }: Reso
       return
     }
     setErrorPrefijo(null)
+    if (prefill && claveManual) {
+      setError(
+        puedeConfigurar
+          ? "Cambiaste datos del rango de la DIAN: escribe la clave técnica a mano."
+          : "No tienes permiso de configuración para traer la clave de la DIAN: escríbela a mano.",
+      )
+      document.getElementById("r-clave")?.focus()
+      return
+    }
     setSaving(true)
     setError(null)
     try {
@@ -239,6 +300,7 @@ function ResolutionSheet({ open, onOpenChange, row, initialTipo, onSaved }: Reso
         vigenciaDesde: f.vigenciaDesde || undefined,
         vigenciaHasta: f.vigenciaHasta || undefined,
         claveTecnica: claveTecnica.trim() || undefined,
+        traerClaveDeDian: claveDeLaDian || undefined,
         empezarEn: empezarEn ? Number(empezarEn) : undefined,
       })
       onSaved(rows)
@@ -292,6 +354,7 @@ function ResolutionSheet({ open, onOpenChange, row, initialTipo, onSaved }: Reso
             id="r-tipo"
             value={tipo}
             onChange={(e) => cambiarTipo(e.target.value as TipoResolucion)}
+            disabled={Boolean(prefill)}
             className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm"
           >
             {TIPOS_RESOLUCION.map((t) => (
@@ -436,7 +499,11 @@ function ResolutionSheet({ open, onOpenChange, row, initialTipo, onSaved }: Reso
         <Field
           id="r-clave"
           label="Clave técnica"
-          hint="Entra en el cálculo del CUFE. Sin ella no se puede emitir ninguna factura electrónica."
+          hint={
+            claveDeLaDian
+              ? "Se obtiene de la DIAN al guardar: no hace falta escribirla."
+              : "Entra en el cálculo del CUFE. Sin ella no se puede emitir ninguna factura electrónica."
+          }
         >
           <Input
             id="r-clave"
@@ -459,15 +526,45 @@ function ResolutionSheet({ open, onOpenChange, row, initialTipo, onSaved }: Reso
 export default function ResolucionesPage() {
   const { hasPermission } = useAuth()
   const canIssue = hasPermission("einvoicing.issue")
+  const canConfigure = hasPermission("einvoicing.configure")
 
   const [rows, setRows] = React.useState<ResolutionRow[]>([])
   const [loading, setLoading] = React.useState(true)
   const [editing, setEditing] = React.useState<ResolutionRow | null>(null)
   const [editingTipo, setEditingTipo] = React.useState<TipoResolucion>("invoice")
 
+  const [prefill, setPrefill] = React.useState<RegisterResolutionPayload | null>(null)
+  const [rangosDe, setRangosDe] = React.useState<ResolutionRow | null>(null)
+  const [rangos, setRangos] = React.useState<RangosDianVista | null>(null)
+  const [cargandoRangos, setCargandoRangos] = React.useState(false)
+  const [tipoRango, setTipoRango] = React.useState<TipoResolucion>("invoice")
+
   function abrir(row: ResolutionRow, tipo: TipoResolucion) {
+    setPrefill(null)
     setEditingTipo(tipo)
     setEditing(row)
+  }
+
+  async function traerRangos(row: ResolutionRow) {
+    setRangosDe(row)
+    setRangos(null)
+    setCargandoRangos(true)
+    try {
+      setRangos(await traerRangosDian(row.sedeId))
+    } catch (err) {
+      toast.error(errorMessage(err))
+      setRangosDe(null)
+    } finally {
+      setCargandoRangos(false)
+    }
+  }
+
+  function usarRango(row: ResolutionRow, r: RangosDianVista["rangos"][number]) {
+    // El tipo lo elige la persona: el prefijo no dice de qué documento es.
+    setPrefill(payloadDeRango(r))
+    setEditingTipo(tipoRango)
+    setEditing(row)
+    setRangosDe(null)
   }
 
   const load = React.useCallback(async () => {
@@ -579,6 +676,12 @@ export default function ResolucionesPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     <EstadoBadge estado={row.status.estado} />
+                    <Button size="sm" variant="outline" disabled={cargandoRangos || !canConfigure}
+                      title={canConfigure ? undefined : "Requiere permiso de configuración de facturación electrónica"}
+                      onClick={() => void traerRangos(row)}>
+                      <CloudDownload className="size-4" aria-hidden />
+                      Traer rangos de la DIAN
+                    </Button>
                     <Button size="sm" variant="outline" onClick={() => abrir(row, "invoice")}>
                       <Pencil className="size-4" aria-hidden />
                       {r?.numero ? "Renovar o corregir" : "Registrar"}
@@ -757,8 +860,90 @@ export default function ResolucionesPage() {
         onOpenChange={(v) => setEditing(v ? editing : null)}
         row={editing}
         initialTipo={editingTipo}
+        prefill={prefill}
         onSaved={setRows}
       />
+
+      <FormDialog
+        open={rangosDe !== null}
+        onOpenChange={(v) => !v && setRangosDe(null)}
+        size="2xl"
+        icon={CloudDownload}
+        title="Rangos autorizados por la DIAN"
+        description={`Sede ${rangosDe?.sedeName ?? ""}. Se consultan con el certificado del emisor; nada se registra solo.`}
+        footer={<Button onClick={() => setRangosDe(null)}>Cerrar</Button>}
+      >
+        {cargandoRangos || !rangos ? (
+          <p className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="size-4 animate-spin" aria-hidden /> Consultando a la DIAN…
+          </p>
+        ) : !rangos.ok ? (
+          <FormAlert>{mensajeRangosFallidos(rangos)}</FormAlert>
+        ) : rangos.rangos.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            La DIAN no tiene rangos autorizados para este emisor en este ambiente.
+          </p>
+        ) : (
+          <>
+          <Field id="rango-tipo" label="Registrar el rango elegido como">
+            <select
+              id="rango-tipo"
+              value={tipoRango}
+              onChange={(e) => setTipoRango(e.target.value as TipoResolucion)}
+              className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm"
+            >
+              {TIPOS_RESOLUCION.map((t) => (
+                <option key={t} value={t}>
+                  {TIPO_RESOLUCION_LABELS[t]}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <ul className="flex flex-col gap-2">
+            {rangos.rangos.map((r) => (
+              <li
+                key={claveRango(r)}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-sm"
+              >
+                <div className="flex flex-col">
+                  <span className="font-medium tabular-nums">{textoRango(r)}</span>
+                  <span className="text-xs text-muted-foreground">
+                    Resolución {r.resolucion ?? "—"} · {textoVigencia(r)}
+                  </span>
+                  {motivoRangoNoRegistrable(r) && (
+                    <span className="text-xs font-medium text-destructive">
+                      {motivoRangoNoRegistrable(r)}
+                    </span>
+                  )}
+                </div>
+                {motivoRangoNoRegistrable(r) ? (
+                  <Badge variant="destructive">{rangoVencido(r) ? "Vencido" : "Sin vigencia"}</Badge>
+                ) : r.registrada ? (
+                  <Badge className="border-transparent bg-success/15 text-success-ink">
+                    Ya registrada
+                  </Badge>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => rangosDe && usarRango(rangosDe, r)}
+                  >
+                    Registrar
+                  </Button>
+                )}
+              </li>
+            ))}
+          </ul>
+          </>
+        )}
+        {rangos?.ok && (
+          <p className="text-xs text-muted-foreground">
+            Al registrar, el servidor lee la clave técnica directamente de la
+            DIAN: no viaja al navegador ni hay que escribirla. Revisa el resto de
+            los datos antes de guardar.
+          </p>
+        )}
+      </FormDialog>
     </>
   )
 }

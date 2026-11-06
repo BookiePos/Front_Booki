@@ -306,6 +306,8 @@ export interface RegisterResolutionPayload {
   claveTecnica?: string
   /** Número por el que arranca el consecutivo. */
   empezarEn?: number
+  /** El servidor lee la clave técnica de la DIAN (no viaja al navegador). */
+  traerClaveDeDian?: boolean
 }
 
 /** Estado de la resolución de cada sede a la que el usuario tiene acceso. */
@@ -537,6 +539,127 @@ export async function getHabilitacionNomina(
 ): Promise<HabilitacionNominaVista> {
   const res = await authFetch(`/einvoicing/sedes/${sedeId}/emisor/nomina/habilitacion`)
   return parseResponse(res)
+}
+
+// ── Detalle del documento (Fase 10): estado, descargas, reintento y correo ───
+
+export interface MotivoLegible {
+  regla?: string
+  texto: string
+  sugerencia?: string
+}
+
+export interface DetalleDocumentoFe {
+  id: string
+  tipo: DocType
+  sedeId: string
+  numero: string
+  fecha: string
+  dianStatus: DianStatus
+  estadoResumen: string
+  cufe?: string
+  qrUrl?: string
+  ambiente?: string
+  total: number
+  emisor: { nombre?: string; nit?: string }
+  adquiriente: { nombre?: string; documento?: string; email?: string }
+  resolucion?: { numero?: string; prefijo?: string }
+  referencia?: { numero?: string }
+  motivos: MotivoLegible[]
+  codigoDian?: string
+  intentos: number
+  enviadoAt?: string
+  puedeReintentar: boolean
+  entrega?: { estado?: string; motivo?: string; archivo?: string }
+  descargas: { xml: boolean; pdf: boolean; zip: boolean }
+  correo: {
+    envios: number
+    restantes: number
+    ultimoAt?: string
+    puedeEnviar: boolean
+  }
+}
+
+export interface DescargasDocumentoFe {
+  venceEn: number
+  xml?: string
+  pdf?: string
+  zip?: string
+}
+
+export interface ResultadoTransmisionFe {
+  documentoId: string
+  fullNumber: string
+  dianStatus: DianStatus
+  transmitido: boolean
+  codigo?: string
+  mensajes: string[]
+  intentos: number
+}
+
+export async function getDetalleDocumento(
+  id: string,
+): Promise<DetalleDocumentoFe> {
+  const res = await authFetch(`/einvoicing/documentos/${id}/detalle`)
+  return parseResponse<DetalleDocumentoFe>(res)
+}
+
+/** URLs firmadas de vida corta: se piden al hacer clic y no se guardan. */
+export async function getDescargasDocumento(
+  id: string,
+): Promise<DescargasDocumentoFe> {
+  const res = await authFetch(`/einvoicing/documentos/${id}/descargas`)
+  return parseResponse<DescargasDocumentoFe>(res)
+}
+
+export async function transmitirDocumento(
+  id: string,
+): Promise<ResultadoTransmisionFe> {
+  const res = await authFetch(`/einvoicing/documentos/${id}/transmitir`, {
+    method: "POST",
+  })
+  return parseResponse<ResultadoTransmisionFe>(res)
+}
+
+export async function enviarDocumentoPorCorreo(
+  id: string,
+  email?: string,
+): Promise<{ enviado: true; para: string; envios: number; restantes: number }> {
+  const res = await authFetch(`/einvoicing/documentos/${id}/correo`, {
+    method: "POST",
+    body: JSON.stringify(email ? { email } : {}),
+  })
+  return parseResponse(res)
+}
+
+// ── Rangos de numeración que la DIAN tiene autorizados al emisor ─────────────
+
+export interface RangoDian {
+  prefijo?: string
+  desde: number
+  hasta: number
+  resolucion?: string
+  /** YYYY-MM-DD, como los da la DIAN. */
+  fechaResolucion?: string
+  vigenciaDesde?: string
+  vigenciaHasta?: string
+  /** Ya hay una resolución registrada en la sede con ese número y prefijo. */
+  registrada: boolean
+}
+
+export interface RangosDianVista {
+  ok: boolean
+  codigo?: string
+  mensajes: string[]
+  ambiente?: string
+  rangos: RangoDian[]
+}
+
+export async function traerRangosDian(
+  sedeId: string,
+): Promise<RangosDianVista> {
+  const res = await authFetch(`/einvoicing/sedes/${sedeId}/rangos-dian`)
+  return parseResponse<RangosDianVista>(res)
 }
 
 // ── Emisor de factura electrónica: asistente y certificado ───────────────────
