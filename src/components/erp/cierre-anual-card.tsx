@@ -29,8 +29,8 @@ import { useLoadEffect } from "@/hooks/use-load-effect"
  *
  * Cerrar un año lleva sus ingresos y gastos a la 3605 el 31 de diciembre y,
  * el 1 de enero, la 3605 a la 3705 «Resultados de ejercicios anteriores».
- * Reabrir reversa los dos asientos. Es de toda la empresa: quien está limitado
- * por sede recibe 403 del API y aquí lo ve explicado.
+ * Reabrir reversa los dos asientos. Es de toda la empresa: el API lo niega a
+ * quien está limitado por sede, y a ese usuario la tarjeta no se le muestra.
  */
 /** Cerrado sin traslado, con un resultado que trasladar (un año en 0 no lleva). */
 function faltaTraslado(a: EstadoAnio): boolean {
