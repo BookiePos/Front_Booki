@@ -77,7 +77,7 @@ describe("entrega", () => {
     expect(textoEntrega(base)).toMatch(/aún no se genera/)
     expect(textoEntrega({ ...base, entrega: { estado: "completa" } })).toMatch(/lista/)
     expect(textoEntrega({ ...base, entrega: { estado: "incompleta" } })).toMatch(/Solo el PDF/)
-    expect(textoEntrega({ ...base, entrega: { estado: "fallida" } })).toMatch(/falló/)
+    expect(textoEntrega({ ...base, entrega: { estado: "fallida" } })).toMatch(/Falló/)
   })
 })
 
