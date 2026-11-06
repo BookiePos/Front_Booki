@@ -366,12 +366,17 @@ function SalesChartWidget({ data, loading }: WidgetProps) {
         <div className="flex items-center justify-between gap-4">
           <div>
             <CardTitle className="font-display text-lg">
-              Ventas últimos 7 días
+              Ventas netas últimos 7 días
             </CardTitle>
-            <CardDescription>Ingresos por día (todas las sedes).</CardDescription>
+            <CardDescription>
+              Por día, descontadas las devoluciones (todas las sedes).
+            </CardDescription>
           </div>
           {data.sales && (
-            <span className="tnum text-sm font-semibold text-foreground">
+            <span
+              className="tnum text-sm font-semibold text-foreground"
+              title="Ventas netas: brutas menos devoluciones"
+            >
               {money.format(data.sales.totalRevenue)}
             </span>
           )}

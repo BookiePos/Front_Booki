@@ -110,7 +110,9 @@ export function OnboardingChecklist() {
             from: daysAgo(90),
             to: new Date().toLocaleDateString("en-CA"),
           })
-          return report.totalRevenue > 0
+          // Tiquetes y no ingresos: `totalRevenue` va neto de devoluciones
+          // (1.16 R3) y una venta devuelta entera no deshace «ya vendiste».
+          return report.totalTickets > 0
         },
       },
     )
