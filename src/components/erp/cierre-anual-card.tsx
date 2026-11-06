@@ -4,6 +4,7 @@ import * as React from "react"
 import { CalendarCheck, Lock, LockOpen } from "lucide-react"
 import { toast } from "sonner"
 
+import { actorSeesAllSedes } from "@/lib/access"
 import { useAuth } from "@/lib/auth-context"
 import { cerrarAnio, getCierres, reabrirAnio, type EstadoAnio } from "@/lib/erp/api-reports"
 import { errorMessage, fmtDate, money } from "@/lib/erp/finance-format"
@@ -31,9 +32,17 @@ import { useLoadEffect } from "@/hooks/use-load-effect"
  * Reabrir reversa los dos asientos. Es de toda la empresa: quien está limitado
  * por sede recibe 403 del API y aquí lo ve explicado.
  */
+/** Cerrado sin traslado, con un resultado que trasladar (un año en 0 no lleva). */
+function faltaTraslado(a: EstadoAnio): boolean {
+  return a.cerrado && !!a.cierre && !a.cierre.trasladoNumber && a.resultado !== 0
+}
+
 export function CierreAnualCard() {
-  const { hasPermission } = useAuth()
-  const canView = hasPermission("finance.view")
+  const { hasPermission, user } = useAuth()
+  // El API niega el cierre a quien está limitado por sede (cancela los
+  // resultados de toda la empresa): a ese usuario no se le muestra la tarjeta.
+  const veTodas = user ? actorSeesAllSedes(user) : false
+  const canView = hasPermission("finance.view") && veTodas
   const canManage = hasPermission("finance.manage")
   const confirm = useConfirm()
 
@@ -80,6 +89,24 @@ export function CierreAnualCard() {
     try {
       await cerrarAnio(a.anio)
       toast.success(`Año ${a.anio} cerrado`)
+      await load()
+    } catch (err) {
+      toast.error(errorMessage(err))
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  /**
+   * El cierre quedó posteado pero el traslado a la 3705 no (falla entre los
+   * dos asientos). El mismo POST de cerrar lo completa: el backend ve el
+   * cierre existente y solo postea lo que falta.
+   */
+  async function completarTraslado(a: EstadoAnio) {
+    setBusy(a.anio)
+    try {
+      await cerrarAnio(a.anio)
+      toast.success(`Traslado de ${a.anio} a la 3705 registrado`)
       await load()
     } catch (err) {
       toast.error(errorMessage(err))
@@ -160,7 +187,15 @@ export function CierreAnualCard() {
                         {a.cierre && (
                           <span className="text-xs text-muted-foreground">
                             {a.cierre.number} del {fmtDate(a.cierre.date)}
+                            {a.cierre.trasladoNumber
+                              ? ` · traslado ${a.cierre.trasladoNumber}`
+                              : ""}
                             {a.cierre.createdByEmail ? ` · ${a.cierre.createdByEmail}` : ""}
+                          </span>
+                        )}
+                        {faltaTraslado(a) && (
+                          <span className="text-xs text-destructive">
+                            Falta el traslado a la 3705: el cierre quedó a medias.
                           </span>
                         )}
                         {a.saldoPosteriorAlCierre > 0 && (
@@ -179,7 +214,16 @@ export function CierreAnualCard() {
                     {money.format(a.resultado)}
                   </TableCell>
                   <TableCell className="text-right">
-                    {a.cerrado ? (
+                    {faltaTraslado(a) ? (
+                      <Button
+                        size="sm"
+                        disabled={!canManage || busy !== null}
+                        onClick={() => void completarTraslado(a)}
+                      >
+                        <Lock className="size-4" />
+                        Completar traslado
+                      </Button>
+                    ) : a.cerrado ? (
                       a.anio === ultimoCerrado && (
                         <Button
                           variant="outline"

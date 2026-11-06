@@ -246,8 +246,23 @@ function IncomeView({ r }: { r: IncomeStatement }) {
 }
 
 function BalanceView({ r }: { r: BalanceSheet }) {
+  // Corte al 31 de diciembre de un año ya cerrado: el asiento de cierre llevó
+  // la utilidad a la 3605 y por eso el resultado del ejercicio sale en 0.
+  const cortaEnCierre =
+    !!r.to?.endsWith("-12-31") &&
+    r.resultadoEjercicio === 0 &&
+    r.patrimonio.some((l) => l.code === "3605" && l.amount !== 0)
   return (
     <div className="flex flex-col gap-4">
+      {cortaEnCierre && (
+        <Card>
+          <CardContent className="py-3 text-sm text-muted-foreground">
+            Este año ya está cerrado: su utilidad o pérdida quedó en la línea{" "}
+            <span className="font-mono">3605</span> del patrimonio, y por eso el
+            «Resultado del ejercicio» sale en 0. Desde el 1 de enero pasa a la 3705.
+          </CardContent>
+        </Card>
+      )}
       <LineTable title="Activo" lines={r.activos} total={r.totalActivo} />
       <div className="grid gap-4 md:grid-cols-2">
         <LineTable title="Pasivo" lines={r.pasivos} total={r.totalPasivo} />
@@ -381,7 +396,10 @@ function SalesView({ r, sedes }: { r: SalesReport; sedes: Sede[] }) {
         <Card>
           <CardContent className="px-0 sm:px-2">
             <p className="px-4 pt-3 text-sm font-semibold text-foreground">
-              Por medio de pago
+              Por medio de pago{" "}
+              <span className="font-normal text-muted-foreground">
+                (bruto, antes de devoluciones)
+              </span>
             </p>
             <Table>
               <TableHeader>
@@ -546,7 +564,10 @@ function SalesView({ r, sedes }: { r: SalesReport; sedes: Sede[] }) {
                     {d.returnsCount ? `${money.format(-d.returns)} (${d.returnsCount})` : "—"}
                   </TableCell>
                   <TableCell className="tnum text-right font-medium">{money.format(d.revenue)}</TableCell>
-                  <TableCell className="tnum text-right text-muted-foreground">{money.format(d.avgTicket)}</TableCell>
+                  <TableCell className="tnum text-right text-muted-foreground">
+                    {/* Un día con solo devoluciones no tiene tiquetes: sin promedio. */}
+                    {d.tickets > 0 ? money.format(d.avgTicket) : "—"}
+                  </TableCell>
                 </TableRow>
               ))}
               {r.days.length > 0 && (
