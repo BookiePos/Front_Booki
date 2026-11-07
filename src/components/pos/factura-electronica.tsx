@@ -56,7 +56,8 @@ export function FacturaElectronica({
   doc: ElectronicDocument
   className?: string
 }) {
-  const [qrImg, setQrImg] = React.useState<string | null>(null)
+  const [qr, setQr] = React.useState<{ url: string; img: string | null } | null>(null)
+  const qrImg = doc.qrUrl && qr?.url === doc.qrUrl ? qr.img : null
   const isNote = doc.type === "credit_note"
   const title = isNote ? "NOTA CRÉDITO ELECTRÓNICA" : "FACTURA ELECTRÓNICA DE VENTA"
   const emisor = doc.emisor
@@ -66,14 +67,12 @@ export function FacturaElectronica({
   const conTributos = esDocumentoConTributos(doc)
 
   React.useEffect(() => {
+    const qrUrl = doc.qrUrl
+    if (!qrUrl) return
     let active = true
-    if (doc.qrUrl) {
-      QRCode.toDataURL(doc.qrUrl, { margin: 1, width: 160 })
-        .then((url) => active && setQrImg(url))
-        .catch(() => active && setQrImg(null))
-    } else {
-      setQrImg(null)
-    }
+    QRCode.toDataURL(qrUrl, { margin: 1, width: 160 })
+      .then((img) => active && setQr({ url: qrUrl, img }))
+      .catch(() => active && setQr({ url: qrUrl, img: null }))
     return () => {
       active = false
     }
