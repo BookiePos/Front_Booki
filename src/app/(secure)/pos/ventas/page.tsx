@@ -17,7 +17,11 @@ import {
   FileText,
   BadgePercent,
   Undo2,
+  FileSignature,
+  Send,
 } from "lucide-react"
+
+import { toast } from "sonner"
 
 import { useAuth } from "@/lib/auth-context"
 import { useSede } from "@/lib/pos/sede-context"
@@ -29,6 +33,9 @@ import {
 import { paymentLabel } from "@/lib/pos/split-payment"
 import { DevolucionDialog } from "@/components/pos/devolucion-dialog"
 import { RebajaDialog } from "@/components/pos/rebaja-dialog"
+import { TranscribirContingenciaDialog } from "@/components/pos/transcribir-contingencia-dialog"
+import { PlazoContingencia } from "@/components/erp/plazo-contingencia"
+import { transmitirContingencia } from "@/lib/erp/api-einvoicing"
 import { DevolucionesVenta } from "@/components/pos/devoluciones-venta"
 import { esErrorVentanaSemanal, resumenNota } from "@/lib/pos/notas"
 import { money, timeOnly, isToday } from "@/lib/pos/format"
@@ -71,6 +78,8 @@ export default function VentasPage() {
   // Devolver es atención al cliente, no corregir un error de digitación: va
   // con su propio permiso para que el cajero del turno pueda hacerlo.
   const canRefund = hasPermission("pos.refund")
+  // Transcribir y transmitir la contingencia es emitir un documento electrónico.
+  const canIssueFe = hasPermission("einvoicing.issue")
   const { sedeId, sede } = useSede()
   const confirm = useConfirm()
 
@@ -87,6 +96,9 @@ export default function VentasPage() {
   const [returning, setReturning] = React.useState(false)
   /** Ficha de rebaja posterior (`pos.void.authorize`). */
   const [rebating, setRebating] = React.useState(false)
+  /** Ficha de transcripción de contingencia (`einvoicing.issue`). */
+  const [transcribing, setTranscribing] = React.useState(false)
+  const [transmitting, setTransmitting] = React.useState(false)
   /** Se suma al registrar algo, para que la lista del detalle se relea. */
   const [versionDev, setVersionDev] = React.useState(0)
   /** El servidor dijo que el POS ya no se anula: el camino es la devolución. */
@@ -192,6 +204,21 @@ export default function VentasPage() {
     setStatusFilter("all")
     setQuery(pedido.termino)
   })
+
+  /** Transmite a la DIAN el documento de contingencia y sus notas, en orden. */
+  async function transmitirAhora(id: string) {
+    setTransmitting(true)
+    try {
+      const r = await transmitirContingencia(id)
+      if (r.cerrada) toast.success("La DIAN aceptó el documento y sus notas")
+      else toast.info(r.documento.mensajes[0] ?? "Transmitido: la DIAN aún no lo acepta")
+      setDocSel(await getDocument(id))
+    } catch (err) {
+      toast.error(errorMessage(err))
+    } finally {
+      setTransmitting(false)
+    }
+  }
 
   async function handleVoid() {
     if (!selected) return
@@ -409,6 +436,15 @@ export default function VentasPage() {
         description="Detalle de la venta y comprobante."
         footer={
           <>
+            {canIssueFe &&
+              selected?.documentoFiscal?.estado === "pendiente_contingencia_07" && (
+                <div className="no-print mr-auto">
+                  <Button onClick={() => setTranscribing(true)}>
+                    <FileSignature />
+                    Transcribir
+                  </Button>
+                </div>
+              )}
             {selected?.status === "completed" && (
               <div className="no-print mr-auto flex flex-wrap gap-2">
                 {canRefund && (
@@ -488,6 +524,29 @@ export default function VentasPage() {
                     cliente. Cierra y vuelve a abrir la venta para reintentar.
                   </p>
                 )}
+                {docVigente?.contingencia && (
+                  <PlazoContingencia
+                    dianStatus={docVigente.dianStatus}
+                    contingencia={docVigente.contingencia}
+                  />
+                )}
+                {canIssueFe &&
+                  docVigente?.contingencia &&
+                  !docVigente.contingencia.noAplico &&
+                  !docVigente.contingencia.cerradaAt &&
+                  docVigente.dianStatus !== "accepted" && (
+                    <div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={transmitting}
+                        onClick={() => void transmitirAhora(docVigente._id)}
+                      >
+                        <Send />
+                        {transmitting ? "Transmitiendo…" : "Transmitir ahora"}
+                      </Button>
+                    </div>
+                  )}
                 {docVigente && (
                   <p className="flex flex-wrap items-center gap-2 text-sm">
                     <span className="text-muted-foreground">Estado DIAN</span>
@@ -579,6 +638,15 @@ export default function VentasPage() {
         canRefund={canRefund}
         onDone={() => {
           setVersionDev((n) => n + 1)
+          void load(1)
+        }}
+      />
+      <TranscribirContingenciaDialog
+        sale={selected}
+        open={transcribing}
+        onOpenChange={setTranscribing}
+        onDone={() => {
+          setSelected(null)
           void load(1)
         }}
       />

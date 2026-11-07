@@ -3,6 +3,7 @@
  * Reutiliza authFetch (refresh automático) de api-admin.
  */
 import { authFetch, parseResponse } from "@/lib/api-admin"
+import type { TranscribirPayload } from "@/lib/contingencia-fe"
 import type { OrderType } from "@/lib/pos/api-delivery"
 import type { SedeRef } from "@/lib/pos/api-inventory"
 import type {
@@ -726,4 +727,31 @@ export async function checkoutOrder(
 export async function voidOrder(id: string): Promise<Order> {
   const res = await authFetch(`/orders/${id}/void`, { method: "POST" })
   return parseResponse<Order>(res)
+}
+
+// ─── Contingencia (Fase 9) ───────────────────────────────────────────────────
+
+/** Lo que devuelve la transcripción: el documento y las notas que se emitieron tras él. */
+export interface ResultadoTranscripcion {
+  documento: { documentoId: string; tipo?: string; fullNumber?: string; dianStatus?: string }
+  notas: { operacion: string; id: string; error?: string }[]
+  /** Notas que quedaron sin emitir. */
+  pendientes: number
+}
+
+/**
+ * Transcribe a documento electrónico una venta de contingencia (talonario o
+ * sin conexión). Exige `einvoicing.issue`. Errores: 400 (número fuera de la
+ * serie, fecha o numeración mal) y 409 (serie agotada, número repetido, la
+ * venta ya tiene otro documento), con el mensaje listo para mostrar.
+ */
+export async function transcribirContingencia(
+  saleId: string,
+  payload: TranscribirPayload,
+): Promise<ResultadoTranscripcion> {
+  const res = await authFetch(`/sales/${saleId}/contingencia/transcribir`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
+  return parseResponse<ResultadoTranscripcion>(res)
 }

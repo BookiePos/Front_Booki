@@ -3,6 +3,7 @@
  * Reutiliza authFetch (refresh automático) de api-admin.
  */
 import { authFetch, parseResponse } from "@/lib/api-admin"
+import type { ContingenciaDoc } from "@/lib/contingencia-fe"
 
 export type DocType =
   | "invoice"
@@ -160,6 +161,8 @@ export interface ElectronicDocument {
   qrUrl?: string
   signature?: string
   dianStatus: DianStatus
+  /** Fase 9: presente solo en documentos de contingencia (03/04/07/08). */
+  contingencia?: ContingenciaDoc
   technicalProvider?: string
   xmlUrl?: string
   createdByEmail: string
