@@ -140,6 +140,8 @@ function Dato({ label, children }: { label: string; children: React.ReactNode })
 
 // ─── Formulario de alta / renovación ─────────────────────────────────────────
 
+import { errorCorteTalonario, corteTalonarioPorDefecto } from "@/lib/contingencia-fe"
+
 interface ResolutionSheetProps {
   open: boolean
   onOpenChange: (v: boolean) => void
@@ -156,6 +158,9 @@ function ResolutionSheet({ open, onOpenChange, row, initialTipo, prefill, onSave
   const [tipo, setTipo] = React.useState<TipoResolucion>("invoice")
   const [f, setF] = React.useState<RegisterResolutionPayload>({})
   const [empezarEn, setEmpezarEn] = React.useState("")
+  /** Solo contingencia: último número del talonario de papel. Vacío = no tocar. */
+  const [corte, setCorte] = React.useState("")
+  const [errorCorte, setErrorCorte] = React.useState<string | null>(null)
   const [claveTecnica, setClaveTecnica] = React.useState("")
   const [saving, setSaving] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
@@ -215,6 +220,8 @@ function ResolutionSheet({ open, onOpenChange, row, initialTipo, prefill, onSave
       }
     }
     setClaveTecnica("")
+    setCorte("")
+    setErrorCorte(null)
     setError(null)
     setErrorPrefijo(null)
   }, [row, initialTipo, prefill, cargar])
@@ -281,6 +288,13 @@ function ResolutionSheet({ open, onOpenChange, row, initialTipo, prefill, onSave
       return
     }
     setErrorPrefijo(null)
+    const eCorte =
+      tipo === "contingency" ? errorCorteTalonario(corte, f.rangoDesde, f.rangoHasta) : null
+    setErrorCorte(eCorte)
+    if (eCorte) {
+      document.getElementById("r-corte")?.focus()
+      return
+    }
     if (prefill && claveManual) {
       setError(
         puedeConfigurar
@@ -304,6 +318,8 @@ function ResolutionSheet({ open, onOpenChange, row, initialTipo, prefill, onSave
         claveTecnica: claveTecnica.trim() || undefined,
         traerClaveDeDian: claveDeLaDian || undefined,
         empezarEn: empezarEn ? Number(empezarEn) : undefined,
+        corteTalonario:
+          tipo === "contingency" && corte.trim() ? Number(corte) : undefined,
       })
       onSaved(rows)
       toast.success("Resolución guardada")
@@ -449,6 +465,32 @@ function ResolutionSheet({ open, onOpenChange, row, initialTipo, prefill, onSave
           </Field>
         </FieldGrid>
       </FormSection>
+
+      {tipo === "contingency" && (
+        <FormSection
+          title="Corte del talonario"
+          description="El rango de contingencia se parte en dos series que no se cruzan: el talonario de papel y las ventas sin conexión."
+        >
+          <Field
+            id="r-corte"
+            label="Último número del talonario de papel (opcional)"
+            error={errorCorte}
+            hint={`Del inicio del rango hasta este número es el talonario de papel; del siguiente al final, las ventas sin conexión. Si lo dejas vacío se conserva el corte ya guardado y, si no hay, es la mitad del rango${
+              f.rangoDesde !== undefined && f.rangoHasta !== undefined && f.rangoHasta > f.rangoDesde
+                ? ` (${corteTalonarioPorDefecto(f.rangoDesde, f.rangoHasta)} con este rango)`
+                : ""
+            }. Pon el número donde terminan los talonarios que ya imprimiste.`}
+          >
+            <Input
+              id="r-corte"
+              inputMode="numeric"
+              value={corte}
+              onChange={(e) => setCorte(e.target.value.replace(/\D/g, ""))}
+              placeholder="Por defecto, la mitad"
+            />
+          </Field>
+        </FormSection>
+      )}
 
       <FormSection
         title="Vigencia"

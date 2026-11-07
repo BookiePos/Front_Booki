@@ -251,3 +251,32 @@ export function validarTranscripcion(
 
   return Object.keys(errores).length > 0 ? { errores } : { errores, payload }
 }
+
+// ─── Corte del talonario (resolución de contingencia) ────────────────────────
+
+/** Corte por defecto del servidor: la mitad del rango. */
+export function corteTalonarioPorDefecto(desde: number, hasta: number): number {
+  return desde + Math.floor((hasta - desde + 1) / 2) - 1
+}
+
+/**
+ * Valida el corte opcional del talonario contra el rango: debe dejar al menos
+ * un número en cada serie (talonario de `desde` al corte; ventas sin conexión
+ * del corte + 1 a `hasta`). Vacío es válido: se conserva el guardado o rige la
+ * mitad. Devuelve el error o `null`.
+ */
+export function errorCorteTalonario(
+  corte: string,
+  desde: number | undefined,
+  hasta: number | undefined,
+): string | null {
+  if (!corte.trim()) return null
+  const n = Number(corte)
+  if (!Number.isSafeInteger(n) || n < 1) return "El corte debe ser un entero positivo."
+  if (hasta === undefined) return "Para fijar el corte, primero escribe el rango (Desde y Hasta)."
+  const d = desde ?? 1
+  if (n < d || n >= hasta) {
+    return `El corte debe estar entre ${d} y ${hasta - 1}: así queda al menos un número en cada serie.`
+  }
+  return null
+}

@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest"
 import {
   FORM_TRANSCRIPCION_VACIO,
+  corteTalonarioPorDefecto,
+  errorCorteTalonario,
   estadoPlazo,
   fallaDe,
   hoyColombia,
@@ -76,5 +78,22 @@ describe("validarTranscripcion", () => {
   })
   it("hoyColombia usa UTC-5", () => {
     expect(hoyColombia(new Date("2026-11-06T03:00:00Z"))).toBe("2026-11-05")
+  })
+})
+
+describe("corte del talonario", () => {
+  it("vacío es válido y por defecto es la mitad", () => {
+    expect(errorCorteTalonario("", 1, 100)).toBeNull()
+    expect(corteTalonarioPorDefecto(1, 100)).toBe(50)
+    expect(corteTalonarioPorDefecto(101, 200)).toBe(150)
+  })
+  it("debe dejar un número en cada serie", () => {
+    expect(errorCorteTalonario("50", 1, 100)).toBeNull()
+    expect(errorCorteTalonario("99", 1, 100)).toBeNull()
+    expect(errorCorteTalonario("100", 1, 100)).toMatch(/entre 1 y 99/)
+    expect(errorCorteTalonario("0", 1, 100)).toBeTruthy()
+    expect(errorCorteTalonario("5", 10, 100)).toMatch(/entre 10 y 99/)
+    expect(errorCorteTalonario("5.5", 1, 100)).toBeTruthy()
+    expect(errorCorteTalonario("5", 1, undefined)).toMatch(/rango/)
   })
 })

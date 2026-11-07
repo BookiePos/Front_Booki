@@ -31,6 +31,7 @@ import { DetalleDocumentoFe } from "@/components/erp/detalle-documento-fe"
 import { NotasSinReferenciaCard } from "@/components/erp/notas-sin-referencia-card"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { plazoVisible } from "@/lib/contingencia-fe"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
@@ -356,6 +357,26 @@ export default function FacturacionPage() {
                         <Badge className="border-transparent bg-success/10 text-success-ink">
                           {invoice.fullNumber}
                         </Badge>
+                        {(() => {
+                          const plazo = plazoVisible(invoice)
+                          if (!plazo || plazo.fase === "cerrada") return null
+                          return (
+                            <Badge
+                              title={plazo.texto}
+                              className={
+                                plazo.tono === "error"
+                                  ? "border-transparent bg-destructive/10 text-destructive"
+                                  : "border-transparent bg-warning/15 text-warning-ink"
+                              }
+                            >
+                              {plazo.fase === "no_aplico"
+                                ? "Contingencia no aplicó"
+                                : plazo.fase === "vencido"
+                                  ? "Contingencia vencida"
+                                  : "Contingencia"}
+                            </Badge>
+                          )
+                        })()}
                         <Button
                           variant="outline"
                           size="sm"
