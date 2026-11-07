@@ -241,6 +241,25 @@ export interface LiquidacionBreakdown {
   detalleIndemnizacion?: string
   salariosPendientes: number
   total: number
+  /** Ingreso mensual promedio con que se midió la exención y la retención. Ausente en liquidaciones viejas. */
+  ingresoMensualPromedio?: number
+  /** Parte exenta de cesantías e intereses (0 a 1, ET 206-4). */
+  porcentajeExentoCesantias?: number
+  /** Retención en la fuente de la indemnización (ET 401-3). Ausente en liquidaciones guardadas antes de calcularla. */
+  retencionFuente?: number
+  detalleRetencion?: string
+  /** Lo que se le paga: `total` menos la retención. */
+  netoPagar?: number
+}
+
+/** Neto a pagar de una liquidación; en las viejas (sin el campo) es el total. */
+export function netoLiquidacion(b: Pick<LiquidacionBreakdown, "total" | "netoPagar">): number {
+  return b.netoPagar ?? b.total
+}
+
+/** True si la liquidación trae la retención calculada (las viejas no). */
+export function tieneRetencion(b: Pick<LiquidacionBreakdown, "retencionFuente">): boolean {
+  return b.retencionFuente !== undefined
 }
 
 /** Liquidación de retiro guardada (decisión 4 del dueño): la aprobada es la que reporta la nómina electrónica. */
