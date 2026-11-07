@@ -13,6 +13,7 @@ import {
   X,
 } from "lucide-react"
 
+import { actorSeesAllSedes } from "@/lib/access"
 import { useAuth } from "@/lib/auth-context"
 import { dashboardItem, getNavSections } from "@/lib/erp/navigation"
 import { listProducts, type InvProduct } from "@/lib/erp/api-inventory"
@@ -69,7 +70,7 @@ function withParam(path: string, value: string): string {
  * Elegir un resultado abre su página ya filtrada (`?buscar=`).
  */
 export function GlobalSearch() {
-  const { hasPermission, hasFeature, tipoNegocio } = useAuth()
+  const { user, hasPermission, hasFeature, tipoNegocio } = useAuth()
   const router = useRouter()
   const inputRef = React.useRef<HTMLInputElement>(null)
   const listId = React.useId()
@@ -128,7 +129,12 @@ export function GlobalSearch() {
 
     const sections = [
       { label: "", items: [dashboardItem] },
-      ...getNavSections(tipoNegocio, hasPermission, hasFeature),
+      ...getNavSections(
+        tipoNegocio,
+        hasPermission,
+        hasFeature,
+        user ? actorSeesAllSedes(user) : undefined,
+      ),
     ]
     const navHits = sections
       .flatMap((section) =>
@@ -201,7 +207,7 @@ export function GlobalSearch() {
       })
     }
     return out
-  }, [query, directory, tipoNegocio, hasPermission, hasFeature])
+  }, [query, directory, tipoNegocio, hasPermission, hasFeature, user])
 
   const focusInput = React.useCallback(() => {
     // `flushSync` pinta el buscador ANTES de enfocarlo: en el celular está

@@ -29,6 +29,7 @@ export function SplitPaymentEditor({
   change,
   error,
   cobro,
+  conSaldoFavor = false,
 }: {
   rows: SplitRow[]
   onChange: (rows: SplitRow[]) => void
@@ -37,11 +38,12 @@ export function SplitPaymentEditor({
   change: number
   error: string | null
   cobro?: CobroDigital
+  /** Hay cliente registrado: recién entonces se ofrece el saldo a favor. */
+  conSaldoFavor?: boolean
 }) {
-  const metodos = Object.entries(PAYMENT_METHOD_LABELS) as [
-    PaymentMethod,
-    string,
-  ][]
+  const metodos = (
+    Object.entries(PAYMENT_METHOD_LABELS) as [PaymentMethod, string][]
+  ).filter(([key]) => key !== "saldo_favor" || conSaldoFavor)
   return (
     <div className="flex flex-col gap-2.5 rounded-2xl border border-border bg-card p-3">
       <p className="text-[0.8125rem] font-medium">Dividir pago</p>

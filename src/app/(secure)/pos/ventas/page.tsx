@@ -15,6 +15,8 @@ import {
   Ban,
   Search,
   FileText,
+  BadgePercent,
+  Undo2,
 } from "lucide-react"
 
 import { useAuth } from "@/lib/auth-context"
@@ -26,6 +28,9 @@ import {
 } from "@/lib/pos/api-sales"
 import { paymentLabel } from "@/lib/pos/split-payment"
 import { DevolucionDialog } from "@/components/pos/devolucion-dialog"
+import { RebajaDialog } from "@/components/pos/rebaja-dialog"
+import { DevolucionesVenta } from "@/components/pos/devoluciones-venta"
+import { esErrorVentanaSemanal, resumenNota } from "@/lib/pos/notas"
 import { money, timeOnly, isToday } from "@/lib/pos/format"
 import { coincide, useBusquedaPendiente } from "@/lib/pos/busqueda"
 import { Receipt } from "@/components/pos/receipt"
@@ -80,6 +85,12 @@ export default function VentasPage() {
   const [voiding, setVoiding] = React.useState(false)
   /** Ficha de devolución parcial abierta sobre la venta seleccionada. */
   const [returning, setReturning] = React.useState(false)
+  /** Ficha de rebaja posterior (`pos.void.authorize`). */
+  const [rebating, setRebating] = React.useState(false)
+  /** Se suma al registrar algo, para que la lista del detalle se relea. */
+  const [versionDev, setVersionDev] = React.useState(0)
+  /** El servidor dijo que el POS ya no se anula: el camino es la devolución. */
+  const [fueraDeSemana, setFueraDeSemana] = React.useState(false)
   const [voidError, setVoidError] = React.useState<string | null>(null)
   /**
    * Documento electrónico de la venta abierta (Fase 7). Se lee aparte porque
@@ -193,6 +204,7 @@ export default function VentasPage() {
     if (!ok) return
     setVoiding(true)
     setVoidError(null)
+    setFueraDeSemana(false)
     try {
       const updated = await voidSale(selected._id)
       // Solo refresca el detalle si sigue abierto en esta venta: si la persona lo
@@ -201,6 +213,7 @@ export default function VentasPage() {
       setRows((prev) => prev.map((s) => (s._id === updated._id ? updated : s)))
     } catch (err) {
       setVoidError(errorMessage(err))
+      setFueraDeSemana(esErrorVentanaSemanal(err))
     } finally {
       setVoiding(false)
     }
@@ -336,6 +349,7 @@ export default function VentasPage() {
                       type="button"
                       onClick={() => {
                         setVoidError(null)
+                        setFueraDeSemana(false)
                         setDetailView("factura")
                         setSelected(s)
                       }}
@@ -404,6 +418,12 @@ export default function VentasPage() {
                   >
                     <PackageX />
                     Devolución
+                  </Button>
+                )}
+                {canVoid && (
+                  <Button variant="outline" onClick={() => setRebating(true)}>
+                    <BadgePercent />
+                    Rebaja
                   </Button>
                 )}
                 {canVoid && (
@@ -513,8 +533,37 @@ export default function VentasPage() {
               <Receipt sale={selected} sede={sede} fiscal={fiscalSel} />
             )}
 
+            {selected.status === "void" && selected.notaAnulacion && (
+              <FormAlert tone="info" className="no-print">
+                {selected.notaAnulacion.estado === "emitida"
+                  ? "Al anular quedó la "
+                  : "Al anular no se emitió nota: "}
+                {resumenNota(selected.notaAnulacion)}.
+              </FormAlert>
+            )}
+
+            <DevolucionesVenta
+              saleId={selected._id}
+              canComplete={canRefund}
+              version={versionDev}
+              onChanged={() => setVersionDev((n) => n + 1)}
+            />
+
             {voidError && (
-              <FormAlert className="no-print">{voidError}</FormAlert>
+              <FormAlert className="no-print">
+                {voidError}
+                {fueraDeSemana && canRefund && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="mt-2"
+                    onClick={() => setReturning(true)}
+                  >
+                    <Undo2 />
+                    Registrar devolución
+                  </Button>
+                )}
+              </FormAlert>
             )}
           </>
         )}
@@ -527,7 +576,20 @@ export default function VentasPage() {
         sale={selected}
         open={returning}
         onOpenChange={setReturning}
-        onDone={() => void load(1)}
+        canRefund={canRefund}
+        onDone={() => {
+          setVersionDev((n) => n + 1)
+          void load(1)
+        }}
+      />
+      <RebajaDialog
+        sale={selected}
+        open={rebating}
+        onOpenChange={setRebating}
+        onDone={() => {
+          setVersionDev((n) => n + 1)
+          void load(1)
+        }}
       />
     </div>
   )

@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Banknote, HandCoins, CalendarClock, Split } from "lucide-react"
+import { Banknote, HandCoins, CalendarClock, Split, Wallet } from "lucide-react"
 import { PAYMENT_METHOD_LABELS, type PaymentMethod } from "@/lib/pos/api-sales"
 import {
   type Customer as RegCustomer,
@@ -67,6 +67,14 @@ interface CobroColumnaPagoProps {
   setDigital: (d: DigitalDetail) => void
   /** QR / llave Bre-B de la sede. */
   cobro?: CobroDigital
+  /** Saldo a favor del cliente elegido (`null` mientras se consulta o sin cliente). */
+  saldoFavor?: number | null
+  /** Por qué el pago con saldo a favor no se puede usar, si no se puede. */
+  saldoError?: string | null
+  /** Algún medio del cobro es el saldo a favor. */
+  usaSaldo?: boolean
+  /** Sin conexión el saldo a favor no se ofrece. */
+  saldoSinRed?: boolean
 }
 
 export function CobroColumnaPago({
@@ -107,6 +115,10 @@ export function CobroColumnaPago({
   digital,
   setDigital,
   cobro,
+  saldoFavor = null,
+  saldoError = null,
+  usaSaldo = false,
+  saldoSinRed = false,
 }: CobroColumnaPagoProps) {
   return (
     <CheckoutColumn
@@ -126,7 +138,10 @@ export function CobroColumnaPago({
               PaymentMethod,
               string,
             ][]
-          ).map(([key, lbl]) => ({
+          )
+            // El saldo a favor es de un cliente registrado: sin cliente no se ofrece.
+            .filter(([key]) => key !== "saldo_favor" || (custId !== "" && !saldoSinRed))
+            .map(([key, lbl]) => ({
             value: key,
             label: lbl,
             icon: PAYMENT_ICONS[key],
@@ -141,7 +156,36 @@ export function CobroColumnaPago({
           change={split?.change ?? 0}
           error={split?.error ?? null}
           cobro={cobro}
+          conSaldoFavor={custId !== "" && !saldoSinRed}
         />
+      )}
+
+      {custId !== "" && saldoSinRed && !usaSaldo && (
+        <p role="status" className="text-xs text-muted-foreground">
+          Sin conexión: el saldo a favor necesita red.
+        </p>
+      )}
+      {(usaSaldo || (custId !== "" && !saldoSinRed && (saldoFavor ?? 0) > 0)) && (
+        <div
+          role="status"
+          className="flex flex-col gap-1 rounded-2xl border border-border bg-card p-3 text-sm"
+        >
+          <p className="flex items-center gap-1.5 text-[0.8125rem] font-medium">
+            <Wallet className="size-4" aria-hidden />
+            Saldo a favor del cliente
+          </p>
+          <p className="stat-figure text-xl">
+            {saldoFavor === null ? "Consultando…" : money(saldoFavor)}
+          </p>
+          {saldoError ? (
+            <p className="text-xs text-destructive">{saldoError}</p>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Se descuenta de lo que le quedó a favor por devoluciones y
+              rebajas. Vale en cualquier sede.
+            </p>
+          )}
+        </div>
       )}
 
       {/* Dividir pago (ítem 6.9): efectivo + tarjeta, etc., en el

@@ -27,6 +27,7 @@ import { ApiError } from "@/lib/api"
 import { PageHeader } from "@/components/erp/page-header"
 import { FacturaElectronica } from "@/components/erp/factura-electronica"
 import { DetalleDocumentoFe } from "@/components/erp/detalle-documento-fe"
+import { NotasSinReferenciaCard } from "@/components/erp/notas-sin-referencia-card"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -66,6 +67,8 @@ export default function FacturacionPage() {
   const { hasPermission } = useAuth()
   const canView = hasPermission("einvoicing.issue")
   const canVoid = hasPermission("einvoicing.void")
+  // Rebaja sin referencia: sale plata sin mercancía, la autoriza quien anula ventas.
+  const canNotaSinReferencia = hasPermission("pos.void.authorize")
 
   const [sedes, setSedes] = React.useState<Sede[]>([])
   const [sedeId, setSedeId] = React.useState("")
@@ -398,6 +401,10 @@ export default function FacturacionPage() {
           )}
         </CardContent>
       </Card>
+
+      {canNotaSinReferencia && sedeId && (
+        <NotasSinReferenciaCard sedeId={sedeId} sedeName={sede?.name} />
+      )}
 
       {/* Representación del documento */}
       <FormDialog

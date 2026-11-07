@@ -6,6 +6,7 @@ import { BookiPosMark } from "@/components/marketing/bookipos-logo"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 
+import { actorSeesAllSedes } from "@/lib/access"
 import { useAuth } from "@/lib/auth-context"
 import { dashboardItem, getNavSections } from "@/lib/erp/navigation"
 import {
@@ -94,7 +95,12 @@ export function AppSidebar() {
     return () => mql.removeEventListener("change", apply)
   }, [setOpen])
   const { user, tipoNegocio, hasPermission, hasFeature } = useAuth()
-  const navSections = getNavSections(tipoNegocio, hasPermission, hasFeature)
+  const navSections = getNavSections(
+    tipoNegocio,
+    hasPermission,
+    hasFeature,
+    user ? actorSeesAllSedes(user) : undefined,
+  )
   const brandCaption = tipoNegocio
     ? BUSINESS_LABEL[tipoNegocio]
     : "Panel operativo"

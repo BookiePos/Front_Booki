@@ -5,10 +5,23 @@
 import { authFetch, parseResponse } from "@/lib/api-admin"
 import type { OrderType } from "@/lib/pos/api-delivery"
 import type { SedeRef } from "@/lib/pos/api-inventory"
+import type {
+  ConceptoNota,
+  ConceptoRebaja,
+  EstadoDevolucion,
+  NotaFiscalOperacion,
+  RebateMethod,
+} from "@/lib/pos/notas"
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-export type PaymentMethod = "cash" | "card" | "transfer" | "credit" | "platform"
+export type PaymentMethod =
+  | "cash"
+  | "card"
+  | "transfer"
+  | "credit"
+  | "platform"
+  | "saldo_favor"
 
 export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   cash: "Efectivo",
@@ -16,6 +29,7 @@ export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   transfer: "Transferencia",
   credit: "Fiado",
   platform: "Plataforma",
+  saldo_favor: "Saldo a favor",
 }
 
 /** Canal digital de un cobro (ítem 6.4); detalla `card` y `transfer`. */
@@ -248,7 +262,11 @@ export interface Sale {
    */
   payments?: ({ method: PaymentMethod; amount: number } & PaymentChannelDetail)[]
   customer?: Customer
+  /** Cliente registrado de la venta (no el texto del recibo). */
+  customerId?: string
   orderId?: string
+  /** Nota que salió al anular (crédito o de ajuste), o por qué no salió. */
+  notaAnulacion?: NotaFiscalOperacion
   /** Documento fiscal pedido al cobrar (Fase 7). Ausente si no se pidió. */
   documentoFiscal?: DocumentoFiscalVenta
   createdAt: string
@@ -569,6 +587,16 @@ export interface SaleReturn {
   note?: string
   userEmail: string
   createdAt: string
+  /** `rebaja`: menor valor sin que vuelva mercancía (Fase 6C). */
+  kind?: "devolucion" | "rebaja"
+  concepto?: ConceptoRebaja
+  /** Ausente en las devoluciones anteriores al manejo por pasos. */
+  estado?: EstadoDevolucion
+  idempotencyKey?: string
+  /** Parte que quedó como saldo a favor del cliente. */
+  aSaldoFavor?: number
+  /** Nota crédito o de ajuste de la operación. */
+  notaFiscal?: NotaFiscalOperacion
 }
 
 export interface CreateSaleReturnPayload {
@@ -577,7 +605,11 @@ export interface CreateSaleReturnPayload {
   restock: RestockMode
   refundMethod: RefundMethod
   note?: string
+  /** Estable por intento: reintentar con la misma no devuelve dos veces. */
+  idempotencyKey?: string
 }
+
+export type { ConceptoNota }
 
 /** Devoluciones ya registradas de una venta (para no devolver dos veces). */
 export async function listSaleReturns(saleId: string): Promise<SaleReturn[]> {
@@ -594,6 +626,45 @@ export async function createSaleReturn(
     body: JSON.stringify(payload),
   })
   return parseResponse<SaleReturn>(res)
+}
+
+/**
+ * Completa a mano una devolución que quedó a medias (`en_curso` o
+ * `pendiente_caja`). Idempotente; 409 si no hay caja abierta o si otra
+ * petición la está completando.
+ */
+export async function completarDevolucion(returnId: string): Promise<SaleReturn> {
+  const res = await authFetch(`/sales/returns/${returnId}/completar`, {
+    method: "POST",
+  })
+  return parseResponse<SaleReturn>(res)
+}
+
+export interface CreateRebatePayload {
+  concepto: ConceptoRebaja
+  lines: { productId: string; amount: number }[]
+  refundMethod: RebateMethod
+  reason: string
+  idempotencyKey: string
+}
+
+/** Rebaja posterior sobre una venta (`pos.void.authorize`). */
+export async function createRebaja(
+  saleId: string,
+  payload: CreateRebatePayload,
+): Promise<SaleReturn> {
+  const res = await authFetch(`/sales/${saleId}/rebajas`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
+  return parseResponse<SaleReturn>(res)
+}
+
+/** Saldo a favor disponible de un cliente (el POS lo muestra antes de cobrar). */
+export async function getSaldoFavor(customerId: string): Promise<number> {
+  const res = await authFetch(`/sales/saldos-favor/${customerId}`)
+  const data = await parseResponse<{ customerId: string; saldo: number }>(res)
+  return data.saldo
 }
 
 export async function voidSale(id: string): Promise<Sale> {
