@@ -5,6 +5,7 @@ import {
   errorCorteTalonario,
   estadoPlazo,
   fallaDe,
+  horaColombia,
   hoyColombia,
   plazoVisible,
   validarTranscripcion,
@@ -115,5 +116,48 @@ describe("cierre de la contingencia", () => {
   it("aceptado sin cerradaAt = faltan notas; cerrada solo con cerradaAt", () => {
     expect(plazoVisible({ dianStatus: "accepted", contingencia: cont() }, ahora)?.fase).toBe("notas_pendientes")
     expect(plazoVisible({ dianStatus: "accepted", contingencia: cont({ cerradaAt: "2026-11-05T14:30:00Z" }) }, ahora)?.fase).toBe("cerrada")
+  })
+})
+
+describe("aceptado sin cerrar: notas o cierre", () => {
+  const acept = (n?: number) =>
+    plazoVisible({ dianStatus: "accepted", contingencia: cont(), notasPendientes: n }, ahora)
+  it("con notas pendientes dice que faltan notas por aceptar", () => {
+    const p = acept(2)
+    expect(p?.fase).toBe("notas_pendientes")
+    expect(p?.texto).toMatch(/faltan notas por aceptar/)
+  })
+  it("sin notas pendientes dice que falta cerrar la contingencia", () => {
+    const p = acept(0)
+    expect(p?.fase).toBe("por_cerrar")
+    expect(p?.texto).toMatch(/falta cerrar la contingencia/)
+    expect(p?.texto).not.toMatch(/faltan notas/)
+  })
+  it("sin el dato conserva el texto genérico y cerradaAt manda", () => {
+    expect(acept(undefined)?.fase).toBe("notas_pendientes")
+    const c = cont({ cerradaAt: "2026-11-05T14:30:00Z" })
+    expect(plazoVisible({ dianStatus: "accepted", contingencia: c, notasPendientes: 0 }, ahora)?.fase).toBe("cerrada")
+  })
+})
+
+describe("papel sin hora: misma hora que el backend", () => {
+  // Venta a las 15:00 en Colombia (20:00Z).
+  const venta = new Date("2026-11-05T20:00:00Z")
+  const base = { ...FORM_TRANSCRIPCION_VACIO, conPapel: true, numero: "3", fecha: "2026-11-05" }
+  it("horaColombia devuelve HH:mm:ss en UTC-5", () => {
+    expect(horaColombia(venta)).toBe("15:00:00")
+  })
+  it("superación anterior a la hora de la venta del día del papel se rechaza", () => {
+    const f = { ...base, superadaEn: "2026-11-05T10:00" }
+    const r = validarTranscripcion(f, { ahora, momentoVenta: venta })
+    expect(r.errores.superadaEn).toMatch(/papel/)
+  })
+  it("con hora en el papel manda esa hora, no la de la venta", () => {
+    const f = { ...base, hora: "09:00", superadaEn: "2026-11-05T10:00" }
+    expect(validarTranscripcion(f, { ahora, momentoVenta: venta }).errores.superadaEn).toBeUndefined()
+  })
+  it("sin momentoVenta no inventa un piso (lo decide el servidor)", () => {
+    const f = { ...base, superadaEn: "2026-11-05T01:00" }
+    expect(validarTranscripcion(f, { ahora }).errores.superadaEn).toBeUndefined()
   })
 })
