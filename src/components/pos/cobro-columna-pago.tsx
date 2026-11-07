@@ -73,6 +73,8 @@ interface CobroColumnaPagoProps {
   saldoError?: string | null
   /** Algún medio del cobro es el saldo a favor. */
   usaSaldo?: boolean
+  /** Sin conexión el saldo a favor no se ofrece. */
+  saldoSinRed?: boolean
 }
 
 export function CobroColumnaPago({
@@ -116,6 +118,7 @@ export function CobroColumnaPago({
   saldoFavor = null,
   saldoError = null,
   usaSaldo = false,
+  saldoSinRed = false,
 }: CobroColumnaPagoProps) {
   return (
     <CheckoutColumn
@@ -137,7 +140,7 @@ export function CobroColumnaPago({
             ][]
           )
             // El saldo a favor es de un cliente registrado: sin cliente no se ofrece.
-            .filter(([key]) => key !== "saldo_favor" || custId !== "")
+            .filter(([key]) => key !== "saldo_favor" || (custId !== "" && !saldoSinRed))
             .map(([key, lbl]) => ({
             value: key,
             label: lbl,
@@ -153,11 +156,16 @@ export function CobroColumnaPago({
           change={split?.change ?? 0}
           error={split?.error ?? null}
           cobro={cobro}
-          conSaldoFavor={custId !== ""}
+          conSaldoFavor={custId !== "" && !saldoSinRed}
         />
       )}
 
-      {(usaSaldo || (custId !== "" && (saldoFavor ?? 0) > 0)) && (
+      {custId !== "" && saldoSinRed && !usaSaldo && (
+        <p role="status" className="text-xs text-muted-foreground">
+          Sin conexión: el saldo a favor necesita red.
+        </p>
+      )}
+      {(usaSaldo || (custId !== "" && !saldoSinRed && (saldoFavor ?? 0) > 0)) && (
         <div
           role="status"
           className="flex flex-col gap-1 rounded-2xl border border-border bg-card p-3 text-sm"

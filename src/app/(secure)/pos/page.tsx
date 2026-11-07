@@ -371,7 +371,8 @@ export default function VentaPage() {
   /** Saldo a favor del cliente elegido, con el id al que corresponde. */
   const [saldoLeido, setSaldoLeido] = React.useState<{
     customerId: string
-    saldo: number
+    saldo: number | null
+    fallo: boolean
   } | null>(null)
   const [empList, setEmpList] = React.useState<EmployeeLookup[]>([])
   const [ncOpen, setNcOpen] = React.useState(false)
@@ -1285,10 +1286,18 @@ export default function VentaPage() {
     ? splitRows.some((r) => r.method === "saldo_favor")
     : method === "saldo_favor"
   /** El saldo leído solo vale si es el del cliente elegido ahora. */
-  const saldoFavor =
-    custId && saldoLeido?.customerId === custId ? saldoLeido.saldo : null
+  const lecturaSaldo =
+    custId && saldoLeido?.customerId === custId ? saldoLeido : null
+  const saldoFavor = lecturaSaldo?.saldo ?? null
+  const saldoSinRed = !modo.online
   const saldoError = usaSaldo
-    ? errorSaldoFavor({ customerId: custId, saldo: saldoFavor, aPagar: aPagarConSaldo || 1 })
+    ? errorSaldoFavor({
+        customerId: custId,
+        saldo: saldoFavor,
+        aPagar: aPagarConSaldo || 1,
+        sinRed: saldoSinRed,
+        fallo: lecturaSaldo?.fallo ?? false,
+      })
     : null
   /** Restante y devuelta del reparto. Lo fiado no cubre la propina. */
   const split = splitOn
@@ -1443,10 +1452,10 @@ export default function VentaPage() {
       if (!vivo || !checkoutOpen || !custId || !modo.online) return
       try {
         const saldo = await getSaldoFavor(custId)
-        if (vivo) setSaldoLeido({ customerId: custId, saldo })
+        if (vivo) setSaldoLeido({ customerId: custId, saldo, fallo: false })
       } catch {
-        // Sin saldo legible no se ofrece gastarlo: el servidor tampoco lo permitiría.
-        if (vivo) setSaldoLeido({ customerId: custId, saldo: 0 })
+        // Fallar no es tener $0: se avisa y no se deja gastar a ciegas.
+        if (vivo) setSaldoLeido({ customerId: custId, saldo: null, fallo: true })
       }
     }
     void leer()
@@ -2207,6 +2216,7 @@ export default function VentaPage() {
                   saldoFavor={saldoFavor}
                   saldoError={saldoError}
                   usaSaldo={usaSaldo}
+                  saldoSinRed={saldoSinRed}
                 />
 
                 {/* ── Columna 3: lo que no se toca en cada venta ──

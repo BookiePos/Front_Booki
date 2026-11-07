@@ -5,7 +5,7 @@ import { Loader2, ShieldOff, TriangleAlert } from "lucide-react"
 
 import { useAuth } from "@/lib/auth-context"
 import { getReporteSaldosFavor, type ReporteSaldosFavor } from "@/lib/erp/api-notas"
-import { limitadoPorSede } from "@/lib/pos/notas"
+import { actorSeesAllSedes } from "@/lib/access"
 import { PageHeader } from "@/components/erp/page-header"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -47,7 +47,7 @@ export default function SaldosFavorPage() {
   // El saldo a favor es de toda la empresa: el cliente lo gasta en cualquier
   // sede. A quien está limitado a unas sedes el servidor le responde 403, así
   // que ni se le pregunta.
-  const limitado = limitadoPorSede(user)
+  const limitado = !user || !actorSeesAllSedes(user)
   const [reporte, setReporte] = React.useState<ReporteSaldosFavor | null>(null)
   const [error, setError] = React.useState<string | null>(null)
 

@@ -25,7 +25,6 @@ const ROUTE_FEATURE: Record<string, PlanFeature | null> = {
   "/panel/finanzas/cxp": "accounting",
   "/panel/finanzas/conciliacion": "accounting",
   "/panel/finanzas/pl": "accounting",
-  "/panel/finanzas/saldos-favor": "accounting",
   "/panel/finanzas/metas": "accounting",
   "/panel/clientes": "accounting",
   "/panel/impuestos": "accounting",

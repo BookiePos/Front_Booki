@@ -20,6 +20,7 @@ import {
 import { money } from "@/lib/pos/format"
 import { FormAlert, FormSection } from "@/components/ui/form-dialog"
 import { Badge } from "@/components/ui/badge"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
 
 /**
@@ -69,7 +70,15 @@ export function DevolucionesVenta({
     }
   }
 
-  if (filas === null && !error) return null
+  if (filas === null && !error) {
+    return (
+      <div aria-busy="true" role="status" className="no-print flex flex-col gap-2">
+        <span className="sr-only">Cargando devoluciones y rebajas…</span>
+        <Skeleton className="h-4 w-56" />
+        <Skeleton className="h-14 rounded-xl" />
+      </div>
+    )
+  }
   if (filas && filas.length === 0 && !error) return null
 
   const pendientes = (filas ?? []).filter(estaPendiente)
@@ -125,6 +134,7 @@ export function DevolucionesVenta({
                       variant="outline"
                       className="self-start"
                       disabled={completando !== null}
+                      aria-label={`Completar ${r.kind === "rebaja" ? "la rebaja" : "la devolución"} de ${money(r.refundTotal)}`}
                       onClick={() => void completar(r)}
                     >
                       {completando === r._id ? (

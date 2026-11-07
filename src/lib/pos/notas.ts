@@ -245,27 +245,50 @@ export interface BorradorRebaja {
   tieneCliente: boolean
 }
 
-/** Por qué la rebaja no se puede enviar todavía, o `null` si se puede. */
-export function errorRebaja(b: BorradorRebaja): string | null {
+/** Errores de la rebaja por campo (para mostrarlos junto a cada control). */
+export interface CamposRebaja {
+  concepto?: string
+  montos?: string
+  refundMethod?: string
+  reason?: string
+}
+
+export function camposRebaja(b: BorradorRebaja): CamposRebaja {
+  const out: CamposRebaja = {}
   if (CONCEPTOS_SOLO_FEV.includes(b.concepto) && !b.esFev) {
-    return "El descuento por pronto pago y por volumen solo existe en la factura electrónica: esta venta no la tiene."
+    out.concepto =
+      "El descuento por pronto pago y por volumen solo existe en la factura electrónica: esta venta no la tiene."
   }
   const filas = Object.entries(b.montos).filter(([, m]) => m !== null && m !== 0)
-  if (filas.length === 0) return "Escribe cuánto se rebaja de al menos un producto."
-  for (const [productId, m] of filas) {
-    if (!esMontoValido(m)) return "Los montos son en pesos enteros, sin decimales."
-    const saldo = b.saldos[productId] ?? 0
-    if (m > saldo) {
-      return `No se puede rebajar más de lo que el cliente conserva de ese producto (quedan $${new Intl.NumberFormat("es-CO").format(saldo)}).`
+  if (filas.length === 0) {
+    out.montos = "Escribe cuánto se rebaja de al menos un producto."
+  } else {
+    for (const [productId, m] of filas) {
+      if (!esMontoValido(m)) {
+        out.montos = "Los montos son en pesos enteros, sin decimales."
+        break
+      }
+      const saldo = b.saldos[productId] ?? 0
+      if (m > saldo) {
+        out.montos = `No se puede rebajar más de lo que el cliente conserva de ese producto (quedan $${new Intl.NumberFormat("es-CO").format(saldo)}).`
+        break
+      }
     }
   }
   const motivo = b.reason.trim()
-  if (motivo.length < 3) return "Escribe el motivo (mínimo 3 letras)."
-  if (motivo.length > 300) return "El motivo admite máximo 300 caracteres."
+  if (motivo.length < 3) out.reason = "Escribe el motivo (mínimo 3 letras)."
+  else if (motivo.length > 300) out.reason = "El motivo admite máximo 300 caracteres."
   if (b.refundMethod === "credit_note" && !b.tieneCliente) {
-    return "Para dejarlo a favor la venta necesita un cliente registrado. Reconócelo en efectivo o por transferencia."
+    out.refundMethod =
+      "Para dejarlo a favor la venta necesita un cliente registrado. Reconócelo en efectivo o por transferencia."
   }
-  return null
+  return out
+}
+
+/** Por qué la rebaja no se puede enviar todavía, o `null` si se puede. */
+export function errorRebaja(b: BorradorRebaja): string | null {
+  const c = camposRebaja(b)
+  return c.concepto ?? c.montos ?? c.reason ?? c.refundMethod ?? null
 }
 
 /** Lo que viaja: solo los productos con monto. */
@@ -312,16 +335,31 @@ export function errorPeriodo(desde: string, hasta: string): string | null {
   return null
 }
 
+/** Errores de la nota sin referencia por campo. */
+export interface CamposNotaSinReferencia {
+  customerId?: string
+  /** El periodo se muestra en «Hasta», que es donde se corrige. */
+  hasta?: string
+  amount?: string
+  reason?: string
+}
+
+export function camposNotaSinReferencia(b: BorradorNotaSinReferencia): CamposNotaSinReferencia {
+  const out: CamposNotaSinReferencia = {}
+  if (!b.customerId) out.customerId = "Elige el cliente al que se le facturó."
+  const periodo = errorPeriodo(b.desde, b.hasta)
+  if (periodo) out.hasta = periodo
+  if (!esMontoValido(b.amount)) out.amount = "Escribe el monto en pesos enteros, mayor que cero."
+  const motivo = b.reason.trim()
+  if (motivo.length < 3) out.reason = "Escribe el motivo (mínimo 3 letras)."
+  else if (motivo.length > 300) out.reason = "El motivo admite máximo 300 caracteres."
+  return out
+}
+
 /** Por qué la nota sin referencia no se puede enviar todavía. */
 export function errorNotaSinReferencia(b: BorradorNotaSinReferencia): string | null {
-  if (!b.customerId) return "Elige el cliente al que se le facturó."
-  const periodo = errorPeriodo(b.desde, b.hasta)
-  if (periodo) return periodo
-  if (!esMontoValido(b.amount)) return "Escribe el monto en pesos enteros, mayor que cero."
-  const motivo = b.reason.trim()
-  if (motivo.length < 3) return "Escribe el motivo (mínimo 3 letras)."
-  if (motivo.length > 300) return "El motivo admite máximo 300 caracteres."
-  return null
+  const c = camposNotaSinReferencia(b)
+  return c.customerId ?? c.hasta ?? c.amount ?? c.reason ?? null
 }
 
 // ─── Saldo a favor ───────────────────────────────────────────────────────────
@@ -337,20 +375,22 @@ export function errorSaldoFavor(input: {
   customerId: string
   saldo: number | null
   aPagar: number
+  /** No hay red: el saldo se gasta en línea. */
+  sinRed?: boolean
+  /** La consulta del saldo falló (distinto de «tiene $0»). */
+  fallo?: boolean
 }): string | null {
   if (input.aPagar <= 0) return null
+  if (input.sinRed) return "Sin conexión: el saldo a favor necesita red."
   if (!input.customerId) {
     return "El saldo a favor es de un cliente registrado: elige al cliente primero."
+  }
+  if (input.fallo) {
+    return "No se pudo consultar el saldo a favor del cliente. Reintenta o elige otro medio de pago."
   }
   if (input.saldo === null) return "Consultando el saldo a favor del cliente…"
   if (input.saldo < input.aPagar) {
     return `El cliente tiene $${pesosFmt.format(input.saldo)} de saldo a favor y se quiere pagar $${pesosFmt.format(input.aPagar)} con él.`
   }
   return null
-}
-
-/** ¿Quien consulta el reporte está limitado a unas sedes? Entonces no lo ve. */
-export function limitadoPorSede(user: { role?: string; permissions: string[] } | null | undefined): boolean {
-  if (!user) return true
-  return user.role !== "owner" && !user.permissions.includes("sede.view_all")
 }

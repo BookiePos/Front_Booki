@@ -53,6 +53,11 @@ export type NavItem = {
    * visible en todos los planes. Se filtra con `hasFeature` en `getNavSections`.
    */
   requiredFeature?: PlanFeature
+  /**
+   * La página es de toda la empresa y el servidor la niega (403) a quien está
+   * limitado a unas sedes: se oculta del menú a ese usuario.
+   */
+  requiresAllSedes?: boolean
 }
 
 export type NavSection = {
@@ -96,7 +101,7 @@ export const navSections: NavSection[] = [
       { title: "Gastos", href: "/panel/finanzas/gastos", icon: FileMinus, requiredPermissions: ["finance.view"], requiredFeature: "expenses" },
       { title: "Conciliación de pagos", href: "/panel/finanzas/conciliacion", icon: Landmark, requiredPermissions: ["finance.view"], requiredFeature: "accounting" },
       { title: "Cuentas por pagar", href: "/panel/finanzas/cxp", icon: Receipt, requiredPermissions: ["finance.view"], requiredFeature: "accounting" },
-      { title: "Saldos a favor", href: "/panel/finanzas/saldos-favor", icon: Wallet, requiredPermissions: ["finance.view"], requiredFeature: "accounting" },
+      { title: "Saldos a favor", href: "/panel/finanzas/saldos-favor", icon: Wallet, requiredPermissions: ["finance.view"], requiresAllSedes: true },
       { title: "P&L", href: "/panel/finanzas/pl", icon: TrendingUp, requiredPermissions: ["finance.view"], requiredFeature: "accounting" },
       { title: "Reportes", href: "/panel/finanzas/reportes", icon: BarChart3, requiredPermissions: ["reports.view"] },
       { title: "Metas", href: "/panel/finanzas/metas", icon: Target, requiredPermissions: ["finance.view"], requiredFeature: "accounting" },
@@ -153,6 +158,8 @@ export function getNavSections(
   tipoNegocio?: BusinessType,
   hasPermission?: (permission: string) => boolean,
   hasFeature?: (feature: PlanFeature) => boolean,
+  /** ¿Ve todas las sedes? `undefined` = no se filtra (sesión cargando). */
+  veTodasLasSedes?: boolean,
 ): NavSection[] {
   return navSections
     .map((section) => ({
@@ -171,7 +178,9 @@ export function getNavSections(
           !hasFeature ||
           !item.requiredFeature ||
           hasFeature(item.requiredFeature)
-        return okBusiness && okPermission && okFeature
+        const okSedes =
+          !item.requiresAllSedes || veTodasLasSedes === undefined || veTodasLasSedes
+        return okBusiness && okPermission && okFeature && okSedes
       }),
     }))
     .filter((section) => section.items.length > 0)

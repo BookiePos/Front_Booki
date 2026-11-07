@@ -62,7 +62,10 @@ export function DevolucionDialog({
   open,
   onOpenChange,
   onDone,
+  canRefund = true,
 }: {
+  /** `pos.refund`: quien llega aquí ya lo tiene; se pasa explícito para el botón «Completar». */
+  canRefund?: boolean
   sale: Sale | null
   open: boolean
   onOpenChange: (v: boolean) => void
@@ -99,6 +102,9 @@ export function DevolucionDialog({
   }
 
   function cerrar() {
+    // En vuelo no se cierra: reiniciar borraría la llave del intento y un
+    // segundo clic devolvería otra vez.
+    if (saving) return
     onOpenChange(false)
     reiniciar()
   }
@@ -227,7 +233,7 @@ export function DevolucionDialog({
       description="Para cuando el cliente trae de vuelta parte de lo que se llevó. Si devuelve todo, anula la venta."
       footer={
         <>
-          <Button variant="outline" onClick={cerrar}>
+          <Button variant="outline" onClick={cerrar} disabled={saving}>
             {hecha ? "Cerrar" : "Cancelar"}
           </Button>
           {!hecha && (
@@ -301,7 +307,7 @@ export function DevolucionDialog({
       {saleId && previas.some((r) => r.estado && r.estado !== "completa") && (
         <DevolucionesVenta
           saleId={saleId}
-          canComplete
+          canComplete={canRefund}
           version={hecha ? 1 : 0}
           onChanged={onDone}
         />

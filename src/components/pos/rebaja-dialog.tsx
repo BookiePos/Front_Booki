@@ -14,7 +14,7 @@ import {
   CONCEPTO_REBAJA_LABELS,
   REBATE_METHOD_LABELS,
   conceptosDisponibles,
-  errorRebaja,
+  camposRebaja,
   huellaRebaja,
   lineasDeRebaja,
   llaveDelIntento,
@@ -74,6 +74,9 @@ export function RebajaDialog({
   const esFev = sale?.documentoFiscal?.solicitado === "fev"
 
   function cerrar() {
+    // Con la petición en vuelo no se cierra: la llave y el resultado siguen
+    // siendo de este intento, y cerrar permitiría una segunda rebaja.
+    if (saving) return
     onOpenChange(false)
     llave.current = null
     setMontos({})
@@ -127,7 +130,7 @@ export function RebajaDialog({
       productId,
       name: p.name,
       sku: p.sku,
-      saldo: Math.max(0, Math.round(p.valor)),
+      saldo: Math.max(0, Math.floor(p.valor)),
     }))
   }, [sale, previas])
 
@@ -135,8 +138,8 @@ export function RebajaDialog({
     () => Object.fromEntries(filas.map((f) => [f.productId, f.saldo])),
     [filas],
   )
-  const bloqueo = sale
-    ? errorRebaja({
+  const campos = sale
+    ? camposRebaja({
         concepto,
         montos,
         saldos,
@@ -145,7 +148,9 @@ export function RebajaDialog({
         esFev,
         tieneCliente: Boolean(sale.customerId),
       })
-    : "Sin venta"
+    : { montos: "Sin venta" }
+  const bloqueo = campos.concepto ?? campos.montos ?? campos.reason ?? campos.refundMethod ?? null
+  const hayMontos = Object.values(montos).some((m) => m)
   const total = Object.values(montos).reduce<number>((a, m) => a + (m ?? 0), 0)
 
   async function guardar() {
@@ -180,7 +185,7 @@ export function RebajaDialog({
       description="Para reconocerle al cliente un menor valor sin que devuelva mercancía. No mueve el inventario."
       footer={
         <>
-          <Button variant="outline" onClick={cerrar}>
+          <Button variant="outline" onClick={cerrar} disabled={saving}>
             {hecha ? "Cerrar" : "Cancelar"}
           </Button>
           {!hecha && (
@@ -245,6 +250,7 @@ export function RebajaDialog({
                             aria-label={`Monto a rebajar de ${f.name}`}
                             placeholder="—"
                             disabled={f.saldo <= 0}
+                            aria-describedby={hayMontos && campos.montos ? "rb-montos-error" : undefined}
                             value={montos[f.productId] ?? null}
                             onValueChange={(v) => setMontos((prev) => ({ ...prev, [f.productId]: v }))}
                           />
@@ -254,11 +260,16 @@ export function RebajaDialog({
                 </TableBody>
               </Table>
             </div>
+            {hayMontos && campos.montos && (
+              <p id="rb-montos-error" role="alert" className="text-xs font-medium text-destructive">
+                {campos.montos}
+              </p>
+            )}
           </FormSection>
 
           <FormSection title="Concepto y motivo">
             <FieldGrid cols={2}>
-              <Field id="rb-concepto" label="Concepto de la nota" required>
+              <Field id="rb-concepto" label="Concepto de la nota" required error={campos.concepto}>
                 <NativeSelect
                   id="rb-concepto"
                   value={concepto}
@@ -269,7 +280,7 @@ export function RebajaDialog({
                   }))}
                 />
               </Field>
-              <Field id="rb-metodo" label="Cómo se le reconoce" required hint="Solo el efectivo sale de la caja del turno.">
+              <Field id="rb-metodo" label="Cómo se le reconoce" required hint="Solo el efectivo sale de la caja del turno." error={campos.refundMethod}>
                 <NativeSelect
                   id="rb-metodo"
                   value={refundMethod}
@@ -277,7 +288,7 @@ export function RebajaDialog({
                   options={Object.entries(REBATE_METHOD_LABELS).map(([value, label]) => ({ value, label }))}
                 />
               </Field>
-              <Field id="rb-motivo" label="Motivo" required hint="Va en la descripción de la nota.">
+              <Field id="rb-motivo" label="Motivo" required hint="Va en la descripción de la nota." error={reason ? campos.reason : undefined}>
                 <Input
                   id="rb-motivo"
                   value={reason}
@@ -291,11 +302,6 @@ export function RebajaDialog({
               <p className="text-xs text-muted-foreground">
                 El descuento por pronto pago y por volumen solo existe en la
                 factura electrónica: esta venta no la tiene.
-              </p>
-            )}
-            {bloqueo && Object.values(montos).some((m) => m) && (
-              <p role="status" className="text-xs text-destructive">
-                {bloqueo}
               </p>
             )}
           </FormSection>

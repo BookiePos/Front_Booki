@@ -14,7 +14,7 @@ import {
   REBATE_METHOD_LABELS,
   conceptosDisponibles,
   diasDelPeriodo,
-  errorNotaSinReferencia,
+  camposNotaSinReferencia,
   huellaRebaja,
   llaveDelIntento,
   resumenNota,
@@ -190,6 +190,8 @@ function NuevaNotaDialog({
   }, [open])
 
   function cerrar() {
+    // En vuelo no se cierra: la llave y el resultado son de este intento.
+    if (saving) return
     onOpenChange(false)
     llave.current = null
     setCustomerId("")
@@ -203,7 +205,7 @@ function NuevaNotaDialog({
     setHecha(null)
   }
 
-  const bloqueo = errorNotaSinReferencia({
+  const campos = camposNotaSinReferencia({
     customerId,
     concepto,
     desde,
@@ -212,6 +214,7 @@ function NuevaNotaDialog({
     refundMethod,
     reason,
   })
+  const bloqueo = campos.customerId ?? campos.hasta ?? campos.amount ?? campos.reason ?? null
   const dias = diasDelPeriodo(desde, hasta)
 
   async function guardar() {
@@ -254,7 +257,7 @@ function NuevaNotaDialog({
       description="Descuento sobre las facturas electrónicas de un cliente en un periodo de máximo 30 días dentro de un mismo mes."
       footer={
         <>
-          <Button variant="outline" onClick={cerrar}>
+          <Button variant="outline" onClick={cerrar} disabled={saving}>
             {hecha ? "Cerrar" : "Cancelar"}
           </Button>
           {!hecha && (
@@ -276,7 +279,7 @@ function NuevaNotaDialog({
         </FormAlert>
       ) : (
         <FieldGrid cols={2}>
-          <Field id="nsr-cliente" label="Cliente" required hint="Debe tener facturas electrónicas en el periodo.">
+          <Field id="nsr-cliente" label="Cliente" required hint="Debe tener facturas electrónicas en el periodo." error={!customerId && (desde || hasta || amount !== null || reason) ? campos.customerId : undefined}>
             <NativeSelect
               id="nsr-cliente"
               value={customerId}
@@ -307,10 +310,11 @@ function NuevaNotaDialog({
             label="Hasta"
             required
             hint={dias !== null && dias > 0 ? `${dias} día(s) en el periodo.` : undefined}
+            error={desde || hasta ? campos.hasta : undefined}
           >
             <Input id="nsr-hasta" type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} />
           </Field>
-          <Field id="nsr-monto" label="Monto con impuesto" required hint="Pesos enteros.">
+          <Field id="nsr-monto" label="Monto con impuesto" required hint="Pesos enteros." error={amount !== null ? campos.amount : undefined}>
             <MoneyInput id="nsr-monto" value={amount} onValueChange={setAmount} />
           </Field>
           <Field id="nsr-metodo" label="Cómo se le reconoce" required>
@@ -321,7 +325,7 @@ function NuevaNotaDialog({
               options={Object.entries(REBATE_METHOD_LABELS).map(([value, label]) => ({ value, label }))}
             />
           </Field>
-          <Field id="nsr-motivo" label="Motivo" required hint="Va en la descripción de la nota.">
+          <Field id="nsr-motivo" label="Motivo" required hint="Va en la descripción de la nota." error={reason ? campos.reason : undefined}>
             <Input
               id="nsr-motivo"
               value={reason}
@@ -330,11 +334,6 @@ function NuevaNotaDialog({
               placeholder="Descuento por volumen de octubre"
             />
           </Field>
-          {bloqueo && (customerId || desde || hasta || amount !== null || reason) && (
-            <p role="status" className="text-xs text-destructive sm:col-span-2">
-              {bloqueo}
-            </p>
-          )}
         </FieldGrid>
       )}
     </FormDialog>

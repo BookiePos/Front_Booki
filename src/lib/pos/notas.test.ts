@@ -10,7 +10,6 @@ import {
   esErrorVentanaSemanal,
   estaPendiente,
   huellaDevolucion,
-  limitadoPorSede,
   llaveDelIntento,
   mensajeCompletar,
   resumenNota,
@@ -178,11 +177,5 @@ describe("saldo a favor", () => {
     expect(errorSaldoFavor({ customerId: "c", saldo: 50, aPagar: 100 })).toMatch(/saldo a favor/)
     expect(errorSaldoFavor({ customerId: "c", saldo: 100, aPagar: 100 })).toBeNull()
     expect(errorSaldoFavor({ customerId: "", saldo: null, aPagar: 0 })).toBeNull()
-  })
-  it("el reporte se oculta a quien está limitado por sede", () => {
-    expect(limitadoPorSede({ role: "owner", permissions: [] })).toBe(false)
-    expect(limitadoPorSede({ role: "admin", permissions: ["sede.view_all"] })).toBe(false)
-    expect(limitadoPorSede({ role: "admin", permissions: ["finance.view"] })).toBe(true)
-    expect(limitadoPorSede(null)).toBe(true)
   })
 })

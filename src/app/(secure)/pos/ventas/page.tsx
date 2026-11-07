@@ -576,6 +576,7 @@ export default function VentasPage() {
         sale={selected}
         open={returning}
         onOpenChange={setReturning}
+        canRefund={canRefund}
         onDone={() => {
           setVersionDev((n) => n + 1)
           void load(1)
