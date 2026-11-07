@@ -49,7 +49,7 @@ import {
   getDocument,
   type ElectronicDocument,
 } from "@/lib/pos/api-einvoicing"
-import { tiqueteFiscalDe } from "@/lib/pos/documento-fiscal"
+import { puedeTranscribir, tiqueteFiscalDe } from "@/lib/pos/documento-fiscal"
 
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -437,7 +437,7 @@ export default function VentasPage() {
         footer={
           <>
             {canIssueFe &&
-              selected?.documentoFiscal?.estado === "pendiente_contingencia_07" && (
+              puedeTranscribir(selected?.documentoFiscal) && (
                 <div className="no-print mr-auto">
                   <Button onClick={() => setTranscribing(true)}>
                     <FileSignature />
@@ -528,6 +528,7 @@ export default function VentasPage() {
                   <PlazoContingencia
                     dianStatus={docVigente.dianStatus}
                     contingencia={docVigente.contingencia}
+                    notasPendientes={selected.documentoFiscal?.notasPendientes}
                   />
                 )}
                 {canIssueFe &&
