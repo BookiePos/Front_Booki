@@ -13,6 +13,7 @@ import {
   TriangleAlert,
 } from "lucide-react"
 
+import { useLoadEffect } from "@/hooks/use-load-effect"
 import { useAuth } from "@/lib/auth-context"
 import {
   listResolutions,
@@ -186,8 +187,8 @@ function ResolutionSheet({ open, onOpenChange, row, initialTipo, prefill, onSave
     [],
   )
 
-  React.useEffect(() => {
-    if (!open || !row) return
+  const abrir = React.useCallback(() => {
+    if (!row) return
     setTipo(initialTipo)
     cargar(row, initialTipo)
     if (prefill) {
@@ -216,7 +217,8 @@ function ResolutionSheet({ open, onOpenChange, row, initialTipo, prefill, onSave
     setClaveTecnica("")
     setError(null)
     setErrorPrefijo(null)
-  }, [open, row, initialTipo, prefill, cargar])
+  }, [row, initialTipo, prefill, cargar])
+  useLoadEffect(abrir, open && !!row)
 
   // Si el formulario sigue siendo el del rango de la DIAN, el servidor lee la
   // clave técnica solo (no se pide ni viaja); si el usuario la teclea, manda esa.
@@ -578,9 +580,7 @@ export default function ResolucionesPage() {
     }
   }, [])
 
-  React.useEffect(() => {
-    if (canIssue) void load()
-  }, [canIssue, load])
+  useLoadEffect(load, canIssue)
 
   if (!canIssue) {
     return (

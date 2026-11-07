@@ -12,6 +12,7 @@ import {
   Receipt as ReceiptIcon,
 } from "lucide-react"
 
+import { useLoadEffect } from "@/hooks/use-load-effect"
 import { useAuth } from "@/lib/auth-context"
 import { useSede } from "@/lib/pos/sede-context"
 import { listSales, type Sale } from "@/lib/pos/api-sales"
@@ -73,9 +74,7 @@ export default function FacturacionPage() {
     }
   }, [sedeId])
 
-  React.useEffect(() => {
-    if (canView) void load()
-  }, [canView, load])
+  useLoadEffect(load, canView)
 
   async function handleGenerate(sale: Sale) {
     setBusyId(sale._id)
