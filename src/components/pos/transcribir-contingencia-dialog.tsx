@@ -44,10 +44,8 @@ export function TranscribirContingenciaDialog({
   const [error, setError] = React.useState<string | null>(null)
   const [tocado, setTocado] = React.useState(false)
 
-  const momentoVenta = React.useMemo(() => {
-    const t = sale?.createdAt ? new Date(sale.createdAt) : null
-    return t && !Number.isNaN(t.getTime()) ? t : null
-  }, [sale?.createdAt])
+  const creada = sale?.createdAt ? new Date(sale.createdAt) : null
+  const momentoVenta = creada && !Number.isNaN(creada.getTime()) ? creada : null
 
   const { errores, payload } = validarTranscripcion(f, { momentoVenta })
 
