@@ -44,7 +44,9 @@ export function TranscribirContingenciaDialog({
   const [error, setError] = React.useState<string | null>(null)
   const [tocado, setTocado] = React.useState(false)
 
-  const creada = sale?.createdAt ? new Date(sale.createdAt) : null
+  // Igual que el backend: soldAt ?? createdAt.
+  const hecha = sale?.soldAt ?? sale?.createdAt
+  const creada = hecha ? new Date(hecha) : null
   const momentoVenta = creada && !Number.isNaN(creada.getTime()) ? creada : null
 
   const { errores, payload } = validarTranscripcion(f, { momentoVenta })

@@ -1,5 +1,6 @@
 "use client"
 
+import { errorCorteTalonario, corteTalonarioPorDefecto } from "@/lib/contingencia-fe"
 import * as React from "react"
 import Link from "next/link"
 import {
@@ -139,8 +140,6 @@ function Dato({ label, children }: { label: string; children: React.ReactNode })
 }
 
 // ─── Formulario de alta / renovación ─────────────────────────────────────────
-
-import { errorCorteTalonario, corteTalonarioPorDefecto } from "@/lib/contingencia-fe"
 
 interface ResolutionSheetProps {
   open: boolean

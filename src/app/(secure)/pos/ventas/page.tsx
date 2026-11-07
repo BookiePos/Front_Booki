@@ -533,8 +533,7 @@ export default function VentasPage() {
                 {canIssueFe &&
                   docVigente?.contingencia &&
                   !docVigente.contingencia.noAplico &&
-                  !docVigente.contingencia.cerradaAt &&
-                  docVigente.dianStatus !== "accepted" && (
+                  !docVigente.contingencia.cerradaAt && (
                     <div>
                       <Button
                         variant="outline"

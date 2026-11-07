@@ -228,8 +228,7 @@ export function DetalleDocumentoFe({
     puedeEmitir &&
     !!doc?.contingencia &&
     !doc.contingencia.noAplico &&
-    !doc.contingencia.cerradaAt &&
-    d.dianStatus !== "accepted"
+    !doc.contingencia.cerradaAt
   const sinCorreo = motivoSinCorreo(d)
   const entrega = textoEntrega(d)
   const correoAdquiriente = d.adquiriente.email

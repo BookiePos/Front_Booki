@@ -35,7 +35,6 @@ describe("plazo de contingencia", () => {
   })
   it("plazoVisible: nada sin contingencia, cerrada, no aplicó y vencido", () => {
     expect(plazoVisible({ dianStatus: "accepted" }, ahora)).toBeNull()
-    expect(plazoVisible({ dianStatus: "accepted", contingencia: cont() }, ahora)?.fase).toBe("cerrada")
     expect(plazoVisible({ dianStatus: "contingency", contingencia: cont({ noAplico: true }) }, ahora)?.fase).toBe("no_aplico")
     const v = plazoVisible({ dianStatus: "contingency", contingencia: cont({ superadaAt: "2026-11-01T00:00:00Z" }) }, ahora)
     expect(v?.tono).toBe("error")
@@ -95,5 +94,26 @@ describe("corte del talonario", () => {
     expect(errorCorteTalonario("5", 10, 100)).toMatch(/entre 10 y 99/)
     expect(errorCorteTalonario("5.5", 1, 100)).toBeTruthy()
     expect(errorCorteTalonario("5", 1, undefined)).toMatch(/rango/)
+  })
+})
+
+describe("superadaEn frente a la venta", () => {
+  const venta = new Date("2026-11-05T14:00:00Z") // 09:00 Colombia
+  it("sin talonario no puede ser anterior a la venta", () => {
+    const f = { ...FORM_TRANSCRIPCION_VACIO, superadaEn: "2026-11-05T08:00" }
+    expect(validarTranscripcion(f, { ahora, momentoVenta: venta }).errores.superadaEn).toMatch(/venta/)
+  })
+  it("con talonario solo se compara con el papel, aunque sea anterior a la venta", () => {
+    const f = { ...FORM_TRANSCRIPCION_VACIO, conPapel: true, numero: "3", fecha: "2026-11-04", hora: "09:00", superadaEn: "2026-11-05T08:00" }
+    const r = validarTranscripcion(f, { ahora, momentoVenta: venta })
+    expect(r.errores.superadaEn).toBeUndefined()
+    expect(r.payload?.superadaAt).toBe("2026-11-05T13:00:00.000Z")
+  })
+})
+
+describe("cierre de la contingencia", () => {
+  it("aceptado sin cerradaAt = faltan notas; cerrada solo con cerradaAt", () => {
+    expect(plazoVisible({ dianStatus: "accepted", contingencia: cont() }, ahora)?.fase).toBe("notas_pendientes")
+    expect(plazoVisible({ dianStatus: "accepted", contingencia: cont({ cerradaAt: "2026-11-05T14:30:00Z" }) }, ahora)?.fase).toBe("cerrada")
   })
 })

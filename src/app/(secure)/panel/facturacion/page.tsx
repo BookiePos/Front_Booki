@@ -360,6 +360,13 @@ export default function FacturacionPage() {
                         {(() => {
                           const plazo = plazoVisible(invoice)
                           if (!plazo || plazo.fase === "cerrada") return null
+                          if (plazo.fase === "no_aplico") {
+                            return (
+                              <Badge variant="secondary" title={plazo.texto}>
+                                Contingencia no aplicó
+                              </Badge>
+                            )
+                          }
                           return (
                             <Badge
                               title={plazo.texto}
@@ -369,11 +376,10 @@ export default function FacturacionPage() {
                                   : "border-transparent bg-warning/15 text-warning-ink"
                               }
                             >
-                              {plazo.fase === "no_aplico"
-                                ? "Contingencia no aplicó"
-                                : plazo.fase === "vencido"
-                                  ? "Contingencia vencida"
-                                  : "Contingencia"}
+                              {plazo.fase === "vencido"
+                                ? "Contingencia vencida"
+                                : "Contingencia"}
+                              <span className="sr-only">. {plazo.texto}</span>
                             </Badge>
                           )
                         })()}

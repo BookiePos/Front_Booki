@@ -270,6 +270,8 @@ export interface Sale {
   notaAnulacion?: NotaFiscalOperacion
   /** Documento fiscal pedido al cobrar (Fase 7). Ausente si no se pidió. */
   documentoFiscal?: DocumentoFiscalVenta
+  /** Momento real de la venta (en las de contingencia, el de la caja); si falta, `createdAt`. */
+  soldAt?: string
   createdAt: string
 }
 

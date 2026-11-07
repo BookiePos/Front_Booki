@@ -87,7 +87,7 @@ export function estadoPlazo(
 export type TonoPlazo = "ok" | "aviso" | "error" | "neutro"
 
 export interface PlazoVisible {
-  fase: FasePlazo | "cerrada" | "no_aplico"
+  fase: FasePlazo | "cerrada" | "no_aplico" | "notas_pendientes"
   tono: TonoPlazo
   texto: string
 }
@@ -110,8 +110,17 @@ export function plazoVisible(
       texto: "La contingencia no aplicó: queda vigente el documento original.",
     }
   }
-  if (c.cerradaAt || doc.dianStatus === "accepted") {
-    return { fase: "cerrada", tono: "ok", texto: "Contingencia cerrada: la DIAN aceptó el documento." }
+  // Cerrada solo con `cerradaAt`: el backend la pone cuando el documento Y todas
+  // sus notas están aceptados. Aceptado sin cerrar = faltan notas por transmitir.
+  if (c.cerradaAt) {
+    return { fase: "cerrada", tono: "ok", texto: "Contingencia cerrada: la DIAN aceptó el documento y sus notas." }
+  }
+  if (doc.dianStatus === "accepted") {
+    return {
+      fase: "notas_pendientes",
+      tono: "aviso",
+      texto: "La DIAN aceptó el documento, pero faltan notas por aceptar. Transmite para terminarlas.",
+    }
   }
   const p = estadoPlazo(c, ahora)
   switch (p.fase) {
@@ -193,7 +202,8 @@ export const FORM_TRANSCRIPCION_VACIO: FormTranscripcion = {
 /**
  * Valida el formulario antes de enviarlo. Es una ayuda: el rango del
  * talonario, su vigencia y el resto los decide el backend (400/409).
- * `momentoVenta` es cuándo se hizo la venta (para no aceptar una superación
+ * `momentoVenta` es `soldAt ?? createdAt` de la venta; solo cuenta SIN talonario
+ * (con talonario el backend compara contra la fecha y hora del papel). Evita aceptar una superación
  * anterior a ella).
  */
 export function validarTranscripcion(
@@ -239,7 +249,7 @@ export function validarTranscripcion(
         errores.superadaEn = "La fecha de superación no es válida."
       } else if (inst > ahora) {
         errores.superadaEn = "La fecha en que se superó la falla no puede ser futura."
-      } else if (opts.momentoVenta && inst < opts.momentoVenta) {
+      } else if (!f.conPapel && opts.momentoVenta && inst < opts.momentoVenta) {
         errores.superadaEn = "No puede ser anterior a la venta."
       } else if (momentoPapel && inst < momentoPapel) {
         errores.superadaEn = "No puede ser anterior al papel del talonario."
