@@ -96,6 +96,7 @@ export const navSections: NavSection[] = [
       { title: "Gastos", href: "/panel/finanzas/gastos", icon: FileMinus, requiredPermissions: ["finance.view"], requiredFeature: "expenses" },
       { title: "Conciliación de pagos", href: "/panel/finanzas/conciliacion", icon: Landmark, requiredPermissions: ["finance.view"], requiredFeature: "accounting" },
       { title: "Cuentas por pagar", href: "/panel/finanzas/cxp", icon: Receipt, requiredPermissions: ["finance.view"], requiredFeature: "accounting" },
+      { title: "Saldos a favor", href: "/panel/finanzas/saldos-favor", icon: Wallet, requiredPermissions: ["finance.view"], requiredFeature: "accounting" },
       { title: "P&L", href: "/panel/finanzas/pl", icon: TrendingUp, requiredPermissions: ["finance.view"], requiredFeature: "accounting" },
       { title: "Reportes", href: "/panel/finanzas/reportes", icon: BarChart3, requiredPermissions: ["reports.view"] },
       { title: "Metas", href: "/panel/finanzas/metas", icon: Target, requiredPermissions: ["finance.view"], requiredFeature: "accounting" },
