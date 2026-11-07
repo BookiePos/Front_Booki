@@ -7,6 +7,7 @@ import {
   errorPeriodo,
   errorRebaja,
   errorSaldoFavor,
+  puedeReintentarSaldo,
   esErrorVentanaSemanal,
   estaPendiente,
   huellaDevolucion,
@@ -171,6 +172,13 @@ describe("nota sin referencia", () => {
 })
 
 describe("saldo a favor", () => {
+  it("ofrece reintentar solo si falló, hay red y no hay lectura en curso", () => {
+    expect(puedeReintentarSaldo({ fallo: true, cargando: false })).toBe(true)
+    expect(puedeReintentarSaldo({ fallo: true, cargando: true })).toBe(false)
+    expect(puedeReintentarSaldo({ fallo: false, cargando: false })).toBe(false)
+    expect(puedeReintentarSaldo({ fallo: true, cargando: false, sinRed: true })).toBe(false)
+  })
+
   it("exige cliente y saldo suficiente", () => {
     expect(errorSaldoFavor({ customerId: "", saldo: null, aPagar: 100 })).toMatch(/cliente/)
     expect(errorSaldoFavor({ customerId: "c", saldo: null, aPagar: 100 })).toMatch(/Consultando/)

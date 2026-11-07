@@ -222,6 +222,7 @@ export function DevolucionDialog({
 
   return (
     <FormDialog
+      busy={saving}
       open={open}
       onOpenChange={(v) => {
         if (!v) cerrar()

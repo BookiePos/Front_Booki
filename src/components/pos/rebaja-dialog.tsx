@@ -177,6 +177,7 @@ export function RebajaDialog({
 
   return (
     <FormDialog
+      busy={saving}
       open={open}
       onOpenChange={(v) => (v ? onOpenChange(v) : cerrar())}
       size="3xl"

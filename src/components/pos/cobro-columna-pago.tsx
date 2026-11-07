@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Banknote, HandCoins, CalendarClock, Split, Wallet } from "lucide-react"
+import { Banknote, HandCoins, CalendarClock, Loader2, RefreshCw, Split, Wallet } from "lucide-react"
 import { PAYMENT_METHOD_LABELS, type PaymentMethod } from "@/lib/pos/api-sales"
 import {
   type Customer as RegCustomer,
@@ -21,6 +21,7 @@ import {
 import { Termino } from "@/components/ui/help-tip"
 import { CheckoutColumn, OptionGroup } from "@/components/pos/checkout-layout"
 import { cn } from "@/lib/utils"
+import { puedeReintentarSaldo } from "@/lib/pos/notas"
 import { PAYMENT_ICONS } from "@/components/pos/venta-helpers"
 import { SplitPaymentEditor } from "@/components/pos/split-payment-editor"
 import { PagoDigitalDetalle } from "@/components/pos/pago-digital-detalle"
@@ -75,6 +76,12 @@ interface CobroColumnaPagoProps {
   usaSaldo?: boolean
   /** Sin conexión el saldo a favor no se ofrece. */
   saldoSinRed?: boolean
+  /** La lectura del saldo falló: se ofrece «Reintentar». */
+  saldoFallo?: boolean
+  /** Hay una lectura del saldo en curso (tras «Reintentar»). */
+  saldoCargando?: boolean
+  /** Vuelve a pedir el saldo a favor del cliente. */
+  onReintentarSaldo?: () => void
 }
 
 export function CobroColumnaPago({
@@ -119,6 +126,9 @@ export function CobroColumnaPago({
   saldoError = null,
   usaSaldo = false,
   saldoSinRed = false,
+  saldoFallo = false,
+  saldoCargando = false,
+  onReintentarSaldo,
 }: CobroColumnaPagoProps) {
   return (
     <CheckoutColumn
@@ -179,7 +189,32 @@ export function CobroColumnaPago({
           </p>
           {saldoError ? (
             <p className="text-xs text-destructive">{saldoError}</p>
-          ) : (
+          ) : null}
+          {saldoFallo && onReintentarSaldo && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="mt-1 self-start"
+              onClick={onReintentarSaldo}
+              disabled={
+                !puedeReintentarSaldo({
+                  fallo: saldoFallo,
+                  cargando: saldoCargando,
+                  sinRed: saldoSinRed,
+                })
+              }
+              aria-busy={saldoCargando}
+            >
+              {saldoCargando ? (
+                <Loader2 className="animate-spin" aria-hidden />
+              ) : (
+                <RefreshCw aria-hidden />
+              )}
+              {saldoCargando ? "Consultando…" : "Reintentar"}
+            </Button>
+          )}
+          {!saldoError && (
             <p className="text-xs text-muted-foreground">
               Se descuenta de lo que le quedó a favor por devoluciones y
               rebajas. Vale en cualquier sede.
