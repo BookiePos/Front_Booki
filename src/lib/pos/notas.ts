@@ -364,6 +364,18 @@ export function errorNotaSinReferencia(b: BorradorNotaSinReferencia): string | n
 
 // ─── Saldo a favor ───────────────────────────────────────────────────────────
 
+/**
+ * Si se ofrece el botón «Reintentar» del saldo a favor: solo cuando la lectura
+ * falló, hay red y no hay ya una lectura en curso (evita el doble clic).
+ */
+export function puedeReintentarSaldo(input: {
+  fallo: boolean
+  cargando: boolean
+  sinRed?: boolean
+}): boolean {
+  return input.fallo && !input.cargando && !input.sinRed
+}
+
 const pesosFmt = new Intl.NumberFormat("es-CO")
 
 /**
@@ -386,7 +398,7 @@ export function errorSaldoFavor(input: {
     return "El saldo a favor es de un cliente registrado: elige al cliente primero."
   }
   if (input.fallo) {
-    return "No se pudo consultar el saldo a favor del cliente. Reintenta o elige otro medio de pago."
+    return "No se pudo consultar el saldo a favor del cliente. Usa «Reintentar» o elige otro medio de pago."
   }
   if (input.saldo === null) return "Consultando el saldo a favor del cliente…"
   if (input.saldo < input.aPagar) {

@@ -374,6 +374,10 @@ export default function VentaPage() {
     saldo: number | null
     fallo: boolean
   } | null>(null)
+  /** Lecturas pedidas con «Reintentar»: cambiarlo vuelve a consultar el saldo. */
+  const [saldoReintento, setSaldoReintento] = React.useState(0)
+  /** Hay una lectura del saldo en curso tras pulsar «Reintentar». */
+  const [saldoCargando, setSaldoCargando] = React.useState(false)
   const [empList, setEmpList] = React.useState<EmployeeLookup[]>([])
   const [ncOpen, setNcOpen] = React.useState(false)
   const [ncName, setNcName] = React.useState("")
@@ -1449,7 +1453,11 @@ export default function VentaPage() {
     let vivo = true
     async function leer() {
       await Promise.resolve()
-      if (!vivo || !checkoutOpen || !custId || !modo.online) return
+      if (!vivo) return
+      if (!checkoutOpen || !custId || !modo.online) {
+        setSaldoCargando(false)
+        return
+      }
       try {
         const saldo = await getSaldoFavor(custId)
         if (vivo) setSaldoLeido({ customerId: custId, saldo, fallo: false })
@@ -1457,12 +1465,17 @@ export default function VentaPage() {
         // Fallar no es tener $0: se avisa y no se deja gastar a ciegas.
         if (vivo) setSaldoLeido({ customerId: custId, saldo: null, fallo: true })
       }
+      if (vivo) setSaldoCargando(false)
     }
     void leer()
     return () => {
       vivo = false
     }
-  }, [checkoutOpen, custId, modo.online])
+  }, [checkoutOpen, custId, modo.online, saldoReintento])
+  const reintentarSaldo = React.useCallback(() => {
+    setSaldoCargando(true)
+    setSaldoReintento((n) => n + 1)
+  }, [])
   // Llave de idempotencia del cobro (ítem 6.3): la misma mientras se reintenta
   // el MISMO cobro (mismas líneas, propina y medio). Si la respuesta se perdió,
   // el reintento en línea devuelve la venta ya registrada, y si sale sin red la
@@ -2215,6 +2228,9 @@ export default function VentaPage() {
                   cobro={cobro}
                   saldoFavor={saldoFavor}
                   saldoError={saldoError}
+                  saldoFallo={lecturaSaldo?.fallo ?? false}
+                  saldoCargando={saldoCargando}
+                  onReintentarSaldo={reintentarSaldo}
                   usaSaldo={usaSaldo}
                   saldoSinRed={saldoSinRed}
                 />

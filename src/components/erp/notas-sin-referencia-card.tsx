@@ -249,6 +249,7 @@ function NuevaNotaDialog({
 
   return (
     <FormDialog
+      busy={saving}
       open={open}
       onOpenChange={(v) => (v ? onOpenChange(v) : cerrar())}
       size="2xl"

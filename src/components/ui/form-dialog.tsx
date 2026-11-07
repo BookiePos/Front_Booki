@@ -56,6 +56,7 @@ export function FormDialog({
   children,
   footer,
   className,
+  busy = false,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -67,6 +68,11 @@ export function FormDialog({
   children: React.ReactNode
   footer?: React.ReactNode
   className?: string
+  /**
+   * Hay un guardado en curso: la ✕ se atenúa y deja de cerrar (el cierre por
+   * Escape o por el velo lo gobierna `onOpenChange`, que ya conoce `saving`).
+   */
+  busy?: boolean
 }) {
   const maxWidth = {
     md: "max-w-md",
@@ -177,12 +183,13 @@ export function FormDialog({
               )}
             </div>
             <DialogPrimitive.Close
+              disabled={busy}
               render={
                 <Button
                   variant="ghost"
                   size="icon-sm"
                   aria-label="Cerrar"
-                  className="-mr-1.5 -mt-0.5 shrink-0 text-muted-foreground hover:bg-foreground/6 hover:text-foreground"
+                  className="-mr-1.5 -mt-0.5 shrink-0 text-muted-foreground hover:bg-foreground/6 hover:text-foreground disabled:opacity-40"
                 />
               }
             >
