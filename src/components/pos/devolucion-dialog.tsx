@@ -16,6 +16,15 @@ import {
   type RefundMethod,
 } from "@/lib/pos/api-sales"
 import { money } from "@/lib/pos/format"
+import {
+  AVISO_DEVOLUCION_PARCIAL,
+  errorClienteDevolucion,
+  huellaDevolucion,
+  llaveDelIntento,
+  resumenNota,
+  type LlaveIntento,
+} from "@/lib/pos/notas"
+import { DevolucionesVenta } from "@/components/pos/devoluciones-venta"
 import { FormDialog, FormSection, FormAlert } from "@/components/ui/form-dialog"
 import { Field, FieldGrid, NativeSelect } from "@/components/ui/field"
 import { Button } from "@/components/ui/button"
@@ -71,8 +80,15 @@ export function DevolucionDialog({
   const [hecha, setHecha] = React.useState<SaleReturn | null>(null)
 
   const saleId = sale?._id
+  /**
+   * Llave del intento en curso: la misma mientras se reintenta lo mismo (si la
+   * respuesta se perdió, el servidor devuelve la devolución ya registrada y no
+   * devuelve dos veces), nueva si cambia lo que se manda.
+   */
+  const llave = React.useRef<LlaveIntento | null>(null)
 
   function reiniciar() {
+    llave.current = null
     setCantidades({})
     setReason("defectuoso")
     setRestock("inventory")
@@ -114,6 +130,12 @@ export function DevolucionDialog({
     }
   }, [open, saleId])
 
+  /** Las rebajas no devuelven mercancía: no cuentan como devoluciones. */
+  const devoluciones = React.useMemo(
+    () => previas.filter((r) => r.kind !== "rebaja"),
+    [previas],
+  )
+
   /** Cuánto se devolvió ya de cada producto de esta venta. */
   const yaDevuelto = React.useMemo(() => {
     const m = new Map<string, number>()
@@ -148,24 +170,37 @@ export function DevolucionDialog({
   const seleccionadas = filas.filter((f) => f.pedida > 0)
   const invalidas = seleccionadas.filter((f) => !f.valida)
   const reembolsoTotal = seleccionadas.reduce((s, f) => s + f.reembolso, 0)
+  const errorCliente = sale ? errorClienteDevolucion(refundMethod, sale) : null
   const puedeGuardar =
-    seleccionadas.length > 0 && invalidas.length === 0 && !saving
+    seleccionadas.length > 0 &&
+    invalidas.length === 0 &&
+    !saving &&
+    errorCliente === null
 
   async function guardar() {
     if (!saleId || !puedeGuardar) return
     setSaving(true)
     setError(null)
     try {
+      const lines = seleccionadas.map((f) => ({
+        productId: f.line.productId,
+        qty: f.pedida,
+      }))
+      const nota = note.trim() || undefined
+      llave.current = llaveDelIntento(
+        llave.current,
+        huellaDevolucion({ saleId, lines, reason, restock, refundMethod, note: nota }),
+      )
       const r = await createSaleReturn(saleId, {
-        lines: seleccionadas.map((f) => ({
-          productId: f.line.productId,
-          qty: f.pedida,
-        })),
+        lines,
         reason,
         restock,
         refundMethod,
-        note: note.trim() || undefined,
+        note: nota,
+        idempotencyKey: llave.current.llave,
       })
+      // Cerrada la operación, la siguiente lleva llave nueva.
+      llave.current = null
       setHecha(r)
       setCantidades({})
       onDone()
@@ -217,6 +252,21 @@ export function DevolucionDialog({
       {hecha && (
         <FormAlert tone="success" icon={CheckCircle2}>
           Devolución registrada por <strong>{money(hecha.refundTotal)}</strong>.
+          {resumenNota(hecha.notaFiscal) && (
+            <span className="mt-1 block">
+              {hecha.notaFiscal?.estado === "emitida"
+                ? "Quedó la "
+                : "Sin nota: "}
+              {resumenNota(hecha.notaFiscal)}.
+            </span>
+          )}
+          {hecha.estado && hecha.estado !== "completa" && (
+            <span className="mt-1 block">
+              Quedó a medias (falta {hecha.estado === "pendiente_caja" ? "la salida de caja" : "algún paso"}).
+              Complétala desde el detalle de la venta, en «Devoluciones y
+              rebajas de esta venta».
+            </span>
+          )}
           {hecha.refundMethod === "cash" && (
             <span className="mt-1 block">
               Sale de la caja del turno: entrégale el efectivo al cliente.
@@ -232,11 +282,11 @@ export function DevolucionDialog({
         </FormAlert>
       )}
 
-      {previas.length > 0 && !hecha && (
+      {devoluciones.length > 0 && !hecha && (
         <FormAlert tone="info">
-          Esta venta ya tuvo {previas.length} devolución(es) por{" "}
+          Esta venta ya tuvo {devoluciones.length} devolución(es) por{" "}
           <strong>
-            {money(previas.reduce((s, r) => s + r.refundTotal, 0))}
+            {money(devoluciones.reduce((s, r) => s + r.refundTotal, 0))}
           </strong>
           . Abajo solo puedes devolver lo que queda.
         </FormAlert>
@@ -246,6 +296,15 @@ export function DevolucionDialog({
         <FormAlert tone="warning" icon={TriangleAlert}>
           De esta venta ya se devolvió todo.
         </FormAlert>
+      )}
+
+      {saleId && previas.some((r) => r.estado && r.estado !== "completa") && (
+        <DevolucionesVenta
+          saleId={saleId}
+          canComplete
+          version={hecha ? 1 : 0}
+          onChanged={onDone}
+        />
       )}
 
       {!hecha && (
@@ -399,6 +458,14 @@ export function DevolucionDialog({
                 />
               </Field>
             </FieldGrid>
+
+            {errorCliente && (
+              <FormAlert tone="warning" icon={TriangleAlert}>
+                {errorCliente}
+              </FormAlert>
+            )}
+
+            <FormAlert tone="info">{AVISO_DEVOLUCION_PARCIAL}</FormAlert>
 
             {restock === "waste" && seleccionadas.length > 0 && (
               <FormAlert tone="warning" icon={TriangleAlert}>

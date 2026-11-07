@@ -25,6 +25,7 @@ import {
 } from "@/lib/pos/inc-bolsas"
 import {
   createSale,
+  getSaldoFavor,
   listOrders,
   pendingOf,
   pendingTotal,
@@ -93,6 +94,7 @@ import { useConfirm } from "@/components/ui/confirm-dialog"
 
 
 
+import { errorSaldoFavor } from "@/lib/pos/notas"
 import { METODOS_ATAJO, useAtajosPos } from "@/hooks/use-atajos-pos"
 import { useLoadEffect } from "@/hooks/use-load-effect"
 import { useResetOnChange } from "@/hooks/use-reset-on-change"
@@ -366,6 +368,11 @@ export default function VentaPage() {
   const [custId, setCustId] = React.useState("")
   const [empId, setEmpId] = React.useState("")
   const [regCustomers, setRegCustomers] = React.useState<RegCustomer[]>([])
+  /** Saldo a favor del cliente elegido, con el id al que corresponde. */
+  const [saldoLeido, setSaldoLeido] = React.useState<{
+    customerId: string
+    saldo: number
+  } | null>(null)
   const [empList, setEmpList] = React.useState<EmployeeLookup[]>([])
   const [ncOpen, setNcOpen] = React.useState(false)
   const [ncName, setNcName] = React.useState("")
@@ -444,6 +451,8 @@ export default function VentaPage() {
     setCustId(id)
     if (!id) {
       setCustomer({})
+      // Sin cliente no hay saldo a favor que gastar.
+      setMethod((m) => (m === "saldo_favor" ? "cash" : m))
       return
     }
     // Al elegir cliente manda su lista de precios: la de a mano dejaría de
@@ -1264,6 +1273,23 @@ export default function VentaPage() {
     () => cashSuggestions(netTotal),
     [netTotal],
   )
+  /** Lo que se paga con saldo a favor: todo, o la parte del reparto. */
+  const aPagarConSaldo = splitOn
+    ? splitRows
+        .filter((r) => r.method === "saldo_favor")
+        .reduce((a, r) => a + Math.max(0, Math.round(r.amount ?? 0)), 0)
+    : method === "saldo_favor"
+      ? netTotal
+      : 0
+  const usaSaldo = splitOn
+    ? splitRows.some((r) => r.method === "saldo_favor")
+    : method === "saldo_favor"
+  /** El saldo leído solo vale si es el del cliente elegido ahora. */
+  const saldoFavor =
+    custId && saldoLeido?.customerId === custId ? saldoLeido.saldo : null
+  const saldoError = usaSaldo
+    ? errorSaldoFavor({ customerId: custId, saldo: saldoFavor, aPagar: aPagarConSaldo || 1 })
+    : null
   /** Restante y devuelta del reparto. Lo fiado no cubre la propina. */
   const split = splitOn
     ? splitSummary(splitRows, netTotal, chargeTotal + incBolsas + deliveryFee)
@@ -1347,6 +1373,7 @@ export default function VentaPage() {
       receivedNum !== undefined &&
       receivedNum < netTotal) ||
     (split !== null && split.error !== null) ||
+    saldoError !== null ||
     (usesCredit &&
       ((debtorType === "customer" && !custId) ||
         (debtorType === "employee" && !empId))) ||
@@ -1372,6 +1399,8 @@ export default function VentaPage() {
             ((debtorType === "customer" && !custId) ||
               (debtorType === "employee" && !empId))
           ? "Elige a quién se le fía para poder cobrar."
+          : saldoError
+            ? saldoError
           : invoiceDataMissing
             ? (faltaFiscal ??
               "Para la factura electrónica hace falta el nombre y la cédula o NIT del cliente.")
@@ -1405,6 +1434,26 @@ export default function VentaPage() {
    * deciden si el atajo está activo.
    */
   const confirmarRef = React.useRef<() => Promise<void>>(undefined)
+  // Saldo a favor del cliente elegido (Fase 6D): se consulta al abrir el cobro
+  // y al cambiar de cliente, para mostrarlo antes de ofrecer el medio.
+  React.useEffect(() => {
+    let vivo = true
+    async function leer() {
+      await Promise.resolve()
+      if (!vivo || !checkoutOpen || !custId || !modo.online) return
+      try {
+        const saldo = await getSaldoFavor(custId)
+        if (vivo) setSaldoLeido({ customerId: custId, saldo })
+      } catch {
+        // Sin saldo legible no se ofrece gastarlo: el servidor tampoco lo permitiría.
+        if (vivo) setSaldoLeido({ customerId: custId, saldo: 0 })
+      }
+    }
+    void leer()
+    return () => {
+      vivo = false
+    }
+  }, [checkoutOpen, custId, modo.online])
   // Llave de idempotencia del cobro (ítem 6.3): la misma mientras se reintenta
   // el MISMO cobro (mismas líneas, propina y medio). Si la respuesta se perdió,
   // el reintento en línea devuelve la venta ya registrada, y si sale sin red la
@@ -1551,7 +1600,11 @@ export default function VentaPage() {
       dueDate: method === "credit" ? creditDue || undefined : undefined,
       debtorType: method === "credit" ? debtorType : undefined,
       customerId:
-        method === "credit" && debtorType === "customer" ? custId : undefined,
+        method === "credit" && debtorType === "customer"
+          ? custId
+          : method === "saldo_favor"
+            ? custId
+            : undefined,
       employeeId:
         method === "credit" && debtorType === "employee" ? empId : undefined,
     }
@@ -1563,7 +1616,7 @@ export default function VentaPage() {
           debtorType,
           customerId: debtorType === "customer" ? custId : undefined,
           employeeId: debtorType === "employee" ? empId : undefined,
-        })
+        }, custId || undefined)
       : undefined
     const pago = splitOn ? { payments } : { payment }
     /** Documento fiscal que se pide con el cobro (solo con POS electrónico). */
@@ -2151,6 +2204,9 @@ export default function VentaPage() {
                   digital={digital}
                   setDigital={setDigital}
                   cobro={cobro}
+                  saldoFavor={saldoFavor}
+                  saldoError={saldoError}
+                  usaSaldo={usaSaldo}
                 />
 
                 {/* ── Columna 3: lo que no se toca en cada venta ──

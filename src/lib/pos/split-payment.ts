@@ -162,13 +162,17 @@ export function addSplitRow(rows: readonly SplitRow[], due: number): SplitRow[] 
 export function toPaymentsPayload(
   rows: readonly SplitRow[],
   credito: Omit<SalePaymentPartInput, "method" | "amount">,
+  /** Cliente registrado: la parte pagada con saldo a favor lo lleva. */
+  saldoCustomerId?: string,
 ): SalePaymentPartInput[] {
   return rows
     .filter((r) => pesos(r) > 0)
     .map((r) =>
       r.method === "credit"
         ? { method: r.method, amount: pesos(r), ...credito }
-        : {
+        : r.method === "saldo_favor"
+          ? { method: r.method, amount: pesos(r), customerId: saldoCustomerId }
+          : {
             method: r.method,
             amount: pesos(r),
             ...detalleParaEnviar(r.method, r.detail ?? detalleVacio()),

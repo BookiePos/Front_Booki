@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Banknote, CreditCard, ArrowLeftRight, HandCoins, Smartphone } from "lucide-react"
+import { Banknote, CreditCard, ArrowLeftRight, HandCoins, Smartphone, Wallet } from "lucide-react"
 import {
   type PosProduct,
   type PaymentMethod,
@@ -34,6 +34,7 @@ export const PAYMENT_ICONS: Record<PaymentMethod, React.ElementType> = {
   transfer: ArrowLeftRight,
   credit: HandCoins,
   platform: Smartphone,
+  saldo_favor: Wallet,
 }
 
 export type SaveState = "idle" | "saving" | "saved" | "error"

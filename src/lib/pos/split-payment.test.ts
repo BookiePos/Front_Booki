@@ -119,6 +119,20 @@ describe("toPaymentsPayload", () => {
   })
 })
 
+describe("toPaymentsPayload con saldo a favor", () => {
+  it("la parte del saldo lleva al cliente registrado", () => {
+    const payload = toPaymentsPayload(
+      [fila("saldo_favor", 20_000), fila("cash", 39_000)],
+      {},
+      "c9",
+    )
+    expect(payload).toEqual([
+      { method: "saldo_favor", amount: 20_000, customerId: "c9" },
+      { method: "cash", amount: 39_000 },
+    ])
+  })
+})
+
 describe("paymentLabel", () => {
   it("junta los medios de una venta mixta", () => {
     expect(
