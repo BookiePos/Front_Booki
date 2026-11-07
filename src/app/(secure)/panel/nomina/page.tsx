@@ -45,6 +45,8 @@ import {
   listarLiquidaciones,
   aprobarLiquidacion,
   anularLiquidacion,
+  netoLiquidacion,
+  tieneRetencion,
   type PayrollLiquidacion,
   MEDIOS_PAGO_NOMINA,
   recalcPayrollRun,
@@ -1328,6 +1330,30 @@ function Liquidacion({ employees }: { employees: Employee[] }) {
                   {money.format(b.total)}
                 </span>
               </div>
+              {tieneRetencion(b) && (
+                <>
+                  <div className="mt-1 flex items-baseline justify-between gap-3 text-sm">
+                    <span>Retención en la fuente</span>
+                    <span className="tabular-nums text-destructive">
+                      − {money.format(b.retencionFuente ?? 0)}
+                    </span>
+                  </div>
+                  {b.detalleRetencion && (
+                    <p className="text-[11px] text-muted-foreground">{b.detalleRetencion}</p>
+                  )}
+                  {b.porcentajeExentoCesantias !== undefined && b.porcentajeExentoCesantias > 0 && (
+                    <p className="text-[11px] text-muted-foreground">
+                      Cesantías e intereses exentos: {Math.round(b.porcentajeExentoCesantias * 100)} % (art. 206-4 ET), sin retención.
+                    </p>
+                  )}
+                  <div className="mt-2 flex items-baseline justify-between rounded-md bg-primary/10 px-3 py-2">
+                    <span className="font-semibold">Neto a pagar</span>
+                    <span className="font-display text-xl tabular-nums text-primary">
+                      {money.format(netoLiquidacion(b))}
+                    </span>
+                  </div>
+                </>
+              )}
               <p className="mt-2 text-[11px] text-muted-foreground">
                 Estimación. La indemnización y casos especiales pueden requerir
                 revisión del contador o abogado.
@@ -1464,6 +1490,13 @@ function LiquidacionesGuardadas({ employeeId, recargar }: { employeeId: string; 
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="text-sm">
                 Retiro {l.fechaRetiro} · {money.format(l.breakdown.total)}
+                {tieneRetencion(l.breakdown) && (
+                  <>
+                    {" "}
+                    · retención − {money.format(l.breakdown.retencionFuente ?? 0)} ·{" "}
+                    <strong>neto {money.format(netoLiquidacion(l.breakdown))}</strong>
+                  </>
+                )}
               </span>
               <Badge
                 className={
