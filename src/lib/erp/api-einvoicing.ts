@@ -3,6 +3,7 @@
  * Reutiliza authFetch (refresh automático) de api-admin.
  */
 import { authFetch, parseResponse } from "@/lib/api-admin"
+import type { ContingenciaDoc } from "@/lib/contingencia-fe"
 
 export type DocType =
   | "invoice"
@@ -138,6 +139,8 @@ export interface ElectronicDocument {
   qrUrl?: string
   signature?: string
   dianStatus: DianStatus
+  /** Fase 9: presente solo en documentos de contingencia (03/04/07/08). */
+  contingencia?: ContingenciaDoc
   technicalProvider?: string
   xmlUrl?: string
   createdByEmail: string
@@ -308,6 +311,12 @@ export interface RegisterResolutionPayload {
   empezarEn?: number
   /** El servidor lee la clave técnica de la DIAN (no viaja al navegador). */
   traerClaveDeDian?: boolean
+  /**
+   * Solo contingencia: último número del talonario de papel (del siguiente al
+   * final son las ventas sin conexión). Sin enviarlo se conserva el guardado;
+   * si no hay, el servidor usa la mitad del rango.
+   */
+  corteTalonario?: number
 }
 
 /** Estado de la resolución de cada sede a la que el usuario tiene acceso. */
@@ -746,4 +755,22 @@ export async function cargarCertificadoEmisor(
     body,
   })
   return parseResponse<{ emisor: EmisorVista | null; reemplazado: boolean }>(res)
+}
+
+/** Resultado de transmitir un documento de contingencia y sus notas, en orden. */
+export interface ResultadoContingenciaFe {
+  documento: ResultadoTransmisionFe
+  notas: ResultadoTransmisionFe[]
+  /** El documento y todas sus notas quedaron aceptados. */
+  cerrada: boolean
+}
+
+/** Transmite a mano un documento de contingencia (`einvoicing.issue`). */
+export async function transmitirContingencia(
+  id: string,
+): Promise<ResultadoContingenciaFe> {
+  const res = await authFetch(`/einvoicing/documentos/${id}/contingencia/transmitir`, {
+    method: "POST",
+  })
+  return parseResponse<ResultadoContingenciaFe>(res)
 }

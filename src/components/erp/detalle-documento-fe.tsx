@@ -17,10 +17,14 @@ import {
   enviarDocumentoPorCorreo,
   getDescargasDocumento,
   getDetalleDocumento,
+  getDocument,
+  transmitirContingencia,
   transmitirDocumento,
   DIAN_STATUS_LABELS,
   type DetalleDocumentoFe,
+  type ElectronicDocument,
 } from "@/lib/erp/api-einvoicing"
+import { PlazoContingencia } from "@/components/erp/plazo-contingencia"
 import {
   correoValido,
   cufeCorto,
@@ -89,16 +93,22 @@ export function DetalleDocumentoFe({
 }) {
   const { hasPermission } = useAuth()
   const puedeOtroCorreo = hasPermission("einvoicing.configure")
+  const puedeEmitir = hasPermission("einvoicing.issue")
   const [d, setD] = React.useState<DetalleDocumentoFe | null>(null)
   const [error, setError] = React.useState<string | null>(null)
   const [busy, setBusy] = React.useState<string | null>(null)
   const [correo, setCorreo] = React.useState("")
+  /** El detalle no trae la contingencia: se lee del documento (falla sin romper el detalle). */
+  const [doc, setDoc] = React.useState<ElectronicDocument | null>(null)
 
   React.useEffect(() => {
     let vivo = true
     getDetalleDocumento(docId)
       .then((x) => vivo && setD(x))
       .catch((err) => vivo && setError(errorMessage(err)))
+    getDocument(docId)
+      .then((x) => vivo && setDoc(x))
+      .catch(() => {})
     return () => {
       vivo = false
     }
@@ -116,6 +126,27 @@ export function DetalleDocumentoFe({
         setD(await getDetalleDocumento(docId))
       } catch {
         // El envío ya ocurrió: no se tapa el detalle con un error de recarga.
+        toast.warning("No se pudo actualizar el detalle. Ciérralo y ábrelo de nuevo.")
+      }
+    } catch (err) {
+      toast.error(errorMessage(err))
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function transmitirEnContingencia() {
+    setBusy("contingencia")
+    try {
+      const r = await transmitirContingencia(docId)
+      if (r.cerrada) toast.success("La DIAN aceptó el documento y sus notas")
+      else toast.info(r.documento.mensajes[0] ?? `Estado: ${DIAN_STATUS_LABELS[r.documento.dianStatus]}`)
+      onCambio?.()
+      try {
+        const [nuevo, nuevoDoc] = await Promise.all([getDetalleDocumento(docId), getDocument(docId)])
+        setD(nuevo)
+        setDoc(nuevoDoc)
+      } catch {
         toast.warning("No se pudo actualizar el detalle. Ciérralo y ábrelo de nuevo.")
       }
     } catch (err) {
@@ -192,6 +223,12 @@ export function DetalleDocumentoFe({
     )
   }
 
+  // Contingencia abierta: se transmite con su propio endpoint (documento y notas, en orden).
+  const contingenciaAbierta =
+    puedeEmitir &&
+    !!doc?.contingencia &&
+    !doc.contingencia.noAplico &&
+    !doc.contingencia.cerradaAt
   const sinCorreo = motivoSinCorreo(d)
   const entrega = textoEntrega(d)
   const correoAdquiriente = d.adquiriente.email
@@ -255,7 +292,24 @@ export function DetalleDocumentoFe({
         </div>
       )}
 
-      {d.puedeReintentar && (
+      {doc?.contingencia && (
+        <PlazoContingencia dianStatus={d.dianStatus} contingencia={doc.contingencia} />
+      )}
+
+      {contingenciaAbierta && (
+          <div>
+            <Button
+              size="sm"
+              disabled={busy !== null}
+              onClick={() => void transmitirEnContingencia()}
+            >
+              {busy === "contingencia" ? <Loader2 className="animate-spin" /> : <RefreshCw />}
+              Transmitir contingencia
+            </Button>
+          </div>
+        )}
+
+      {d.puedeReintentar && !contingenciaAbierta && (
         <div>
           <Button
             variant={d.dianStatus === "rejected" ? "default" : "outline"}
