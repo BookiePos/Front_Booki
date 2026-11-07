@@ -182,6 +182,8 @@ function ResolutionSheet({ open, onOpenChange, row, initialTipo, prefill, onSave
       }
       baseline.current = JSON.stringify(nuevo)
       setF(nuevo)
+      // Solo contingencia: precarga el corte guardado (vacío = conservar el guardado).
+      setCorte(t === "contingency" && res?.corteTalonario !== undefined ? String(res.corteTalonario) : "")
       setEmpezarEn(
         actual?.status.consecutivo.siguiente
           ? String(actual.status.consecutivo.siguiente)
@@ -219,7 +221,8 @@ function ResolutionSheet({ open, onOpenChange, row, initialTipo, prefill, onSave
       }
     }
     setClaveTecnica("")
-    setCorte("")
+    // Con un rango nuevo de la DIAN el corte guardado puede no caber: se vacía.
+    if (prefill) setCorte("")
     setErrorCorte(null)
     setError(null)
     setErrorPrefijo(null)

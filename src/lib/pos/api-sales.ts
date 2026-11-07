@@ -210,6 +210,12 @@ export interface DocumentoFiscalVenta {
   dianStatus?: string
   /** Por qué no se emitió, en lenguaje de la caja. */
   error?: string
+  /**
+   * Solo en el listado y el detalle de la venta: notas que un reintento de
+   * «Transcribir» aún debe emitir, más las emitidas que la DIAN no ha aceptado
+   * (solo ventas `emitido` de contingencia).
+   */
+  notasPendientes?: number
 }
 
 export interface Sale {

@@ -264,6 +264,8 @@ export interface ResolutionData {
   rangoHasta?: number
   vigenciaDesde?: string
   vigenciaHasta?: string
+  /** Solo contingencia: último número del talonario de papel guardado. */
+  corteTalonario?: number
 }
 
 /** Resolución de un tipo distinto de factura, con su estado. */
@@ -587,6 +589,8 @@ export interface DetalleDocumentoFe {
     ultimoAt?: string
     puedeEnviar: boolean
   }
+  /** Solo los documentos de contingencia (03/04/07/08). */
+  contingencia?: ContingenciaDoc
 }
 
 export interface DescargasDocumentoFe {
