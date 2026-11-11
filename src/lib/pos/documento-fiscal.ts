@@ -509,3 +509,14 @@ function fecha(iso: string | undefined): string {
   const [y, m, d] = iso.slice(0, 10).split("-")
   return d && m && y ? `${d}/${m}/${y}` : iso
 }
+
+/**
+ * «Transcribir» sale en las ventas pendientes de contingencia 07 y en las ya
+ * emitidas con notas por reintentar (`notasPendientes > 0`). El permiso
+ * (`einvoicing.issue`) lo valida quien llama.
+ */
+export function puedeTranscribir(df?: DocumentoFiscalVenta | null): boolean {
+  if (!df) return false
+  if (df.estado === "pendiente_contingencia_07") return true
+  return df.estado === "emitido" && (df.notasPendientes ?? 0) > 0
+}

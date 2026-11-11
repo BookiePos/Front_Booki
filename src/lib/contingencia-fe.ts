@@ -87,7 +87,7 @@ export function estadoPlazo(
 export type TonoPlazo = "ok" | "aviso" | "error" | "neutro"
 
 export interface PlazoVisible {
-  fase: FasePlazo | "cerrada" | "no_aplico" | "notas_pendientes"
+  fase: FasePlazo | "cerrada" | "no_aplico" | "notas_pendientes" | "por_cerrar"
   tono: TonoPlazo
   texto: string
 }
@@ -95,10 +95,17 @@ export interface PlazoVisible {
 /**
  * Lo que se muestra del plazo de un documento, o `null` si no hay nada que
  * decir (no es de contingencia). Aceptado/cerrado dejan de correr; `noAplico`
- * lo dice aparte.
+ * lo dice aparte. `notasPendientes` (de `documentoFiscal` en la venta) distingue,
+ * en un documento aceptado sin cerrar, si faltan notas por aceptar (> 0) o solo
+ * falta que el backend cierre la contingencia (0); sin el dato, el texto es el
+ * genérico.
  */
 export function plazoVisible(
-  doc: { dianStatus: string; contingencia?: ContingenciaDoc | null },
+  doc: {
+    dianStatus: string
+    contingencia?: ContingenciaDoc | null
+    notasPendientes?: number
+  },
   ahora: Date = new Date(),
 ): PlazoVisible | null {
   const c = doc.contingencia
@@ -116,6 +123,13 @@ export function plazoVisible(
     return { fase: "cerrada", tono: "ok", texto: "Contingencia cerrada: la DIAN aceptó el documento y sus notas." }
   }
   if (doc.dianStatus === "accepted") {
+    if (doc.notasPendientes === 0) {
+      return {
+        fase: "por_cerrar",
+        tono: "aviso",
+        texto: "La DIAN aceptó el documento y no quedan notas pendientes: falta cerrar la contingencia. Transmite para cerrarla.",
+      }
+    }
     return {
       fase: "notas_pendientes",
       tono: "aviso",
@@ -186,6 +200,11 @@ export function instanteColombia(fechaTxt: string, horaTxt = "00:00"): Date | nu
   return Number.isNaN(d.getTime()) ? null : d
 }
 
+/** HH:mm:ss en Colombia (UTC-5) de un instante: la hora que el backend usa si el papel no trae hora. */
+export function horaColombia(d: Date): string {
+  return new Date(d.getTime() - 5 * HORA_MS).toISOString().slice(11, 19)
+}
+
 /** AAAA-MM-DD de hoy en Colombia. */
 export function hoyColombia(ahora: Date = new Date()): string {
   return new Date(ahora.getTime() - 5 * HORA_MS).toISOString().slice(0, 10)
@@ -202,9 +221,9 @@ export const FORM_TRANSCRIPCION_VACIO: FormTranscripcion = {
 /**
  * Valida el formulario antes de enviarlo. Es una ayuda: el rango del
  * talonario, su vigencia y el resto los decide el backend (400/409).
- * `momentoVenta` es `soldAt ?? createdAt` de la venta; solo cuenta SIN talonario
- * (con talonario el backend compara contra la fecha y hora del papel). Evita aceptar una superación
- * anterior a ella).
+ * `momentoVenta` es `soldAt ?? createdAt` de la venta: sin talonario es el piso de
+ * la superación; con talonario el piso es el papel (su fecha y su hora, o la hora
+ * de la venta si el papel no la trae).
  */
 export function validarTranscripcion(
   f: FormTranscripcion,
@@ -235,7 +254,12 @@ export function validarTranscripcion(
         fecha: f.fecha,
         ...(hora ? { hora } : {}),
       }
-      momentoPapel = instanteColombia(f.fecha, hora || "00:00")
+      // Igual que el backend: sin hora en el papel manda la hora de la venta (en
+      // Colombia), no las 00:00; si no se conoce la venta, lo decide el servidor.
+      momentoPapel = instanteColombia(
+        f.fecha,
+        hora || (opts.momentoVenta ? horaColombia(opts.momentoVenta) : "00:00"),
+      )
     }
   }
 

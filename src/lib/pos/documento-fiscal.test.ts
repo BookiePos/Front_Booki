@@ -9,6 +9,7 @@ import {
   impuestosDe,
   lineaFabricante,
   lineasResolucion,
+  puedeTranscribir,
   separarNitConDv,
   tiqueteFiscalDe,
   tituloTiquete,
@@ -350,5 +351,21 @@ describe("textos del tiquete", () => {
     expect(lineaFabricante(doc.fabricante)).toBe(
       "Software BookiPos · Fabricante BookiPos SAS NIT 901234567",
     )
+  })
+})
+
+describe("puedeTranscribir", () => {
+  const base = { solicitado: "pos_anonimo" as const }
+  it("pendiente de contingencia 07: sí", () => {
+    expect(puedeTranscribir({ ...base, estado: "pendiente_contingencia_07" })).toBe(true)
+  })
+  it("emitido con notas pendientes: sí; sin ellas o sin el dato: no", () => {
+    expect(puedeTranscribir({ ...base, estado: "emitido", notasPendientes: 1 })).toBe(true)
+    expect(puedeTranscribir({ ...base, estado: "emitido", notasPendientes: 0 })).toBe(false)
+    expect(puedeTranscribir({ ...base, estado: "emitido" })).toBe(false)
+  })
+  it("otros estados y venta sin documento fiscal: no", () => {
+    expect(puedeTranscribir({ ...base, estado: "error", notasPendientes: 3 })).toBe(false)
+    expect(puedeTranscribir(undefined)).toBe(false)
   })
 })

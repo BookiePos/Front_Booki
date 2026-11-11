@@ -31,13 +31,16 @@ const ICONO = {
 export function PlazoContingencia({
   dianStatus,
   contingencia,
+  notasPendientes,
   className,
 }: {
   dianStatus: string
   contingencia?: ContingenciaDoc | null
+  /** `documentoFiscal.notasPendientes` de la venta, si se conoce. */
+  notasPendientes?: number
   className?: string
 }) {
-  const plazo = plazoVisible({ dianStatus, contingencia })
+  const plazo = plazoVisible({ dianStatus, contingencia, notasPendientes })
   if (!plazo || !contingencia) return null
   const Icono = ICONO[plazo.tono]
   return (
