@@ -606,6 +606,9 @@ export interface SaleReturn {
   aSaldoFavor?: number
   /** Nota crédito o de ajuste de la operación. */
   notaFiscal?: NotaFiscalOperacion
+  sedeId?: string
+  /** Cliente efectivo: el de la venta o el elegido al registrarla. */
+  customerId?: string
 }
 
 export interface CreateSaleReturnPayload {
@@ -614,6 +617,11 @@ export interface CreateSaleReturnPayload {
   restock: RestockMode
   refundMethod: RefundMethod
   note?: string
+  /**
+   * A quién le queda el saldo a favor. Solo para ventas SIN cliente: si la
+   * venta ya lo tiene, el servidor rechaza (400) cualquier otro.
+   */
+  customerId?: string
   /** Estable por intento: reintentar con la misma no devuelve dos veces. */
   idempotencyKey?: string
 }
@@ -647,6 +655,30 @@ export async function completarDevolucion(returnId: string): Promise<SaleReturn>
     method: "POST",
   })
   return parseResponse<SaleReturn>(res)
+}
+
+export interface DevolucionesPendientesPage {
+  items: SaleReturn[]
+  total: number
+  page: number
+  limit: number
+}
+
+/**
+ * Bandeja de devoluciones y rebajas que quedaron a medias (`en_curso` o
+ * `pendiente_caja`), de la más vieja a la más nueva (`pos.refund`). Sin sede,
+ * las de todas las sedes del usuario; con una sede ajena, 403.
+ */
+export async function listDevolucionesPendientes(
+  q: { sedeId?: string; page?: number; limit?: number } = {},
+): Promise<DevolucionesPendientesPage> {
+  const qs = new URLSearchParams()
+  if (q.sedeId) qs.set("sedeId", q.sedeId)
+  if (q.page) qs.set("page", String(q.page))
+  if (q.limit) qs.set("limit", String(q.limit))
+  const sufijo = qs.size > 0 ? `?${qs.toString()}` : ""
+  const res = await authFetch(`/sales/returns/pendientes${sufijo}`)
+  return parseResponse<DevolucionesPendientesPage>(res)
 }
 
 export interface CreateRebatePayload {
