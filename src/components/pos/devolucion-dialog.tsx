@@ -15,12 +15,15 @@ import {
   type RestockMode,
   type RefundMethod,
 } from "@/lib/pos/api-sales"
+import { listCustomers, type Customer } from "@/lib/pos/api-customers"
 import { money } from "@/lib/pos/format"
 import {
   AVISO_DEVOLUCION_PARCIAL,
+  clienteDeLaDevolucion,
   errorClienteDevolucion,
   huellaDevolucion,
   llaveDelIntento,
+  pideClienteDevolucion,
   resumenNota,
   type LlaveIntento,
 } from "@/lib/pos/notas"
@@ -81,6 +84,12 @@ export function DevolucionDialog({
   const [saving, setSaving] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [hecha, setHecha] = React.useState<SaleReturn | null>(null)
+  /** Cliente elegido aquí, para la venta que no trae uno (a quién le queda el saldo). */
+  const [clienteId, setClienteId] = React.useState("")
+  /** `null`: todavía no se han pedido. Se piden solo si hace falta elegir. */
+  const [clientes, setClientes] = React.useState<Customer[] | null>(null)
+  const [errorClientes, setErrorClientes] = React.useState(false)
+  const [intentoClientes, setIntentoClientes] = React.useState(0)
 
   const saleId = sale?._id
   /**
@@ -99,6 +108,7 @@ export function DevolucionDialog({
     setNote("")
     setError(null)
     setHecha(null)
+    setClienteId("")
   }
 
   function cerrar() {
@@ -176,7 +186,29 @@ export function DevolucionDialog({
   const seleccionadas = filas.filter((f) => f.pedida > 0)
   const invalidas = seleccionadas.filter((f) => !f.valida)
   const reembolsoTotal = seleccionadas.reduce((s, f) => s + f.reembolso, 0)
-  const errorCliente = sale ? errorClienteDevolucion(refundMethod, sale) : null
+  const pideCliente = sale ? pideClienteDevolucion(refundMethod, sale) : false
+  const errorCliente = sale
+    ? errorClienteDevolucion(refundMethod, sale, clienteId)
+    : null
+
+  /**
+   * Los clientes se piden la primera vez que hay que elegir uno (la mayoría de
+   * las devoluciones salen en efectivo y no los necesitan).
+   */
+  React.useEffect(() => {
+    if (!open || !pideCliente || clientes !== null) return
+    let vivo = true
+    listCustomers()
+      .then((cs) => {
+        if (!vivo) return
+        setClientes(cs.filter((c) => c.active !== false))
+        setErrorClientes(false)
+      })
+      .catch(() => vivo && setErrorClientes(true))
+    return () => {
+      vivo = false
+    }
+  }, [open, pideCliente, clientes, intentoClientes])
   const puedeGuardar =
     seleccionadas.length > 0 &&
     invalidas.length === 0 &&
@@ -193,9 +225,12 @@ export function DevolucionDialog({
         qty: f.pedida,
       }))
       const nota = note.trim() || undefined
+      const customerId = sale
+        ? clienteDeLaDevolucion(refundMethod, sale, clienteId)
+        : undefined
       llave.current = llaveDelIntento(
         llave.current,
-        huellaDevolucion({ saleId, lines, reason, restock, refundMethod, note: nota }),
+        huellaDevolucion({ saleId, lines, reason, restock, refundMethod, note: nota, customerId }),
       )
       const r = await createSaleReturn(saleId, {
         lines,
@@ -203,6 +238,7 @@ export function DevolucionDialog({
         restock,
         refundMethod,
         note: nota,
+        customerId,
         idempotencyKey: llave.current.llave,
       })
       // Cerrada la operación, la siguiente lleva llave nueva.
@@ -216,6 +252,12 @@ export function DevolucionDialog({
       setSaving(false)
     }
   }
+
+  /** Nombre del cliente elegido aquí, para decir a quién le quedó el saldo. */
+  const nombreElegido =
+    hecha?.customerId && !sale?.customerId
+      ? clientes?.find((c) => c._id === hecha.customerId)?.name
+      : undefined
 
   const sinNadaQueDevolver =
     filas.length > 0 && filas.every((f) => f.disponible <= 0)
@@ -270,8 +312,14 @@ export function DevolucionDialog({
           {hecha.estado && hecha.estado !== "completa" && (
             <span className="mt-1 block">
               Quedó a medias (falta {hecha.estado === "pendiente_caja" ? "la salida de caja" : "algún paso"}).
-              Complétala desde el detalle de la venta, en «Devoluciones y
-              rebajas de esta venta».
+              Complétala desde «Devoluciones a medias», en Ventas, o desde el
+              detalle de la venta.
+            </span>
+          )}
+          {nombreElegido && (hecha.aSaldoFavor ?? 0) > 0 && (
+            <span className="mt-1 block">
+              Le quedaron <strong>{money(hecha.aSaldoFavor ?? 0)}</strong> a
+              favor a {nombreElegido}.
             </span>
           )}
           {hecha.refundMethod === "cash" && (
@@ -466,9 +514,48 @@ export function DevolucionDialog({
               </Field>
             </FieldGrid>
 
-            {errorCliente && (
+            {pideCliente && (
+              <Field
+                id="dv-cliente"
+                label="A quién le queda el saldo"
+                required
+                hint="La venta no tiene cliente registrado. El saldo queda a nombre de quien elijas y lo puede gastar en su próxima compra."
+              >
+                <NativeSelect
+                  id="dv-cliente"
+                  value={clienteId}
+                  onChange={setClienteId}
+                  disabled={saving || clientes === null}
+                  placeholder={
+                    clientes === null && !errorClientes
+                      ? "Cargando clientes…"
+                      : "Selecciona un cliente…"
+                  }
+                  options={(clientes ?? []).map((c) => ({
+                    value: c._id,
+                    label: `${c.name} · ${c.docType} ${c.docNumber}`,
+                  }))}
+                />
+              </Field>
+            )}
+
+            {pideCliente && errorClientes && (
               <FormAlert tone="warning" icon={TriangleAlert}>
-                {errorCliente}
+                No se pudieron cargar los clientes.{" "}
+                <button
+                  type="button"
+                  className="font-medium underline underline-offset-2"
+                  onClick={() => setIntentoClientes((n) => n + 1)}
+                >
+                  Reintentar
+                </button>
+              </FormAlert>
+            )}
+
+            {pideCliente && clientes !== null && clientes.length === 0 && (
+              <FormAlert tone="warning" icon={TriangleAlert}>
+                Todavía no hay clientes registrados. Regístralo desde el cobro
+                o en Clientes, o devuelve en efectivo o por transferencia.
               </FormAlert>
             )}
 

@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest"
 import {
   conceptosDisponibles,
   diasDelPeriodo,
+  clienteDeLaDevolucion,
   errorClienteDevolucion,
+  pideClienteDevolucion,
   errorNotaSinReferencia,
   errorPeriodo,
   errorRebaja,
@@ -74,6 +76,37 @@ describe("devolución", () => {
     expect(errorClienteDevolucion("credit_note", {})).toMatch(/cliente registrado/)
     expect(errorClienteDevolucion("none", {})).toMatch(/cliente registrado/)
     expect(errorClienteDevolucion("none", { customerId: "c1" })).toBeNull()
+  })
+
+  it("venta sin cliente: pide elegirlo y con el elegido deja pasar", () => {
+    expect(pideClienteDevolucion("credit_note", {})).toBe(true)
+    expect(pideClienteDevolucion("cash", {})).toBe(false)
+    expect(pideClienteDevolucion("credit_note", { customerId: "c1" })).toBe(false)
+    expect(errorClienteDevolucion("credit_note", {})).toMatch(/elige a quién le queda/)
+    expect(errorClienteDevolucion("credit_note", {}, "c9")).toBeNull()
+    expect(errorClienteDevolucion("none", {}, "c9")).toBeNull()
+  })
+
+  it("solo manda el cliente elegido cuando hace falta", () => {
+    expect(clienteDeLaDevolucion("credit_note", {}, "c9")).toBe("c9")
+    expect(clienteDeLaDevolucion("credit_note", {}, "")).toBeUndefined()
+    // En efectivo no queda saldo: el cliente elegido antes no viaja.
+    expect(clienteDeLaDevolucion("cash", {}, "c9")).toBeUndefined()
+    // Con cliente en la venta el servidor usa ese.
+    expect(clienteDeLaDevolucion("credit_note", { customerId: "c1" }, "c9")).toBeUndefined()
+  })
+
+  it("cambiar de cliente cambia la huella (llave nueva)", () => {
+    const base = {
+      saleId: "s1",
+      lines: [{ productId: "a", qty: 1 }],
+      reason: "otro",
+      restock: "inventory",
+      refundMethod: "credit_note",
+    }
+    expect(huellaDevolucion({ ...base, customerId: "c1" })).not.toBe(
+      huellaDevolucion({ ...base, customerId: "c2" }),
+    )
   })
 
   it("reconoce el 400 de la ventana semanal del POS", () => {

@@ -37,6 +37,7 @@ import { TranscribirContingenciaDialog } from "@/components/pos/transcribir-cont
 import { PlazoContingencia } from "@/components/erp/plazo-contingencia"
 import { transmitirContingencia } from "@/lib/erp/api-einvoicing"
 import { DevolucionesVenta } from "@/components/pos/devoluciones-venta"
+import { DevolucionesPendientes } from "@/components/pos/devoluciones-pendientes"
 import { esErrorVentanaSemanal, resumenNota } from "@/lib/pos/notas"
 import { money, timeOnly, isToday } from "@/lib/pos/format"
 import { coincide, useBusquedaPendiente } from "@/lib/pos/busqueda"
@@ -282,6 +283,19 @@ export default function VentasPage() {
           Historial{sede ? ` de ${sede.name}` : ""}.
         </p>
       </div>
+
+      {/* Devoluciones y rebajas a medias de la sede: solo para quien puede
+          completarlas (`pos.refund`). Sin pendientes no pinta nada. */}
+      {canRefund && (
+        <DevolucionesPendientes
+          sedeId={sedeId}
+          version={versionDev}
+          onChanged={() => {
+            setVersionDev((n) => n + 1)
+            void load(1)
+          }}
+        />
+      )}
 
       {/* Resumen del día */}
       <div data-tour="pos-ventas-kpis" className="grid grid-cols-2 gap-3 sm:grid-cols-3">
