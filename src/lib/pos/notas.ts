@@ -94,6 +94,8 @@ export function huellaDevolucion(input: {
   restock: string
   refundMethod: string
   note?: string
+  /** Cliente elegido en la devolución (venta sin cliente). */
+  customerId?: string
 }): string {
   const lineas = [...input.lines]
     .sort((a, b) => a.productId.localeCompare(b.productId))
@@ -105,6 +107,7 @@ export function huellaDevolucion(input: {
     input.restock,
     input.refundMethod,
     (input.note ?? "").trim(),
+    input.customerId ?? "",
   ])
 }
 
@@ -133,17 +136,43 @@ export function dejaSaldoAFavor(refundMethod: string): boolean {
 }
 
 /**
+ * ¿Hay que pedir el cliente en la devolución? Solo cuando el dinero queda a
+ * favor y la venta no trae cliente registrado: si lo trae, el saldo (y la nota)
+ * van a ese y el servidor rechaza cualquier otro.
+ */
+export function pideClienteDevolucion(
+  refundMethod: string,
+  sale: { customerId?: string | null },
+): boolean {
+  return dejaSaldoAFavor(refundMethod) && !sale.customerId
+}
+
+/**
  * «Le queda a favor» y «Cambio por otro producto» necesitan un cliente
- * registrado en la venta: sin él no hay a quién dejarle el saldo. El servidor
- * lo rechaza con un 400; aquí se avisa antes.
+ * registrado: el de la venta o, si la venta no lo tiene, el que se elige en la
+ * devolución. Sin él no hay a quién dejarle el saldo. El servidor lo rechaza
+ * con un 400; aquí se avisa antes.
  */
 export function errorClienteDevolucion(
   refundMethod: string,
   sale: { customerId?: string | null },
+  clienteElegido?: string | null,
 ): string | null {
-  if (!dejaSaldoAFavor(refundMethod)) return null
-  if (sale.customerId) return null
-  return "Esta venta no tiene cliente registrado, y sin él no hay a quién dejarle el saldo. Devuelve en efectivo o por transferencia."
+  if (!pideClienteDevolucion(refundMethod, sale)) return null
+  if (clienteElegido) return null
+  return "Esta venta no tiene cliente registrado: elige a quién le queda el saldo, o devuelve en efectivo o por transferencia."
+}
+
+/**
+ * El cliente que viaja con la devolución: solo el elegido a mano, y solo si
+ * hace falta. Con cliente en la venta no se manda nada (el servidor usa ese).
+ */
+export function clienteDeLaDevolucion(
+  refundMethod: string,
+  sale: { customerId?: string | null },
+  clienteElegido: string,
+): string | undefined {
+  return pideClienteDevolucion(refundMethod, sale) && clienteElegido ? clienteElegido : undefined
 }
 
 /** Aviso fijo de una devolución parcial: lo que NO vuelve. */
