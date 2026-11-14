@@ -25,6 +25,7 @@ import {
   type DestinoPaso,
   type PasoAsistente,
 } from "@/lib/erp/asistente-fe"
+import { guiaPaso, type GuiaPaso } from "@/lib/erp/guia-fe"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -32,6 +33,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Field, FieldGrid } from "@/components/ui/field"
 import { FormAlert } from "@/components/ui/form-dialog"
+import { GuiaPasoDetalle } from "@/components/erp/asistente-fe-guia"
 
 /**
  * Asistente de configuración de factura electrónica de la sede: checklist de
@@ -79,7 +81,7 @@ export function AsistenteFeCard({
 
   const emisor = datos?.emisor ?? null
   const pasos = pasosAsistente(emisor, datos?.estado ?? null, resolucion, resCargando)
-  const { hechos, total } = resumenPasos(pasos)
+  const { hechos, total, siguiente } = resumenPasos(pasos)
 
   // Lleva a la sección y deja el foco en su primer campo (teclado y lector de pantalla).
   function irA(el: HTMLElement | null) {
@@ -119,7 +121,14 @@ export function AsistenteFeCard({
           <>
             <ol className="flex flex-col gap-3" aria-label="Pasos de configuración">
               {pasos.map((p) => (
-                <FilaPaso key={p.id} paso={p} onIr={ir} />
+                <FilaPaso
+                  key={p.id}
+                  paso={p}
+                  guia={guiaPaso(p, emisor)}
+                  // La guía del siguiente paso por resolver se muestra abierta.
+                  guiaAbierta={siguiente?.id === p.id}
+                  onIr={ir}
+                />
               ))}
             </ol>
 
@@ -153,7 +162,17 @@ const ETIQUETA_ESTADO: Record<PasoAsistente["estado"], string> = {
   cargando: "Cargando",
 }
 
-function FilaPaso({ paso, onIr }: { paso: PasoAsistente; onIr: (d: DestinoPaso) => void }) {
+function FilaPaso({
+  paso,
+  guia,
+  guiaAbierta,
+  onIr,
+}: {
+  paso: PasoAsistente
+  guia: GuiaPaso | null
+  guiaAbierta: boolean
+  onIr: (d: DestinoPaso) => void
+}) {
   const hecho = paso.estado === "hecho"
   return (
     <li className="flex items-start gap-3">
@@ -173,6 +192,7 @@ function FilaPaso({ paso, onIr }: { paso: PasoAsistente; onIr: (d: DestinoPaso) 
           {paso.detalle && <p className="text-xs text-muted-foreground">{paso.detalle}</p>}
         </div>
         {(!hecho || paso.id === "certificado") && <AccionPaso paso={paso} onIr={onIr} />}
+        {guia && <GuiaPasoDetalle guia={guia} abiertaAlInicio={guiaAbierta} />}
       </div>
     </li>
   )
