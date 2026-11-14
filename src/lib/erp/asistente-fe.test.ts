@@ -80,7 +80,8 @@ describe("pasosAsistente", () => {
 
   it("pruebas y producción dependen de habilitado y del ambiente", () => {
     let ps = pasosAsistente({ ...emisorBase, tieneFacturaTestSetId: true }, estadoOk, null)
-    expect(paso(ps, "pruebas")).toMatchObject({ estado: "pendiente", destino: "dian" })
+    expect(paso(ps, "pruebas")).toMatchObject({ estado: "pendiente", destino: "pruebas" })
+    expect(paso(pasosAsistente(emisorBase, estadoOk, null), "pruebas").destino).toBe("credenciales")
     expect(paso(ps, "produccion").estado).toBe("pendiente")
     ps = pasosAsistente({ ...emisorBase, habilitado: true }, estadoOk, null)
     expect(paso(ps, "pruebas").estado).toBe("hecho")

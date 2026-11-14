@@ -761,6 +761,73 @@ export async function cargarCertificadoEmisor(
   return parseResponse<{ emisor: EmisorVista | null; reemplazado: boolean }>(res)
 }
 
+// ── Set de pruebas de habilitación de la FACTURA ─────────────────────────────
+
+export type TipoDocSetFactura = "fv" | "pos" | "nc" | "nd"
+
+/**
+ * `set_aceptado`: la DIAN no juzgó el documento porque el set ya estaba
+ * aceptado. No es un rechazo.
+ */
+export type EstadoDocSetFactura = EstadoDocHabilitacion | "set_aceptado"
+
+export interface ResumenTipoSetFactura {
+  exigidos: number
+  aceptados: number
+  rechazados: number
+  enCurso: number
+}
+
+/** Espejo de `VistaHabilitacionFactura` del backend. */
+export interface HabilitacionFacturaVista {
+  clase: "fe" | "pos"
+  estado: "sin_iniciar" | "en_curso" | "aprobada"
+  aprobada: boolean
+  /** La DIAN aceptó el set y el emisor quedó `habilitado` (sigue en ambiente 2). */
+  listoParaProduccion: boolean
+  mensaje: string
+  testSetId?: string
+  resumen?: {
+    porTipo: Partial<Record<TipoDocSetFactura, ResumenTipoSetFactura>>
+    aprobada: boolean
+    aceptados: number
+    exigidos: number
+    total: number
+  }
+  documentos: {
+    tipo: TipoDocSetFactura
+    etiqueta: string
+    numero: string
+    estado: EstadoDocSetFactura
+    mensaje: string | null
+    intentos: number
+  }[]
+  /** Algo que el dueño debe corregir (certificado, TestSetId…). */
+  error?: string
+}
+
+/**
+ * Arma, firma y envía lo pendiente del set de pruebas de factura (y reintenta
+ * los rechazados). Pide `einvoicing.certificate`; lo que falte llega como 409
+ * con el motivo en español. Puede tardar hasta un minuto.
+ */
+export async function enviarSetPruebasFactura(
+  sedeId: string,
+): Promise<HabilitacionFacturaVista> {
+  const res = await authFetch(`/einvoicing/sedes/${sedeId}/emisor/factura/habilitacion`, {
+    method: "POST",
+  })
+  return parseResponse<HabilitacionFacturaVista>(res)
+}
+
+/** Reconsulta en la DIAN el veredicto de lo enviado; no envía nada nuevo. */
+export async function getSetPruebasFactura(
+  sedeId: string,
+): Promise<HabilitacionFacturaVista> {
+  const res = await authFetch(`/einvoicing/sedes/${sedeId}/emisor/factura/habilitacion`)
+  return parseResponse<HabilitacionFacturaVista>(res)
+}
+
 /** Resultado de transmitir un documento de contingencia y sus notas, en orden. */
 export interface ResultadoContingenciaFe {
   documento: ResultadoTransmisionFe
