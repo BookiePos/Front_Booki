@@ -34,6 +34,7 @@ import { Input } from "@/components/ui/input"
 import { Field, FieldGrid } from "@/components/ui/field"
 import { FormAlert } from "@/components/ui/form-dialog"
 import { GuiaPasoDetalle } from "@/components/erp/asistente-fe-guia"
+import { SetPruebasFe } from "@/components/erp/asistente-fe-set-pruebas"
 
 /**
  * Asistente de configuración de factura electrónica de la sede: checklist de
@@ -60,6 +61,7 @@ export function AsistenteFeCard({
 
   const certRef = React.useRef<HTMLDivElement>(null)
   const credRef = React.useRef<HTMLDivElement>(null)
+  const setRef = React.useRef<HTMLDivElement>(null)
 
   React.useEffect(() => {
     if (!puedeVer) return
@@ -87,13 +89,14 @@ export function AsistenteFeCard({
   function irA(el: HTMLElement | null) {
     if (!el) return
     el.scrollIntoView({ behavior: "smooth", block: "center" })
-    el.querySelector<HTMLElement>("input")?.focus({ preventScroll: true })
+    el.querySelector<HTMLElement>("input, button:not(:disabled)")?.focus({ preventScroll: true })
   }
 
   function ir(destino: DestinoPaso) {
     if (destino === "sede") onEditarSede?.()
     else if (destino === "certificado") irA(certRef.current)
     else if (destino === "credenciales") irA(credRef.current)
+    else if (destino === "pruebas") irA(setRef.current)
   }
 
   return (
@@ -147,6 +150,9 @@ export function AsistenteFeCard({
                 permitido={puedeSecretos}
                 onCambio={setDatos}
               />
+            </div>
+            <div ref={setRef}>
+              <SetPruebasFe sedeId={sedeId} datos={datos} permitido={puedeSecretos} onCambio={setDatos} />
             </div>
           </>
         )}
@@ -216,7 +222,7 @@ function AccionPaso({ paso, onIr }: { paso: PasoAsistente; onIr: (d: DestinoPaso
   }
   return (
     <Button type="button" variant="outline" size="sm" onClick={() => onIr(paso.destino)}>
-      {paso.destino === "sede" ? "Editar sede" : "Ir al formulario"}
+      {paso.destino === "sede" ? "Editar sede" : paso.destino === "pruebas" ? "Ir al set de pruebas" : "Ir al formulario"}
     </Button>
   )
 }

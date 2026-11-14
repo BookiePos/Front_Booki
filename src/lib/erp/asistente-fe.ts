@@ -17,7 +17,7 @@ export const esUuid = (v: string): boolean => UUID.test(v.trim())
 export type EstadoPaso = "hecho" | "pendiente" | "sin_dato" | "cargando"
 
 /** A dónde lleva el paso para corregirlo. */
-export type DestinoPaso = "sede" | "dian" | "certificado" | "credenciales" | "resoluciones"
+export type DestinoPaso = "sede" | "dian" | "certificado" | "credenciales" | "resoluciones" | "pruebas"
 
 export interface PasoAsistente {
   id: "datos" | "registro" | "certificado" | "credenciales" | "resolucion" | "pruebas" | "produccion"
@@ -125,9 +125,9 @@ export function pasosAsistente(
       detalle: habilitado
         ? ""
         : emisor?.tieneFacturaTestSetId
-          ? "Aún sin aprobar: corre el set de pruebas con el TestSetId guardado."
-          : "Guarda el TestSetId y aprueba el set de pruebas ante la DIAN.",
-      destino: !habilitado && emisor?.tieneFacturaTestSetId ? "dian" : "credenciales",
+          ? "Aún sin aprobar: envía el set de pruebas desde esta pantalla."
+          : "Guarda el TestSetId y envía el set de pruebas a la DIAN.",
+      destino: !habilitado && emisor?.tieneFacturaTestSetId ? "pruebas" : "credenciales",
     },
     {
       id: "produccion",
