@@ -186,6 +186,9 @@ export function SedeDialog({
   const [active, setActive] = React.useState(true)
   const [fiscal, setFiscal] = React.useState<FiscalForm>(EMPTY_FISCAL)
   const [showFiscal, setShowFiscal] = React.useState(false)
+  // La clave técnica no vuelve del backend (va cifrada): solo se sabe si existe.
+  // Dejar el campo vacío al guardar la conserva; escribir otra la reemplaza.
+  const [claveGuardada, setClaveGuardada] = React.useState(false)
   const [saving, setSaving] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
@@ -227,8 +230,9 @@ export function SedeDialog({
           resHasta: r.rangoHasta != null ? String(r.rangoHasta) : "",
           resVigDesde: isoDate(r.vigenciaDesde),
           resVigHasta: isoDate(r.vigenciaHasta),
-          resClave: r.claveTecnica ?? "",
+          resClave: "",
         }
+        setClaveGuardada(Boolean(r.tieneClaveTecnica || r.claveTecnica))
         setFiscal(next)
         // Si la sede ya trae datos fiscales, la sección se abre sola: esconder
         // lo que ya está lleno haría pensar que se perdió.
@@ -243,6 +247,7 @@ export function SedeDialog({
         setLegalNote("")
         setActive(true)
         setFiscal(EMPTY_FISCAL)
+        setClaveGuardada(false)
         setShowFiscal(false)
       }
       setError(null)
@@ -683,7 +688,11 @@ export function SedeDialog({
                       id="s-clave"
                       value={fiscal.resClave}
                       onChange={(e) => setF("resClave", e.target.value)}
-                      placeholder="Clave técnica de la DIAN"
+                      placeholder={
+                        claveGuardada
+                          ? "Guardada (oculta): escribe otra solo para reemplazarla"
+                          : "Clave técnica de la DIAN"
+                      }
                     />
                   </Field>
 
