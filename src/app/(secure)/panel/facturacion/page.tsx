@@ -198,7 +198,10 @@ export default function FacturacionPage() {
       </Select>
     ) : undefined
 
-  const feReady = Boolean(sede?.resolucionFe?.claveTecnica && sede?.nit)
+  // La clave ya no viaja (va cifrada): se mira la marca, con el campo viejo de respaldo.
+  const feReady = Boolean(
+    (sede?.resolucionFe?.tieneClaveTecnica || sede?.resolucionFe?.claveTecnica) && sede?.nit,
+  )
 
   return (
     <>

@@ -92,7 +92,13 @@ export interface ResolucionFe {
   rangoHasta?: number
   vigenciaDesde?: string
   vigenciaHasta?: string
+  /**
+   * Solo de escritura: el backend la guarda cifrada y ya no la devuelve
+   * (Backend #143). Para saber si existe, usar `tieneClaveTecnica`.
+   */
   claveTecnica?: string
+  /** Hay clave técnica guardada (lo único de la clave que expone el backend). */
+  tieneClaveTecnica?: boolean
 }
 
 export interface Sede extends SedeRef {
