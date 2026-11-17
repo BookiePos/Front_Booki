@@ -18,6 +18,7 @@ import {
   AlertTriangle,
   Lock,
   RefreshCw,
+  PiggyBank,
 } from "lucide-react"
 
 import { useAuth } from "@/lib/auth-context"
@@ -64,6 +65,7 @@ import { ApiError } from "@/lib/api"
 
 import { PageHeader } from "@/components/erp/page-header"
 import { PayrollSlipView } from "@/components/erp/payroll-slip-view"
+import { PrestacionesPagos } from "@/components/erp/prestaciones-pagos"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -115,7 +117,7 @@ function numOr(v: string, d = 0): number {
   return Number.isFinite(n) ? n : d
 }
 
-type Tab = "correr" | "novedades" | "simulador" | "liquidacion" | "historial" | "parametros"
+type Tab = "correr" | "novedades" | "prestaciones" | "simulador" | "liquidacion" | "historial" | "parametros"
 
 export default function NominaPage() {
   const { hasPermission } = useAuth()
@@ -184,6 +186,7 @@ export default function NominaPage() {
   const tabs: { key: Tab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
     { key: "correr", label: "Correr nómina", icon: Play },
     { key: "novedades", label: "Novedades", icon: CalendarClock },
+    { key: "prestaciones", label: "Prestaciones", icon: PiggyBank },
     { key: "simulador", label: "Simulador", icon: Calculator },
     { key: "liquidacion", label: "Liquidación", icon: LogOut },
     { key: "historial", label: "Historial", icon: History },
@@ -246,6 +249,7 @@ export default function NominaPage() {
             />
           )}
           {tab === "novedades" && <Novedades employees={employees} />}
+          {tab === "prestaciones" && <PrestacionesPagos employees={employees} />}
           {tab === "simulador" && (
             <Simulador employees={employees} />
           )}
