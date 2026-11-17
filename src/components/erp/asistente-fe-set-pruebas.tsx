@@ -1,11 +1,13 @@
 "use client"
 
 import * as React from "react"
-import { FlaskConical, Loader2, RefreshCw } from "lucide-react"
+import { BadgeCheck, FlaskConical, Loader2, RefreshCw } from "lucide-react"
 
 import {
+  confirmarHabilitacionPortalFactura,
   enviarSetPruebasFactura,
   getEmisorConEstado,
+  getEstadoSetPruebasFactura,
   getSetPruebasFactura,
   type EmisorConEstado,
   type HabilitacionFacturaVista,
@@ -27,9 +29,10 @@ import { FormAlert } from "@/components/ui/form-dialog"
 
 /**
  * Set de pruebas de habilitación de la FACTURA: lo envía a la DIAN y muestra en
- * qué va. Enviar y consultar piden `einvoicing.certificate` (usan la firma), el
- * mismo permiso que exige el backend. Los 409 del servidor ya vienen explicados
- * en español y se muestran tal cual.
+ * qué va. Enviar, reconsultar y confirmar el portal piden `einvoicing.certificate`
+ * (los mismos permisos que exige el backend); el estado guardado que se lee al abrir
+ * solo pide `einvoicing.configure`, que ya tiene quien ve este asistente. Los 409
+ * del servidor ya vienen explicados en español y se muestran tal cual.
  */
 export function SetPruebasFe({
   sedeId,
@@ -47,7 +50,7 @@ export function SetPruebasFe({
   const faltantes = faltantesSetPruebas(emisor)
   const listo = faltantes.length === 0
   const [vista, setVista] = React.useState<HabilitacionFacturaVista | null>(null)
-  const [busy, setBusy] = React.useState<"enviar" | "consultar" | null>(null)
+  const [busy, setBusy] = React.useState<"enviar" | "consultar" | "confirmar" | null>(null)
   const [error, setError] = React.useState<string | null>(null)
   const habilitado = !!emisor?.habilitado
 
@@ -63,18 +66,20 @@ export function SetPruebasFe({
     recibirRef.current = recibir
   })
 
-  // Estado guardado del set al abrir (solo si se puede consultar: el GET exige lo mismo que el envío).
+  // Estado guardado del set al abrir: solo lectura, sin ir a la DIAN ni auditar. Lo ve también quien no
+  // puede enviar (solo `einvoicing.configure`), y no depende de tener ya el certificado o el TestSetId.
+  const hayEmisor = !!emisor
   React.useEffect(() => {
-    if (!permitido || !listo) return
+    if (!hayEmisor) return
     let activo = true
-    getSetPruebasFactura(sedeId)
+    getEstadoSetPruebasFactura(sedeId)
       .then((v) => activo && recibirRef.current(v))
       // Sin estado no se bloquea nada: el botón sigue disponible y el servidor dirá qué pasa.
       .catch(() => undefined)
     return () => {
       activo = false
     }
-  }, [sedeId, permitido, listo])
+  }, [sedeId, hayEmisor])
 
   if (!emisor) return null
 
@@ -82,6 +87,28 @@ export function SetPruebasFe({
   // Con el emisor ya habilitado y sin vista cargada, el set está aprobado.
   const fase = vista ? est.fase : habilitado ? "aceptado" : est.fase
   const accion = fase === "aceptado" ? null : est.accion
+  const puedeConfirmar = fase === "por_confirmar" && !!vista?.puedeConfirmarPortal
+
+  // El dueño afirma lo que ve en el portal de la DIAN: queda auditado a su nombre y marca la sede lista para
+  // producción, así que se pide confirmación explícita.
+  async function confirmarPortal() {
+    const ok = await confirm({
+      title: "¿Ya figura habilitado en el portal de la DIAN?",
+      description:
+        "Confírmalo solo si en el portal de habilitación de la DIAN el software ya aparece como habilitado. La sede quedará lista para producción con tu nombre como constancia; el paso a producción lo das tú después.",
+      confirmLabel: "Sí, ya figura habilitado",
+    })
+    if (!ok) return
+    setBusy("confirmar")
+    setError(null)
+    try {
+      recibir(await confirmarHabilitacionPortalFactura(sedeId))
+    } catch (e) {
+      setError(mensajeErrorEmisor(e))
+    } finally {
+      setBusy(null)
+    }
+  }
 
   async function ejecutar(tipo: "enviar" | "consultar") {
     if (tipo === "enviar") {
@@ -115,6 +142,11 @@ export function SetPruebasFe({
       <div className="flex flex-col gap-2 text-sm" role="status" aria-live="polite">
         <p className="text-muted-foreground">{textoFaseSet({ ...est, fase })}</p>
         {vista?.mensaje && fase !== "sin_iniciar" && <p className="text-xs text-muted-foreground">{vista.mensaje}</p>}
+        {fase === "aceptado" && vista?.confirmadoEnPortal && (
+          <p className="text-xs text-muted-foreground">
+            Lo confirmaste tú con lo que muestra el portal de la DIAN (no fue un veredicto del servicio web).
+          </p>
+        )}
       </div>
 
       {fase === "rechazado" && est.motivos.length > 0 && (
@@ -152,7 +184,7 @@ export function SetPruebasFe({
         <p className="text-xs text-muted-foreground">Solo el Dueño puede enviar el set de pruebas.</p>
       ) : (
         <>
-          {!listo && (
+          {!listo && accion && (
             <p id="set-pruebas-falta" className="text-xs text-muted-foreground">
               Para enviarlo falta: {faltantes.join(", ")}.
             </p>
@@ -173,6 +205,12 @@ export function SetPruebasFe({
               >
                 {busy === "enviar" && <Loader2 className="animate-spin" aria-hidden />}
                 {busy === "enviar" ? "Enviando a la DIAN…" : ETIQUETA_ACCION_SET[accion]}
+              </Button>
+            )}
+            {puedeConfirmar && (
+              <Button type="button" disabled={busy !== null} onClick={() => void confirmarPortal()}>
+                {busy === "confirmar" ? <Loader2 className="animate-spin" aria-hidden /> : <BadgeCheck aria-hidden />}
+                Ya figura habilitado en el portal
               </Button>
             )}
           </div>

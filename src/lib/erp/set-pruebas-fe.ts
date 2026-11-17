@@ -129,7 +129,7 @@ export function textoFaseSet(e: EstadoSetPruebas): string {
     case "aceptado":
       return "La DIAN aceptó el set de pruebas. La sede quedó lista para producción; el paso a producción lo decides tú."
     case "por_confirmar":
-      return "Todos los documentos quedaron aceptados, pero la DIAN no ha dado el veredicto del set. Revisa en el portal de la DIAN que el software figure como habilitado."
+      return "Todos los documentos quedaron aceptados, pero la DIAN no ha dado el veredicto del set. Revisa en el portal de la DIAN que el software figure como habilitado y, si es así, confírmalo aquí."
     case "rechazado":
       return `La DIAN rechazó ${e.motivos.length === 1 ? "un documento" : `${e.motivos.length} documentos`}. Corrige lo que indica y reintenta: salen de nuevo con otro número.`
     case "en_curso": {

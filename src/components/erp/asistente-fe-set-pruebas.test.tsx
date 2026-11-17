@@ -8,6 +8,8 @@ import { ConfirmProvider } from "@/components/ui/confirm-dialog"
 
 const api = vi.hoisted(() => ({
   enviarSetPruebasFactura: vi.fn(),
+  getEstadoSetPruebasFactura: vi.fn(),
+  confirmarHabilitacionPortalFactura: vi.fn(),
   getSetPruebasFactura: vi.fn(),
   getEmisorConEstado: vi.fn(),
 }))
@@ -78,21 +80,30 @@ async function confirmar(nombre: string) {
 describe("SetPruebasFe", () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    api.getSetPruebasFactura.mockResolvedValue(vista())
+    api.getEstadoSetPruebasFactura.mockResolvedValue(vista())
   })
 
-  it("sin precondiciones: botón deshabilitado, dice qué falta y no consulta", () => {
+  it("sin precondiciones: botón deshabilitado, dice qué falta y solo lee el estado guardado", async () => {
     montar(datos({ certificadoVigente: false, tieneFacturaTestSetId: false }))
     expect(screen.getByRole("button", { name: "Enviar set de pruebas" })).toHaveProperty("disabled", true)
     expect(screen.getByText(/Para enviarlo falta:.*certificado.*TestSetId/)).toBeTruthy()
+    await waitFor(() => expect(api.getEstadoSetPruebasFactura).toHaveBeenCalledWith("s1"))
+    // Abrir no va a la DIAN: la reconsulta solo sale al pulsar «Actualizar estado».
     expect(api.getSetPruebasFactura).not.toHaveBeenCalled()
   })
 
-  it("sin el permiso del certificado no ofrece enviar ni consulta", () => {
+  it("sin el permiso del certificado no ofrece enviar, pero ve el estado guardado", async () => {
+    api.getEstadoSetPruebasFactura.mockResolvedValue(rechazado)
     montar(datos(), false)
-    expect(screen.queryByRole("button", { name: "Enviar set de pruebas" })).toBeNull()
+    expect(await screen.findByText("Con rechazos")).toBeTruthy()
+    expect(screen.queryByRole("button", { name: /Enviar|Reintentar|Actualizar/ })).toBeNull()
     expect(screen.getByText(/Solo el Dueño/)).toBeTruthy()
     expect(api.getSetPruebasFactura).not.toHaveBeenCalled()
+  })
+
+  it("sin emisor no pide nada", () => {
+    montar({ emisor: null, estado: null })
+    expect(api.getEstadoSetPruebasFactura).not.toHaveBeenCalled()
   })
 
   it("envía solo tras confirmar y muestra el estado en revisión con «Actualizar estado»", async () => {
@@ -118,7 +129,7 @@ describe("SetPruebasFe", () => {
   })
 
   it("al abrir trae el estado guardado; rechazado muestra los motivos y permite reintentar", async () => {
-    api.getSetPruebasFactura.mockResolvedValue(rechazado)
+    api.getEstadoSetPruebasFactura.mockResolvedValue(rechazado)
     api.enviarSetPruebasFactura.mockResolvedValue(enRevision)
     montar(datos())
     expect(await screen.findByText("Con rechazos")).toBeTruthy()
@@ -129,7 +140,8 @@ describe("SetPruebasFe", () => {
   })
 
   it("«Actualizar estado» reconsulta y, al quedar aceptado, relee el emisor", async () => {
-    api.getSetPruebasFactura.mockResolvedValueOnce(enRevision).mockResolvedValueOnce(
+    api.getEstadoSetPruebasFactura.mockResolvedValue(enRevision)
+    api.getSetPruebasFactura.mockResolvedValueOnce(
       vista({ estado: "aprobada", aprobada: true, listoParaProduccion: true, documentos: enRevision.documentos }),
     )
     const nuevo = datos({ habilitado: true })
@@ -151,9 +163,63 @@ describe("SetPruebasFe", () => {
   })
 
   it("emisor ya habilitado: aceptado y sin botón de envío", () => {
-    api.getSetPruebasFactura.mockRejectedValue(new ApiError(409, "x"))
+    api.getEstadoSetPruebasFactura.mockRejectedValue(new ApiError(409, "x"))
     montar(datos({ habilitado: true }))
     expect(screen.getByText("Aceptado")).toBeTruthy()
     expect(screen.queryByRole("button", { name: "Enviar set de pruebas" })).toBeNull()
+  })
+
+  const porConfirmar = vista({
+    estado: "aprobada",
+    aprobada: true,
+    listoParaProduccion: false,
+    puedeConfirmarPortal: true,
+    documentos: [{ ...enRevision.documentos[0], estado: "aceptado" }],
+  })
+
+  it("por confirmar: tras confirmar el diálogo, marca la sede y relee el emisor", async () => {
+    api.getEstadoSetPruebasFactura.mockResolvedValue(porConfirmar)
+    api.confirmarHabilitacionPortalFactura.mockResolvedValue({
+      ...porConfirmar,
+      listoParaProduccion: true,
+      confirmadoEnPortal: true,
+      puedeConfirmarPortal: false,
+    })
+    const nuevo = datos({ habilitado: true })
+    api.getEmisorConEstado.mockResolvedValue(nuevo)
+    const onCambio = montar(datos())
+    expect(await screen.findByText("Por confirmar")).toBeTruthy()
+    await userEvent.click(screen.getByRole("button", { name: "Ya figura habilitado en el portal" }))
+    const dialogo = await screen.findByRole("dialog")
+    expect(api.confirmarHabilitacionPortalFactura).not.toHaveBeenCalled()
+    await userEvent.click(Array.from(dialogo.querySelectorAll("button")).pop()!)
+    await waitFor(() => expect(api.confirmarHabilitacionPortalFactura).toHaveBeenCalledWith("s1"))
+    expect(await screen.findByText("Aceptado")).toBeTruthy()
+    expect(screen.getByText(/Lo confirmaste tú/)).toBeTruthy()
+    await waitFor(() => expect(onCambio).toHaveBeenCalledWith(nuevo))
+    expect(screen.queryByRole("button", { name: "Ya figura habilitado en el portal" })).toBeNull()
+  })
+
+  it("por confirmar: cancelar el diálogo no confirma nada", async () => {
+    api.getEstadoSetPruebasFactura.mockResolvedValue(porConfirmar)
+    montar(datos())
+    await userEvent.click(await screen.findByRole("button", { name: "Ya figura habilitado en el portal" }))
+    const dialogo = await screen.findByRole("dialog")
+    await userEvent.click(dialogo.querySelector("button")!)
+    expect(api.confirmarHabilitacionPortalFactura).not.toHaveBeenCalled()
+  })
+
+  it("por confirmar sin el permiso del certificado: no hay botón", async () => {
+    api.getEstadoSetPruebasFactura.mockResolvedValue(porConfirmar)
+    montar(datos(), false)
+    expect(await screen.findByText("Por confirmar")).toBeTruthy()
+    expect(screen.queryByRole("button", { name: "Ya figura habilitado en el portal" })).toBeNull()
+  })
+
+  it("por confirmar de un backend sin la marca: no ofrece el botón", async () => {
+    api.getEstadoSetPruebasFactura.mockResolvedValue({ ...porConfirmar, puedeConfirmarPortal: undefined })
+    montar(datos())
+    expect(await screen.findByText("Por confirmar")).toBeTruthy()
+    expect(screen.queryByRole("button", { name: "Ya figura habilitado en el portal" })).toBeNull()
   })
 })
