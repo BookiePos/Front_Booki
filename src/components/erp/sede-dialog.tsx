@@ -196,10 +196,23 @@ export function SedeDialog({
     setFiscal((prev) => ({ ...prev, [key]: value }))
   }
 
+  // Qué sede se cargó en el formulario la última vez que se abrió. La página
+  // de la sede recarga sus datos al volver a la pestaña y entrega un objeto
+  // `sede` nuevo: si el formulario se rellenara con cada objeto nuevo, borraría
+  // lo que el usuario lleva escrito (p. ej. al ir a otra pestaña a copiar la
+  // clave técnica de la DIAN). Solo se rellena al abrir o al cambiar de sede.
+  const cargado = React.useRef<string | null>(null)
+
   React.useEffect(() => {
     async function reset() {
       await Promise.resolve()
-      if (!open) return
+      if (!open) {
+        cargado.current = null
+        return
+      }
+      const clave = `${mode}:${sede?._id ?? ""}`
+      if (cargado.current === clave) return
+      cargado.current = clave
       if (mode === "edit" && sede) {
         setCode(sede.code)
         setName(sede.name)
