@@ -1,5 +1,6 @@
 import { ApiError } from "@/lib/api"
 import type {
+  BloqueoEmisor,
   ConfigurarFacturaPayload,
   EmisorVista,
   EstadoEmisor,
@@ -17,7 +18,10 @@ export const esUuid = (v: string): boolean => UUID.test(v.trim())
 export type EstadoPaso = "hecho" | "pendiente" | "sin_dato" | "cargando"
 
 /** A dónde lleva el paso para corregirlo. */
-export type DestinoPaso = "sede" | "dian" | "certificado" | "credenciales" | "resoluciones" | "pruebas"
+export type DestinoPaso = "sede" | "domicilio" | "dian" | "certificado" | "credenciales" | "resoluciones" | "pruebas"
+
+/** Faltantes que el backend reporta y que se resuelven en «Domicilio fiscal». */
+const FALTANTES_DOMICILIO = ["dirección", "municipio DANE", "correo de facturación"]
 
 export interface PasoAsistente {
   id: "datos" | "registro" | "certificado" | "credenciales" | "resolucion" | "pruebas" | "produccion"
@@ -39,9 +43,13 @@ export function pasosAsistente(
   estado: EstadoEmisor | null,
   resolucion: ResolutionRow | null | undefined,
   cargandoResolucion = false,
+  bloqueo?: BloqueoEmisor | null,
 ): PasoAsistente[] {
   const faltanDatos = estado?.datosFiscalesFaltantes ?? []
   const datosOk = !!emisor && faltanDatos.length === 0
+  // Si solo falta el domicilio (dirección, municipio, correo) se llena aquí, en
+  // «Domicilio fiscal»; lo demás es identidad del RUT y se corrige en la sede.
+  const soloDomicilio = faltanDatos.length > 0 && faltanDatos.every((f) => FALTANTES_DOMICILIO.includes(f))
   const registroOk = !!emisor?.facturaSoftwareId
   const certOk = !!emisor?.certificadoVigente
   const credOk = !!emisor?.facturaSoftwareId && !!emisor.tieneFacturaPin
@@ -78,11 +86,13 @@ export function pasosAsistente(
       titulo: "Datos fiscales de la sede",
       estado: datosOk ? "hecho" : "pendiente",
       detalle: !emisor
-        ? "La sede aún no tiene emisor fiscal: completa NIT y razón social."
+        ? (bloqueo?.mensaje ?? "La sede aún no tiene emisor fiscal: revisa sus datos fiscales.")
         : datosOk
           ? ""
-          : `Falta: ${faltanDatos.join(", ")}.`,
-      destino: "sede",
+          : soloDomicilio
+            ? `Falta: ${faltanDatos.join(", ")}. Llénalo en «Domicilio fiscal», más abajo.`
+            : `Falta: ${faltanDatos.join(", ")}.`,
+      destino: emisor && soloDomicilio ? "domicilio" : "sede",
     },
     {
       id: "registro",

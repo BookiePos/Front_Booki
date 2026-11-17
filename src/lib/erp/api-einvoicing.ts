@@ -704,6 +704,18 @@ export interface EmisorVista {
   tieneFacturaPin: boolean
   tieneFacturaTestSetId: boolean
   tieneCertificado: boolean
+  /** El domicilio fiscal se fijó a mano: editar una sede ya no lo cambia. */
+  domicilioManual?: boolean
+}
+
+/** Por qué la sede aún no tiene emisor fiscal (solo viene cuando no lo tiene). */
+export interface BloqueoEmisor {
+  motivo: "sin_nit" | "sedes_no_coinciden" | "no_coincide_con_emisor" | "sin_guardar"
+  mensaje: string
+  /** Sedes a abrir y corregir; la propia primero. */
+  sedes: { id: string; nombre: string }[]
+  /** Datos en conflicto, ya en español. */
+  campos: string[]
 }
 
 /** Lo que le falta al emisor (espejo de `EstadoConfiguracion` del backend). */
@@ -716,10 +728,42 @@ export interface EstadoEmisor {
 export interface EmisorConEstado {
   emisor: EmisorVista | null
   estado: EstadoEmisor | null
+  bloqueo?: BloqueoEmisor
 }
 
 export async function getEmisorConEstado(sedeId: string): Promise<EmisorConEstado> {
   const res = await authFetch(`/einvoicing/sedes/${sedeId}/emisor`)
+  return parseResponse<EmisorConEstado>(res)
+}
+
+export interface MunicipioDane {
+  /** Código DANE de 5 dígitos. */
+  codigo: string
+  municipio: string
+  departamento: string
+}
+
+/** Catálogo DIVIPOLA (≈1100 municipios) para elegir el domicilio fiscal. */
+export async function getMunicipiosDane(): Promise<MunicipioDane[]> {
+  const res = await authFetch(`/einvoicing/municipios-dane`)
+  return parseResponse<MunicipioDane[]>(res)
+}
+
+export interface DomicilioFiscalPayload {
+  direccion: string
+  municipioDane: string
+  emailFacturacion?: string
+}
+
+/** Domicilio fiscal del emisor (el del RUT). Uno por NIT: vale para todas sus sedes. */
+export async function configurarDomicilioEmisor(
+  sedeId: string,
+  payload: DomicilioFiscalPayload,
+): Promise<EmisorConEstado> {
+  const res = await authFetch(`/einvoicing/sedes/${sedeId}/emisor/domicilio`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  })
   return parseResponse<EmisorConEstado>(res)
 }
 

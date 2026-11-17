@@ -35,6 +35,7 @@ import { Field, FieldGrid } from "@/components/ui/field"
 import { FormAlert } from "@/components/ui/form-dialog"
 import { GuiaPasoDetalle } from "@/components/erp/asistente-fe-guia"
 import { SetPruebasFe } from "@/components/erp/asistente-fe-set-pruebas"
+import { BloqueoEmisorAviso, DomicilioFiscal } from "@/components/erp/asistente-fe-domicilio"
 
 /**
  * Asistente de configuración de factura electrónica de la sede: checklist de
@@ -62,6 +63,7 @@ export function AsistenteFeCard({
   const certRef = React.useRef<HTMLDivElement>(null)
   const credRef = React.useRef<HTMLDivElement>(null)
   const setRef = React.useRef<HTMLDivElement>(null)
+  const domRef = React.useRef<HTMLDivElement>(null)
 
   React.useEffect(() => {
     if (!puedeVer) return
@@ -82,7 +84,7 @@ export function AsistenteFeCard({
   if (!puedeVer) return null
 
   const emisor = datos?.emisor ?? null
-  const pasos = pasosAsistente(emisor, datos?.estado ?? null, resolucion, resCargando)
+  const pasos = pasosAsistente(emisor, datos?.estado ?? null, resolucion, resCargando, datos?.bloqueo)
   const { hechos, total, siguiente } = resumenPasos(pasos)
 
   // Lleva a la sección y deja el foco en su primer campo (teclado y lector de pantalla).
@@ -94,6 +96,7 @@ export function AsistenteFeCard({
 
   function ir(destino: DestinoPaso) {
     if (destino === "sede") onEditarSede?.()
+    else if (destino === "domicilio") irA(domRef.current)
     else if (destino === "certificado") irA(certRef.current)
     else if (destino === "credenciales") irA(credRef.current)
     else if (destino === "pruebas") irA(setRef.current)
@@ -122,6 +125,7 @@ export function AsistenteFeCard({
           <FormAlert>{error}</FormAlert>
         ) : (
           <>
+            {!emisor && datos?.bloqueo && <BloqueoEmisorAviso bloqueo={datos.bloqueo} sedeActual={sedeId} />}
             <ol className="flex flex-col gap-3" aria-label="Pasos de configuración">
               {pasos.map((p) => (
                 <FilaPaso
@@ -135,6 +139,9 @@ export function AsistenteFeCard({
               ))}
             </ol>
 
+            <div ref={domRef}>
+              <DomicilioFiscal sedeId={sedeId} datos={datos} permitido={puedeVer} onCambio={setDatos} />
+            </div>
             <div ref={certRef}>
               <PanelCertificado
                 sedeId={sedeId}
@@ -222,7 +229,13 @@ function AccionPaso({ paso, onIr }: { paso: PasoAsistente; onIr: (d: DestinoPaso
   }
   return (
     <Button type="button" variant="outline" size="sm" onClick={() => onIr(paso.destino)}>
-      {paso.destino === "sede" ? "Editar sede" : paso.destino === "pruebas" ? "Ir al set de pruebas" : "Ir al formulario"}
+      {paso.destino === "sede"
+        ? "Editar sede"
+        : paso.destino === "domicilio"
+          ? "Ir al domicilio fiscal"
+          : paso.destino === "pruebas"
+            ? "Ir al set de pruebas"
+            : "Ir al formulario"}
     </Button>
   )
 }
@@ -309,7 +322,11 @@ function PanelCertificado({
       >
         {est.texto}
       </p>
-      {!emisor ? null : !permitido ? (
+      {!emisor ? (
+        <p className="text-xs text-muted-foreground">
+          El formulario aparece cuando la sede tenga emisor fiscal (mira el aviso de arriba).
+        </p>
+      ) : !permitido ? (
         <p className="text-xs text-muted-foreground">Solo el Dueño puede cargar o reemplazar el certificado.</p>
       ) : (
         <form className="flex flex-col gap-3" onSubmit={subir}>
