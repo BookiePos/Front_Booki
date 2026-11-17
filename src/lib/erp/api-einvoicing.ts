@@ -804,6 +804,40 @@ export interface HabilitacionFacturaVista {
   }[]
   /** Algo que el dueño debe corregir (certificado, TestSetId…). */
   error?: string
+  /**
+   * Todos los documentos aceptados y la DIAN sin veredicto del set: el dueño
+   * puede confirmar lo que ve en el portal. Opcional por backends anteriores.
+   */
+  puedeConfirmarPortal?: boolean
+  /** El dueño confirmó que el portal ya lo muestra habilitado (no lo dijo un servicio web). */
+  confirmadoEnPortal?: boolean
+}
+
+/**
+ * Estado guardado del set, sin ir a la DIAN ni auditar: lo que pide la pantalla
+ * al abrir. Pide `einvoicing.configure` (solo lectura).
+ */
+export async function getEstadoSetPruebasFactura(
+  sedeId: string,
+): Promise<HabilitacionFacturaVista> {
+  const res = await authFetch(`/einvoicing/sedes/${sedeId}/emisor/factura/habilitacion/estado`)
+  return parseResponse<HabilitacionFacturaVista>(res)
+}
+
+/**
+ * El dueño afirma que el portal de la DIAN ya muestra el software habilitado.
+ * Solo vale con todos los documentos aceptados y sin veredicto del set; marca la
+ * sede lista para producción (no la pasa a producción). Pide
+ * `einvoicing.certificate` y queda auditado.
+ */
+export async function confirmarHabilitacionPortalFactura(
+  sedeId: string,
+): Promise<HabilitacionFacturaVista> {
+  const res = await authFetch(`/einvoicing/sedes/${sedeId}/emisor/factura/habilitacion/confirmar`, {
+    method: "POST",
+    body: JSON.stringify({ confirmo: true }),
+  })
+  return parseResponse<HabilitacionFacturaVista>(res)
 }
 
 /**
