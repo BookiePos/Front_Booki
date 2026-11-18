@@ -36,6 +36,7 @@ import { FormAlert } from "@/components/ui/form-dialog"
 import { GuiaPasoDetalle } from "@/components/erp/asistente-fe-guia"
 import { SetPruebasFe } from "@/components/erp/asistente-fe-set-pruebas"
 import { BloqueoEmisorAviso, DomicilioFiscal } from "@/components/erp/asistente-fe-domicilio"
+import { CopiarDatosASedes } from "@/components/erp/asistente-fe-copiar"
 
 /**
  * Asistente de configuración de factura electrónica de la sede: checklist de
@@ -53,6 +54,8 @@ export function AsistenteFeCard({
   const { hasPermission } = useAuth()
   const puedeVer = hasPermission("einvoicing.configure")
   const puedeSecretos = hasPermission("einvoicing.certificate")
+  // Copiar los datos del RUT a otras sedes es editarlas.
+  const puedeEditarSedes = hasPermission("sede.manage")
   const [datos, setDatos] = React.useState<EmisorConEstado | null>(null)
   // undefined: no se pudo leer (sin permiso de emitir); null: la sede no aparece.
   const [resolucion, setResolucion] = React.useState<ResolutionRow | null | undefined>(undefined)
@@ -139,6 +142,11 @@ export function AsistenteFeCard({
               ))}
             </ol>
 
+            {puedeEditarSedes &&
+              (pasos.find((p) => p.id === "datos")?.estado === "hecho" ||
+                (!emisor && datos?.bloqueo?.motivo === "sedes_no_coinciden")) && (
+                <CopiarDatosASedes sedeId={sedeId} emisorId={emisor?.id ?? null} />
+              )}
             <div ref={domRef}>
               <DomicilioFiscal sedeId={sedeId} datos={datos} permitido={puedeVer} onCambio={setDatos} />
             </div>
