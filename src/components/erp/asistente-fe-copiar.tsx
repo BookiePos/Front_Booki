@@ -23,8 +23,11 @@ const soloDigitos = (nit?: string) => (nit ?? "").replace(/\D/g, "").slice(0, 9)
  * fiscales completos, ofrece copiar los del RUT a otras sedes de la empresa.
  * Quedan enlazadas al mismo emisor y comparten certificado, SoftwareID, PIN y
  * domicilio fiscal: no hay que repetir el formulario sede por sede.
+ *
+ * Sin `emisorId` se ofrece también: es el caso de sedes del mismo NIT con
+ * datos distintos, donde ninguna tiene emisor hasta que se igualan.
  */
-export function CopiarDatosASedes({ sedeId, emisorId }: { sedeId: string; emisorId: string }) {
+export function CopiarDatosASedes({ sedeId, emisorId }: { sedeId: string; emisorId: string | null }) {
   const [sedes, setSedes] = React.useState<Sede[] | null>(null)
   const [elegidas, setElegidas] = React.useState<Set<string>>(new Set())
   const [busy, setBusy] = React.useState(false)
@@ -42,8 +45,9 @@ export function CopiarDatosASedes({ sedeId, emisorId }: { sedeId: string; emisor
   const origen = sedes.find((s) => s._id === sedeId)
   const otras = sedes.filter((s) => s._id !== sedeId && s.active !== false)
   if (otras.length === 0) return null
-  const yaComparten = otras.filter((s) => s.emisorId === emisorId)
-  const candidatas = otras.filter((s) => s.emisorId !== emisorId)
+  const comparte = (s: Sede) => !!emisorId && s.emisorId === emisorId
+  const yaComparten = otras.filter(comparte)
+  const candidatas = otras.filter((s) => !comparte(s))
 
   function alternar(id: string, marcada: boolean) {
     setElegidas((prev) => {
@@ -83,6 +87,12 @@ export function CopiarDatosASedes({ sedeId, emisorId }: { sedeId: string; emisor
         <Copy className="size-4" aria-hidden />
         <h3 className="text-sm font-medium">¿Usar estos datos en otras sedes?</h3>
       </div>
+      {!emisorId && (
+        <p className="text-xs">
+          Si los datos fiscales de <strong>esta sede</strong> son los correctos (los del RUT), cópialos a las otras y
+          quedarán iguales: así se crea el emisor fiscal para todas.
+        </p>
+      )}
       <p className="text-xs text-muted-foreground">
         Copia los datos del RUT de esta sede (NIT, razón social, tipo de persona y responsabilidades) a las sedes que
         marques. Quedan con la misma configuración de factura electrónica: certificado, SoftwareID, PIN y domicilio

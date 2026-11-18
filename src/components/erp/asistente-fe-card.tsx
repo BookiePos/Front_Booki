@@ -142,9 +142,11 @@ export function AsistenteFeCard({
               ))}
             </ol>
 
-            {emisor && puedeEditarSedes && pasos.find((p) => p.id === "datos")?.estado === "hecho" && (
-              <CopiarDatosASedes sedeId={sedeId} emisorId={emisor.id} />
-            )}
+            {puedeEditarSedes &&
+              (pasos.find((p) => p.id === "datos")?.estado === "hecho" ||
+                (!emisor && datos?.bloqueo?.motivo === "sedes_no_coinciden")) && (
+                <CopiarDatosASedes sedeId={sedeId} emisorId={emisor?.id ?? null} />
+              )}
             <div ref={domRef}>
               <DomicilioFiscal sedeId={sedeId} datos={datos} permitido={puedeVer} onCambio={setDatos} />
             </div>

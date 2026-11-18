@@ -54,3 +54,16 @@ describe("CopiarDatosASedes", () => {
     expect(container.textContent).toBe("")
   })
 })
+
+describe("CopiarDatosASedes sin emisor (sedes del mismo NIT que no coinciden)", () => {
+  it("ofrece todas las demás sedes y explica que así se crea el emisor", async () => {
+    api.listSedes.mockReset().mockResolvedValue([
+      sede("a", "Rionegro", { nit: "900123456" }),
+      sede("b", "Marinilla", { nit: "900123456" }),
+    ])
+    render(<CopiarDatosASedes sedeId="a" emisorId={null} />)
+    expect(await screen.findByText(/se crea el emisor fiscal/)).toBeTruthy()
+    expect(screen.getByText("Marinilla")).toBeTruthy()
+    expect(screen.queryByText(/Ya comparten/)).toBeNull()
+  })
+})
