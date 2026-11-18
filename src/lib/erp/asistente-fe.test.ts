@@ -35,6 +35,24 @@ describe("pasosAsistente", () => {
     expect(resumenPasos(ps).hechos).toBe(0)
   })
 
+  it("sin emisor: el detalle es el motivo real que manda el backend", () => {
+    const bloqueo = {
+      motivo: "sedes_no_coinciden" as const,
+      mensaje: "Las sedes A y B tienen el mismo NIT pero distinta razón social.",
+      sedes: [{ id: "a", nombre: "A" }, { id: "b", nombre: "B" }],
+      campos: ["razón social"],
+    }
+    expect(paso(pasosAsistente(null, null, null, false, bloqueo), "datos").detalle).toBe(bloqueo.mensaje)
+  })
+
+  it("si solo falta el domicilio, lleva al formulario de domicilio y no a la sede", () => {
+    const solo = pasosAsistente(emisorBase, { ...estadoOk, datosFiscalesFaltantes: ["dirección", "municipio DANE"] }, null)
+    expect(paso(solo, "datos")).toMatchObject({ destino: "domicilio" })
+    expect(paso(solo, "datos").detalle).toMatch(/Domicilio fiscal/)
+    const mixto = pasosAsistente(emisorBase, { ...estadoOk, datosFiscalesFaltantes: ["DV", "dirección"] }, null)
+    expect(paso(mixto, "datos")).toMatchObject({ destino: "sede", detalle: "Falta: DV, dirección." })
+  })
+
   it("lista lo que falta de los datos fiscales", () => {
     const ps = pasosAsistente(emisorBase, { ...estadoOk, datosFiscalesFaltantes: ["nitDv", "direccion"] }, null)
     expect(paso(ps, "datos").detalle).toBe("Falta: nitDv, direccion.")
