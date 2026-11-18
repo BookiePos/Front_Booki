@@ -129,6 +129,8 @@ export interface Sede extends SedeRef {
   ciudad?: string
   emailFacturacion?: string
   resolucionFe?: ResolucionFe
+  /** Emisor fiscal (uno por NIT) al que está enlazada: las sedes que lo comparten comparten la FE. */
+  emisorId?: string
   active: boolean
 }
 
@@ -232,6 +234,24 @@ export const MOVEMENT_TYPE_LABELS: Record<MovementType, string> = {
 export async function listSedes(): Promise<Sede[]> {
   const res = await authFetch("/sedes")
   return parseResponse<Sede[]>(res)
+}
+
+/** Qué pasó con cada sede al copiarle los datos del RUT. */
+export interface ResultadoCopiaFiscal {
+  sedeId: string
+  nombre: string | null
+  /** Quedó enlazada al mismo emisor que la sede de origen. */
+  ok: boolean
+  mensaje: string
+}
+
+/** Copia los datos del RUT de `origenId` a `destinos` y las enlaza a su emisor fiscal. */
+export async function copiarDatosFiscales(origenId: string, destinos: string[]): Promise<ResultadoCopiaFiscal[]> {
+  const res = await authFetch(`/sedes/${origenId}/copiar-datos-fiscales`, {
+    method: "POST",
+    body: JSON.stringify({ destinos }),
+  })
+  return parseResponse<ResultadoCopiaFiscal[]>(res)
 }
 
 /** Campos fiscales de la sede (factura electrónica), compartidos por payloads. */
