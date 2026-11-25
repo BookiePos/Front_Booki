@@ -34,7 +34,7 @@ import { Input } from "@/components/ui/input"
 import { QuantityInput } from "@/components/ui/money-input"
 import { FormDialog, FormSection, FormAlert } from "@/components/ui/form-dialog"
 import { Field, FieldGrid, NativeSelect } from "@/components/ui/field"
-import { cn } from "@/lib/utils"
+import { cn, contar } from "@/lib/utils"
 import {
   nf,
   money,
@@ -341,7 +341,7 @@ export function ConteoFisicoDialog({
 
       {result && (
         <FormAlert tone="success" icon={CheckCircle2}>
-          Conteo aplicado: <strong>{result.adjusted}</strong> producto(s)
+          Conteo aplicado: <strong>{result.adjusted}</strong> {result.adjusted === 1 ? "producto" : "productos"}
           ajustados y {result.unchanged} que ya cuadraban.
           {result.removedQty > 0 && (
             <span className="mt-1 block">
@@ -357,7 +357,7 @@ export function ConteoFisicoDialog({
           )}
           {result.moved.length > 0 && (
             <span className="mt-1 block">
-              Ojo: {result.moved.length} producto(s) se movieron mientras
+              Ojo: {contar(result.moved.length, "producto se movió", "productos se movieron")} mientras
               contabas (
               {result.moved
                 .slice(0, 3)
@@ -437,7 +437,7 @@ export function ConteoFisicoDialog({
 
           {descuadres.length > 0 && (
             <FormAlert tone="warning" icon={TriangleAlert}>
-              Vas a ajustar <strong>{descuadres.length}</strong> producto(s):{" "}
+              Vas a ajustar <strong>{descuadres.length}</strong> {descuadres.length === 1 ? "producto" : "productos"}:{" "}
               {faltan.length} con faltante y {sobran.length} con sobrante.
               {valorFaltante > 0 && (
                 <>

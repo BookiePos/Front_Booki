@@ -29,3 +29,19 @@ export function formatNumber(value: number): string {
 export function clamp(value: number, min = 0, max = 1): number {
   return Math.min(max, Math.max(min, value))
 }
+
+/**
+ * "1 producto", "3 productos". En caja nadie lee "3 ítem(s)": el paréntesis es
+ * de formulario, no de mostrador, y obliga a leer dos veces.
+ */
+export function contar(n: number, singular: string, plural = `${singular}s`): string {
+  return `${formatNumber(n)} ${n === 1 ? singular : plural}`
+}
+
+/**
+ * Quién hizo algo, como lo lee un cajero: el nombre guardado y, en registros
+ * viejos que solo traen el correo, lo que va antes de la arroba.
+ */
+export function quien(nombre?: string | null, correo?: string | null): string {
+  return nombre?.trim() || correo?.split("@")[0] || "—"
+}

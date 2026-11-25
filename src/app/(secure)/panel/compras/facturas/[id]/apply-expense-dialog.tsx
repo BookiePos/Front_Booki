@@ -440,7 +440,7 @@ export function ApplyExpenseDialog({
               <dd>− {money.format(retenciones)}</dd>
             </div>
           )}
-          <div className="flex justify-between border-t border-border pt-1.5 font-display text-base">
+          <div className="flex justify-between border-t border-border pt-1.5 text-sm font-semibold">
             <dt>
               {form.status === "paid"
                 ? "Pagado al proveedor"

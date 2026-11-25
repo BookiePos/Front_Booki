@@ -60,7 +60,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { useConfirm } from "@/components/ui/confirm-dialog"
 import { FormDialog, FormAlert } from "@/components/ui/form-dialog"
 import { Segmented } from "@/components/ui/segmented"
-import { cn } from "@/lib/utils"
+import { cn, contar } from "@/lib/utils"
 
 const PAGE_SIZE = 50
 
@@ -252,7 +252,7 @@ export default function VentasPage() {
       <Card className="mx-auto max-w-lg">
         <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
           <ShieldOff className="size-10 text-muted-foreground" />
-          <p className="font-display text-lg">Sin acceso</p>
+          <p className="text-[15px] font-semibold">Sin acceso</p>
           <p className="max-w-xs text-sm text-muted-foreground">
             No tienes permiso para ver las ventas. Contacta al administrador.
           </p>
@@ -266,7 +266,7 @@ export default function VentasPage() {
       <Card className="mx-auto max-w-lg">
         <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
           <MapPin className="size-10 text-muted-foreground" />
-          <p className="font-display text-lg">Sin sede</p>
+          <p className="text-[15px] font-semibold">Sin sede</p>
           <p className="max-w-xs text-sm text-muted-foreground">
             Selecciona una sede para ver sus ventas.
           </p>
@@ -402,7 +402,7 @@ export default function VentasPage() {
                       <div className="min-w-0 flex-1">
                         <p className="truncate font-medium">{s.saleNumber}</p>
                         <p className="text-xs text-muted-foreground">
-                          {timeOnly(s.createdAt)} · {items} ítem(s)
+                          {timeOnly(s.createdAt)} · {contar(items, "producto")}
                           {s.customer?.name ? ` · ${s.customer.name}` : ""}
                           {s.seller?.name ? ` · vendió ${s.seller.name}` : ""}
                         </p>

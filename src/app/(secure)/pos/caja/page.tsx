@@ -2,7 +2,6 @@
 
 import * as React from "react"
 import {
-  Calculator,
   ShieldOff,
   MapPin,
   Lock,
@@ -13,8 +12,6 @@ import {
   ShieldMinus,
   Banknote,
   Coins,
-  Receipt as ReceiptIcon,
-  Wallet,
 } from "lucide-react"
 
 import { useAuth } from "@/lib/auth-context"
@@ -35,10 +32,14 @@ import { money, dateTime, timeOnly } from "@/lib/pos/format"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { MoneyInput } from "@/components/ui/money-input"
+import {
+  AperturaCaja,
+  ConteoPorDenominacion,
+  Diferencia,
+  cuando,
+} from "@/components/pos/caja-cerrada"
 import {
   FormDialog,
   FormSection,
@@ -47,7 +48,9 @@ import {
 } from "@/components/ui/form-dialog"
 import { Field, FieldGrid } from "@/components/ui/field"
 import { HelpTip, Termino } from "@/components/ui/help-tip"
-import { cn } from "@/lib/utils"
+import { cn, contar, quien } from "@/lib/utils"
+import { KpiCelda } from "@/components/ui/kpi"
+import { Segmented } from "@/components/ui/segmented"
 import { useLoadEffect } from "@/hooks/use-load-effect"
 import { useResetOnChange } from "@/hooks/use-reset-on-change"
 
@@ -119,13 +122,16 @@ export default function CajaPage() {
   const totals = data?.totals ?? null
 
   return (
-    <div className="flex flex-col gap-4">
-      <div>
-        <h1 className="font-display text-2xl">Caja</h1>
-        <p className="text-sm text-muted-foreground">
-          Turno y arqueo de efectivo{sede ? ` en ${sede.name}` : ""}.
-        </p>
-      </div>
+    <div className="flex flex-col gap-5">
+      {/* Con la caja cerrada la apertura trae su propia cabecera. */}
+      {(loading || error || session) && (
+        <div>
+          <h1 className="text-[1.375rem] font-semibold leading-tight">Caja</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Turno y arqueo de efectivo{sede ? ` en ${sede.name}` : ""}.
+          </p>
+        </div>
+      )}
 
       {loading ? (
         <div className="flex flex-col gap-3">
@@ -149,168 +155,69 @@ export default function CajaPage() {
           onChanged={load}
         />
       ) : (
-        <ClosedCaja canOpen={canOpen} sedeId={sedeId} onOpened={load} />
+        <AperturaCaja
+          key={sedeId}
+          sede={sede}
+          sedeId={sedeId}
+          accion="Abrir caja"
+          conNota
+          puedeAbrir={canOpen}
+          onAbrir={async ({ bills, coins, note }) => {
+            try {
+              await openCaja(sedeId, bills + coins, note, { bills, coins })
+            } catch (err) {
+              throw new Error(errorMessage(err))
+            }
+            await load()
+          }}
+        />
       )}
 
-      {/* Historial de turnos */}
-      {!loading && history.length > 0 && (
-        <div className="flex flex-col gap-2">
-          <h2 className="font-display text-lg">Turnos anteriores</h2>
-          <Card>
-            <CardContent className="p-0">
-              <ul className="divide-y divide-border">
+      {/* Historial de turnos: una tabla, como el libro de caja en papel. */}
+      {!loading && history.some((s) => s.status === "closed") && (
+        <section className={cn("flex flex-col gap-2", !session && "max-w-[1320px]")}>
+          <h2 className="text-[15px] font-semibold">Turnos anteriores</h2>
+          <div className="overflow-x-auto rounded-lg border border-border bg-card">
+            <table className="w-full min-w-[640px] text-[13px] tabular-nums">
+              <thead>
+                <tr className="h-9 border-b border-border text-left text-xs text-muted-foreground">
+                  <th className="px-4 font-medium">Cerró</th>
+                  <th className="px-3 font-medium">Por</th>
+                  <th className="px-3 text-right font-medium">Ventas</th>
+                  <th className="px-3 text-right font-medium">Contado</th>
+                  <th className="px-4 text-right font-medium">Arqueo</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
                 {history
                   .filter((s) => s.status === "closed")
                   .map((s) => (
-                    <li
-                      key={s._id}
-                      className="flex items-center gap-3 px-4 py-3"
-                    >
-                      <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-                        <Calculator className="size-4" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium">
-                          {s.closedAt ? dateTime(s.closedAt) : "—"}
-                        </p>
-                        <p className="truncate text-xs text-muted-foreground">
-                          {s.closedByEmail ?? s.openedByEmail} ·{" "}
-                          {s.salesCount ?? 0} venta(s)
-                        </p>
-                        {(s.countedBills != null ||
-                          s.countedCoins != null) && (
-                          <div className="mt-0.5 flex items-center gap-3 text-xs text-muted-foreground">
-                            <span className="inline-flex items-center gap-1">
-                              <Banknote className="size-3" />
-                              {money(s.countedBills ?? 0)}
-                            </span>
-                            <span className="inline-flex items-center gap-1">
-                              <Coins className="size-3" />
-                              {money(s.countedCoins ?? 0)}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                      <DifferenceBadge value={s.difference} />
-                    </li>
+                    <tr key={s._id} className="h-11">
+                      <td className="px-4 whitespace-nowrap">
+                        {s.closedAt ? cuando(s.closedAt) : "—"}
+                      </td>
+                      <td className="max-w-56 truncate px-3 text-muted-foreground">
+                        {s.closedByEmail
+                          ? quien(s.closedByName, s.closedByEmail)
+                          : quien(s.openedByName, s.openedByEmail)}
+                      </td>
+                      <td className="px-3 text-right whitespace-nowrap">
+                        {s.salesCount ?? 0} · {money(s.salesTotal ?? 0)}
+                      </td>
+                      <td className="px-3 text-right whitespace-nowrap">
+                        {s.countedAmount != null ? money(s.countedAmount) : "—"}
+                      </td>
+                      <td className="px-4 text-right whitespace-nowrap">
+                        <Diferencia valor={s.difference} />
+                      </td>
+                    </tr>
                   ))}
-              </ul>
-            </CardContent>
-          </Card>
-        </div>
+              </tbody>
+            </table>
+          </div>
+        </section>
       )}
     </div>
-  )
-}
-
-// ─── Caja cerrada: formulario de apertura ────────────────────────────────────
-
-function ClosedCaja({
-  canOpen,
-  sedeId,
-  onOpened,
-}: {
-  canOpen: boolean
-  sedeId: string
-  onOpened: () => void
-}) {
-  const [bills, setBills] = React.useState<number | null>(null)
-  const [coins, setCoins] = React.useState<number | null>(null)
-  const [note, setNote] = React.useState("")
-  const [saving, setSaving] = React.useState(false)
-  const [error, setError] = React.useState<string | null>(null)
-
-  const base = (bills ?? 0) + (coins ?? 0)
-  const canSubmit = bills !== null || coins !== null
-
-  async function handleOpen() {
-    setSaving(true)
-    setError(null)
-    try {
-      await openCaja(sedeId, base, note || undefined, {
-        bills: bills ?? undefined,
-        coins: coins ?? undefined,
-      })
-      onOpened()
-    } catch (err) {
-      setError(errorMessage(err))
-      setSaving(false)
-    }
-  }
-
-  return (
-    <Card>
-      <CardContent className="flex flex-col items-center gap-4 py-10 text-center">
-        <div className="flex size-14 items-center justify-center rounded-2xl bg-muted text-muted-foreground">
-          <Lock className="size-7" />
-        </div>
-        <div className="space-y-1">
-          <p className="font-display text-xl">Caja cerrada</p>
-          <p className="text-sm text-muted-foreground">
-            {canOpen
-              ? "Cuenta el efectivo base y ábrela para empezar el turno."
-              : "No hay un turno abierto. Pide a un responsable que abra la caja."}
-          </p>
-        </div>
-
-        {canOpen && (
-          <div className="flex w-full max-w-xs flex-col gap-3 text-left">
-            <p className="text-sm font-medium text-foreground">
-              Base inicial en efectivo
-            </p>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="caja-base-billetes" className="gap-1.5">
-                <Banknote className="size-4 text-muted-foreground" />
-                Billetes
-              </Label>
-              <MoneyInput
-                id="caja-base-billetes"
-                value={bills}
-                onValueChange={setBills}
-                placeholder="$0"
-                autoFocus
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="caja-base-monedas" className="gap-1.5">
-                <Coins className="size-4 text-muted-foreground" />
-                Monedas
-              </Label>
-              <MoneyInput
-                id="caja-base-monedas"
-                value={coins}
-                onValueChange={setCoins}
-                placeholder="$0"
-              />
-            </div>
-            <div className="flex items-center justify-between rounded-lg bg-muted px-3 py-2">
-              <span className="text-sm text-muted-foreground">Total base</span>
-              <span className="stat-figure text-base">{money(base)}</span>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="caja-note">Nota (opcional)</Label>
-              <Input
-                id="caja-note"
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                placeholder="Turno mañana…"
-              />
-            </div>
-            {error && <p className="text-sm text-destructive">{error}</p>}
-            <Button
-              data-tour="pos-caja-abrir"
-              size="lg"
-              className="gap-2"
-              disabled={saving || !canSubmit}
-              onClick={() => void handleOpen()}
-            >
-              <Unlock className="size-4" />
-              {saving ? "Abriendo…" : "Abrir caja"}
-            </Button>
-          </div>
-        )}
-      </CardContent>
-    </Card>
   )
 }
 
@@ -345,9 +252,9 @@ function OpenCaja({
             <Unlock className="size-5" />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="font-display text-lg">Caja abierta</p>
+            <p className="text-[15px] font-semibold">Caja abierta</p>
             <p className="text-xs text-muted-foreground">
-              Abierta {dateTime(session.openedAt)} · {session.openedByEmail}
+              Abierta {dateTime(session.openedAt)} · {quien(session.openedByName, session.openedByEmail)}
             </p>
           </div>
           <div className="text-right">
@@ -367,27 +274,32 @@ function OpenCaja({
       </Card>
 
       {/* Arqueo en vivo */}
-      <div data-tour="pos-caja-arqueo" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat
-          icon={ReceiptIcon}
-          label="Ventas del turno"
-          value={String(totals?.salesCount ?? 0)}
+      <div data-tour="pos-caja-arqueo" className="grid grid-cols-2 gap-px lg:grid-cols-4">
+        <KpiCelda
+          label="Vendido en el turno"
+          value={money(totals?.salesTotal ?? 0)}
+          hint={contar(totals?.salesCount ?? 0, "venta")}
         />
-        <Stat
-          icon={Banknote}
-          label="Ventas en efectivo"
+        <KpiCelda
+          label="Cobrado en efectivo"
           value={money(totals?.cashSalesTotal ?? 0)}
+          hint={
+            (totals?.salesTotal ?? 0) > (totals?.cashSalesTotal ?? 0)
+              ? `${money((totals?.salesTotal ?? 0) - (totals?.cashSalesTotal ?? 0))} por tarjeta, transferencia o fiado`
+              : "Todo lo vendido fue en efectivo"
+          }
         />
-        <Stat
-          icon={ArrowUpCircle}
-          label="Salidas / sangrías"
-          value={money(totals?.movementsOut ?? 0)}
+        <KpiCelda
+          label="Ingresos y salidas"
+          value={money((totals?.movementsIn ?? 0) - (totals?.movementsOut ?? 0))}
+          hint={`+${money(totals?.movementsIn ?? 0)} · −${money(totals?.movementsOut ?? 0)}`}
         />
-        <Stat
-          icon={Wallet}
-          label="Esperado en caja"
-          value={money(expected)}
-          highlight
+        {/* Lo que tiene que haber en el cajón: es la cifra que el cajero
+            compara al contar, por eso es la única en morado. */}
+        <KpiCelda
+          label="Debe haber en el cajón"
+          value={<span className="text-primary">{money(expected)}</span>}
+          hint="Base + efectivo + ingresos − salidas"
         />
       </div>
 
@@ -395,7 +307,7 @@ function OpenCaja({
       <Card>
         <CardContent className="flex flex-col gap-3 p-4">
           <div className="flex items-center justify-between">
-            <p className="font-display text-lg">Movimientos</p>
+            <p className="text-[15px] font-semibold">Movimientos</p>
             {canClose && (
               <Button
                 data-tour="pos-caja-cerrar"
@@ -441,7 +353,7 @@ function OpenCaja({
                         {m.reason ? ` · ${m.reason}` : ""}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {timeOnly(m.createdAt)} · {m.userEmail}
+                        {timeOnly(m.createdAt)} · {quien(m.userName, m.userEmail)}
                       </p>
                     </div>
                     <span
@@ -582,14 +494,18 @@ function CloseCajaDialog({
   expected: number
   onClosed: () => void
 }) {
-  const [bills, setBills] = React.useState<number | null>(null)
-  const [coins, setCoins] = React.useState<number | null>(null)
+  const [modo, setModo] = React.useState<"conteo" | "total">("conteo")
+  const [porBillete, setPorBillete] = React.useState({ bills: 0, coins: 0, contado: false })
+  const [billsTotal, setBills] = React.useState<number | null>(null)
+  const [coinsTotal, setCoins] = React.useState<number | null>(null)
   const [note, setNote] = React.useState("")
   const [saving, setSaving] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
   useResetOnChange(() => {
     if (open) {
+      setModo("conteo")
+      setPorBillete({ bills: 0, coins: 0, contado: false })
       setBills(null)
       setCoins(null)
       setNote("")
@@ -597,7 +513,9 @@ function CloseCajaDialog({
     }
   }, [open])
 
-  const hasCount = bills !== null || coins !== null
+  const bills = modo === "conteo" ? porBillete.bills : billsTotal
+  const coins = modo === "conteo" ? porBillete.coins : coinsTotal
+  const hasCount = modo === "conteo" ? porBillete.contado : billsTotal !== null || coinsTotal !== null
   const countedNum = hasCount ? (bills ?? 0) + (coins ?? 0) : undefined
   const diff =
     countedNum === undefined
@@ -636,6 +554,30 @@ function CloseCajaDialog({
           disabled={countedNum === undefined}
           destructive
           submitLabel={saving ? "Cerrando…" : "Cerrar turno"}
+          // El resultado del arqueo, siempre a la vista junto al botón: en una
+          // pantalla baja el conteo ocupa todo y el cajero no veía si cuadraba.
+          extra={
+            diff === undefined ? (
+              <>Debe haber {money(expected)}</>
+            ) : (
+              <span className="text-sm">
+                Contado <span className="font-medium text-foreground tabular-nums">{money(countedNum ?? 0)}</span>
+                {" · "}
+                <span
+                  className={cn(
+                    "font-semibold tabular-nums",
+                    diff === 0 ? "text-success-ink" : "text-destructive-ink",
+                  )}
+                >
+                  {diff === 0
+                    ? "cuadra"
+                    : diff > 0
+                      ? `sobran ${money(diff)}`
+                      : `faltan ${money(-diff)}`}
+                </span>
+              </span>
+            )
+          }
         />
       }
     >
@@ -651,8 +593,21 @@ function CloseCajaDialog({
 
       <FormSection
         title="Efectivo contado"
-        description="Cuenta aparte los billetes y las monedas: es más fácil no equivocarse y luego revisar."
+        description="Cuenta igual que al abrir: cuántos billetes de cada uno y el sistema suma."
       >
+        <Segmented
+          size="sm"
+          ariaLabel="Cómo contar el efectivo"
+          value={modo}
+          onValueChange={setModo}
+          options={[
+            { value: "conteo", label: "Por denominación" },
+            { value: "total", label: "Solo el total" },
+          ]}
+        />
+        {modo === "conteo" ? (
+          <ConteoPorDenominacion onCambio={setPorBillete} />
+        ) : (
         <FieldGrid cols={2}>
           <Field
             id="caja-counted-billetes"
@@ -665,7 +620,7 @@ function CloseCajaDialog({
           >
             <MoneyInput
               id="caja-counted-billetes"
-              value={bills}
+              value={billsTotal}
               onValueChange={setBills}
               placeholder="$0"
               autoFocus
@@ -682,12 +637,13 @@ function CloseCajaDialog({
           >
             <MoneyInput
               id="caja-counted-monedas"
-              value={coins}
+              value={coinsTotal}
               onValueChange={setCoins}
               placeholder="$0"
             />
           </Field>
         </FieldGrid>
+        )}
 
         <div className="flex items-center justify-between rounded-xl bg-muted/60 px-3.5 py-2.5">
           <span className="text-sm text-muted-foreground">Total contado</span>
@@ -724,12 +680,18 @@ function CloseCajaDialog({
         )}
       </FormSection>
 
-      <Field id="caja-close-note" label="Nota">
+      {/* Si no cuadra, el sistema pide explicarlo antes de cerrar (pasada la
+          tolerancia de la sede). Se avisa aquí y no después del error. */}
+      <Field id="caja-close-note" label={diff ? "¿Por qué no cuadra?" : "Nota"}>
         <Input
           id="caja-close-note"
           value={note}
           onChange={(e) => setNote(e.target.value)}
-          placeholder="Observaciones del cierre (opcional)"
+          placeholder={
+            diff
+              ? "Ej.: se dio mal una devuelta, faltó registrar una salida…"
+              : "Observaciones del cierre (opcional)"
+          }
         />
       </Field>
     </FormDialog>
@@ -737,51 +699,6 @@ function CloseCajaDialog({
 }
 
 // ─── Auxiliares ──────────────────────────────────────────────────────────────
-
-function Stat({
-  icon: Icon,
-  label,
-  value,
-  highlight,
-}: {
-  icon: React.ElementType
-  label: string
-  value: string
-  highlight?: boolean
-}) {
-  return (
-    <Card className={highlight ? "border-primary/40" : undefined}>
-      <CardContent className="flex items-center gap-3 p-4">
-        <div
-          className={cn(
-            "flex size-10 shrink-0 items-center justify-center rounded-lg",
-            highlight
-              ? "bg-primary/10 text-primary"
-              : "bg-muted text-muted-foreground",
-          )}
-        >
-          <Icon className="size-5" />
-        </div>
-        <div className="min-w-0 leading-tight">
-          <p className="stat-figure truncate text-lg">{value}</p>
-          <p className="text-xs text-muted-foreground">{label}</p>
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
-
-function DifferenceBadge({ value }: { value?: number }) {
-  if (value === undefined) return <Badge variant="outline">—</Badge>
-  if (value === 0)
-    return <Badge className="border-transparent bg-success/10 text-success-ink">Cuadró</Badge>
-  return (
-    <Badge variant="destructive">
-      {value > 0 ? "+" : ""}
-      {money(value)}
-    </Badge>
-  )
-}
 
 function Guard({
   icon: Icon,
@@ -796,7 +713,7 @@ function Guard({
     <Card className="mx-auto max-w-lg">
       <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
         <Icon className="size-10 text-muted-foreground" />
-        <p className="font-display text-lg text-foreground">{title}</p>
+        <p className="text-[15px] font-semibold text-foreground">{title}</p>
         <p className="max-w-xs text-sm text-muted-foreground">{text}</p>
       </CardContent>
     </Card>

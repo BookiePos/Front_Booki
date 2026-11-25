@@ -1,5 +1,6 @@
 "use client"
 
+import { contar } from "@/lib/utils"
 import * as React from "react"
 import { X } from "lucide-react"
 import { money } from "@/lib/pos/format"
@@ -27,13 +28,13 @@ export function CobroCabecera({
   netTotal,
 }: CobroCabeceraProps) {
   return (
-    <header className="shrink-0 gradient-brand px-4 py-3.5 text-primary-foreground sm:px-5 sm:py-4">
+    <header className="shrink-0 border-b border-border bg-card px-4 py-3.5 text-foreground sm:px-5 sm:py-4">
       <div className="flex items-center gap-3 sm:gap-4">
         <div className="min-w-0 flex-1">
-          <p className="font-display text-lg leading-tight">Cobrar</p>
-          <p className="truncate text-xs text-primary-foreground/80 sm:text-sm">
+          <p className="text-[15px] font-semibold leading-tight">Cobrar</p>
+          <p className="truncate text-xs text-muted-foreground sm:text-sm">
             {sede ? `${sede.name} · ` : ""}
-            {itemCount} ítem(s)
+            {contar(itemCount, "producto")}
             {lineDiscountTotal > 0 && (
               <> · −{money(lineDiscountTotal)} de descuento</>
             )}
@@ -41,7 +42,7 @@ export function CobroCabecera({
             {deliveryFee > 0 && <> · Domicilio {money(deliveryFee)}</>}
           </p>
         </div>
-        <p className="stat-figure shrink-0 text-3xl leading-none sm:text-4xl">
+        <p key={netTotal} className="cifra-total shrink-0 text-[2rem] leading-none sm:text-[2.6rem]">
           {money(netTotal)}
         </p>
         <button
@@ -49,7 +50,7 @@ export function CobroCabecera({
           aria-label="Cerrar"
           disabled={saving}
           onClick={() => setCheckoutOpen(false)}
-          className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg text-primary-foreground/80 transition-colors hover:bg-primary-foreground/15 hover:text-primary-foreground disabled:opacity-40"
+          className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-40"
         >
           <X className="size-5" />
         </button>

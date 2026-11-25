@@ -20,7 +20,7 @@ export const TAB_INFO: Record<Tab, { label: string; frase: string }> = {
   productos: {
     label: "Insumos y mercancía",
     frase:
-      "Todo lo que manejas: las fichas de lo que compras, con su unidad, su presentación y su costo. Todavía no dice cuánto tienes.",
+      "Todo lo que manejas: las fichas de lo que compras, con su unidad, su presentación, su costo y cuánto hay en total. Lo que hay en cada sede está en Existencias.",
   },
   empaques: {
     label: "Empaques",

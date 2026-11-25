@@ -55,6 +55,7 @@ import {
   sedeItems,
 } from "@/components/inventario/ui-comunes"
 import { VacioConSalida } from "@/components/inventario/pestanas"
+import { contar } from "@/lib/utils"
 
 // ─── Panel de lotes (trazabilidad y vencimientos) ────────────────────────────
 
@@ -208,7 +209,7 @@ export function LotsPanel({
           >
             <CircleAlert className="size-4 shrink-0" />
             <span>
-              <span className="font-semibold">{vencidos} lote(s) vencidos</span>{" "}
+              <span className="font-semibold">{contar(vencidos, "lote vencido", "lotes vencidos")}</span>{" "}
               siguen con existencias. Sácalos con un ajuste por vencimiento.
             </span>
             <ChevronRight className="ml-auto size-4 shrink-0" />

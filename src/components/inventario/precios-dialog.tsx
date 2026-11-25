@@ -321,7 +321,7 @@ export function ActualizarPreciosDialog({
 
       {result && (
         <FormAlert tone="success" icon={CheckCircle2}>
-          Listo: <strong>{result.actualizados}</strong> precio(s) actualizados
+          Listo: <strong>{result.actualizados}</strong> {result.actualizados === 1 ? "precio actualizado" : "precios actualizados"}
           {result.subieron > 0 && <> · subieron {result.subieron}</>}
           {result.bajaron > 0 && <> · bajaron {result.bajaron}</>}.
           {result.subieron > 0 && (
@@ -346,7 +346,7 @@ export function ActualizarPreciosDialog({
 
       {porDefinir.length > 0 && (
         <FormAlert tone="warning" icon={TriangleAlert}>
-          Hay <strong>{porDefinir.length}</strong> insumo(s) que mides en gramos
+          Hay <strong>{porDefinir.length}</strong> {porDefinir.length === 1 ? "insumo" : "insumos"} que mides en gramos
           o mililitros y que todavía no dicen cómo los compras, así que aquí
           aparecen por gramo. Si los compras por kilo o por litro —lo normal—,
           déjalo escrito de una vez.

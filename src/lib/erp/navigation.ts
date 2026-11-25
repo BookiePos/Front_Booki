@@ -1,7 +1,9 @@
 import type { BusinessType, PlanFeature } from "@/lib/api"
 import type { LucideIcon } from "lucide-react"
 import {
-  LayoutDashboard,
+  House,
+  MonitorSmartphone,
+  UtensilsCrossed,
   Store,
   Wallet,
   Boxes,
@@ -65,74 +67,93 @@ export type NavSection = {
   items: NavItem[]
 }
 
-/** Ítem suelto arriba (Panel / Dashboard). */
+/** Ítem suelto arriba: el tablero. */
 export const dashboardItem: NavItem = {
-  title: "Panel",
+  title: "Inicio",
   href: "/panel",
-  icon: LayoutDashboard,
+  icon: House,
 }
 
-/** Navegación agrupada del Sistema POS. */
+/**
+ * Menú del panel, agrupado por lo que el dueño viene a hacer (rediseño
+ * "Libro", 19-nov-2026). Antes eran 6 grupos técnicos con 31 destinos que no
+ * cabían en pantalla, y Mesas no aparecía. Los grupos se pliegan y cada uno
+ * se abre solo cuando contiene la página actual.
+ *
+ * Los permisos de cada ítem no cambian: son los mismos que exige la página.
+ */
 export const navSections: NavSection[] = [
   {
-    label: "Operación",
+    label: "Vender",
     items: [
-      { title: "Sedes", href: "/panel/sedes", icon: Store, requiredPermissions: ["sede.manage"] },
+      { title: "Punto de venta", href: "/pos", icon: MonitorSmartphone, requiredPermissions: ["pos.sell"] },
+      { title: "Mesas", href: "/panel/restaurante", icon: UtensilsCrossed, businessTypes: ["restaurante"], requiredPermissions: ["restaurant.operate"] },
       { title: "Caja", href: "/panel/caja", icon: Wallet, requiredPermissions: ["pos.sell"] },
-      { title: "Inventario", href: "/panel/inventario", icon: Boxes, requiredPermissions: ["inventory.view"] },
-      { title: "Producción", href: "/panel/produccion", icon: Factory, requiredPermissions: ["production.view", "production.manage"] },
-      { title: "Productos", href: "/panel/productos", icon: Package, requiredPermissions: ["inventory.view"] },
     ],
   },
   {
-    label: "Comercial",
+    label: "Operación",
+    items: [
+      { title: "Inventario", href: "/panel/inventario", icon: Boxes, requiredPermissions: ["inventory.view"] },
+      { title: "Productos y precios", href: "/panel/productos", icon: Package, requiredPermissions: ["inventory.view"] },
+      { title: "Producción", href: "/panel/produccion", icon: Factory, requiredPermissions: ["production.view", "production.manage"] },
+    ],
+  },
+  {
+    label: "Compras",
     items: [
       { title: "Compras", href: "/panel/compras", icon: Truck, requiredPermissions: ["finance.view", "purchasing.manage"], requiredFeature: "purchasing" },
       { title: "Facturas por foto", href: "/panel/compras/facturas", icon: ScanLine, requiredPermissions: ["finance.view", "purchasing.manage"], requiredFeature: "purchasing" },
       { title: "Proveedores", href: "/panel/proveedores", icon: Building2, requiredPermissions: ["inventory.view"], requiredFeature: "purchasing" },
-      { title: "Directorio clientes", href: "/panel/clientes/directorio", icon: Contact, requiredPermissions: ["customers.view"] },
-      { title: "Clientes (CxC)", href: "/panel/clientes", icon: Users, requiredPermissions: ["finance.view"], requiredFeature: "accounting" },
     ],
   },
   {
-    label: "Finanzas",
+    label: "Clientes",
     items: [
-      { title: "Caja y bancos", href: "/panel/finanzas/bancos", icon: Landmark, requiredPermissions: ["finance.view"], requiredFeature: "accounting" },
-      { title: "Gastos", href: "/panel/finanzas/gastos", icon: FileMinus, requiredPermissions: ["finance.view"], requiredFeature: "expenses" },
-      { title: "Conciliación de pagos", href: "/panel/finanzas/conciliacion", icon: Landmark, requiredPermissions: ["finance.view"], requiredFeature: "accounting" },
-      { title: "Cuentas por pagar", href: "/panel/finanzas/cxp", icon: Receipt, requiredPermissions: ["finance.view"], requiredFeature: "accounting" },
+      { title: "Clientes", href: "/panel/clientes/directorio", icon: Contact, requiredPermissions: ["customers.view"] },
+      { title: "Fiado por cobrar", href: "/panel/clientes", icon: Users, requiredPermissions: ["finance.view"], requiredFeature: "accounting" },
       { title: "Saldos a favor", href: "/panel/finanzas/saldos-favor", icon: Wallet, requiredPermissions: ["finance.view"], requiresAllSedes: true },
-      { title: "P&L", href: "/panel/finanzas/pl", icon: TrendingUp, requiredPermissions: ["finance.view"], requiredFeature: "accounting" },
-      { title: "Reportes", href: "/panel/finanzas/reportes", icon: BarChart3, requiredPermissions: ["reports.view"] },
+    ],
+  },
+  {
+    label: "Dinero",
+    items: [
+      { title: "Bancos y caja", href: "/panel/finanzas/bancos", icon: Landmark, requiredPermissions: ["finance.view"], requiredFeature: "accounting" },
+      { title: "Conciliación", href: "/panel/finanzas/conciliacion", icon: Landmark, requiredPermissions: ["finance.view"], requiredFeature: "accounting" },
+      { title: "Gastos", href: "/panel/finanzas/gastos", icon: FileMinus, requiredPermissions: ["finance.view"], requiredFeature: "expenses" },
+      { title: "Por pagar", href: "/panel/finanzas/cxp", icon: Receipt, requiredPermissions: ["finance.view"], requiredFeature: "accounting" },
+      { title: "Resultados", href: "/panel/finanzas/pl", icon: TrendingUp, requiredPermissions: ["finance.view"], requiredFeature: "accounting" },
+      { title: "Reportes contables", href: "/panel/finanzas/reportes", icon: BarChart3, requiredPermissions: ["reports.view"] },
       { title: "Metas", href: "/panel/finanzas/metas", icon: Target, requiredPermissions: ["finance.view"], requiredFeature: "accounting" },
       { title: "Flujo de caja", href: "/panel/finanzas/flujo", icon: LineChart, requiredPermissions: ["finance.view"], requiredFeature: "expenses" },
     ],
   },
   {
-    label: "Personal",
+    label: "Impuestos y DIAN",
     items: [
-      { title: "Empleados", href: "/panel/empleados", icon: BadgeDollarSign, requiredPermissions: ["employees.view", "employees.manage"] },
+      { title: "Facturación electrónica", href: "/panel/facturacion", icon: FileText, requiredPermissions: ["einvoicing.issue"] },
+      { title: "Impuestos", href: "/panel/impuestos", icon: Percent, requiredPermissions: ["tax.manage"], requiredFeature: "accounting" },
+      { title: "Resoluciones", href: "/panel/resoluciones", icon: ScrollText, requiredPermissions: ["einvoicing.issue"] },
+    ],
+  },
+  {
+    label: "Equipo",
+    items: [
+      { title: "Personas", href: "/panel/empleados", icon: BadgeDollarSign, requiredPermissions: ["employees.view", "employees.manage"] },
+      { title: "Turnos", href: "/panel/turnos", icon: CalendarClock, requiredPermissions: ["attendance.manage"] },
       { title: "Nómina", href: "/panel/nomina", icon: Wallet, requiredPermissions: ["payroll.manage"], requiredFeature: "payroll" },
       { title: "Nómina electrónica", href: "/panel/nomina/electronica", icon: FileCheck2, requiredPermissions: ["payroll.einvoice"], requiredFeature: "payroll" },
-      { title: "Consumos / deducciones", href: "/panel/nomina/deducciones", icon: ReceiptText, requiredPermissions: ["payroll.view", "payroll.deduction.approve", "payroll.manage"], requiredFeature: "payroll" },
-      { title: "Turnos", href: "/panel/turnos", icon: CalendarClock, requiredPermissions: ["attendance.manage"] },
+      { title: "Consumos y deducciones", href: "/panel/nomina/deducciones", icon: ReceiptText, requiredPermissions: ["payroll.view", "payroll.deduction.approve", "payroll.manage"], requiredFeature: "payroll" },
     ],
   },
   {
-    label: "Cumplimiento",
+    label: "Ajustes",
     items: [
-      { title: "Impuestos", href: "/panel/impuestos", icon: Percent, requiredPermissions: ["tax.manage"], requiredFeature: "accounting" },
-      { title: "Facturación electrónica", href: "/panel/facturacion", icon: FileText, requiredPermissions: ["einvoicing.issue"] },
-      { title: "Resoluciones", href: "/panel/resoluciones", icon: ScrollText, requiredPermissions: ["einvoicing.issue"] },
-      { title: "Auditoría", href: "/panel/auditoria", icon: ShieldCheck, requiredPermissions: ["audit.view"], requiredFeature: "audit" },
-    ],
-  },
-  {
-    label: "Configuración",
-    items: [
+      { title: "Sedes", href: "/panel/sedes", icon: Store, requiredPermissions: ["sede.manage"] },
       { title: "Usuarios y roles", href: "/panel/config/usuarios", icon: UserCog, requiredPermissions: ["users.manage"] },
       { title: "Parámetros", href: "/panel/config/parametros", icon: SlidersHorizontal, requiredPermissions: ["params.manage"] },
       { title: "Plan y facturación", href: "/panel/config/plan", icon: CreditCard, requiredPermissions: ["billing.manage"] },
+      { title: "Auditoría", href: "/panel/auditoria", icon: ShieldCheck, requiredPermissions: ["audit.view"], requiredFeature: "audit" },
     ],
   },
 ]

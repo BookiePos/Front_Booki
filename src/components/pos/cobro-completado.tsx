@@ -68,7 +68,7 @@ export function CobroCompletado({
       <header className="no-print flex shrink-0 items-center gap-3 border-b border-border bg-success/10 px-5 py-4">
         <CheckCircle2 className="size-9 shrink-0 text-success-ink" />
         <div className="min-w-0 flex-1">
-          <p className="font-display text-xl leading-tight">
+          <p className="text-base font-semibold leading-tight">
             Venta registrada
           </p>
           <p className="font-mono text-xs text-muted-foreground">

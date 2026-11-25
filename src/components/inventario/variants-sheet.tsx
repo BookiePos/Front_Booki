@@ -33,6 +33,7 @@ import { Field, FieldGrid } from "@/components/ui/field"
 import { VARIANTS_FORM_ID, errorMessage } from "@/components/inventario/helpers"
 import { FormError } from "@/components/inventario/ui-comunes"
 import { useResetOnChange } from "@/hooks/use-reset-on-change"
+import { contar } from "@/lib/utils"
 
 // ─── Tallas y variantes (comercio sin recetas) ───────────────────────────────
 
@@ -270,7 +271,7 @@ export function VariantsSheet({
       })
       onSuccess()
       setDoneMsg(
-        `Se crearon ${res.variants.length} variante(s). Ya están en el catálogo: registra su entrada de mercancía para poder venderlas.`,
+        `Se crearon ${contar(res.variants.length, "variante")}. Ya están en el catálogo: registra su entrada de mercancía para poder venderlas.`,
       )
     } catch (err) {
       setError(errorMessage(err))
@@ -318,7 +319,7 @@ export function VariantsSheet({
               {saving
                 ? "Creando…"
                 : willCreate > 0
-                  ? `Crear ${willCreate} variante(s)`
+                  ? `Crear ${contar(willCreate, "variante")}`
                   : "Crear variantes"}
             </Button>
           </>
@@ -592,7 +593,7 @@ export function VariantsSheet({
                   <p className="text-xs text-muted-foreground">
                     …y {combos.length - PREVIEW_LIMIT} más. En total{" "}
                     <span className="font-semibold text-foreground">
-                      {willCreate} variante(s)
+                      {contar(willCreate, "variante")}
                     </span>
                     .
                   </p>

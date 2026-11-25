@@ -35,6 +35,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { useLoadEffect } from "@/hooks/use-load-effect"
+import { KpiCelda } from "@/components/ui/kpi"
 
 const ALL = "all"
 type ReportKey = "income-statement" | "balance-sheet" | "trial-balance" | "sales"
@@ -94,7 +95,7 @@ export default function ReportesPage() {
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-14 text-center">
             <ShieldOff className="size-10 text-muted-foreground" />
-            <p className="font-display text-lg text-foreground">Sin acceso</p>
+            <p className="text-[15px] font-semibold text-foreground">Sin acceso</p>
             <p className="max-w-xs text-sm text-muted-foreground">
               Necesitas el permiso <code>reports.view</code>.
             </p>
@@ -127,7 +128,7 @@ export default function ReportesPage() {
         {REPORTS.map((r) => (
           <Button
             key={r.key}
-            variant={report === r.key ? "default" : "outline"}
+            variant={report === r.key ? "secondary" : "ghost"}
             size="sm"
             onClick={() => setReport(r.key)}
           >
@@ -137,7 +138,7 @@ export default function ReportesPage() {
         ))}
       </div>
 
-      <Card data-tour="reportes-filtro" className="mb-4">
+      <Card data-filtros data-tour="reportes-filtro" className="mb-4">
         <CardContent className="flex flex-wrap items-end gap-3 py-4">
           <div className="flex flex-col gap-1">
             <Label className="text-xs">Sede</Label>
@@ -235,7 +236,7 @@ function IncomeView({ r }: { r: IncomeStatement }) {
       <LineTable title="Gastos" lines={r.gastos} total={r.totalGastos} />
       <Card>
         <CardContent className="flex items-center justify-between py-4">
-          <span className="font-display text-lg">Utilidad neta</span>
+          <span className="text-[15px] font-semibold">Utilidad neta</span>
           <span className={`stat-figure text-2xl ${r.utilidadNeta >= 0 ? "text-success-ink" : "text-destructive"}`}>
             {money.format(r.utilidadNeta)}
           </span>
@@ -655,12 +656,5 @@ function BreakdownTable({
 }
 
 function Kpi({ label, value }: { label: string; value: string }) {
-  return (
-    <Card>
-      <CardContent className="p-4">
-        <p className="text-xs font-medium text-muted-foreground">{label}</p>
-        <p className="stat-figure mt-1 text-2xl text-foreground">{value}</p>
-      </CardContent>
-    </Card>
-  )
+  return <KpiCelda label={label} value={value} />
 }

@@ -357,8 +357,25 @@ function OpenTablesWidget(p: WidgetProps) {
 }
 
 /** Mini gráfico de barras (CSS) de ingresos por día, últimos 7 días. */
+/**
+ * Los 7 días terminados hoy, con 0 en los que no hubo ventas: el reporte solo
+ * trae los días con movimiento, y sin rellenar la gráfica mostraba un solo día.
+ */
+function sieteDias(
+  days: { date: string; revenue: number; tickets: number }[],
+): { date: string; revenue: number; tickets: number }[] {
+  const porFecha = new Map(days.map((d) => [d.date, d]))
+  return Array.from({ length: 7 }, (_, i) => {
+    const f = new Date()
+    f.setDate(f.getDate() - (6 - i))
+    const date = f.toLocaleDateString("en-CA")
+    return porFecha.get(date) ?? { date, revenue: 0, tickets: 0 }
+  })
+}
+
 function SalesChartWidget({ data, loading }: WidgetProps) {
-  const days = data.sales?.days ?? []
+  const reported = data.sales?.days ?? []
+  const days = sieteDias(reported)
   const max = Math.max(1, ...days.map((d) => d.revenue))
   return (
     <Card className="h-full">
@@ -385,9 +402,12 @@ function SalesChartWidget({ data, loading }: WidgetProps) {
       <CardContent>
         {loading && !data.sales ? (
           <Skeleton className="h-40 w-full" />
-        ) : days.length > 0 ? (
-          <div className="flex h-40 items-end gap-2">
+        ) : reported.length > 0 ? (
+          <div className="flex h-40 items-stretch gap-2">
             {days.map((d) => (
+              // `items-stretch` y el `flex-1` interno dan altura a la columna;
+              // con `items-end` la columna medía lo que su texto y la barra en %
+              // de un padre sin alto quedaba en 0.
               <div
                 key={d.date}
                 className="flex flex-1 flex-col items-center gap-1"
@@ -397,7 +417,10 @@ function SalesChartWidget({ data, loading }: WidgetProps) {
                   <div
                     className="w-full rounded-t-md bg-primary/80 transition-all hover:bg-primary"
                     style={{
-                      height: `${Math.max(4, Math.round((d.revenue / max) * 100))}%`,
+                      height:
+                        d.revenue > 0
+                          ? `${Math.max(2, Math.round((d.revenue / max) * 100))}%`
+                          : "1px",
                     }}
                   />
                 </div>

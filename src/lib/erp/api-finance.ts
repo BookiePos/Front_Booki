@@ -219,6 +219,38 @@ export interface FinanceBudget {
   createdAt: string
 }
 
+/**
+ * Resultado de una meta: los ingresos suman y todo lo demás (costo, nómina,
+ * gastos, impuestos) resta. Antes la pantalla sumaba todas las filas, y una meta
+ * con $120 M de ventas y $60 M de gastos mostraba un "Total" de $180 M.
+ */
+export function utilidadDeMeta<T extends { kind: CategoryKind }>(
+  lines: T[],
+  valor: (l: T) => number,
+): number {
+  return lines.reduce((s, l) => s + (l.kind === "income" ? 1 : -1) * valor(l), 0)
+}
+
+/**
+ * La cifra que resume una meta y su nombre. "Utilidad" solo tiene sentido si la
+ * meta trae ventas y gastos; una meta solo de gastos se resume en lo que se
+ * piensa gastar (en positivo), y una solo de ventas en lo que se piensa vender.
+ * `masEsMejor` dice cómo leer la variación: vender más es bueno, gastar más no.
+ */
+export function resumenDeMeta<T extends { kind: CategoryKind }>(
+  lines: T[],
+  valor: (l: T) => number,
+): { etiqueta: "Utilidad" | "Ventas" | "Gastos"; monto: number; masEsMejor: boolean } {
+  const ventas = lines.filter((l) => l.kind === "income")
+  const costos = lines.filter((l) => l.kind !== "income")
+  const suma = (ls: T[]) => ls.reduce((s, l) => s + valor(l), 0)
+  if (ventas.length > 0 && costos.length > 0) {
+    return { etiqueta: "Utilidad", monto: utilidadDeMeta(lines, valor), masEsMejor: true }
+  }
+  if (ventas.length > 0) return { etiqueta: "Ventas", monto: suma(ventas), masEsMejor: true }
+  return { etiqueta: "Gastos", monto: suma(costos), masEsMejor: false }
+}
+
 export interface BudgetVsActualLine {
   categoryId: string
   categoryName: string
@@ -257,6 +289,12 @@ export interface PLReport {
   ivaGenerado: number
   ivaDescontable: number
   ivaPorPagar: number
+  /** INC de restaurante causado en ventas (domicilio incluido). */
+  incGenerado?: number
+  /** INC de bolsas plásticas (art. 512-15 ET). */
+  incBolsas?: number
+  /** INC por pagar: generado más bolsas, sin descontables (art. 512-1 ET). */
+  incPorPagar?: number
 }
 
 export interface PLMonthRow {

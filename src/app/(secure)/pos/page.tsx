@@ -84,7 +84,6 @@ import {
 
 import { Button } from "@/components/ui/button"
 
-import { Card, CardContent } from "@/components/ui/card"
 
 
 
@@ -135,7 +134,10 @@ import { Guard } from "@/components/pos/venta-ui"
 
 
 import { CuentasAbiertas } from "@/components/pos/cuentas-abiertas"
-import { CajaCerrada } from "@/components/pos/caja-cerrada"
+import {
+  AperturaCaja,
+  type AperturaValores,
+} from "@/components/pos/caja-cerrada"
 import { NuevaCuentaDialog } from "@/components/pos/nueva-cuenta-dialog"
 import { CobroPie } from "@/components/pos/cobro-pie"
 import { CobroColumnaVenta } from "@/components/pos/cobro-columna-venta"
@@ -149,6 +151,12 @@ import { CatalogoVenta } from "@/components/pos/catalogo-venta"
 import { EstadoOffline } from "@/components/pos/estado-offline"
 import { useModoOffline } from "@/hooks/use-modo-offline"
 import { motivosNoOffline } from "@/lib/offline/cola"
+import { toast } from "sonner"
+import {
+  guardarVentaEnCurso,
+  leerVentaEnCurso,
+  restaurarCarrito,
+} from "@/lib/pos/venta-en-curso"
 import {
   cajaActualConRespaldo,
   esFallaDeRed,
@@ -200,6 +208,8 @@ export default function VentaPage() {
   const [flash, setFlash] = React.useState<string | null>(null)
 
   const [cart, setCart] = React.useState<CartItem[]>([])
+  /** Sede para la que ya se intentó recuperar la venta en curso. */
+  const ventaRecuperadaPara = React.useRef<string | null>(null)
 
   // Propina (restaurante): null = no hay; número = monto en pesos (editable).
   // Es voluntaria: se puede poner y quitar, con el 10% sugerido o un monto libre.
@@ -228,10 +238,6 @@ export default function VentaPage() {
   // Caja: toda la operación ocurre dentro de un turno abierto.
   const [caja, setCaja] = React.useState<CajaSession | null>(null)
   const [cajaLoading, setCajaLoading] = React.useState(true)
-  const [openingBills, setOpeningBills] = React.useState<number | null>(null)
-  const [openingCoins, setOpeningCoins] = React.useState<number | null>(null)
-  const [openingBusy, setOpeningBusy] = React.useState(false)
-  const [openCajaError, setOpenCajaError] = React.useState<string | null>(null)
 
   // Cuentas abiertas
   const [orders, setOrders] = React.useState<Order[]>([])
@@ -497,13 +503,37 @@ export default function VentaPage() {
     setError(null)
     try {
       // Con respaldo local: sin red, el catálogo guardado (ítem 6.3).
-      setProducts(await posProductsConRespaldo(sedeId))
+      const lista = await posProductsConRespaldo(sedeId)
+      setProducts(lista)
+      // La primera carga de la sede recupera la venta que quedó a medias (un
+      // F5, el navegador que se cerró). En ese momento el carrito está vacío:
+      // `reiniciarPorSede` lo acaba de limpiar.
+      if (ventaRecuperadaPara.current !== sedeId) {
+        ventaRecuperadaPara.current = sedeId
+        const recuperada = restaurarCarrito(leerVentaEnCurso(sedeId), lista)
+        if (recuperada.length > 0) {
+          setCart(recuperada)
+          toast.info("Recuperamos la venta que tenías en curso.", {
+            description: "Revisa los productos antes de cobrar.",
+          })
+        }
+      }
     } catch (err) {
       setError(errorMessage(err))
     } finally {
+      ventaRecuperadaPara.current = sedeId
       setLoading(false)
     }
   }, [sedeId])
+
+  // Cada cambio de la venta directa queda guardado en el navegador. Con una
+  // cuenta de mesa abierta no: esa ya vive en el servidor, y la venta directa
+  // que hubiera se reemplazó al abrirla. No guarda nada hasta que la sede
+  // intentó recuperar lo suyo, para no borrarlo con el carrito vacío inicial.
+  React.useEffect(() => {
+    if (!sedeId || ventaRecuperadaPara.current !== sedeId) return
+    guardarVentaEnCurso(sedeId, activeOrderId ? [] : cart)
+  }, [cart, activeOrderId, sedeId])
 
   // Zonas de domicilio de la sede. Se cargan con el catálogo porque el cajero
   // las necesita en el momento de cobrar, no puede esperar a que carguen.
@@ -623,31 +653,22 @@ export default function VentaPage() {
     }
   }, [sedeId, canSell, modo.online])
 
-  async function handleOpenCaja() {
+  // La pantalla de apertura lleva su propio conteo y muestra el error: aquí
+  // solo se abre el turno y se pasa directo a vender.
+  async function handleOpenCaja({ bills, coins }: AperturaValores) {
     if (!sedeId) return
-    if (openingBills === null && openingCoins === null) {
-      setOpenCajaError("Cuenta el efectivo base para abrir la caja")
-      return
-    }
-    const base = (openingBills ?? 0) + (openingCoins ?? 0)
-    setOpeningBusy(true)
-    setOpenCajaError(null)
     try {
-      const session = await openCaja(sedeId, base, undefined, {
-        bills: openingBills ?? undefined,
-        coins: openingCoins ?? undefined,
+      const session = await openCaja(sedeId, bills + coins, undefined, {
+        bills,
+        coins,
       })
       setCaja(session)
-      setOpeningBills(null)
-      setOpeningCoins(null)
       // El botón dice "Abrir caja y vender": cae directo en la pantalla de
       // venta, sin pasar por una lista de cuentas que además está vacía.
       setScreen("sell")
       void refreshOrders()
     } catch (err) {
-      setOpenCajaError(errorMessage(err))
-    } finally {
-      setOpeningBusy(false)
+      throw new Error(errorMessage(err))
     }
   }
 
@@ -820,7 +841,22 @@ export default function VentaPage() {
     )
   }
 
-  function clearCart() {
+  /**
+   * "Vaciar" pide confirmación: antes borraba con un clic, y en una mesa el
+   * autoguardado se llevaba el borrado al servidor sin forma de volver atrás.
+   */
+  async function clearCart() {
+    const unidades = cart.reduce((s, i) => s + i.qty, 0)
+    const ok = await confirm({
+      title: activeOrderId ? "¿Vaciar la cuenta de esta mesa?" : "¿Vaciar la venta?",
+      description: `Se quitarán ${unidades === 1 ? "1 producto" : `${unidades} productos`}. ${
+        activeOrderId ? "La cuenta queda abierta y vacía." : ""
+      }`.trim(),
+      confirmLabel: "Vaciar",
+      cancelLabel: "No, volver",
+      destructive: true,
+    })
+    if (!ok) return
     setCart([])
     setTip(null)
   }
@@ -1892,26 +1928,21 @@ export default function VentaPage() {
   // ── Caja: gate de "abrir caja" antes de poder vender ──
   if (sedeId && cajaLoading) {
     return (
-      <Card className="mx-auto max-w-md">
-        <CardContent className="flex flex-col items-center gap-3 py-16">
-          <Loader2 className="size-8 animate-spin text-muted-foreground" />
-          <p className="text-sm text-muted-foreground">Verificando la caja…</p>
-        </CardContent>
-      </Card>
+      <div className="flex items-center justify-center gap-2 py-24 text-sm text-muted-foreground">
+        <Loader2 className="size-4 animate-spin" />
+        Revisando la caja…
+      </div>
     )
   }
 
   if (sedeId && !caja) {
     return (
-      <CajaCerrada
+      <AperturaCaja
+        key={sedeId}
         sede={sede}
-        openingBills={openingBills}
-        setOpeningBills={setOpeningBills}
-        openingCoins={openingCoins}
-        setOpeningCoins={setOpeningCoins}
-        openingBusy={openingBusy}
-        openCajaError={openCajaError}
-        handleOpenCaja={handleOpenCaja}
+        sedeId={sedeId}
+        onAbrir={handleOpenCaja}
+        puedeAbrir={hasPermission("caja.open")}
       />
     )
   }
@@ -1953,7 +1984,7 @@ export default function VentaPage() {
             </Button>
           )}
           <div className="min-w-0 flex-1">
-            <p className="truncate font-display text-lg leading-tight">
+            <p className="truncate text-[15px] font-semibold leading-tight">
               {isOrder
                 ? label.trim() || activeOrder?.orderNumber || "Cuenta"
                 : "Venta"}
@@ -1963,8 +1994,13 @@ export default function VentaPage() {
                 {activeOrder.orderNumber}
               </p>
             ) : (
-              <p className="text-sm text-muted-foreground">
-                {sede ? `${sede.name} · ` : ""}Agrega productos y cobra.
+              // En el celular solo la sede: con la frase completa al lado de
+              // "Cuentas" el título se partía palabra por palabra.
+              <p className="truncate text-sm text-muted-foreground">
+                {sede?.name}
+                <span className="hidden sm:inline">
+                  {sede ? " · " : ""}Agrega productos y cobra.
+                </span>
               </p>
             )}
           </div>
@@ -1981,7 +2017,8 @@ export default function VentaPage() {
               onClick={() => void backToList()}
             >
               <ClipboardList className="size-4" />
-              Cuentas abiertas
+              <span className="sm:hidden">Cuentas</span>
+              <span className="hidden sm:inline">Cuentas abiertas</span>
               {orders.length > 0 && (
                 <span className="ml-0.5 inline-flex min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-bold text-primary-foreground">
                   {orders.length}

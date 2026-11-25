@@ -90,7 +90,7 @@ export function VariantGroupCard({
           : "Sin existencias"}
       </span>
       <span className="mt-1 flex w-full flex-wrap items-center justify-between gap-1">
-        <span className="font-display text-lg">
+        <span className="text-[15px] font-semibold">
           {variosPrecios ? `desde ${money(desde)}` : money(desde)}
         </span>
         {agotado ? (

@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { AyudaAtajos } from "@/components/pos/ayuda-atajos"
 import { type VariantGroup } from "@/components/pos/variant-picker"
-import { cn } from "@/lib/utils"
+import { cn, contar } from "@/lib/utils"
 import {
   CartItem,
   ALL,
@@ -96,11 +96,13 @@ export function CatalogoVenta({
       </div>
 
       {/* Filtro por categoría, y a su derecha —donde antes solo había aire
-          en un monitor ancho— los dos atajos que ya existen y que casi
-          nadie descubre solo. */}
+          en un monitor ancho— los atajos que casi nadie descubre solo. Solo
+          desde 1700 px: en un portátil de 1280–1440 le quitaban todo el
+          ancho a las categorías y "Otros" quedaba cortado bajo una barra de
+          desplazamiento. Ahí basta el botón "Atajos". */}
       <div className="flex items-center gap-3">
         {categories.length > 0 && (
-          <div className="-mx-1 flex min-w-0 flex-1 gap-1.5 overflow-x-auto px-1 pb-1">
+          <div className="-mx-1 flex min-w-0 flex-1 gap-1.5 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <CategoryChip
               active={category === ALL}
               onClick={() => setCategory(ALL)}
@@ -118,13 +120,13 @@ export function CatalogoVenta({
             ))}
           </div>
         )}
-        <p className="ml-auto hidden shrink-0 items-center gap-2 text-[11px] text-muted-foreground xl:flex">
+        <p className="ml-auto hidden shrink-0 items-center gap-2 text-[11px] text-muted-foreground min-[1700px]:flex">
           <Atajo tecla="Enter">agrega lo escaneado</Atajo>
           <Atajo tecla="Ctrl K">busca en todo el terminal</Atajo>
           <Atajo tecla="F2">busca</Atajo>
           <Atajo tecla="F4">cobra</Atajo>
         </p>
-        <div className="ml-auto shrink-0 xl:ml-0">
+        <div className="ml-auto shrink-0 min-[1700px]:ml-0">
           <AyudaAtajos open={ayudaAbierta} onOpenChange={setAyudaAbierta} />
         </div>
       </div>
@@ -135,7 +137,7 @@ export function CatalogoVenta({
           <AlertTriangle className="size-4 shrink-0" />
           <span>
             {stockSummary.out > 0 &&
-              `${stockSummary.out} producto(s) sin stock`}
+              `${contar(stockSummary.out, "producto")} sin existencias`}
             {stockSummary.out > 0 && stockSummary.low > 0 && " · "}
             {stockSummary.low > 0 &&
               `${stockSummary.low} con pocas unidades`}
@@ -239,7 +241,7 @@ export function CatalogoVenta({
                   )}
                 </span>
                 <span className="mt-1 flex w-full flex-wrap items-center justify-between gap-1">
-                  <span className="font-display text-lg">
+                  <span className="text-[15px] font-semibold">
                     {money(p.salePrice)}
                   </span>
                   {/* Solo se avisa el stock si quedan pocas unidades (<10). */}

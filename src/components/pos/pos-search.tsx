@@ -29,7 +29,7 @@ import {
 import { getStock, type StockRow } from "@/lib/pos/api-inventory"
 import { listCustomers, type Customer } from "@/lib/pos/api-customers"
 import { money, qty as fmtQty } from "@/lib/pos/format"
-import { cn } from "@/lib/utils"
+import { cn, contar } from "@/lib/utils"
 
 /**
  * Buscador de todo el terminal, en la barra de arriba.
@@ -285,7 +285,7 @@ export function PosSearch() {
           clave: `cta-${o._id}`,
           icono: ClipboardList,
           titulo: o.label || o.orderNumber,
-          detalle: `${o.lines.length} ítem(s) · abrir la cuenta`,
+          detalle: `${contar(o.lines.length, "producto")} · abrir la cuenta`,
           pedido: { href: "/pos", termino: "", cuentaId: o._id },
         })),
       })

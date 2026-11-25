@@ -1,5 +1,21 @@
 import { describe, expect, it } from "vitest"
-import { clamp, formatCOP, formatNumber } from "./utils"
+import { clamp, contar, formatCOP, formatNumber, quien } from "./utils"
+
+describe("quien", () => {
+  it("el nombre si existe; si no, el correo sin dominio", () => {
+    expect(quien("Camila", "demo@x.co")).toBe("Camila")
+    expect(quien(undefined, "caja2@x.co")).toBe("caja2")
+    expect(quien(" ", null)).toBe("—")
+  })
+})
+
+describe("contar", () => {
+  it("singular con 1 y plural con lo demás, sin paréntesis", () => {
+    expect(contar(1, "producto")).toBe("1 producto")
+    expect(contar(0, "producto")).toBe("0 productos")
+    expect(contar(1200, "unidad", "unidades")).toBe("1.200 unidades")
+  })
+})
 import { numOr } from "./erp/finance-format"
 
 /** El dinero en pantalla: pesos sin decimales y con punto de miles. */

@@ -3,6 +3,24 @@ import { authFetch, parseResponse } from "@/lib/api-admin"
 
 export type TaxKind = "iva" | "inc" | "exento" | "excluido"
 
+/**
+ * Cómo se lee la tarifa: porcentaje sobre la base (IVA 19) o pesos fijos por
+ * unidad (INC de bolsas: $73 por bolsa en 2026). Sin dato, porcentaje.
+ */
+export type TaxBasis = "porcentaje" | "por_unidad"
+
+/**
+ * Tarifa lista para mostrar: "19 %" o "$ 73 por bolsa". Antes se pegaba
+ * siempre un "%", y el INC de bolsas salía como "73 %".
+ */
+export function formatTaxRate(rate: number, basis?: TaxBasis): string {
+  if (basis === "por_unidad") {
+    const pesos = new Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 }).format(rate)
+    return `$ ${pesos} por bolsa`
+  }
+  return `${rate} %`
+}
+
 export interface TaxRateHistory {
   rate: number
   effectiveFrom: string
@@ -15,6 +33,7 @@ export interface TaxView {
   name: string
   kind: TaxKind
   kindLabel: string
+  basis?: TaxBasis
   active: boolean
   system: boolean
   currentRate: number | null

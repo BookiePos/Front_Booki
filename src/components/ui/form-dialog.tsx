@@ -133,9 +133,8 @@ export function FormDialog({
             "outline-none",
             // Dos sombras: una corta que apoya la tarjeta y una larga y teñida
             // de marca que la despega del velo. Con una sola se ve pegada.
-            "shadow-[0_2px_8px_rgba(46,16,101,0.10),0_32px_80px_-20px_rgba(46,16,101,0.35)]",
-            "dark:shadow-[0_2px_8px_rgba(0,0,0,0.4),0_32px_80px_-20px_rgba(0,0,0,0.7)]",
-            "transition duration-200 ease-out",
+            "shadow-xl",
+            "transition duration-200 ease-salida",
             "data-ending-style:scale-[0.97] data-ending-style:opacity-0",
             "data-starting-style:scale-[0.97] data-starting-style:opacity-0",
             maxWidth,
@@ -150,7 +149,7 @@ export function FormDialog({
               "relative flex shrink-0 items-start gap-3 px-4 py-3.5 sm:gap-3.5 sm:px-6 sm:py-4.5",
               tone === "destructive"
                 ? "bg-destructive/[0.07]"
-                : "bg-gradient-to-br from-primary/[0.09] via-primary/[0.05] to-transparent",
+                : "bg-transparent",
               // La línea de la cabecera aparece al desplazar. `transition` sobre
               // el color para que no dé un salto duro.
               "after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:h-px after:transition-colors after:duration-200 after:content-['']",
@@ -160,17 +159,17 @@ export function FormDialog({
             {Icon && (
               <span
                 className={cn(
-                  "grid size-11 shrink-0 place-items-center rounded-2xl border shadow-xs",
+                  "grid size-9 shrink-0 place-items-center rounded-lg border",
                   tone === "destructive"
                     ? "border-destructive/20 bg-destructive/12 text-destructive"
-                    : "border-primary/20 bg-primary/12 text-primary",
+                    : "border-border bg-muted text-muted-foreground",
                 )}
               >
-                <Icon className="size-5" />
+                <Icon className="size-4.5" />
               </span>
             )}
             <div className="min-w-0 flex-1 pt-0.5">
-              <DialogPrimitive.Title className="font-display text-lg leading-tight tracking-[-0.015em] text-balance sm:text-xl">
+              <DialogPrimitive.Title className="text-base font-semibold leading-tight tracking-[-0.01em] text-balance sm:text-[1.0625rem]">
                 {title}
               </DialogPrimitive.Title>
               {description && (
@@ -262,13 +261,13 @@ export function FormSection({
           {Icon && (
             <span
               aria-hidden
-              className="mt-px grid size-7 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary"
+              className="mt-px grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground"
             >
               <Icon className="size-4" />
             </span>
           )}
           <div className="flex min-w-0 flex-col gap-0.5">
-            <h3 className="flex items-center gap-1.5 text-sm font-bold tracking-[-0.01em] text-foreground">
+            <h3 className="flex items-center gap-1.5 text-sm font-semibold tracking-[-0.01em] text-foreground">
               {title}
               {help && <HelpTip {...help} />}
             </h3>

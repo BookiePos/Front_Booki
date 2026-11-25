@@ -8,7 +8,7 @@ import { SoporteWhatsapp } from "@/components/soporte/soporte-whatsapp"
 import { TooltipProvider } from "@/components/ui/tooltip"
 
 export const metadata: Metadata = {
-  title: "Panel ejecutivo",
+  title: "Panel",
 }
 
 /**

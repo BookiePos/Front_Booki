@@ -38,6 +38,7 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useLoadEffect } from "@/hooks/use-load-effect"
+import { contar } from "@/lib/utils"
 
 const inputClass =
   "h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
@@ -296,7 +297,7 @@ export default function ConciliarPage() {
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-14 text-center">
             <ShieldOff className="size-10 text-muted-foreground" />
-            <p className="font-display text-lg text-foreground">Sin acceso</p>
+            <p className="text-[15px] font-semibold text-foreground">Sin acceso</p>
             <p className="max-w-xs text-sm text-muted-foreground">
               Necesitas el permiso de configurar finanzas para conciliar.
             </p>
@@ -350,7 +351,7 @@ export default function ConciliarPage() {
               <CardContent className="flex flex-wrap items-center gap-4 py-4">
                 <CheckCircle2 className="size-8 text-success-ink" />
                 <div className="flex-1">
-                  <p className="font-display text-lg">Conciliación guardada</p>
+                  <p className="text-[15px] font-semibold">Conciliación guardada</p>
                   <p className="text-sm text-muted-foreground">
                     Saldo conciliado {money.format(result.reconciledBalance)} ·
                     extracto {money.format(result.statementBalance)} ·{" "}
@@ -362,7 +363,7 @@ export default function ConciliarPage() {
                       </span>
                     )}
                     {result.outstandingCount > 0 &&
-                      ` · ${result.outstandingCount} movimiento(s) pendiente(s)`}
+                      ` · ${contar(result.outstandingCount, "movimiento pendiente", "movimientos pendientes")}`}
                   </p>
                 </div>
               </CardContent>
@@ -590,7 +591,7 @@ export default function ConciliarPage() {
 
               {priorReconciledUnmatched > 0 && (
                 <p className="text-xs text-muted-foreground">
-                  {priorReconciledUnmatched} movimiento(s) ya conciliado(s) en
+                  {contar(priorReconciledUnmatched, "movimiento ya conciliado", "movimientos ya conciliados")} en
                   extractos anteriores se mantienen.
                 </p>
               )}
@@ -678,7 +679,7 @@ function Metric({
   return (
     <div className="flex flex-col gap-0.5">
       <span className="text-xs text-muted-foreground">{label}</span>
-      <span className={`font-display text-lg leading-tight ${tone}`}>{value}</span>
+      <span className={`text-[15px] font-semibold leading-tight ${tone}`}>{value}</span>
     </div>
   )
 }

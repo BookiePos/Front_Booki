@@ -153,7 +153,7 @@ export function StockImportSheet({
 
         {rows.length > 0 && !result && (
           <FormAlert tone="info" icon={FileUp}>
-            <strong>{rows.length}</strong> entrada(s) listas para cargar.
+            <strong>{rows.length}</strong> {rows.length === 1 ? "entrada lista" : "entradas listas"} para cargar.
           </FormAlert>
         )}
 

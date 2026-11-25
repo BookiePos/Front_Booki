@@ -917,11 +917,23 @@ export default function RevisarFacturaPage() {
 
   async function handleApply() {
     if (!scan) return
+    // Un renglón al que nadie le asignó destino se omite. Antes pasaba en
+    // silencio; ahora se nombra antes de confirmar para que no se pierda una
+    // compra por no haberla mirado.
+    const sinDecidir = (draft?.lines ?? [])
+      .map((l, i) => ({ l, i }))
+      .filter(({ i }) => !decisions.some((d) => d.lineIndex === i))
+      .map(({ l }) => l.description || "Sin descripción")
+    const aviso =
+      sinDecidir.length === 0
+        ? ""
+        : ` Ojo: ${sinDecidir.length === 1 ? "1 renglón no tiene destino y no entrará" : `${sinDecidir.length} renglones no tienen destino y no entrarán`}: ${sinDecidir.slice(0, 3).join(", ")}${sinDecidir.length > 3 ? "…" : ""}.`
     const ok = await confirm({
       title: "¿Aplicar esta factura?",
       description:
-        "Se creará la compra con su entrada de inventario y su cuenta por pagar, y los gastos de las líneas que no son mercancía.",
-      confirmLabel: "Aplicar",
+        "Se creará la compra con su entrada de inventario y su cuenta por pagar, y los gastos de las líneas que no son mercancía." +
+        aviso,
+      confirmLabel: sinDecidir.length > 0 ? "Aplicar de todos modos" : "Aplicar",
     })
     if (!ok) return
 
@@ -1017,7 +1029,7 @@ export default function RevisarFacturaPage() {
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-14 text-center">
             <ShieldOff className="size-10 text-muted-foreground" />
-            <p className="font-display text-lg text-foreground">Sin acceso</p>
+            <p className="text-[15px] font-semibold text-foreground">Sin acceso</p>
           </CardContent>
         </Card>
       </>
@@ -1130,7 +1142,7 @@ export default function RevisarFacturaPage() {
           {/* ── Proveedor ── */}
           <Card>
             <CardHeader>
-              <CardTitle className="font-display text-lg">Proveedor</CardTitle>
+              <CardTitle className="text-[15px] font-semibold">Proveedor</CardTitle>
               <CardDescription>
                 {scan.supplierMatch === "matched"
                   ? "Reconocido por el NIT de la factura."
@@ -1264,7 +1276,7 @@ export default function RevisarFacturaPage() {
           {/* ── Datos del documento ── */}
           <Card>
             <CardHeader>
-              <CardTitle className="font-display text-lg">
+              <CardTitle className="text-[15px] font-semibold">
                 Datos de la factura
               </CardTitle>
             </CardHeader>
@@ -1358,7 +1370,7 @@ export default function RevisarFacturaPage() {
           {/* ── Líneas ── */}
           <Card>
             <CardHeader>
-              <CardTitle className="font-display text-lg">
+              <CardTitle className="text-[15px] font-semibold">
                 Renglones ({draft.lines.length})
               </CardTitle>
               <CardDescription>
@@ -1749,7 +1761,7 @@ export default function RevisarFacturaPage() {
         <div className="flex flex-col gap-4 max-lg:contents">
           <Card className="max-lg:order-first">
             <CardHeader>
-              <CardTitle className="font-display text-lg">
+              <CardTitle className="text-[15px] font-semibold">
                 Imágenes ({scan.pages.length})
               </CardTitle>
               <CardDescription>
@@ -1803,7 +1815,7 @@ export default function RevisarFacturaPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 font-display text-lg">
+              <CardTitle className="flex items-center gap-2 text-[15px] font-semibold">
                 <History className="size-4" aria-hidden />
                 Historial
               </CardTitle>
@@ -1846,7 +1858,7 @@ export default function RevisarFacturaPage() {
                     href="/panel/finanzas/gastos"
                     className="text-primary underline underline-offset-4"
                   >
-                    Ver los {scan.appliedTo.expenseIds.length} gasto(s)
+                    {scan.appliedTo.expenseIds.length === 1 ? "Ver el gasto" : `Ver los ${scan.appliedTo.expenseIds.length} gastos`}
                     registrados
                   </Link>
                 )}

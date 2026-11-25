@@ -286,7 +286,7 @@ export default function NominaPage() {
       <Card className="mx-auto max-w-lg">
         <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
           <ShieldOff className="size-10 text-muted-foreground" />
-          <p className="font-display text-lg">Sin acceso</p>
+          <p className="text-[15px] font-semibold">Sin acceso</p>
           <p className="max-w-xs text-sm text-muted-foreground">
             No tienes permiso para el control de horas.
           </p>
@@ -300,7 +300,7 @@ export default function NominaPage() {
       <Card className="mx-auto max-w-lg">
         <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
           <MapPin className="size-10 text-muted-foreground" />
-          <p className="font-display text-lg">Sin sede</p>
+          <p className="text-[15px] font-semibold">Sin sede</p>
           <p className="max-w-xs text-sm text-muted-foreground">
             Selecciona una sede para registrar las horas.
           </p>
@@ -468,7 +468,7 @@ export default function NominaPage() {
         <Card>
           <CardContent className="p-4">
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="font-display text-base">Horas por persona</h2>
+              <h2 className="text-sm font-semibold">Horas por persona</h2>
               <Badge variant="outline" className="text-[11px]">
                 Confirmadas · {date}
               </Badge>
@@ -510,7 +510,7 @@ export default function NominaPage() {
             <div className="flex items-center gap-2">
               <CalendarClock className="size-5 text-muted-foreground" />
               <div>
-                <h2 className="font-display text-base">Turnos trabajados</h2>
+                <h2 className="text-sm font-semibold">Turnos trabajados</h2>
                 <p className="text-xs text-muted-foreground">
                   Horas acumuladas por trabajador y sede.
                 </p>

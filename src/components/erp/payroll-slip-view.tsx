@@ -55,6 +55,7 @@ export function PayrollSlipView({
   header,
   otrasDetalle,
   alertas,
+  pagadoQuincena = 0,
 }: {
   breakdown: PayrollBreakdown
   header?: React.ReactNode
@@ -62,6 +63,8 @@ export function PayrollSlipView({
   otrasDetalle?: { concept: string; amount: number }[]
   /** Avisos para revisar (tope de horas extra, etc.). */
   alertas?: string[]
+  /** Lo que ya se le pagó en la primera quincena del mes. */
+  pagadoQuincena?: number
 }) {
   const d = b.devengados
   const de = b.deducciones
@@ -79,7 +82,7 @@ export function PayrollSlipView({
         </ul>
       )}
 
-      <SectionTitle>Devengados</SectionTitle>
+      <SectionTitle>Lo que ganó en el mes</SectionTitle>
       <Row label={`Salario (${b.diasTrabajados} días)`} value={d.salario} />
       <Row label="Auxilio de transporte" value={d.auxilioTransporte} hideZero />
       {d.recargoDetalle.map((r) => (
@@ -97,10 +100,10 @@ export function PayrollSlipView({
         />
       ))}
       <div className="border-t border-border">
-        <Row label="Total devengado" value={d.total} strong />
+        <Row label="Total ganado (devengado)" value={d.total} strong />
       </div>
 
-      <SectionTitle>Deducciones</SectionTitle>
+      <SectionTitle>Lo que se le descuenta</SectionTitle>
       <Row label="Salud (4%)" value={de.salud} sign="-" />
       <Row label="Pensión (4%)" value={de.pension} sign="-" />
       <Row label="Fondo de solidaridad pensional" value={de.fsp} hideZero sign="-" />
@@ -119,17 +122,25 @@ export function PayrollSlipView({
         <Row label="Otras deducciones" value={de.otras} hideZero sign="-" />
       )}
       <div className="border-t border-border">
-        <Row label="Total deducciones" value={de.total} strong sign="-" />
+        <Row label="Total descuentos" value={de.total} strong sign="-" />
       </div>
 
+      {pagadoQuincena > 0 && (
+        <div className="mt-3 border-t border-border">
+          <Row label="Neto del mes" value={b.netoPagar} />
+          <Row label="Ya pagado en la primera quincena" value={pagadoQuincena} sign="-" />
+        </div>
+      )}
       <div className="mt-3 flex items-baseline justify-between rounded-lg bg-primary/10 px-3 py-2">
-        <span className="font-semibold">Neto a pagar</span>
-        <span className="font-display text-lg tabular-nums text-primary">
-          {money.format(b.netoPagar)}
+        <span className="font-semibold">
+          {pagadoQuincena > 0 ? "Por pagar en la segunda quincena" : "Lo que recibe (neto a pagar)"}
+        </span>
+        <span className="text-[15px] font-semibold tabular-nums text-foreground">
+          {money.format(b.netoPagar - pagadoQuincena)}
         </span>
       </div>
 
-      <SectionTitle>Aportes del empleador (no se descuentan)</SectionTitle>
+      <SectionTitle>Lo que paga la empresa aparte (no se le descuenta)</SectionTitle>
       <Row label="Salud (8,5%)" value={ap.salud} muted />
       <Row label="Pensión (12%)" value={ap.pension} muted />
       <Row label="ARL" value={ap.arl} muted />
@@ -140,7 +151,7 @@ export function PayrollSlipView({
         <Row label="Total aportes" value={ap.total} strong muted />
       </div>
 
-      <SectionTitle>Provisiones prestacionales</SectionTitle>
+      <SectionTitle>Lo que se guarda para prima, cesantías y vacaciones</SectionTitle>
       <Row label="Cesantías (8,33%)" value={pr.cesantias} muted />
       <Row label="Intereses cesantías (12%)" value={pr.interesesCesantias} muted />
       <Row label="Prima de servicios (8,33%)" value={pr.prima} muted />
@@ -150,13 +161,13 @@ export function PayrollSlipView({
       </div>
 
       <div className="mt-3 flex items-baseline justify-between border-t border-border pt-2">
-        <span className="text-sm font-semibold">Costo total empleador</span>
+        <span className="text-sm font-semibold">Lo que le cuesta a la empresa</span>
         <span className="font-semibold tabular-nums">
           {money.format(b.costoEmpleador)}
         </span>
       </div>
       <p className="mt-1 text-[11px] text-muted-foreground">
-        IBC: {money.format(b.ibc)} · Hora ordinaria: {money.format(b.horaOrdinaria)}
+        Base para salud y pensión (IBC): {money.format(b.ibc)} · Valor de la hora: {money.format(b.horaOrdinaria)}
       </p>
     </div>
   )

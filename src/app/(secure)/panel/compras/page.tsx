@@ -37,6 +37,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { MoneyInput } from "@/components/ui/money-input"
+import { useConfirm } from "@/components/ui/confirm-dialog"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
@@ -61,6 +62,7 @@ import {
 import { Termino } from "@/components/ui/help-tip"
 import { useLoadEffect } from "@/hooks/use-load-effect"
 import { useResetOnChange } from "@/hooks/use-reset-on-change"
+import { KpiCelda } from "@/components/ui/kpi"
 
 const ALL = "all"
 
@@ -140,7 +142,7 @@ export default function ComprasPage() {
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-14 text-center">
             <ShieldOff className="size-10 text-muted-foreground" />
-            <p className="font-display text-lg text-foreground">Sin acceso</p>
+            <p className="text-[15px] font-semibold text-foreground">Sin acceso</p>
             <p className="max-w-xs text-sm text-muted-foreground">
               Necesitas el permiso <code>finance.view</code>.
             </p>
@@ -184,12 +186,12 @@ export default function ComprasPage() {
         }
       />
 
-      <div className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-4" data-tour="compras-kpis">
+      <div className="mb-4 grid grid-cols-2 gap-4" data-tour="compras-kpis">
         <Kpi label="Órdenes en curso" value={String(abiertas)} />
         <Kpi label="Pendiente por recibir" value={money.format(porRecibir)} accent />
       </div>
 
-      <Card className="mb-4" data-tour="compras-filtros">
+      <Card data-filtros className="mb-4" data-tour="compras-filtros">
         <CardContent className="flex flex-wrap items-end gap-3 py-4">
           <Field id="oc-f-sede" label="Sede" className="w-48">
             <NativeSelect
@@ -302,14 +304,7 @@ export default function ComprasPage() {
 }
 
 function Kpi({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
-  return (
-    <Card>
-      <CardContent className="p-4">
-        <p className="text-xs font-medium text-muted-foreground">{label}</p>
-        <p className={`stat-figure mt-1 text-2xl ${accent ? "text-warning-ink" : "text-foreground"}`}>{value}</p>
-      </CardContent>
-    </Card>
-  )
+  return <KpiCelda label={label} value={value} tone={accent ? "warning" : "default"} />
 }
 
 function NewOrderDialog({
@@ -637,6 +632,7 @@ function OrderDetailDialog({
   const [payMethod, setPayMethod] = React.useState<PaymentMethod>("cash")
   const [busy, setBusy] = React.useState(false)
   const [err, setErr] = React.useState<string | null>(null)
+  const confirm = useConfirm()
 
   useResetOnChange(() => {
     if (po) {
@@ -671,6 +667,20 @@ function OrderDetailDialog({
     } finally {
       setBusy(false)
     }
+  }
+
+  /** Anular no se deshace: antes actuaba con un clic, al lado de "Recibir". */
+  async function anular() {
+    if (!po) return
+    const ok = await confirm({
+      title: `¿Anular la orden ${po.number}?`,
+      description: `Se anulará la orden a ${po.supplierName} por ${money.format(po.total)}. No se puede reabrir.`,
+      confirmLabel: "Anular orden",
+      cancelLabel: "No, volver",
+      destructive: true,
+    })
+    if (!ok) return
+    await act(() => cancelPurchaseOrder(po._id))
   }
 
   async function doReceive() {
@@ -727,7 +737,7 @@ function OrderDetailDialog({
               <Button
                 variant="destructive"
                 disabled={busy}
-                onClick={() => void act(() => cancelPurchaseOrder(po._id))}
+                onClick={() => void anular()}
               >
                 <Ban /> Anular
               </Button>

@@ -115,7 +115,7 @@ export const guidesB: GuideDescriptor[] = [
       {
         target: "cxp-nueva",
         title: "Registra una cuenta por pagar",
-        body: "Con “Nueva CxP” capturas la factura de un proveedor con su monto y fecha de vencimiento.",
+        body: "Con “Nueva cuenta por pagar” anotas la factura de un proveedor con su monto y fecha de vencimiento.",
       },
       {
         target: null,

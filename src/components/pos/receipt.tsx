@@ -54,7 +54,7 @@ export function Receipt({
     >
       {/* Encabezado */}
       <div className="text-center">
-        <p className="font-display text-base tracking-tight">{title}</p>
+        <p className="text-sm font-semibold tracking-tight">{title}</p>
         {subtitle && <p className="text-muted-foreground">{subtitle}</p>}
         {sede?.nit && (
           <p className="text-muted-foreground">NIT {sede.nit}</p>

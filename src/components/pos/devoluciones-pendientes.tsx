@@ -125,7 +125,7 @@ export function DevolucionesPendientes({
         <section aria-labelledby="dev-pendientes-titulo" className="flex flex-col gap-3">
           <div className="flex flex-wrap items-center gap-2">
             <TriangleAlert className="size-4 text-amber-600 dark:text-amber-400" aria-hidden />
-            <h2 id="dev-pendientes-titulo" className="font-display text-base">
+            <h2 id="dev-pendientes-titulo" className="text-sm font-semibold">
               Devoluciones a medias
             </h2>
             <Badge variant="destructive">{total}</Badge>

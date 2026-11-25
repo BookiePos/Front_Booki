@@ -956,8 +956,352 @@ body {
    el lienzo marino el velo violeta claro apenas separaba; en oscuro se
    profundiza. */
 .tour-spotlight {
-  --tour-scrim: rgba(23, 12, 51, 0.55);
+  --tour-scrim: rgba(22, 20, 29, 0.34);
 }
 .dark .tour-spotlight {
-  --tour-scrim: rgba(0, 4, 14, 0.72);
+  --tour-scrim: rgba(0, 0, 0, 0.55);
+}
+
+/* ============================================================
+   Sistema "Libro" — panel y POS (rediseño 19-nov-2026)
+   ============================================================
+   Un libro de cuentas bien hecho: papel blanco, renglones finos y cifras
+   grandes. Reemplaza al "Violeta operativo" de arriba, que quedaba con cara de
+   plantilla: radio de 16 px que volvía cápsula cada botón y campo, tarjetas
+   con sombra dentro de un lienzo violeta y el morado en todo.
+
+   Reglas:
+   - Radio de 6 px en controles y 8–10 px en superficies. Nada de cápsulas.
+   - Superficies separadas por una línea de 1 px, no por sombra.
+   - Grises neutros: el violeta solo marca dónde estás y la acción principal.
+   - Geist para todo, con cifras tabulares.
+
+   Va al final para ganarle a los tokens anteriores sin reescribirlos. La web
+   pública (`.zone-marketing`) recupera su radio y sus letras más abajo: su
+   rediseño va aparte, con el hero. */
+:root {
+  --radius: 0.375rem; /* 6 px: sm 2, md 4, lg 6, xl 10 */
+  --r-2xl: 0.5rem; /* 8 px — superficies */
+  --r-3xl: 0.625rem;
+  --r-4xl: 0.375rem; /* insignias: antes 32 px, ahora rectángulo suave */
+
+  --font-display: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+
+  --background: #ffffff;
+  --foreground: #16141d;
+  --card: #ffffff;
+  --card-foreground: #16141d;
+  --popover: #ffffff;
+  --popover-foreground: #16141d;
+
+  --primary: #7621ab;
+  --primary-foreground: #ffffff;
+
+  --secondary: #f3f2f5;
+  --secondary-foreground: #16141d;
+  --muted: #f7f7f8;
+  --muted-foreground: #6b6878; /* 5.3:1 sobre blanco */
+  --accent: #f3f2f5;
+  --accent-foreground: #16141d;
+
+  --destructive: #b4372d;
+  --destructive-foreground: #ffffff;
+
+  --border: #ebeaef;
+  --input: #dcdae2;
+  --ring: #7621ab;
+
+  --success: #0f7a5a;
+  --warning: #a86a12;
+  --info: #2459b8;
+
+  --chart-1: #7621ab;
+  --chart-2: #0f7a5a;
+  --chart-3: #a86a12;
+  --chart-4: #2459b8;
+  --chart-5: #b9b6c3;
+
+  --sidebar: #f7f7f8;
+  --sidebar-foreground: #4a4757;
+  --sidebar-primary: #7621ab;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #ededf0;
+  --sidebar-accent-foreground: #16141d;
+  --sidebar-border: #ebeaef;
+  --sidebar-ring: #7621ab;
+
+  --selection-bg: color-mix(in oklch, var(--primary) 16%, transparent);
+
+  /* Elevación casi nula: solo los menús y diálogos flotan. */
+  --elevation-2xs: 0 1px 1px rgba(20, 16, 30, 0.03);
+  --elevation-xs: 0 1px 2px rgba(20, 16, 30, 0.04);
+  --elevation-sm: 0 1px 2px rgba(20, 16, 30, 0.05);
+  --elevation: 0 1px 2px rgba(20, 16, 30, 0.05), 0 2px 6px rgba(20, 16, 30, 0.04);
+  --elevation-md: 0 2px 4px rgba(20, 16, 30, 0.04), 0 8px 20px rgba(20, 16, 30, 0.07);
+  --elevation-lg: 0 4px 8px rgba(20, 16, 30, 0.05), 0 16px 36px rgba(20, 16, 30, 0.1);
+  --elevation-xl: 0 8px 16px rgba(20, 16, 30, 0.06), 0 24px 56px rgba(20, 16, 30, 0.14);
+
+  /* Movimiento: un solo ritmo, corto y de salida. */
+  --salida: cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+/* Oscuro: grafito neutro en vez del marino. El marino teñía todo de azul y
+   competía con el violeta; aquí la luz sube por niveles y nada brilla. */
+.dark {
+  --muted: #111014;
+  --background: #141318;
+  --sidebar: #111014;
+  --card: #18171d;
+  --popover: #1e1d24;
+  --secondary: #222129;
+  --accent: #26252d;
+
+  --foreground: #ececf1;
+  --card-foreground: #ececf1;
+  --popover-foreground: #ececf1;
+  --secondary-foreground: #ececf1;
+  --muted-foreground: #a19eab;
+  --accent-foreground: #ececf1;
+
+  --primary: #c37bef;
+  --primary-foreground: #160a22;
+  --destructive: #f2867d;
+  --destructive-foreground: #2a0e0c;
+
+  --border: #302f37;
+  --input: #3a3842;
+  --ring: #c37bef;
+
+  --success: #45d3a1;
+  --warning: #f3bd63;
+  --info: #7fb0f5;
+
+  --sidebar-foreground: #b9b6c3;
+  --sidebar-accent: #222129;
+  --sidebar-accent-foreground: #ececf1;
+  --sidebar-border: #302f37;
+
+  --scrollbar-thumb: #34333b;
+
+  --elevation-2xs: 0 1px 1px rgba(0, 0, 0, 0.3);
+  --elevation-xs: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --elevation-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --elevation: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 10px rgba(0, 0, 0, 0.3);
+  --elevation-md: 0 2px 6px rgba(0, 0, 0, 0.4), 0 10px 24px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  --elevation-lg: 0 4px 10px rgba(0, 0, 0, 0.45), 0 18px 40px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  --elevation-xl: 0 8px 20px rgba(0, 0, 0, 0.5), 0 28px 64px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+@theme inline {
+  --radius-2xl: var(--r-2xl);
+  --radius-3xl: var(--r-3xl);
+  --radius-4xl: var(--r-4xl);
+  --ease-salida: var(--salida);
+}
+
+/* Geist en todo el producto. `body` usa `font-sans`, que apunta a Inter; aquí
+   se cambia la familia de la raíz y las clases de display la heredan. */
+body {
+  font-family: var(--font-geist), var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  font-feature-settings: "ss01", "cv11";
+}
+@layer components {
+  /* Títulos y cifras: misma letra, más peso y tracking cerrado. Antes eran
+     Outfit, una geométrica que con el resto en Inter se veía de plantilla. */
+  .font-display {
+    letter-spacing: -0.015em;
+  }
+  .stat-figure {
+    letter-spacing: -0.025em;
+  }
+}
+
+/* La web pública conserva lo suyo hasta su rediseño. */
+.zone-marketing {
+  --radius: 1rem;
+  --r-2xl: 1rem;
+  --r-3xl: 1.5rem;
+  --r-4xl: 2rem;
+  --font-display: var(--font-outfit), ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+}
+
+/* ---------- Inicio (sistema "Libro") ----------
+   La línea del periodo se dibuja al cambiarlo (700 ms, de salida) y el velo
+   aparece detrás. Solo transform/opacity/trazo: nada que mueva el layout. */
+.inicio-curva-linea {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: inicio-trazo 700ms var(--salida) 80ms forwards;
+}
+.inicio-curva-area {
+  opacity: 0;
+  animation: inicio-velo 500ms var(--salida) 300ms forwards;
+}
+@keyframes inicio-trazo {
+  to { stroke-dashoffset: 0; }
+}
+@keyframes inicio-velo {
+  to { opacity: 1; }
+}
+/* Entrada de las bandas: 6 px hacia arriba, una sola vez al cargar. */
+.libro-aparece {
+  animation: libro-aparece 420ms var(--salida) both;
+}
+@keyframes libro-aparece {
+  from { opacity: 0; transform: translateY(6px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .inicio-curva-linea { animation: none; stroke-dashoffset: 0; }
+  .inicio-curva-area { animation: none; opacity: 1; }
+  .libro-aparece { animation: none; }
+}
+
+/* ---------- Franja de cifras ----------
+   Una rejilla cuyos hijos son `KpiCelda` se vuelve una sola superficie
+   partida por líneas de 1 px, en vez de cuatro tarjetas sueltas. Cada celda
+   pinta su línea derecha e inferior con una sombra; las del borde exterior
+   las recorta el `overflow`. Así no hubo que tocar el contenedor de cada
+   página: basta con que sus celdas sean `KpiCelda`. */
+:where(.grid, .flex):has(> [data-kpi]) {
+  gap: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--r-2xl);
+  background: var(--card);
+}
+[data-kpi] {
+  box-shadow: 1px 0 0 0 var(--border), 0 1px 0 0 var(--border);
+}
+
+/* ---------- Barra de filtros ----------
+   Los filtros de una lista van en línea sobre la tabla, no en una tarjeta
+   propia: antes cada página pintaba una caja entera solo para dos selects y
+   empujaba la tabla hacia abajo. `data-filtros` quita la caja sin tocar el
+   marcado de los campos. */
+[data-slot="card"][data-filtros] {
+  border-width: 0;
+  background: transparent;
+  padding-block: 0;
+  overflow: visible;
+}
+[data-slot="card"][data-filtros] > [data-slot="card-content"] {
+  padding: 0;
+}
+
+/* ---------- Fondo del panel y del POS (sistema "Libro") ----------
+   Tres manchas violeta apagadas y un puntillismo fino que solo aparece donde
+   están ellas. Las variables se registran con @property para que, al cambiar
+   de sección, las manchas se deslicen en vez de saltar. Ver `fondo-libro.tsx`. */
+@property --m1x { syntax: "<percentage>"; inherits: true; initial-value: 88%; }
+@property --m1y { syntax: "<percentage>"; inherits: true; initial-value: -6%; }
+@property --m1t { syntax: "<length>"; inherits: true; initial-value: 48vmax; }
+@property --m2x { syntax: "<percentage>"; inherits: true; initial-value: 6%; }
+@property --m2y { syntax: "<percentage>"; inherits: true; initial-value: 104%; }
+@property --m2t { syntax: "<length>"; inherits: true; initial-value: 40vmax; }
+@property --m3x { syntax: "<percentage>"; inherits: true; initial-value: 52%; }
+@property --m3y { syntax: "<percentage>"; inherits: true; initial-value: 46%; }
+@property --m3t { syntax: "<length>"; inherits: true; initial-value: 22vmax; }
+@property --m-tono { syntax: "<percentage>"; inherits: true; initial-value: 30%; }
+
+.fondo-libro {
+  /* Violeta apagado: la marca mezclada con el gris de la letra secundaria. */
+  --mancha-a: color-mix(in oklch, var(--primary) 62%, var(--muted-foreground));
+  --mancha-b: color-mix(in oklch, color-mix(in oklch, #4b3fa8 calc(100% - var(--m-tono)), #9a3f8c) 70%, var(--muted-foreground));
+  --mancha-fuerza: 10%;
+  --puntos-fuerza: 0.38;
+  position: fixed;
+  inset: 0;
+  z-index: -10;
+  pointer-events: none;
+  overflow: hidden;
+  transition:
+    --m1x 1.6s var(--salida), --m1y 1.6s var(--salida), --m1t 1.6s var(--salida),
+    --m2x 1.6s var(--salida), --m2y 1.6s var(--salida), --m2t 1.6s var(--salida),
+    --m3x 1.6s var(--salida), --m3y 1.6s var(--salida), --m3t 1.6s var(--salida),
+    --m-tono 1.6s var(--salida);
+}
+.dark .fondo-libro {
+  --mancha-fuerza: 11%;
+  --puntos-fuerza: 0.42;
+}
+.fondo-libro > div {
+  position: absolute;
+  inset: 0;
+}
+.fondo-libro-manchas {
+  background:
+    radial-gradient(circle var(--m1t) at var(--m1x) var(--m1y), color-mix(in oklch, var(--mancha-a) var(--mancha-fuerza), transparent), transparent),
+    radial-gradient(circle var(--m2t) at var(--m2x) var(--m2y), color-mix(in oklch, var(--mancha-b) var(--mancha-fuerza), transparent), transparent),
+    radial-gradient(circle var(--m3t) at var(--m3x) var(--m3y), color-mix(in oklch, var(--mancha-a) calc(var(--mancha-fuerza) * 0.6), transparent), transparent);
+}
+/* Puntillismo: un ruido SVG umbralado hace de máscara del color de la marca y
+   un segundo gradiente lo limita a las manchas. Los puntos no forman retícula:
+   una trama regular se vería de plantilla. */
+.fondo-libro-puntos {
+  background-color: var(--mancha-a);
+  opacity: var(--puntos-fuerza);
+  --ruido: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.25' numOctaves='1' seed='11' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 14 -8.6'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  --zonas:
+    radial-gradient(circle calc(var(--m1t) * 0.9) at var(--m1x) var(--m1y), #000 10%, transparent),
+    radial-gradient(circle calc(var(--m2t) * 0.9) at var(--m2x) var(--m2y), #000 10%, transparent),
+    radial-gradient(circle var(--m3t) at var(--m3x) var(--m3y), rgb(0 0 0 / 0.6), transparent);
+  -webkit-mask-image: var(--ruido), var(--zonas);
+  mask-image: var(--ruido), var(--zonas);
+  -webkit-mask-size: 220px 220px, 100% 100%, 100% 100%, 100% 100%;
+  mask-size: 220px 220px, 100% 100%, 100% 100%, 100% 100%;
+  -webkit-mask-repeat: repeat, no-repeat, no-repeat, no-repeat;
+  mask-repeat: repeat, no-repeat, no-repeat, no-repeat;
+  -webkit-mask-composite: source-in, source-over, source-over, source-over;
+  mask-composite: intersect, add, add, add;
+}
+@media (prefers-reduced-motion: reduce) {
+  .fondo-libro { transition: none; }
+}
+@media print {
+  .fondo-libro { display: none; }
+}
+
+/* ---------- Total a cobrar del POS ----------
+   La cifra que el cajero le dice al cliente: violeta, en la letra de Apple (SF
+   Pro en Mac; en Windows y Android, Inter en su corte Display, que es su
+   pariente más cercano) y con un viso de luz que la cruza despacio. El viso es
+   un solo tono más claro del mismo violeta: nada de arcoíris ni de neón. */
+.cifra-total {
+  --cifra: var(--primary);
+  --cifra-luz: color-mix(in oklch, var(--primary) 58%, #ffffff);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", var(--font-cifras), var(--font-geist), sans-serif;
+  font-variation-settings: "opsz" 32;
+  font-weight: 600;
+  letter-spacing: -0.022em;
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: "tnum", "lnum";
+  color: var(--cifra);
+  background-image: linear-gradient(
+    105deg,
+    var(--cifra) 0%,
+    var(--cifra) 42%,
+    var(--cifra-luz) 50%,
+    var(--cifra) 58%,
+    var(--cifra) 100%
+  );
+  background-size: 260% 100%;
+  background-position: 100% 0;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: cifra-viso 9s var(--salida) 0.15s infinite;
+}
+.dark .cifra-total {
+  --cifra-luz: color-mix(in oklch, var(--primary) 45%, #ffffff);
+}
+/* El viso cruza en el primer segundo y medio y luego descansa: si pasara sin
+   parar, distraería al que está cobrando. */
+@keyframes cifra-viso {
+  0% { background-position: 100% 0; }
+  16% { background-position: 0% 0; }
+  100% { background-position: 0% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cifra-total { animation: none; background-position: 0% 0; }
 }

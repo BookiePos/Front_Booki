@@ -23,9 +23,10 @@ test("caja: abrir con base, registrar una salida y cerrar cuadrada", async ({ pa
   await page.goto("/pos/caja")
   await page.getByRole("button", { name: new RegExp(centro.name) }).click()
 
-  // Apertura con 100.000 en billetes.
+  // Apertura con un billete de 100.000, contado por denominación.
   await expect(page.getByText("Caja cerrada")).toBeVisible()
-  await page.getByRole("textbox", { name: "Billetes" }).fill("100000")
+  await page.getByRole("textbox", { name: /Cantidad de .*100.000/ }).fill("1")
+  await expect(page.getByText("$ 100.000").first()).toBeVisible()
   await page.getByRole("button", { name: "Abrir caja" }).click()
   await expect(page.getByText("Caja abierta")).toBeVisible()
 
@@ -35,11 +36,16 @@ test("caja: abrir con base, registrar una salida y cerrar cuadrada", async ({ pa
   await page.getByRole("button", { name: "Agregar" }).click()
   await expect(page.getByText("$ 95.000").first()).toBeVisible()
 
-  // Cierre contando exactamente lo esperado.
+  // Cierre contando por denominación, igual que la apertura:
+  // 1 × 50.000 + 2 × 20.000 + 1 × 5.000 = 95.000, lo esperado.
   await page.getByRole("button", { name: "Cerrar caja" }).click()
   const dialogo = page.getByRole("dialog", { name: "Cerrar caja" })
-  await expect(dialogo.getByText("$ 95.000")).toBeVisible()
-  await dialogo.getByRole("textbox", { name: "Billetes" }).fill("95000")
+  await expect(dialogo.getByText("Debe haber $ 95.000")).toBeVisible()
+  await dialogo.getByRole("textbox", { name: /Cantidad de .*50.000/ }).fill("1")
+  await dialogo.getByRole("textbox", { name: /Cantidad de .*20.000/ }).fill("2")
+  await dialogo.getByRole("textbox", { name: /Cantidad de .*5.000$/ }).fill("1")
+  // El resultado se ve junto al botón, sin tener que bajar en el diálogo.
+  await expect(dialogo.getByText("cuadra", { exact: true })).toBeVisible()
   await dialogo.getByRole("button", { name: "Cerrar turno" }).click()
 
   await expect(page.getByText("Caja cerrada")).toBeVisible()

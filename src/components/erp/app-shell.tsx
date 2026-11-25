@@ -6,6 +6,9 @@ import { AvisoFiscalPanel } from "@/components/onboarding/aviso-fiscal"
 import { WelcomeDialog } from "@/components/onboarding/welcome-dialog"
 import { ProductTour } from "@/components/onboarding/product-tour"
 import { GuideAutoStart } from "@/components/onboarding/guide-autostart"
+import { FondoLibro } from "@/components/ui/fondo-libro"
+import { TituloPestana } from "@/components/ui/titulo-pestana"
+import { PanelAyuda } from "@/components/ayuda/panel-ayuda"
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
@@ -23,7 +26,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           disponible y el `overflow-x-auto` que ya trae `<Table>` por fin puede
           hacer su trabajo: scrollea la tabla, no la página.
         */}
-        <SidebarInset className="min-w-0">
+        {/* `isolate`: el fondo (z-index negativo) queda dentro de este bloque,
+            encima de su color base y debajo del contenido. */}
+        <SidebarInset className="isolate min-w-0">
+          <FondoLibro />
+          <TituloPestana zona="panel" />
+          <PanelAyuda />
           <AppTopbar />
           {/*
             Era un <main> anidado dentro del <main> que ya renderiza
@@ -32,7 +40,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             Padding menor en móvil: cada 4px de padding lateral son 8px menos
             de tabla, y a 390px eso se nota.
           */}
-          <div className="min-w-0 flex-1 bg-muted p-4 sm:p-5 md:p-8">
+          <div className="mx-auto w-full max-w-[1320px] min-w-0 flex-1 px-4 pt-5 pb-16 sm:px-6 md:px-8 md:pt-7">
             <AvisoFiscalPanel />
             {children}
           </div>

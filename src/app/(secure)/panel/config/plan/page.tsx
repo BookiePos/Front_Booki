@@ -11,7 +11,7 @@ import {
 
 import { useAuth } from "@/lib/auth-context"
 import { PLANS } from "@/lib/site"
-import { formatNumber } from "@/lib/utils"
+import { formatNumber, contar } from "@/lib/utils"
 import type { BusinessPlan } from "@/lib/api"
 import {
   BillingConfig,
@@ -390,7 +390,7 @@ export default function PlanBillingPage() {
                 </p>
                 {entitlements && (
                   <p className="mt-1 text-xs text-muted-foreground">
-                    {entitlements.quotas.sedes} sede(s) ·{" "}
+                    {contar(entitlements.quotas.sedes, "sede")} ·{" "}
                     {entitlements.quotas.users === null
                       ? "usuarios ilimitados"
                       : `${entitlements.quotas.users} usuarios`}

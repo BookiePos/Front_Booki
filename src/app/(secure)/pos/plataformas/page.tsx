@@ -37,6 +37,7 @@ import { MoneyInput } from "@/components/ui/money-input"
 import { FormAlert } from "@/components/ui/form-dialog"
 import { Segmented } from "@/components/ui/segmented"
 import { useConfirm } from "@/components/ui/confirm-dialog"
+import { contar } from "@/lib/utils"
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : "Error inesperado"
@@ -375,7 +376,7 @@ function ImportarCsv() {
           </Button>
           {vista && vista.summary.ok > 0 && (
             <Button onClick={() => void importar()} disabled={cargando}>
-              Importar {vista.summary.ok} pedido(s)
+              Importar {contar(vista.summary.ok, "pedido")}
             </Button>
           )}
         </div>
@@ -569,7 +570,7 @@ function PorCobrar() {
   async function anular(l: PlatformSettlement) {
     const ok = await confirm({
       title: "¿Anular la liquidación?",
-      description: `Los ${l.saleIds.length} pedido(s) vuelven a quedar por cobrar a ${PLATFORM_LABELS[l.platform]}.`,
+      description: `${l.saleIds.length === 1 ? "El pedido vuelve" : `Los ${l.saleIds.length} pedidos vuelven`} a quedar por cobrar a ${PLATFORM_LABELS[l.platform]}.`,
       confirmLabel: "Anular liquidación",
       destructive: true,
     })
@@ -597,7 +598,7 @@ function PorCobrar() {
               <li key={r.platform} className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-border p-3 text-sm">
                 <span className="min-w-0 flex-1 font-medium">{r.label}</span>
                 <span className="text-xs text-muted-foreground">
-                  {r.orders} pedido(s) · vendido {money(r.sales)} · comisión liquidada {money(r.commission + r.commissionIva)}
+                  {contar(r.orders, "pedido")} · vendido {money(r.sales)} · comisión liquidada {money(r.commission + r.commissionIva)}
                 </span>
                 <Badge variant="secondary" className="tnum">
                   Te deben {money(r.pendingAmount)} ({r.pendingOrders})
@@ -728,7 +729,7 @@ function PorCobrar() {
                 <li key={l._id} className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-border p-3 text-sm">
                   <span className="font-medium">{l.date}</span>
                   <span className="text-xs text-muted-foreground">
-                    {l.saleIds.length} pedido(s) · {money(l.gross)} · consignado {money(l.received)} · comisión{" "}
+                    {contar(l.saleIds.length, "pedido")} · {money(l.gross)} · consignado {money(l.received)} · comisión{" "}
                     {money(l.commission + l.commissionIva)}
                   </span>
                   {l.status === "void" ? (

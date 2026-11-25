@@ -20,10 +20,13 @@ export interface CajaSession {
   openingBills?: number
   openingCoins?: number
   openedByEmail: string
+  /** Nombre visible; los turnos anteriores a este campo no lo traen. */
+  openedByName?: string
   openedAt: string
   note?: string
   closedAt?: string
   closedByEmail?: string
+  closedByName?: string
   countedAmount?: number
   countedBills?: number
   countedCoins?: number
@@ -55,6 +58,7 @@ export interface CajaMovement {
   reason?: string
   note?: string
   userEmail: string
+  userName?: string
   createdAt: string
 }
 

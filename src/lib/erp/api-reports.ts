@@ -87,6 +87,11 @@ export interface SalesReport {
     collected?: number
     tickets: number
   }[]
+  /**
+   * Las 24 horas de Colombia (0–23) con lo vendido en bruto. Lo trae el
+   * backend desde el rediseño de Inicio; uno anterior no lo manda.
+   */
+  hours?: { hour: number; revenue: number; tickets: number }[]
   bySede: {
     sedeId: string | null
     grossRevenue: number

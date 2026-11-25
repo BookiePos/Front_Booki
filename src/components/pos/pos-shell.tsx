@@ -1,5 +1,6 @@
 "use client"
 
+import * as React from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import {
@@ -7,21 +8,24 @@ import {
   MapPin,
   LayoutDashboard,
   Loader2,
-  ChevronRight,
   Repeat,
-  Compass,
+  CircleHelp,
+  Ellipsis,
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import { FondoLibro } from "@/components/ui/fondo-libro"
+import { TituloPestana } from "@/components/ui/titulo-pestana"
+import { PanelAyuda } from "@/components/ayuda/panel-ayuda"
+import { abrirAyuda, cerrarAyuda, useAyudaAbierta } from "@/lib/ayuda/panel-store"
 import { useAuth } from "@/lib/auth-context"
 import { useCerrarSesion } from "@/hooks/use-cerrar-sesion"
 import { AvisoFiscal } from "@/components/onboarding/aviso-fiscal"
 import { useSede } from "@/lib/pos/sede-context"
 import { navItems } from "@/lib/pos/navigation"
-import { useOnboarding } from "@/lib/onboarding/onboarding-context"
-import { guideForPath } from "@/lib/onboarding/guides"
 import { ProductTour } from "@/components/onboarding/product-tour"
 import { PosSearch } from "@/components/pos/pos-search"
+import { SelectorSede } from "@/components/pos/selector-sede"
 import { GuideAutoStart } from "@/components/onboarding/guide-autostart"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -50,43 +54,88 @@ function isActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`)
 }
 
+/**
+ * Destinos que van a la vista en la barra inferior del celular. Con los ocho
+ * no cabían: en 375 px cada uno quedaba de 47 px, "Factura electrónica" se
+ * partía en tres renglones y el último se salía de la pantalla. Quedan los
+ * cuatro del turno y "Más" con el resto.
+ */
+const EN_BARRA = new Set(["/pos", "/pos/ventas", "/pos/caja", "/pos/domicilios"])
+
 function NavLinks({ vertical }: { vertical?: boolean }) {
   const pathname = usePathname()
+  const router = useRouter()
+  // Se marca al instante el destino pulsado, sin esperar a que cargue.
+  const [pulsado, setPulsado] = React.useState<{ href: string; desde: string } | null>(null)
+  const esActivo = (href: string) =>
+    pulsado && pulsado.desde === pathname ? pulsado.href === href : isActive(pathname, href)
+  const visibles = vertical ? navItems : navItems.filter((i) => EN_BARRA.has(i.href))
+  const resto = vertical ? [] : navItems.filter((i) => !EN_BARRA.has(i.href))
+  const claseItem = (active: boolean) =>
+    cn(
+      "group flex items-center gap-3 rounded-lg px-3 transition-colors duration-100",
+      vertical
+        ? "h-12 text-sm"
+        : "flex-1 flex-col justify-center gap-0.5 rounded-none px-1 py-1.5 text-[11px]",
+      // Activo como en el panel: velo violeta plano, letra e icono en
+      // violeta. Sin degradado ni brillo: lo único que grita en esta
+      // pantalla es el botón de cobrar.
+      active
+        ? vertical
+          ? "bg-[color-mix(in_oklch,var(--primary)_11%,transparent)] font-medium text-primary [&_svg]:text-primary"
+          : "font-medium text-primary [&_svg]:text-primary"
+        : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-foreground [&_svg]:text-muted-foreground",
+    )
   return (
     <nav
       // El tour resalta la navegación del terminal; marca solo la barra lateral
       // (vertical) para no apuntar dos veces al mismo objetivo en móvil.
       data-tour={vertical ? "pos-nav" : undefined}
-      className={cn(
-        vertical
-          ? "flex flex-col gap-1"
-          : "flex items-stretch justify-around",
-      )}
+      className={cn(vertical ? "flex flex-col gap-1" : "flex h-full items-stretch justify-around")}
     >
-      {navItems.map((item) => {
+      {visibles.map((item) => {
         const Icon = item.icon
-        const active = isActive(pathname, item.href)
         return (
           <Link
             key={item.href}
             href={item.href}
-            className={cn(
-              "group flex items-center gap-3 rounded-xl px-3 font-medium transition-colors",
-              vertical
-                ? "h-12 text-sm"
-                : "flex-1 flex-col justify-center gap-0.5 rounded-none px-1 py-1.5 text-[11px]",
-              active
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:bg-accent hover:text-foreground",
-            )}
+            onClick={() => setPulsado({ href: item.href, desde: pathname })}
+            className={claseItem(Boolean(esActivo(item.href)))}
           >
-            <Icon className={cn(vertical ? "size-5" : "size-5")} />
-            <span className={cn(!vertical && "leading-none text-center")}>
-              {item.title}
-            </span>
+            <Icon className="size-5" />
+            <span className={cn(!vertical && "leading-none text-center")}>{item.title}</span>
           </Link>
         )
       })}
+      {resto.length > 0 && (
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            className={claseItem(resto.some((i) => esActivo(i.href)))}
+            aria-label="Más opciones del terminal"
+          >
+            <Ellipsis className="size-5" />
+            <span className="leading-none text-center">Más</span>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent side="top" align="end" sideOffset={8} className="w-56">
+            {resto.map((item) => {
+              const Icon = item.icon
+              return (
+                <DropdownMenuItem
+                  key={item.href}
+                  className={cn("h-11 gap-3", esActivo(item.href) && "font-medium text-primary [&_svg]:text-primary")}
+                  onClick={() => {
+                    setPulsado({ href: item.href, desde: pathname })
+                    router.push(item.href)
+                  }}
+                >
+                  <Icon className="size-4" />
+                  {item.title}
+                </DropdownMenuItem>
+              )
+            })}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
     </nav>
   )
 }
@@ -112,82 +161,23 @@ function AvisoFiscalSedeActiva() {
   return <AvisoFiscal sede={sede} />
 }
 
-/** Botón “Guía”: abre el recorrido de la pantalla actual del terminal. */
+/** Botón “Ayuda”: abre el panel de ayuda de la pantalla actual del terminal. */
 function GuideButton() {
-  const pathname = usePathname()
-  const { startGuide } = useOnboarding()
+  const abierta = useAyudaAbierta()
   return (
     <Button
       variant="ghost"
       size="sm"
-      className="gap-1.5"
+      className={abierta ? "gap-1.5 text-primary" : "gap-1.5"}
       data-tour="pos-guia"
-      aria-label="Abrir la guía de esta pantalla"
-      title="Guía de uso"
-      onClick={() => {
-        const match = guideForPath(pathname)
-        if (match) startGuide(match.id)
-      }}
+      aria-label="Ayuda de esta pantalla"
+      aria-expanded={abierta}
+      title="Ayuda de esta pantalla"
+      onClick={() => (abierta ? cerrarAyuda() : abrirAyuda())}
     >
-      <Compass className="size-4" />
-      <span className="hidden sm:inline">Guía</span>
+      <CircleHelp className="size-4" />
+      <span className="hidden sm:inline">Ayuda</span>
     </Button>
-  )
-}
-
-/** Pantalla de elección de sede al entrar al POS (cuando hay varias). */
-function SedePicker() {
-  const { sedes, chooseSede, error } = useSede()
-  return (
-    <main
-      className="flex min-h-screen items-center justify-center bg-muted p-6"
-    >
-      <div className="w-full max-w-md rounded-2xl border border-border bg-background p-6 shadow-sm">
-        <div className="mb-1 flex items-center gap-2">
-          <span className="flex size-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <Store className="size-5" />
-          </span>
-          <span className="font-display text-lg">Punto de venta</span>
-        </div>
-        <h1 className="mt-4 font-display text-2xl">
-          ¿En qué sede vas a trabajar?
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Elige tu sede para abrir el punto de venta. Todo lo que vendas y tu
-          caja quedan en esa sede.
-        </p>
-
-        {error && (
-          <p className="mt-4 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
-            {error}
-          </p>
-        )}
-
-        <div className="mt-5 flex flex-col gap-2">
-          {sedes.map((s) => (
-            <button
-              key={s._id}
-              type="button"
-              onClick={() => chooseSede(s._id)}
-              className="flex items-center gap-3 rounded-xl border border-border p-3 text-left transition-colors hover:border-primary/50 hover:bg-accent"
-            >
-              <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <MapPin className="size-5" />
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="truncate font-medium">{s.name}</p>
-                {s.address ? (
-                  <p className="truncate text-xs text-muted-foreground">
-                    {s.address}
-                  </p>
-                ) : null}
-              </div>
-              <ChevronRight className="size-5 text-muted-foreground" />
-            </button>
-          ))}
-        </div>
-      </div>
-    </main>
   )
 }
 
@@ -281,18 +271,21 @@ export function PosShell({ children }: { children: React.ReactNode }) {
 
   // Al entrar al POS (con más de una sede) se elige primero dónde se trabaja.
   if (!chosen) {
-    return <SedePicker />
+    return <SelectorSede />
   }
 
   return (
-    <div className="flex min-h-screen bg-muted">
+    <div className="isolate flex min-h-screen bg-muted">
+      <FondoLibro />
+      <TituloPestana zona="pos" />
+      <PanelAyuda />
       {/* Barra lateral — solo desde 1024px.
           Antes aparecía en `md:` (768px) y a la vez se ocultaba la navegación
           inferior. En una tablet en vertical eso costaba 224px de ancho fijo
           justo en la franja donde el carrito ya no cabe como tercera columna:
           el catálogo quedaba estrangulado por los dos lados. Hasta 1024px se
           navega por la barra inferior, que no cuesta ancho. */}
-      <aside className="sticky top-0 hidden h-screen w-56 shrink-0 flex-col border-r border-border bg-background p-3 lg:flex">
+      <aside className="sticky top-0 hidden h-screen w-56 shrink-0 flex-col border-r border-sidebar-border bg-sidebar p-3 lg:flex">
         <div className="mb-4 flex items-center gap-2 px-2 py-2">
           <div className="flex size-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
             <Store className="size-5" />
@@ -307,7 +300,7 @@ export function PosShell({ children }: { children: React.ReactNode }) {
 
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Barra superior */}
-        <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border bg-background/80 px-4 backdrop-blur-md supports-[backdrop-filter]:bg-background/70">
+        <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-border bg-background/88 px-4 backdrop-blur-md">
           <SedeBadge />
           <PosSearch />
           <div className="ml-auto flex shrink-0 items-center gap-1.5">

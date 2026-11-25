@@ -111,7 +111,7 @@ export default function FacturacionPage() {
       <Card className="mx-auto max-w-lg">
         <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
           <ShieldOff className="size-10 text-muted-foreground" />
-          <p className="font-display text-lg">Sin acceso</p>
+          <p className="text-[15px] font-semibold">Sin acceso</p>
           <p className="max-w-xs text-sm text-muted-foreground">
             No tienes permiso para la facturación. Contacta al administrador.
           </p>
@@ -125,7 +125,7 @@ export default function FacturacionPage() {
       <Card className="mx-auto max-w-lg">
         <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
           <MapPin className="size-10 text-muted-foreground" />
-          <p className="font-display text-lg">Sin sede</p>
+          <p className="text-[15px] font-semibold">Sin sede</p>
           <p className="max-w-xs text-sm text-muted-foreground">
             Selecciona una sede para facturar sus ventas.
           </p>

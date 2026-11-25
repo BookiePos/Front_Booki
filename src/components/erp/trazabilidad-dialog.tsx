@@ -302,7 +302,7 @@ export function TrazabilidadDialog({
                 <div className="leading-tight">
                   <p className="font-medium">{resultado.customers.length}</p>
                   <p className="text-xs text-muted-foreground">
-                    cliente(s) identificados
+                    {resultado.customers.length === 1 ? "cliente identificado" : "clientes identificados"}
                   </p>
                 </div>
               </div>

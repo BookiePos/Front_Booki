@@ -4,7 +4,7 @@ import * as React from "react"
 import { ShoppingCart } from "lucide-react"
 import { money } from "@/lib/pos/format"
 import { Button } from "@/components/ui/button"
-import { cn } from "@/lib/utils"
+import { cn, contar } from "@/lib/utils"
 import { CartItem } from "@/components/pos/venta-helpers"
 
 interface BarraResumenCuentaProps {
@@ -24,6 +24,9 @@ export function BarraResumenCuenta({
   openCheckout,
   netTotal,
 }: BarraResumenCuentaProps) {
+  // Unidades, no renglones: dos hamburguesas son 2, igual que en la cuenta.
+  const unidades = cart.reduce((n, i) => n + i.qty, 0)
+  const resumen = unidades === 0 ? "Sin productos" : contar(unidades, "producto")
   return (
     <div
       className={cn(
@@ -36,27 +39,21 @@ export function BarraResumenCuenta({
           type="button"
           onClick={() => setCuentaAbierta(true)}
           className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-xl px-2 text-left focus-visible:ring-3 focus-visible:ring-ring/50"
-          aria-label={`Ver el detalle de la cuenta: ${
-            cart.length === 0
-              ? "Sin artículos"
-              : `${cart.length} ${cart.length === 1 ? "artículo" : "artículos"}`
-          } ${money(netTotal)}`}
+          aria-label={`Ver el detalle de la cuenta: ${resumen} ${money(netTotal)}`}
         >
           <span className="relative shrink-0">
             <ShoppingCart className="size-5 text-muted-foreground" />
-            {cart.length > 0 && (
+            {unidades > 0 && (
               <span className="absolute -right-2 -top-2 flex size-5 items-center justify-center rounded-full bg-primary text-xs leading-none font-bold text-primary-foreground">
-                {cart.length}
+                {unidades > 99 ? "99+" : unidades}
               </span>
             )}
           </span>
           <span className="grid min-w-0 leading-tight">
             <span className="truncate text-[11px] text-muted-foreground">
-              {cart.length === 0
-                ? "Sin artículos"
-                : `${cart.length} ${cart.length === 1 ? "artículo" : "artículos"}`}
+              {resumen}
             </span>
-            <span className="stat-figure truncate text-base text-foreground">
+            <span className="cifra-total truncate text-[1.05rem]">
               {money(netTotal)}
             </span>
           </span>

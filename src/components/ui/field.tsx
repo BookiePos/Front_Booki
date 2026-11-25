@@ -199,7 +199,7 @@ export function NativeSelect({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         className={cn(
-          "h-9 w-full min-w-0 appearance-none rounded-xl border border-input bg-card py-1 pr-9 pl-3 text-base shadow-xs transition-[color,background-color,border-color,box-shadow] outline-none",
+          "h-9 w-full min-w-0 appearance-none rounded-lg border border-input bg-card py-1 pr-9 pl-3 text-base shadow-xs transition-[color,background-color,border-color,box-shadow] outline-none",
           "hover:border-ring/45",
           "focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/45",
           "disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-muted disabled:opacity-60",

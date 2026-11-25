@@ -16,6 +16,7 @@ import { FormDialog, FormSection, FormAlert } from "@/components/ui/form-dialog"
 import { CheckboxField, Field, FieldGrid } from "@/components/ui/field"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { contar } from "@/lib/utils"
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : "Error inesperado"
@@ -72,7 +73,7 @@ export function TranscribirContingenciaDialog({
       const r = await transcribirContingencia(sale._id, payload)
       toast.success(
         r.pendientes > 0
-          ? `Transcrita, pero ${r.pendientes} nota(s) quedaron sin emitir`
+          ? `Transcrita, pero ${contar(r.pendientes, "nota quedó", "notas quedaron")} sin emitir`
           : `Transcrita: ${r.documento.fullNumber ?? "documento emitido"}`,
       )
       onDone()

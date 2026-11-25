@@ -69,7 +69,7 @@ export default function ParametrosPage() {
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-14 text-center">
             <ShieldOff className="size-10 text-muted-foreground" />
-            <p className="font-display text-lg text-foreground">Sin acceso</p>
+            <p className="text-[15px] font-semibold text-foreground">Sin acceso</p>
             <p className="max-w-xs text-sm text-muted-foreground">
               Necesitas el permiso <code>params.manage</code>.
             </p>
@@ -125,7 +125,7 @@ export default function ParametrosPage() {
           {groups.map((g) => (
             <Card key={g}>
               <CardHeader className="pb-2">
-                <CardTitle className="font-display text-base">
+                <CardTitle className="text-sm font-semibold">
                   {PARAM_GROUP_LABELS[g] ?? g}
                 </CardTitle>
               </CardHeader>

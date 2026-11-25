@@ -29,13 +29,13 @@ export function buildProductSteps(
   steps.push({
     target: null,
     title: "Bienvenido a BookiPos",
-    body: "Te hago un recorrido completo por tu ERP: cómo está organizado y por dónde empezar. Puedes omitirlo cuando quieras y reabrirlo desde el botón “Guía”.",
+    body: "Te muestro en un minuto cómo está organizado BookiPos y por dónde empezar. Sal cuando quieras con Esc; las flechas del teclado también te mueven.",
   })
   steps.push({
     target: "menu",
     navigateTo: "/panel",
     title: "Todo se organiza por áreas",
-    body: "En el menú lateral tienes Operación (sedes, inventario, productos, caja), Comercial (compras, proveedores, clientes), Personal (empleados y nómina), Finanzas, Cumplimiento y Configuración.",
+    body: "El menú de la izquierda va por lo que vienes a hacer: Vender, Operación (inventario y productos), Compras, Clientes, Dinero, Impuestos y DIAN, Equipo y Ajustes. Cada grupo se abre al tocarlo.",
   })
   steps.push({
     target: "buscar",
@@ -132,8 +132,8 @@ export function buildProductSteps(
   })
   steps.push({
     target: "guia",
-    title: "Cada módulo tiene su propia guía",
-    body: "La primera vez que entres a un módulo, su guía se abre sola. ¿Quieres verla otra vez? Pulsa “Guía” y te muestro esa pantalla paso a paso.",
+    title: "Ayuda en cada pantalla",
+    body: "En cualquier pantalla, “Ayuda” te explica cómo hacer cada tarea y qué significa cada palabra. Desde ahí también puedes volver a ver este recorrido.",
   })
   steps.push({
     target: null,
@@ -201,7 +201,7 @@ export const sedeGuide: GuideDescriptor = {
     {
       target: null,
       title: "¡Sede personalizada!",
-      body: "Eso es todo. Puedes volver a editarla cuando quieras desde Operación → Sedes.",
+      body: "Eso es todo. Puedes volver a editarla cuando quieras desde Ajustes → Sedes.",
     },
   ],
 }

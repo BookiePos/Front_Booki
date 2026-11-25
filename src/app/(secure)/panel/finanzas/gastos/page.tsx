@@ -87,6 +87,8 @@ import { Termino } from "@/components/ui/help-tip"
 import { X } from "lucide-react"
 import { useLoadEffect } from "@/hooks/use-load-effect"
 import { useResetOnChange } from "@/hooks/use-reset-on-change"
+import { KpiCelda } from "@/components/ui/kpi"
+import { contar } from "@/lib/utils"
 
 const ALL = "all"
 
@@ -226,7 +228,7 @@ export default function GastosPage() {
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-14 text-center">
             <ShieldOff className="size-10 text-muted-foreground" />
-            <p className="font-display text-lg text-foreground">Sin acceso</p>
+            <p className="text-[15px] font-semibold text-foreground">Sin acceso</p>
             <p className="max-w-xs text-sm text-muted-foreground">
               No tienes permiso para ver los gastos.
             </p>
@@ -313,7 +315,7 @@ export default function GastosPage() {
 
       {tab === "gastos" && (
         <>
-          <Card data-tour="gastos-filtro" className="mb-4">
+          <Card data-filtros data-tour="gastos-filtro" className="mb-4">
             <CardContent className="flex flex-wrap items-end gap-3 py-4">
               <Field id="gf-sede" label="Sede" className="w-48">
                 <NativeSelect
@@ -694,7 +696,7 @@ function RecurringPanel({
       const res = await runRecurring()
       setMsg(
         res.generated > 0
-          ? `Se generaron ${res.generated} gasto(s) de ${res.templates} plantilla(s).`
+          ? `Se generaron ${contar(res.generated, "gasto")} de ${contar(res.templates, "plantilla")}.`
           : "No había gastos recurrentes pendientes.",
       )
       await load()
@@ -1595,18 +1597,6 @@ function Kpi({
   value: string
   accent?: boolean
 }) {
-  return (
-    <Card>
-      <CardContent className="flex flex-col gap-1 py-4">
-        <span className="text-xs text-muted-foreground">{label}</span>
-        <span
-          className={`font-display text-2xl leading-tight ${
-            accent ? "text-primary" : "text-foreground"
-          }`}
-        >
-          {value}
-        </span>
-      </CardContent>
-    </Card>
-  )
+  void accent
+  return <KpiCelda label={label} value={value} />
 }

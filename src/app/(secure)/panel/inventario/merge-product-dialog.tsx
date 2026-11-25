@@ -14,7 +14,7 @@ import {
 import { errorMessage } from "@/lib/erp/finance-format"
 import { canonicalUnit, productSimilarity } from "@/lib/erp/product-match"
 import { unidadCorta } from "@/lib/erp/unidades"
-import { cn } from "@/lib/utils"
+import { cn, contar } from "@/lib/utils"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -153,7 +153,7 @@ export function MergeProductDialog({
       .filter((p, i, all) => selected.has(p._id) && all.findIndex((x) => x._id === p._id) === i)
       .map((p) => `“${p.name}”`)
     const ok = await confirm({
-      title: `¿Fusionar ${selected.size} producto(s) en “${target.name}”?`,
+      title: `¿Fusionar ${contar(selected.size, "producto")} en “${target.name}”?`,
       description: `${names.join(", ")} pasarán a “${target.name}” sus existencias, lotes, recetas, compras abiertas y alias de proveedor, y quedarán inactivos. Las ventas y compras ya recibidas conservan su historial. No se deshace con un clic.`,
       confirmLabel: "Fusionar",
       destructive: true,

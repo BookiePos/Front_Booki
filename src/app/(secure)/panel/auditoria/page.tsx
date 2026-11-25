@@ -102,7 +102,7 @@ export default function AuditoriaPage() {
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-14 text-center">
             <ShieldOff className="size-10 text-muted-foreground" />
-            <p className="font-display text-lg text-foreground">Sin acceso</p>
+            <p className="text-[15px] font-semibold text-foreground">Sin acceso</p>
             <p className="max-w-xs text-sm text-muted-foreground">
               Necesitas el permiso <code>audit.view</code>.
             </p>
@@ -132,7 +132,7 @@ export default function AuditoriaPage() {
         }
       />
 
-      <Card data-tour="auditoria-filtros" className="mb-4">
+      <Card data-filtros data-tour="auditoria-filtros" className="mb-4">
         <CardContent className="flex flex-wrap items-end gap-3 py-4">
           <div className="flex flex-col gap-1">
             <Label className="text-xs">Módulo</Label>

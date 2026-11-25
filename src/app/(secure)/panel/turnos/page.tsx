@@ -56,6 +56,7 @@ import {
 } from "@/components/ui/table"
 import { useLoadEffect } from "@/hooks/use-load-effect"
 import { useResetOnChange } from "@/hooks/use-reset-on-change"
+import { KpiCelda } from "@/components/ui/kpi"
 
 const ALL = "all"
 
@@ -138,7 +139,7 @@ export default function TurnosPage() {
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-14 text-center">
             <ShieldOff className="size-10 text-muted-foreground" />
-            <p className="font-display text-lg text-foreground">Sin acceso</p>
+            <p className="text-[15px] font-semibold text-foreground">Sin acceso</p>
             <p className="max-w-xs text-sm text-muted-foreground">
               No tienes permiso para ver los turnos.
             </p>
@@ -353,7 +354,7 @@ function EditRequestsPanel({ onResolved }: { onResolved: () => void }) {
       <CardContent className="flex flex-col gap-3 p-4">
         <div className="flex items-center gap-2">
           <Inbox className="size-4 text-warning-ink" />
-          <p className="font-display text-base">
+          <p className="text-sm font-semibold">
             Solicitudes de edición de horas
           </p>
           <Badge className="bg-warning/10 text-warning-ink">{reqs.length}</Badge>
@@ -503,7 +504,7 @@ function DayEditor({
           <div className="flex items-center gap-2">
             <Clock className="size-4 text-muted-foreground" />
             <div>
-              <p className="font-display text-base">Registrar / corregir horas</p>
+              <p className="text-sm font-semibold">Registrar / corregir horas</p>
               <p className="text-xs text-muted-foreground">
                 Agrega o modifica las horas de un día. A diferencia del POS, aquí
                 puedes sobrescribir lo ya registrado.
@@ -632,17 +633,5 @@ function Kpi({
   label: string
   value: string
 }) {
-  return (
-    <Card>
-      <CardContent className="flex flex-col gap-1 py-4">
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <Icon className="size-4" />
-          {label}
-        </div>
-        <p className="font-display text-2xl leading-tight text-foreground">
-          {value}
-        </p>
-      </CardContent>
-    </Card>
-  )
+  return <KpiCelda icon={Icon} label={label} value={value} />
 }

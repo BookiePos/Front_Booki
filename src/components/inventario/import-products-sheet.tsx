@@ -144,7 +144,7 @@ export function ImportProductsSheet({
 
         {rows.length > 0 && !result && (
           <FormAlert tone="info" icon={FileUp}>
-            <strong>{rows.length}</strong> fila(s) listas para importar.
+            <strong>{rows.length}</strong> {rows.length === 1 ? "fila lista" : "filas listas"} para importar.
           </FormAlert>
         )}
 

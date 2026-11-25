@@ -637,7 +637,7 @@ export default function ResolucionesPage() {
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-14 text-center">
             <ShieldOff className="size-10 text-muted-foreground" />
-            <p className="font-display text-lg text-foreground">Sin acceso</p>
+            <p className="text-[15px] font-semibold text-foreground">Sin acceso</p>
             <p className="max-w-xs text-sm text-muted-foreground">
               No tienes permiso para ver la facturación electrónica. Contacta al
               administrador del sistema.
@@ -690,7 +690,7 @@ export default function ResolucionesPage() {
                 <TriangleAlert className="mt-0.5 size-5 shrink-0 text-destructive" aria-hidden />
                 <p className="text-sm">
                   <strong>
-                    {conProblema} sede(s) tienen resoluciones que piden atención
+                    {conProblema === 1 ? "1 sede tiene" : `${conProblema} sedes tienen`} resoluciones que piden atención
                     (vencidas, agotadas, por vencer o sin completar).
                   </strong>{" "}
                   Revisa abajo qué le falta a cada una.
@@ -706,7 +706,7 @@ export default function ResolucionesPage() {
               <Card key={row.sedeId}>
                 <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
                   <div className="flex flex-col gap-1">
-                    <CardTitle className="flex items-center gap-2 font-display text-lg">
+                    <CardTitle className="flex items-center gap-2 text-[15px] font-semibold">
                       {row.sedeName}
                       <span className="font-mono text-xs text-muted-foreground">
                         {row.sedeCode}
