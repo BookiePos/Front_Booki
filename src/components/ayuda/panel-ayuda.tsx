@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { usePathname } from "next/navigation"
-import { ChevronDown, Compass, MessageCircle, Search, X } from "lucide-react"
+import { ChevronDown, Compass, Mail, MessageCircle, Search, X } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { ayudaParaRuta, type TareaAyuda } from "@/lib/ayuda/modulos"
@@ -186,20 +186,26 @@ export function PanelAyuda() {
         </section>
       </div>
 
-      {whatsapp && (
-        <footer className="shrink-0 border-t border-border px-5 py-3">
-          <a
-            href={whatsapp}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 text-sm font-medium text-primary underline-offset-4 hover:underline"
-          >
-            <MessageCircle className="size-4" aria-hidden />
-            ¿No lo encuentras? Escríbenos por WhatsApp
-          </a>
-          {SOPORTE.horario && <p className="mt-0.5 text-xs text-muted-foreground">{SOPORTE.horario}</p>}
-        </footer>
-      )}
+      {/* Siempre hay a quién escribir. Sin número de WhatsApp configurado
+          (así está hoy en producción) queda el correo de soporte: una ayuda
+          que no dice a quién acudir deja a la persona sola justo cuando se
+          atascó. */}
+      <footer className="shrink-0 border-t border-border px-5 py-3">
+        <a
+          href={whatsapp ?? `mailto:${SOPORTE.email}?subject=${encodeURIComponent(`Ayuda con ${titulo}`)}`}
+          target={whatsapp ? "_blank" : undefined}
+          rel={whatsapp ? "noopener noreferrer" : undefined}
+          className="inline-flex items-center gap-2 text-sm font-medium text-primary underline-offset-4 hover:underline"
+        >
+          {whatsapp ? <MessageCircle className="size-4" aria-hidden /> : <Mail className="size-4" aria-hidden />}
+          {whatsapp ? "¿No lo encuentras? Escríbenos por WhatsApp" : `¿No lo encuentras? Escríbenos a ${SOPORTE.email}`}
+        </a>
+        {(SOPORTE.horario || SOPORTE.tiempoRespuesta) && (
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {[SOPORTE.horario, SOPORTE.tiempoRespuesta].filter(Boolean).join(" · ")}
+          </p>
+        )}
+      </footer>
     </aside>
   )
 }
