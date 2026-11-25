@@ -14,8 +14,10 @@ export interface CajaOverviewRow {
   openingAmount?: number
   openedAt?: string
   openedByEmail?: string
+  openedByName?: string
   closedAt?: string
   closedByEmail?: string
+  closedByName?: string
   countedAmount?: number
   expectedCash?: number
   difference?: number
@@ -58,6 +60,7 @@ export interface CajaClosingRow {
   openedAt: string
   closedAt?: string
   closedByEmail?: string
+  closedByName?: string
   openingAmount: number
   salesCount: number
   salesTotal: number

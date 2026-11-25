@@ -82,17 +82,17 @@ export default function HoyPage() {
       </div>
 
       {veCaja && (
-        <Card className="border-primary/30 gradient-brand text-primary-foreground">
+        <Card>
           <CardContent className="flex flex-col gap-1 py-5">
-            <p className="text-xs opacity-80">Ventas del día</p>
+            <p className="text-[13px] text-muted-foreground">Ventas del día</p>
             {loading && !caja ? (
               <Skeleton className="h-9 w-40" />
             ) : (
-              <p className="font-display text-4xl leading-tight tabular-nums">
+              <p className="text-4xl leading-tight font-semibold tracking-[-0.03em] tabular-nums">
                 {caja ? money.format(caja.totals.salesTotal) : "—"}
               </p>
             )}
-            <p className="text-xs opacity-80">
+            <p className="text-xs text-muted-foreground">
               {caja
                 ? `${caja.totals.salesCount} venta${caja.totals.salesCount === 1 ? "" : "s"} · efectivo ${money.format(caja.totals.cashSalesTotal)}`
                 : "Sin datos"}

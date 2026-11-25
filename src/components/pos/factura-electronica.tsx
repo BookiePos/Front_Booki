@@ -95,7 +95,7 @@ export function FacturaElectronica({
     >
       {/* Encabezado: emisor (centrado) */}
       <header className="flex flex-col items-center gap-0.5 border-b border-border pb-3 text-center">
-        <p className="font-display text-base font-semibold leading-tight">
+        <p className="text-sm font-semibold font-semibold leading-tight">
           {emisor?.name ?? "Emisor"}
         </p>
         {nit && <p className="text-xs text-muted-foreground">NIT {nit}</p>}

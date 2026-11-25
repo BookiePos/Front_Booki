@@ -58,6 +58,8 @@ export interface PayrollSettings {
   exoneracionConfirmada?: boolean
   /** Semana de 5 o 6 días laborables: decide el domingo remunerado (ítem 1.19). */
   diasLaborablesSemana?: number
+  /** Cada cuánto se paga a los trabajadores. */
+  frecuenciaPago?: "mensual" | "quincenal"
 }
 
 export interface RecargoLinea {
@@ -174,6 +176,8 @@ export interface PayrollSlip {
   alertas?: string[]
   totalDevengado: number
   totalDeducciones: number
+  /** Ya pagado en la primera quincena; `netoPagar` es lo que falta (segunda quincena). */
+  pagadoQuincena?: number
   netoPagar: number
   costoEmpleador: number
 }
@@ -648,4 +652,179 @@ export async function rejectDeduction(id: string): Promise<PayrollDeduction> {
     method: "POST",
   })
   return parseResponse<PayrollDeduction>(res)
+}
+
+// ── Valores de ley ───────────────────────────────────────────────────────────
+
+/** Valores que fija el Gobierno para un año, con la norma que los fija. */
+export interface ValoresLeyAno {
+  year: number
+  smmlv: number
+  auxilioTransporte: number
+  uvt: number
+  fuentes: { smmlv: string; auxilioTransporte: string; uvt: string }
+}
+
+/** Cambio que la ley ya tiene fechado (p. ej. el dominical al 100 % en 2027). */
+export interface CambioProgramado {
+  concepto: string
+  valor: string
+  desde: string
+  fuente: string
+}
+
+/** Lo que de verdad usa el cálculo de la nómina en una fecha. */
+export interface ValoresLey {
+  fecha: string
+  year: number
+  ley: ValoresLeyAno | null
+  enUso: {
+    smmlv: number
+    auxilioTransporte: number
+    uvt: number
+    auxTransporteMaxSmmlv: number
+    jornadaSemanal: number
+    horasMes: number
+    nocturnoDesdeHora: number
+    nocturnoHastaHora: number
+    recargos: PayrollSettings["recargos"]
+    recargoDominicalLegal: number
+    recargosMinimos: { recargoNocturno: number; extraDiurna: number; extraNocturna: number }
+    saludEmpleado: number
+    saludEmpleador: number
+    pensionEmpleado: number
+    pensionEmpleador: number
+    ccf: number
+    sena: number
+    icbf: number
+    arlRates: PayrollSettings["arlRates"]
+    cesantias: number
+    interesesCesantias: number
+    prima: number
+    vacaciones: number
+    fspTramos: PayrollSettings["fspTramos"]
+    tabla383: PayrollSettings["tabla383"]
+    ibcMaxSmmlv: number
+    integralSmmlv: number
+    exoneracionSmmlv: number
+    empresaExoneradaAportes: boolean
+    exoneracionConfirmada: boolean
+    diasLaborablesSemana: number
+  }
+  distintosDeLey: ("smmlv" | "auxilioTransporte" | "uvt")[]
+  programados: CambioProgramado[]
+}
+
+export async function getValoresLey(fecha?: string): Promise<ValoresLey> {
+  const qs = fecha ? `?fecha=${encodeURIComponent(fecha)}` : ""
+  const res = await authFetch(`/payroll/valores-ley${qs}`)
+  return parseResponse<ValoresLey>(res)
+}
+
+/**
+ * Abre vigencias nuevas de salario mínimo, auxilio y recargos (en %, 35 = 35 %)
+ * desde `vigenteDesde`. Lo anterior no se borra: queda para los meses ya pasados.
+ */
+export interface CambioValoresLey {
+  vigenteDesde: string
+  smmlv?: number
+  auxilioTransporte?: number
+  recargoNocturno?: number
+  extraDiurna?: number
+  extraNocturna?: number
+  recargoDominical?: number
+  motivo?: string
+}
+
+export async function actualizarValoresLey(cambio: CambioValoresLey): Promise<ValoresLey> {
+  const res = await authFetch("/payroll/valores-ley", {
+    method: "PUT",
+    body: JSON.stringify(cambio),
+  })
+  return parseResponse<ValoresLey>(res)
+}
+
+// ── Primera quincena ─────────────────────────────────────────────────────────
+
+/** Cuánto se le pagaría a un trabajador en la primera quincena (días 1 a 15). */
+export interface PropuestaQuincena {
+  employeeId: string
+  employeeName: string
+  sedeId?: string
+  dias: number
+  sueldo: number
+  auxilioTransporte: number
+  /** Recargos nocturnos y dominicales de los turnos del 1 al 15. */
+  recargos: number
+  /** Horas extra de los turnos del 1 al 15. */
+  horasExtra: number
+  /** Horas por tipo (recargoNocturno, extraDiurna…), solo las que tienen algo. */
+  horas: Partial<Record<"recargoNocturno" | "dominical" | "nocturnoDominical" | "extraDiurna" | "extraNocturna" | "extraDiurnaDominical" | "extraNocturnaDominical", number>>
+  salud: number
+  pension: number
+  fsp: number
+  /** Lo que se le entregaría. */
+  neto: number
+  /** Lo máximo: la mitad del neto estimado del mes. */
+  tope: number
+  avisos: string[]
+}
+
+export interface PropuestaQuincenaRespuesta {
+  period: string
+  corte: string
+  lineas: PropuestaQuincena[]
+  /** Trabajadores a los que ya se les pagó la quincena de ese mes. */
+  yaPagados: string[]
+  /** La nómina del mes ya está cerrada: no se puede pagar quincena. */
+  cerrada: boolean
+}
+
+export interface PagoQuincena {
+  _id: string
+  period: string
+  coverage: "all" | "sede"
+  sedeId?: string | null
+  estado: "pagada" | "anulada"
+  pago: { medio: string; fecha: string }
+  lineas: (Omit<PropuestaQuincena, "tope" | "avisos" | "horas">)[]
+  total: number
+  registradaPor?: string
+  anuladaPor?: string
+  createdAt?: string
+}
+
+export async function propuestaQuincena(
+  period: string,
+  coverage: "all" | "sede",
+  sedeId?: string,
+): Promise<PropuestaQuincenaRespuesta> {
+  const qs = new URLSearchParams({ period, coverage, ...(sedeId ? { sedeId } : {}) })
+  const res = await authFetch(`/payroll/quincenas/propuesta?${qs.toString()}`)
+  return parseResponse<PropuestaQuincenaRespuesta>(res)
+}
+
+export async function registrarQuincena(payload: {
+  period: string
+  coverage: "all" | "sede"
+  sedeId?: string
+  medioPago: string
+  fechaPago: string
+  lineas: { employeeId: string; neto?: number }[]
+}): Promise<{ quincena: PagoQuincena; avisos: string[] }> {
+  const res = await authFetch("/payroll/quincenas", { method: "POST", body: JSON.stringify(payload) })
+  return parseResponse<{ quincena: PagoQuincena; avisos: string[] }>(res)
+}
+
+export async function listarQuincenas(period?: string): Promise<PagoQuincena[]> {
+  const res = await authFetch(`/payroll/quincenas${period ? `?period=${encodeURIComponent(period)}` : ""}`)
+  return parseResponse<PagoQuincena[]>(res)
+}
+
+export async function anularQuincena(id: string, motivo?: string): Promise<{ quincena: PagoQuincena; avisos: string[] }> {
+  const res = await authFetch(`/payroll/quincenas/${id}/anular`, {
+    method: "POST",
+    body: JSON.stringify(motivo ? { motivo } : {}),
+  })
+  return parseResponse<{ quincena: PagoQuincena; avisos: string[] }>(res)
 }

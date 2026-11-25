@@ -36,7 +36,7 @@ import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import { FormDialog, FormAlert } from "@/components/ui/form-dialog"
 import { Segmented } from "@/components/ui/segmented"
-import { cn } from "@/lib/utils"
+import { cn, contar } from "@/lib/utils"
 
 function errorMessage(err: unknown): string {
   if (err instanceof Error) return err.message
@@ -186,7 +186,7 @@ export default function DomiciliosPage() {
                     {c.courier}
                   </span>
                   <span className="text-xs text-muted-foreground">
-                    {c.entregados} entregado(s)
+                    {contar(c.entregados, "entregado")}
                     {c.enCamino > 0 && ` · ${c.enCamino} en la calle`}
                     {c.fallidos > 0 && ` · ${c.fallidos} sin entregar`}
                   </span>

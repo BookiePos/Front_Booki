@@ -99,7 +99,7 @@ export function SearchableSelect({
           // no hay que borrar a mano el nombre de lo que estaba elegido.
           onFocus={(event) => event.currentTarget.select()}
           className={cn(
-            "h-9 w-full min-w-0 truncate rounded-xl border border-input bg-card py-1 pr-9 pl-3 text-base shadow-xs transition-[color,background-color,border-color,box-shadow] outline-none",
+            "h-9 w-full min-w-0 truncate rounded-lg border border-input bg-card py-1 pr-9 pl-3 text-base shadow-xs transition-[color,background-color,border-color,box-shadow] outline-none",
             "placeholder:text-muted-foreground hover:border-ring/45",
             "focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/45",
             "disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-muted disabled:opacity-60",
@@ -119,7 +119,7 @@ export function SearchableSelect({
         <Combobox.Positioner sideOffset={4} className="isolate z-50 outline-none">
           <Combobox.Popup
             className={cn(
-              "w-(--anchor-width) max-w-(--available-width) min-w-56 origin-(--transform-origin) overflow-hidden rounded-xl bg-popover text-popover-foreground shadow-lg ring-1 ring-foreground/10",
+              "w-(--anchor-width) max-w-(--available-width) min-w-56 origin-(--transform-origin) overflow-hidden rounded-lg bg-popover text-popover-foreground shadow-lg ring-1 ring-foreground/10",
               "transition-[scale,opacity] duration-100 data-starting-style:scale-95 data-starting-style:opacity-0 data-ending-style:scale-95 data-ending-style:opacity-0",
             )}
           >

@@ -12,10 +12,14 @@ import {
   Check,
   RotateCcw,
   RefreshCw,
+  AlertTriangle,
+  ChevronRight,
 } from "lucide-react"
+import Link from "next/link"
 
 import { useAuth } from "@/lib/auth-context"
 import { useDashboardData } from "@/lib/dashboard/use-dashboard-data"
+import { buildAlertasHoy } from "@/lib/dashboard/alertas-hoy"
 import {
   availableWidgets,
   WIDGET_BY_ID,
@@ -36,6 +40,7 @@ export function DashboardGrid() {
   const { user, hasPermission, tipoNegocio } = useAuth()
   const userId = user?.id ?? null
   const { data, loading, reload } = useDashboardData()
+  const alertas = buildAlertasHoy(data)
 
   const available = React.useMemo(
     () => availableWidgets(hasPermission, tipoNegocio),
@@ -141,6 +146,32 @@ export function DashboardGrid() {
           </Button>
         )}
       </div>
+
+      {/* Pendientes: descuadres, cajas sin abrir, stock bajo… Antes solo salían
+          en /panel/hoy, que no está en el menú, y el dueño no los veía desde
+          el tablero. Mismos datos, sin otra carga. Solo aparece si hay algo. */}
+      {alertas.length > 0 && (
+        <section
+          aria-label="Para resolver"
+          className="mb-4 divide-y divide-border overflow-hidden rounded-lg border border-border bg-card"
+        >
+          {alertas.map((a) => (
+            <Link
+              key={a.id}
+              href={a.href}
+              className="flex items-center gap-3 px-4 py-2.5 text-sm transition-colors hover:bg-muted/60"
+            >
+              <AlertTriangle
+                className={`size-4 shrink-0 ${
+                  a.nivel === "critica" ? "text-destructive" : "text-muted-foreground"
+                }`}
+              />
+              <span className="flex-1">{a.texto}</span>
+              <ChevronRight className="size-4 text-muted-foreground" />
+            </Link>
+          ))}
+        </section>
+      )}
 
       {/* Grilla de widgets */}
       {layout.length === 0 ? (

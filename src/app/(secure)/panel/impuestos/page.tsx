@@ -10,6 +10,7 @@ import {
   setTaxVersion,
   type TaxView,
   type TaxKind,
+  formatTaxRate,
 } from "@/lib/erp/api-tax"
 import { fmtDate, errorMessage, numOr } from "@/lib/erp/finance-format"
 
@@ -89,7 +90,7 @@ export default function ImpuestosPage() {
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-14 text-center">
             <ShieldOff className="size-10 text-muted-foreground" />
-            <p className="font-display text-lg text-foreground">Sin acceso</p>
+            <p className="text-[15px] font-semibold text-foreground">Sin acceso</p>
             <p className="max-w-xs text-sm text-muted-foreground">
               Necesitas el permiso <code>tax.manage</code> para gestionar impuestos.
             </p>
@@ -182,7 +183,7 @@ export default function ImpuestosPage() {
                       <span className={kindTone[t.kind]}>{t.kindLabel}</span>
                     </TableCell>
                     <TableCell className="tnum text-right font-semibold">
-                      {t.currentRate === null ? "—" : `${t.currentRate}%`}
+                      {t.currentRate === null ? "—" : formatTaxRate(t.currentRate, t.basis)}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {fmtDate(t.currentFrom ?? undefined)}
@@ -421,7 +422,7 @@ function TaxDetailDialog({
                 {fmtDate(h.effectiveFrom)}
               </span>
               <span className="flex items-center gap-2">
-                <span className="stat-figure text-sm">{h.rate}%</span>
+                <span className="stat-figure text-sm">{formatTaxRate(h.rate, tax.basis)}</span>
                 {h.upcoming && <Badge variant="secondary">Futura</Badge>}
               </span>
             </li>
@@ -434,12 +435,15 @@ function TaxDetailDialog({
         description="Desde la fecha que pongas, los documentos nuevos usarán esta tarifa."
       >
         <FieldGrid cols={2}>
-          <Field id="txd-rate" label="Tarifa (%)">
+          <Field
+            id="txd-rate"
+            label={tax.basis === "por_unidad" ? "Tarifa ($ por bolsa)" : "Tarifa (%)"}
+          >
             <InputWithIcon
               id="txd-rate"
               type="number"
               inputMode="decimal"
-              suffix="%"
+              suffix={tax.basis === "por_unidad" ? "$" : "%"}
               value={rate}
               onChange={(e) => setRate(e.target.value)}
             />

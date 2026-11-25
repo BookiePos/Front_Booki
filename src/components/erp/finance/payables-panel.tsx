@@ -61,6 +61,7 @@ import {
 import { Termino } from "@/components/ui/help-tip"
 import { useLoadEffect } from "@/hooks/use-load-effect"
 import { useResetOnChange } from "@/hooks/use-reset-on-change"
+import { KpiCelda } from "@/components/ui/kpi"
 
 const ALL = "all"
 
@@ -140,21 +141,21 @@ export function PayablesPanel({ showKpis = true }: { showKpis?: boolean }) {
           <RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />
         </Button>
         {canManage && (
-          <Button className="gap-1.5" onClick={() => setNewOpen(true)}>
+          <Button data-tour="cxp-nueva" className="gap-1.5" onClick={() => setNewOpen(true)}>
             <Plus className="size-4" />
-            Nueva CxP
+            Nueva cuenta por pagar
           </Button>
         )}
       </div>
 
       {showKpis && (
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <div data-tour="cxp-kpis" className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           <Kpi label="Total abierto" value={money.format(totalAbierto)} />
           <Kpi label="Vencido" value={money.format(totalVencido)} danger />
         </div>
       )}
 
-      <Card>
+      <Card data-filtros data-tour="cxp-filtro">
         <CardContent className="flex flex-wrap items-end gap-3 py-4">
           <Field id="cxpf-sede" label="Sede" className="w-48">
             <NativeSelect
@@ -181,7 +182,7 @@ export function PayablesPanel({ showKpis = true }: { showKpis?: boolean }) {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card data-tour="cxp-tabla">
         <CardContent className="p-0">
           {loading ? (
             <div className="flex flex-col gap-2 p-4">
@@ -695,18 +696,5 @@ function Kpi({
   value: string
   danger?: boolean
 }) {
-  return (
-    <Card>
-      <CardContent className="flex flex-col gap-1 py-4">
-        <span className="text-xs text-muted-foreground">{label}</span>
-        <span
-          className={`font-display text-2xl leading-tight ${
-            danger ? "text-destructive" : "text-foreground"
-          }`}
-        >
-          {value}
-        </span>
-      </CardContent>
-    </Card>
-  )
+  return <KpiCelda label={label} value={value} tone={danger ? "negative" : "default"} />
 }

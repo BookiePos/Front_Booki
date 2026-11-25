@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
-import { Inter, Outfit } from "next/font/google";
+import { Geist, Inter, Outfit } from "next/font/google";
 import "./globals.css";
 import { SITE_URL } from "@/lib/env";
 import { PLANS } from "@/lib/site";
@@ -28,6 +28,27 @@ const outfit = Outfit({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700", "800"],
   display: "swap",
+});
+
+// Panel y POS (sistema "Libro"): una grotesca de trazo limpio con cifras
+// tabulares bien dibujadas. La web pública sigue en Inter + Outfit hasta su
+// rediseño (ver `.zone-marketing` en globals.css).
+const geist = Geist({
+  variable: "--font-geist",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  display: "swap",
+});
+
+// Cifra del total en el POS: Inter en su corte "Display" (eje de tamaño
+// óptico), el pariente libre más cercano a la SF Pro de Apple. En un Mac se
+// usa la SF de verdad (ver `.cifra-total`). Sin precarga: solo la usa el POS.
+const cifras = Inter({
+  variable: "--font-cifras",
+  subsets: ["latin"],
+  axes: ["opsz"],
+  display: "swap",
+  preload: false,
 });
 
 // El precio de entrada sale de los planes: así la meta descripción no diverge
@@ -86,7 +107,7 @@ export default async function RootLayout({
   return (
     <html
       lang="es"
-      className={`${inter.variable} ${outfit.variable} h-full`}
+      className={`${inter.variable} ${outfit.variable} ${geist.variable} ${cifras.variable} h-full`}
       // El script de abajo le añade la clase `dark` y `data-theme-mode` al
       // <html> antes de hidratar, así que el marcado del cliente no coincide
       // con el del servidor a propósito. Sin esto React avisa en cada carga.

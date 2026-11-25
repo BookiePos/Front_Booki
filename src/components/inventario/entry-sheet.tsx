@@ -3,7 +3,6 @@
 import * as React from "react"
 import { PackagePlus, Loader2 } from "lucide-react"
 import {
-  updateProduct,
   createEntry,
   type Sede,
   type InvProduct,
@@ -63,7 +62,6 @@ export function EntrySheet({
   const [productListOpen, setProductListOpen] = React.useState(false)
   const [sedeId, setSedeId] = React.useState("")
   const [entryUnit, setEntryUnit] = React.useState("und")
-  const [entryWeight, setEntryWeight] = React.useState<number | null>(null)
   const [qty, setQty] = React.useState<number | null>(null)
   const [unitCost, setUnitCost] = React.useState<number | null>(null)
   /** Lo que costó la vez pasada. Solo se enseña; nunca se guarda por su cuenta. */
@@ -121,7 +119,6 @@ export function EntrySheet({
           : null,
       )
       setEntryUnit(p?.unit ?? "und")
-      setEntryWeight(p?.weight != null && p.weight > 0 ? p.weight : null)
       setLegacySupplier(p?.supplier ?? "")
       setSupplierSel(initialSupplierSel(suppliers, p?.supplierId, p?.supplier))
     },
@@ -153,6 +150,9 @@ export function EntrySheet({
     setProductQuery(`${p.name} · ${p.sku}`)
     setProductListOpen(false)
     applyProductDefaults(p)
+    // Elegido el producto, lo siguiente es cuánto llegó: el cursor salta ahí
+    // y no hay que buscar la casilla con el ratón.
+    requestAnimationFrame(() => document.getElementById("e-qty")?.focus())
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -192,20 +192,6 @@ export function EntrySheet({
         supplierId: chosenSupplier?._id,
         expiresAt: !isAssembly && expiresAt ? expiresAt : undefined,
       })
-      // Si cambió el peso por unidad, se refleja en el producto (convertido).
-      const w = !isAssembly && entryWeight ? entryWeight : undefined
-      const wFinal =
-        w != null && w > 0
-          ? (convertUnits(w, entryUnit, targetUnit) ?? w)
-          : undefined
-      if (
-        product &&
-        wFinal != null &&
-        wFinal > 0 &&
-        wFinal !== product.weight
-      ) {
-        await updateProduct(product._id, { weight: wFinal }).catch(() => {})
-      }
       onSuccess()
       onOpenChange(false)
     } catch (err) {
@@ -329,21 +315,10 @@ export function EntrySheet({
                 />
               </Field>
             )}
-            {!isAssembly && (
-              <Field
-                id="e-weight"
-                label={`Peso por unidad (${unidadCorta(entryUnit)})`}
-                hint="Para productos que se compran por peso."
-              >
-                <QuantityInput
-                  id="e-weight"
-                  value={entryWeight}
-                  onValueChange={setEntryWeight}
-                  sufijo={unidadCorta(entryUnit)}
-                  placeholder="500"
-                />
-              </Field>
-            )}
+            {/* Aquí iba "Peso por unidad". Ningún cálculo lo usa —solo se
+                guardaba en la ficha— y salía hasta para la carne que ya va en
+                kilos, como "Peso por unidad (kg)". Era una casilla más en el
+                formulario que más se llena; sigue en la ficha del producto. */}
           </FieldGrid>
         </FormSection>
 
@@ -408,6 +383,16 @@ export function EntrySheet({
                     {money.format(costoAnterior)}
                   </span>
                   {enPresentacion ? ` el ${pres!.unidad}` : ""}.
+                </p>
+              )}
+              {/* El total, para cotejarlo con el de la factura sin calculadora:
+                  si no coincide, algo se escribió mal arriba. */}
+              {qty != null && qty > 0 && unitCost != null && unitCost > 0 && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Total de esta entrada:{" "}
+                  <span className="font-medium text-foreground tabular-nums">
+                    {money.format(Math.round(qty * unitCost))}
+                  </span>
                 </p>
               )}
             </Field>

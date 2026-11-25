@@ -196,7 +196,7 @@ export function CatalogoEjemplo({
         onClick={abrir}
         className="flex w-full items-start gap-3 rounded-xl border border-dashed border-primary/50 bg-accent/40 p-4 text-left transition-colors hover:bg-accent"
       >
-        <span className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg bg-accent text-primary">
+        <span className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
           <PackagePlus className="size-4" />
         </span>
         <span>

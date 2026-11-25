@@ -137,11 +137,11 @@ export function VariantPicker({
           )}
         >
           <header className="flex items-start gap-3 border-b border-border bg-primary/[0.055] px-5 py-4">
-            <span className="grid size-11 shrink-0 place-items-center rounded-2xl border border-primary/20 bg-primary/12 text-primary">
+            <span className="grid size-10 shrink-0 place-items-center rounded-lg border border-border bg-muted text-muted-foreground">
               <Layers className="size-5" />
             </span>
             <div className="min-w-0 flex-1">
-              <DialogPrimitive.Title className="font-display text-lg leading-tight">
+              <DialogPrimitive.Title className="text-[15px] font-semibold leading-tight">
                 {group.name}
               </DialogPrimitive.Title>
               <DialogPrimitive.Description className="mt-0.5 text-[0.8125rem] text-muted-foreground">

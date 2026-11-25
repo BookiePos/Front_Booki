@@ -40,7 +40,7 @@ export function Factura({
       {/* Encabezado: negocio + comprobante */}
       <div className="flex items-start justify-between gap-4 border-b border-border pb-4">
         <div className="min-w-0">
-          <p className="font-display text-xl tracking-tight">{business.name}</p>
+          <p className="text-base font-semibold tracking-tight">{business.name}</p>
           {business.nit && (
             <p className="text-muted-foreground">NIT: {business.nit}</p>
           )}

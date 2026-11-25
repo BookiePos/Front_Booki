@@ -18,6 +18,7 @@ import {
   listBudgets,
   getBudgetVsActual,
   MONTHS_SHORT,
+  resumenDeMeta,
   type PLReport,
   type PLMonthlyReport,
   type PLMonthRow,
@@ -70,7 +71,7 @@ export default function PlPage() {
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-14 text-center">
             <ShieldOff className="size-10 text-muted-foreground" />
-            <p className="font-display text-lg text-foreground">Sin acceso</p>
+            <p className="text-[15px] font-semibold text-foreground">Sin acceso</p>
             <p className="max-w-xs text-sm text-muted-foreground">
               No tienes permiso para ver los reportes financieros.
             </p>
@@ -114,7 +115,7 @@ export default function PlPage() {
       <div data-tour="pl-vistas" className="mb-4 flex flex-wrap gap-1">
         <Button
           data-tour="pl-estado"
-          variant={view === "pl" ? "default" : "outline"}
+          variant={view === "pl" ? "secondary" : "ghost"}
           size="sm"
           className="gap-1.5"
           onClick={() => setView("pl")}
@@ -123,7 +124,7 @@ export default function PlPage() {
           Estado de resultados
         </Button>
         <Button
-          variant={view === "mensual" ? "default" : "outline"}
+          variant={view === "mensual" ? "secondary" : "ghost"}
           size="sm"
           className="gap-1.5"
           onClick={() => setView("mensual")}
@@ -133,7 +134,7 @@ export default function PlPage() {
         </Button>
         <Button
           data-tour="pl-vs"
-          variant={view === "vs" ? "default" : "outline"}
+          variant={view === "vs" ? "secondary" : "ghost"}
           size="sm"
           className="gap-1.5"
           onClick={() => setView("vs")}
@@ -194,7 +195,7 @@ function PLView({
 
   return (
     <div className="flex flex-col gap-4">
-      <Card>
+      <Card data-filtros>
         <CardContent className="flex flex-wrap items-end gap-3 py-4">
           <div className="flex flex-col gap-1">
             <Label className="text-xs">Desde</Label>
@@ -262,18 +263,38 @@ function PLView({
                 value={data.utilidadOperativa}
                 divider
                 strong
-                accent
+                signed
               />
             </CardContent>
           </Card>
 
           <Card className="self-start">
             <CardContent className="py-4">
-              <p className="mb-3 text-sm font-semibold text-foreground">IVA</p>
+              <p className="mb-3 text-sm font-semibold text-foreground">
+                Impuestos por pagar
+              </p>
+              {/*
+                El INC va antes que el IVA cuando hay INC: a un restaurante es
+                lo que le cobra la DIAN, y antes no aparecía en ninguna vista.
+                Se muestra si se causó algo en el período; si no, solo IVA.
+              */}
+              {(data.incPorPagar ?? 0) > 0 && (
+                <div className="mb-4">
+                  <PLLine label="INC generado (ventas)" value={data.incGenerado ?? 0} />
+                  {(data.incBolsas ?? 0) > 0 && (
+                    <PLLine label="INC bolsas plásticas" value={data.incBolsas ?? 0} />
+                  )}
+                  <PLLine label="INC por pagar" value={data.incPorPagar ?? 0} divider strong />
+                  <p className="mt-2 text-[11px] text-muted-foreground">
+                    Al INC no se le descuenta lo pagado en compras: se declara
+                    sobre lo cobrado.
+                  </p>
+                </div>
+              )}
               <PLLine label="IVA generado (ventas)" value={data.ivaGenerado} />
               <PLLine label="IVA descontable (compras)" value={data.ivaDescontable} muted />
-              <PLLine label="IVA por pagar" value={data.ivaPorPagar} divider strong accent />
-              <p className="mt-3 text-[11px] text-muted-foreground">
+              <PLLine label="IVA por pagar" value={data.ivaPorPagar} divider strong />
+              <p className="mt-2 text-[11px] text-muted-foreground">
                 Diferencia entre el IVA cobrado en ventas y el IVA pagado en compras
                 y gastos del período.
               </p>
@@ -291,7 +312,7 @@ function PLLine({
   strong,
   muted,
   divider,
-  accent,
+  signed,
   indent,
 }: {
   label: string
@@ -299,7 +320,11 @@ function PLLine({
   strong?: boolean
   muted?: boolean
   divider?: boolean
-  accent?: boolean
+  /**
+   * Cifra de resultado: roja si es pérdida. Antes era `accent` y pintaba la
+   * utilidad en morado de marca aunque fuera negativa.
+   */
+  signed?: boolean
   indent?: boolean
 }) {
   return (
@@ -318,7 +343,15 @@ function PLLine({
       <span
         className={`tabular-nums ${
           strong ? "font-semibold" : ""
-        } ${accent ? "text-primary" : value < 0 ? "text-muted-foreground" : ""}`}
+        } ${
+          signed
+            ? value < 0
+              ? "text-destructive"
+              : "text-success-ink"
+            : value < 0
+              ? "text-muted-foreground"
+              : ""
+        }`}
       >
         {money.format(value)}
       </span>
@@ -379,7 +412,7 @@ function MonthlyView({ sedeId }: { sedeId?: string }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <Card>
+      <Card data-filtros>
         <CardContent className="flex flex-wrap items-end gap-3 py-4">
           <div className="flex flex-col gap-1">
             <Label className="text-xs">Año</Label>
@@ -447,7 +480,7 @@ function MonthlyView({ sedeId }: { sedeId?: string }) {
                             row.accent
                               ? shown < 0
                                 ? "text-destructive"
-                                : "text-primary"
+                                : "text-success-ink"
                               : row.strong
                                 ? ""
                                 : "text-muted-foreground"
@@ -462,7 +495,7 @@ function MonthlyView({ sedeId }: { sedeId?: string }) {
                         row.accent
                           ? (row.neg ? -data.totals[row.key] : data.totals[row.key]) < 0
                             ? "text-destructive"
-                            : "text-primary"
+                            : "text-success-ink"
                           : row.strong
                             ? "font-semibold"
                             : ""
@@ -540,7 +573,7 @@ function VsActualView({ sedeId }: { sedeId?: string }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <Card>
+      <Card data-filtros>
         <CardContent className="flex flex-wrap items-end gap-3 py-4">
           <div className="flex flex-col gap-1">
             <Label className="text-xs">Año fiscal</Label>
@@ -597,6 +630,8 @@ function VsActualView({ sedeId }: { sedeId?: string }) {
 }
 
 function VsActualMatrix({ data }: { data: BudgetVsActual }) {
+  const metaTotal = resumenDeMeta(data.lines, (l) => l.totalBudget)
+  const realTotal = resumenDeMeta(data.lines, (l) => l.totalActual)
   const compact = new Intl.NumberFormat("es-CO", {
     notation: "compact",
     maximumFractionDigits: 1,
@@ -659,13 +694,15 @@ function VsActualMatrix({ data }: { data: BudgetVsActual }) {
           </tbody>
           <tfoot>
             <tr className="border-t border-border font-semibold">
-              <td className="sticky left-0 z-10 bg-card px-3 py-2">Totales</td>
+              {/* Utilidad, ventas o gastos según lo que traiga la meta:
+                  `data.totals` suma ventas y gastos juntos. */}
+              <td className="sticky left-0 z-10 bg-card px-3 py-2">{metaTotal.etiqueta}</td>
               <td colSpan={12} className="px-2 py-2 text-right text-muted-foreground">
-                Meta {money.format(data.totals.budget)} · Real{" "}
-                {money.format(data.totals.actual)}
+                Meta {money.format(metaTotal.monto)} · Real{" "}
+                {money.format(realTotal.monto)}
               </td>
               <td className="px-3 py-2 text-right">
-                {money.format(data.totals.actual)}
+                {money.format(realTotal.monto)}
               </td>
             </tr>
           </tfoot>

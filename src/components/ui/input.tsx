@@ -18,11 +18,11 @@ function Input({ className, type, ...props }: React.ComponentProps<"input">) {
       type={type}
       data-slot="input"
       className={cn(
-        "h-9 w-full min-w-0 rounded-xl border border-input bg-card px-3 py-1 text-base shadow-xs transition-[color,background-color,border-color,box-shadow] outline-none",
+        "h-9 w-full min-w-0 rounded-lg border border-input bg-card px-3 py-1 text-base transition-[color,background-color,border-color,box-shadow] outline-none",
         "file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground",
         "placeholder:text-muted-foreground/80",
-        "hover:border-ring/45",
-        "focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/45",
+        "hover:border-[color-mix(in_oklab,var(--input),var(--foreground)_14%)]",
+        "focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/20",
         "disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-muted disabled:opacity-60",
         "aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20",
         "md:text-sm dark:bg-input/25 dark:hover:bg-input/35 dark:disabled:bg-input/50",
@@ -46,10 +46,10 @@ function Textarea({ className, ...props }: React.ComponentProps<"textarea">) {
     <textarea
       data-slot="textarea"
       className={cn(
-        "min-h-20 w-full rounded-xl border border-input bg-card px-3 py-2 text-base shadow-xs transition-[color,background-color,border-color,box-shadow] outline-none",
+        "min-h-20 w-full rounded-lg border border-input bg-card px-3 py-2 text-base shadow-xs transition-[color,background-color,border-color,box-shadow] outline-none",
         "placeholder:text-muted-foreground/80",
-        "hover:border-ring/45",
-        "focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/45",
+        "hover:border-[color-mix(in_oklab,var(--input),var(--foreground)_14%)]",
+        "focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/20",
         "disabled:cursor-not-allowed disabled:bg-muted disabled:opacity-60",
         "aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20",
         "md:text-sm dark:bg-input/25",

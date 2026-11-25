@@ -103,7 +103,7 @@ export function FacturaElectronica({
       {/* Encabezado: emisor + documento */}
       <div className="flex items-start justify-between gap-4 border-b border-border pb-4">
         <div className="min-w-0">
-          <p className="font-display text-lg tracking-tight">
+          <p className="text-[15px] font-semibold tracking-tight">
             {emisor?.name ?? "Emisor"}
           </p>
           {nit && <p className="text-muted-foreground">NIT: {nit}</p>}

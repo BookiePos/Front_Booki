@@ -97,7 +97,7 @@ export function Guard({
     <Card className="mx-auto max-w-lg">
       <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
         <Icon className="size-10 text-muted-foreground" />
-        <p className="font-display text-lg text-foreground">{title}</p>
+        <p className="text-[15px] font-semibold text-foreground">{title}</p>
         <p className="max-w-xs text-sm text-muted-foreground">{text}</p>
       </CardContent>
     </Card>

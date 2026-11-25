@@ -4,7 +4,6 @@ import * as React from "react"
 import Link from "next/link"
 import {
   AlertTriangle,
-  CheckCircle2,
   Eye,
   FileText,
   Loader2,
@@ -15,7 +14,6 @@ import {
 
 import { useAuth } from "@/lib/auth-context"
 import {
-  applyInvoiceScan,
   discardInvoiceScan,
   extractInvoiceScan,
   listInvoiceScans,
@@ -54,7 +52,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 import { useConfirm } from "@/components/ui/confirm-dialog"
 import { toast } from "sonner"
-import { cn } from "@/lib/utils"
+import { cn, contar } from "@/lib/utils"
 import { useLoadEffect } from "@/hooks/use-load-effect"
 
 /** Progreso de una tanda: qué se está haciendo y por cuál va. */
@@ -179,23 +177,6 @@ export default function FacturasPorFotoPage() {
     }
   }
 
-  async function handleApply(scan: InvoiceScan) {
-    const ok = await confirm({
-      title: "¿Aplicar esta factura?",
-      description:
-        "Se creará la compra con su entrada de inventario y su cuenta por pagar, y los gastos de las líneas que no son mercancía. Esta acción no se deshace desde aquí.",
-      confirmLabel: "Aplicar",
-    })
-    if (!ok) return
-    try {
-      await applyInvoiceScan(scan._id)
-      toast.success("Factura aplicada")
-      await load()
-    } catch (err) {
-      toast.error(errorMessage(err))
-    }
-  }
-
   async function handleDiscard(scan: InvoiceScan) {
     const ok = await confirm({
       title: "¿Descartar esta factura?",
@@ -224,7 +205,7 @@ export default function FacturasPorFotoPage() {
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-14 text-center">
             <ShieldOff className="size-10 text-muted-foreground" />
-            <p className="font-display text-lg text-foreground">Sin acceso</p>
+            <p className="text-[15px] font-semibold text-foreground">Sin acceso</p>
             <p className="max-w-xs text-sm text-muted-foreground">
               No tienes permiso para ver las compras. Contacta al administrador
               del sistema.
@@ -248,7 +229,7 @@ export default function FacturasPorFotoPage() {
       {canManage && (
         <Card>
           <CardHeader>
-            <CardTitle className="font-display text-lg">
+            <CardTitle className="text-[15px] font-semibold">
               Cargar facturas
             </CardTitle>
             <CardDescription>
@@ -283,10 +264,10 @@ export default function FacturasPorFotoPage() {
 
       <Card className="mt-4">
         <CardHeader>
-          <CardTitle className="font-display text-lg">Historial</CardTitle>
+          <CardTitle className="text-[15px] font-semibold">Historial</CardTitle>
           <CardDescription>
             {pendientes > 0
-              ? `${pendientes} factura(s) esperando tu revisión.`
+              ? `${contar(pendientes, "factura")} esperando tu revisión.`
               : "Todas las facturas cargadas, la más reciente primero."}
           </CardDescription>
         </CardHeader>
@@ -390,17 +371,9 @@ export default function FacturasPorFotoPage() {
                                 {revisable ? "Revisar" : "Ver"}
                               </Button>
                             )}
-                            {/* Una factura de contado se aplica desde su detalle,
-                                donde se elige el medio de pago: desde aquí saldría
-                                siempre de Caja aunque se hubiera pagado por banco. */}
-                            {canManage &&
-                              scan.status === "extracted" &&
-                              scan.draft?.invoice.paymentTerms !== "contado" && (
-                              <Button size="sm" onClick={() => handleApply(scan)}>
-                                <CheckCircle2 className="size-4" aria-hidden />
-                                Aplicar
-                              </Button>
-                            )}
+                            {/* Ninguna factura se aplica desde la lista: solo desde
+                                su detalle, después de revisar renglón por renglón.
+                                Aplicar aquí dejaba pasar renglones sin decisión. */}
                             {canManage && scan.status !== "applied" && (
                               <Button
                                 size="sm"

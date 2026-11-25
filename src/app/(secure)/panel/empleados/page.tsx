@@ -57,6 +57,7 @@ import {
 import { Field } from "@/components/ui/field"
 import { Termino } from "@/components/ui/help-tip"
 import { useLoadEffect } from "@/hooks/use-load-effect"
+import { KpiCelda } from "@/components/ui/kpi"
 
 const CONTRACT_LABELS: Record<ContractType, string> = {
   indefinido: "Indefinido",
@@ -223,7 +224,7 @@ function EmpleadosContenido() {
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-14 text-center">
             <ShieldOff className="size-10 text-muted-foreground" />
-            <p className="font-display text-lg text-foreground">Sin acceso</p>
+            <p className="text-[15px] font-semibold text-foreground">Sin acceso</p>
             <p className="max-w-xs text-sm text-muted-foreground">
               No tienes permiso para ver empleados.
             </p>
@@ -288,7 +289,7 @@ function EmpleadosContenido() {
           {(["todos", "activo", "inactivo", "retirado"] as const).map((s) => (
             <Button
               key={s}
-              variant={statusFilter === s ? "default" : "outline"}
+              variant={statusFilter === s ? "secondary" : "ghost"}
               size="sm"
               onClick={() => setStatusFilter(s)}
             >
@@ -448,19 +449,7 @@ function Kpi({
   label: string
   value: string
 }) {
-  return (
-    <Card>
-      <CardContent className="flex flex-col gap-1 py-4">
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <Icon className="size-4" />
-          {label}
-        </div>
-        <p className="font-display text-2xl leading-tight text-foreground">
-          {value}
-        </p>
-      </CardContent>
-    </Card>
-  )
+  return <KpiCelda icon={Icon} label={label} value={value} />
 }
 
 function PositionsManager({

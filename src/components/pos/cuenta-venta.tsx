@@ -30,7 +30,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { cn } from "@/lib/utils"
+import { cn, contar } from "@/lib/utils"
 import { CartItem, SaveState } from "@/components/pos/venta-helpers"
 import { SaveIndicator } from "@/components/pos/venta-ui"
 
@@ -51,7 +51,7 @@ interface CuentaVentaProps {
   changeQty: (productId: string, delta: number) => void
   removeFromCart: (productId: string) => void
   setLineDiscount: (productId: string, discountId: string | null) => void
-  clearCart: () => void
+  clearCart: () => void | Promise<void>
   saveAsOrder: () => Promise<void>
   closeActiveOrder: () => Promise<void>
   unitPrice: (item: CartItem) => number
@@ -121,7 +121,7 @@ export function CuentaVenta({
       <CardContent className="flex flex-col gap-3 p-4 lg:min-h-0 lg:flex-1 lg:overflow-hidden">
         <div className="flex shrink-0 items-center gap-2">
           <ShoppingCart className="size-5 text-muted-foreground" />
-          <p className="font-display text-lg">
+          <p className="text-[15px] font-semibold">
             {isOrder ? "Cuenta" : "Venta"}
           </p>
           {/* Cierra la hoja para volver al catálogo. Solo existe cuando la
@@ -144,7 +144,7 @@ export function CuentaVenta({
           )}
           {cart.length > 0 && (
             <Badge variant="secondary" className="ml-auto">
-              {itemCount} ítem(s)
+              {contar(itemCount, "producto")}
             </Badge>
           )}
           {cart.length > 0 && (
@@ -152,7 +152,7 @@ export function CuentaVenta({
               variant="ghost"
               size="sm"
               className="h-7 gap-1 px-2 text-xs text-muted-foreground hover:text-destructive"
-              onClick={clearCart}
+              onClick={() => void clearCart()}
             >
               <Trash2 className="size-3.5" />
               Vaciar
@@ -439,7 +439,7 @@ export function CuentaVenta({
               más de la lista. Con propina, el grande es el total a pagar. */}
           <div className="flex items-baseline justify-between rounded-xl bg-accent px-4 py-3">
             <div className="flex flex-col">
-              <span className="font-display text-lg text-accent-foreground">
+              <span className="text-[15px] font-semibold text-accent-foreground">
                 {tipAmount > 0 ? "Total a pagar" : "Total"}
               </span>
               {tipAmount > 0 && (
@@ -448,7 +448,8 @@ export function CuentaVenta({
                 </span>
               )}
             </div>
-            <span className="stat-figure text-[1.75rem] leading-none text-primary">
+            {/* `key`: el brillo vuelve a pasar cada vez que cambia lo que se debe. */}
+            <span key={netTotal} className="cifra-total text-[2rem] leading-none">
               {money(netTotal)}
             </span>
           </div>

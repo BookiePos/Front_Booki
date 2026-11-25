@@ -50,7 +50,7 @@ import { Segmented } from "@/components/ui/segmented"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useConfirm } from "@/components/ui/confirm-dialog"
 import { Separator } from "@/components/ui/separator"
-import { cn } from "@/lib/utils"
+import { cn, contar } from "@/lib/utils"
 import { useLoadEffect } from "@/hooks/use-load-effect"
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -256,7 +256,7 @@ export default function PosPage() {
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-14 text-center">
             <ShieldOff className="size-10 text-muted-foreground" />
-            <p className="font-display text-lg text-foreground">Sin acceso</p>
+            <p className="text-[15px] font-semibold text-foreground">Sin acceso</p>
             <p className="max-w-xs text-sm text-muted-foreground">
               No tienes permiso para vender en el punto de venta. Contacta al
               administrador del sistema.
@@ -306,7 +306,7 @@ export default function PosPage() {
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-14 text-center">
             <MapPin className="size-10 text-muted-foreground" />
-            <p className="font-display text-lg text-foreground">
+            <p className="text-[15px] font-semibold text-foreground">
               Sin sede asignada
             </p>
             <p className="max-w-xs text-sm text-muted-foreground">
@@ -390,7 +390,7 @@ export default function PosPage() {
                         {p.sku}
                       </span>
                       <span className="mt-1 flex w-full items-center justify-between">
-                        <span className="font-display text-lg">
+                        <span className="text-[15px] font-semibold">
                           {money.format(p.salePrice)}
                         </span>
                         <Badge
@@ -413,10 +413,10 @@ export default function PosPage() {
             <CardContent className="flex flex-col gap-3 p-4">
               <div className="flex items-center gap-2">
                 <ShoppingCart className="size-5 text-muted-foreground" />
-                <p className="font-display text-lg">Cuenta</p>
+                <p className="text-[15px] font-semibold">Cuenta</p>
                 {cart.length > 0 && (
                   <Badge variant="secondary" className="ml-auto">
-                    {cart.reduce((s, i) => s + i.qty, 0)} ítem(s)
+                    {contar(cart.reduce((s, i) => s + i.qty, 0), "producto")}
                   </Badge>
                 )}
               </div>
@@ -483,7 +483,7 @@ export default function PosPage() {
                 <span className="text-sm">{money.format(total)}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="font-display text-lg">Total</span>
+                <span className="text-[15px] font-semibold">Total</span>
                 <span className="font-display text-2xl">
                   {money.format(total)}
                 </span>

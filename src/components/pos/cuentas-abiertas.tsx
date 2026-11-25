@@ -1,5 +1,6 @@
 "use client"
 
+import { contar } from "@/lib/utils"
 import * as React from "react"
 import { ShoppingCart, Plus, ClipboardList } from "lucide-react"
 import { type Sede } from "@/lib/pos/api-inventory"
@@ -68,7 +69,7 @@ export function CuentasAbiertas({
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
             <ClipboardList className="size-10 text-muted-foreground" />
-            <p className="font-display text-lg">No hay cuentas abiertas</p>
+            <p className="text-[15px] font-semibold">No hay cuentas abiertas</p>
             <p className="max-w-sm text-sm text-muted-foreground">
               Todo está cobrado. Usa <strong>Vender</strong> para una venta
               normal, o abre una cuenta si necesitas dejar el consumo de una
@@ -92,13 +93,13 @@ export function CuentasAbiertas({
                   <span className="min-w-0 flex-1 truncate font-medium">
                     {o.label?.trim() || o.orderNumber}
                   </span>
-                  <Badge variant="secondary">{count} ítem(s)</Badge>
+                  <Badge variant="secondary">{contar(count, "producto")}</Badge>
                 </div>
                 <div className="flex items-end justify-between gap-2">
                   <span className="font-mono text-xs text-muted-foreground">
                     {o.orderNumber}
                   </span>
-                  <span className="font-display text-lg">
+                  <span className="text-[15px] font-semibold">
                     {money(oTotal)}
                   </span>
                 </div>

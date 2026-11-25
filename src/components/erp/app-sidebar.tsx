@@ -5,6 +5,7 @@ import * as React from "react"
 import { BookiPosMark } from "@/components/marketing/bookipos-logo"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
+import { ChevronDown } from "lucide-react"
 
 import { actorSeesAllSedes } from "@/lib/access"
 import { useAuth } from "@/lib/auth-context"
@@ -15,7 +16,6 @@ import {
   SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
@@ -31,9 +31,24 @@ import {
  */
 const ZONE_ROOT = "/panel"
 
-function isActivePath(pathname: string, href: string) {
-  if (href === ZONE_ROOT) return pathname === ZONE_ROOT
+function matches(pathname: string, href: string) {
+  // /panel/hoy es la versión compacta del tablero: enciende "Panel".
+  if (href === ZONE_ROOT) return pathname === ZONE_ROOT || pathname === `${ZONE_ROOT}/hoy`
   return pathname === href || pathname.startsWith(href + "/")
+}
+
+/**
+ * El único destino activo: el más específico que coincide. Comparar solo por
+ * prefijo encendía dos a la vez cuando un destino cuelga de otro
+ * (/panel/compras/facturas encendía también "Compras", y
+ * /panel/clientes/directorio también "Clientes (CxC)").
+ */
+function activeHref(pathname: string, hrefs: string[]): string | null {
+  let best: string | null = null
+  for (const href of hrefs) {
+    if (matches(pathname, href) && (!best || href.length > best.length)) best = href
+  }
+  return best
 }
 
 /** Rótulo del giro bajo la marca (Panel · Restaurante / Panel · Tienda). */
@@ -76,7 +91,11 @@ export function AppSidebar() {
   // página recién cargada y había que cerrarla con el backdrop. Se cierra solo
   // en móvil; en escritorio `setOpenMobile(false)` es inocuo pero innecesario.
   const { isMobile, setOpen, setOpenMobile } = useSidebar()
-  const closeOnMobileNav = () => {
+  // El destino pulsado se marca al instante, sin esperar a que cargue la
+  // página: si no, el clic parece no haber hecho nada durante la navegación.
+  const [pulsado, setPulsado] = React.useState<{ href: string; desde: string } | null>(null)
+  const irA = (href: string) => {
+    setPulsado({ href, desde: pathname })
     if (isMobile) setOpenMobile(false)
   }
 
@@ -101,24 +120,29 @@ export function AppSidebar() {
     hasFeature,
     user ? actorSeesAllSedes(user) : undefined,
   )
+  const llegado = activeHref(pathname, [
+    dashboardItem.href,
+    ...navSections.flatMap((s) => s.items.map((i) => i.href)),
+  ])
+  // Vale solo mientras la ruta no cambie: al llegar manda la ruta real.
+  const active = pulsado && pulsado.desde === pathname ? pulsado.href : llegado
   const brandCaption = tipoNegocio
     ? BUSINESS_LABEL[tipoNegocio]
     : "Panel operativo"
 
-  // Ítem activo: píldora violeta sólida, no una barrita de 3px. En una lista
-  // de 27 destinos, un indicador de bajo contraste obliga a buscar dónde
-  // estás; el relleno se ve de reojo. Filas de 40px (antes 36) para que la
-  // navegación respire, que es media gracia de lo cómodo que se siente Alegra.
+  // Ítem activo (sistema "Libro"): un velo violeta plano con la letra y el
+  // icono en violeta. Sin degradado, sin brillo y sin sombra: se ve dónde
+  // estás sin que el menú le grite al contenido. Filas de 32 px: caben los 8 grupos.
   const itemClass =
-    "relative h-10 rounded-xl text-[13px] font-normal text-sidebar-foreground " +
-    "transition-colors duration-150 " +
-    "group-data-[collapsible=icon]:!size-10 " +
+    "relative h-8 rounded-lg text-[13.5px] font-normal text-sidebar-foreground " +
+    "transition-colors duration-100 " +
+    "group-data-[collapsible=icon]:!size-8 " +
+    "[&_svg]:size-[17px] [&_svg]:text-muted-foreground " +
     "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground " +
-    "[&[data-active]]:bg-primary [&[data-active]]:font-medium " +
-    "[&[data-active]]:text-primary-foreground " +
-    "[&[data-active]]:shadow-[0_6px_16px_-8px_var(--primary)] " +
-    "[&[data-active]]:hover:bg-primary [&[data-active]]:hover:text-primary-foreground " +
-    "[&[data-active]]:[&_svg]:text-primary-foreground"
+    "[&[data-active]]:bg-[color-mix(in_oklch,var(--primary)_11%,transparent)] " +
+    "[&[data-active]]:font-medium [&[data-active]]:text-primary " +
+    "[&[data-active]]:hover:bg-[color-mix(in_oklch,var(--primary)_15%,transparent)] " +
+    "[&[data-active]]:hover:text-primary [&[data-active]]:[&_svg]:text-primary"
 
   return (
     <Sidebar collapsible="icon">
@@ -130,27 +154,27 @@ export function AppSidebar() {
           <BookiPosMark className="size-7 shrink-0" />
 
           <div className="grid leading-tight group-data-[collapsible=icon]:hidden">
-            <span className="font-display text-[15px] leading-tight text-sidebar-foreground">
+            <span className="text-[14px] font-semibold leading-tight text-foreground">
               BookiPos
             </span>
-            <span className="text-[11px] tracking-wide text-muted-foreground uppercase">
+            <span className="text-[12px] text-muted-foreground">
               {brandCaption}
             </span>
           </div>
         </div>
       </SidebarHeader>
 
-      <SidebarContent data-tour="menu" className="gap-0.5">
+      <SidebarContent data-tour="menu" className="gap-0 px-1">
         {/* Panel — ítem suelto arriba */}
-        <SidebarGroup className="py-1">
+        <SidebarGroup className="py-1 pb-2">
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
                 <SidebarMenuButton
                   className={itemClass}
-                  isActive={isActivePath(pathname, dashboardItem.href)}
+                  isActive={active === dashboardItem.href}
                   tooltip={dashboardItem.title}
-                  onClick={closeOnMobileNav}
+                  onClick={() => irA(dashboardItem.href)}
                   render={<Link href={dashboardItem.href} />}
                 >
                   <dashboardItem.icon />
@@ -162,29 +186,26 @@ export function AppSidebar() {
         </SidebarGroup>
 
         {navSections.map((section) => (
-          <SidebarGroup key={section.label} className="py-1">
-            <SidebarGroupLabel className="px-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/70">
-              {section.label}
-            </SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {section.items.map((item) => (
-                  <SidebarMenuItem key={item.href}>
-                    <SidebarMenuButton
-                      className={itemClass}
-                      isActive={isActivePath(pathname, item.href)}
-                      tooltip={item.title}
-                      onClick={closeOnMobileNav}
-                      render={<Link href={item.href} />}
-                    >
-                      <item.icon />
-                      <span>{item.title}</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
+          <NavGroup
+            key={section.label}
+            label={section.label}
+            containsActive={section.items.some((i) => i.href === active)}
+          >
+            {section.items.map((item) => (
+              <SidebarMenuItem key={item.href}>
+                <SidebarMenuButton
+                  className={itemClass}
+                  isActive={active === item.href}
+                  tooltip={item.title}
+                  onClick={() => irA(item.href)}
+                  render={<Link href={item.href} />}
+                >
+                  <item.icon />
+                  <span>{item.title}</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            ))}
+          </NavGroup>
         ))}
       </SidebarContent>
 
@@ -207,5 +228,110 @@ export function AppSidebar() {
         </div>
       </SidebarFooter>
     </Sidebar>
+  )
+}
+
+/**
+ * Grupos que quien usa el menú dejó abiertos (por dispositivo). De entrada
+ * solo está abierto "Vender": con los 8 grupos abiertos el menú no cabe en
+ * pantalla, que era justo la queja.
+ */
+const ABIERTOS_KEY = "bookipos.menu.abiertos"
+const ABIERTOS_DE_ENTRADA = ["Vender"]
+
+const EVENTO_MENU = "bookipos:menu-abiertos"
+
+function leerAbiertos(raw: string | null): string[] {
+  try {
+    return raw ? (JSON.parse(raw) as string[]) : ABIERTOS_DE_ENTRADA
+  } catch {
+    return ABIERTOS_DE_ENTRADA
+  }
+}
+
+function suscribirMenu(cb: () => void) {
+  window.addEventListener("storage", cb)
+  window.addEventListener(EVENTO_MENU, cb)
+  return () => {
+    window.removeEventListener("storage", cb)
+    window.removeEventListener(EVENTO_MENU, cb)
+  }
+}
+
+/**
+ * Lo guardado, leído con `useSyncExternalStore`: en el servidor no hay
+ * `localStorage`, así que allí vale la entrada por defecto y React corrige al
+ * hidratar sin discrepancia (el mismo patrón que el tema).
+ */
+function useAbiertos(): string[] {
+  const raw = React.useSyncExternalStore(
+    suscribirMenu,
+    () => {
+      try {
+        return localStorage.getItem(ABIERTOS_KEY)
+      } catch {
+        return null
+      }
+    },
+    () => null,
+  )
+  return leerAbiertos(raw)
+}
+
+/**
+ * Grupo del menú que se pliega. El grupo de la página actual siempre se ve
+ * abierto: no se esconde dónde estás. La altura se
+ * anima con `grid-template-rows` (0fr → 1fr), que no mide nada en JS.
+ */
+function NavGroup({
+  label,
+  containsActive,
+  children,
+}: {
+  label: string
+  containsActive: boolean
+  children: React.ReactNode
+}) {
+  const abiertos = useAbiertos()
+  const abierto = containsActive || abiertos.includes(label)
+
+  function alternar() {
+    const nuevo = !abierto
+    const lista = abiertos.filter((l) => l !== label)
+    if (nuevo) lista.push(label)
+    try {
+      localStorage.setItem(ABIERTOS_KEY, JSON.stringify(lista))
+    } catch {
+      /* sin almacenamiento: no se recuerda */
+    }
+    window.dispatchEvent(new Event(EVENTO_MENU))
+  }
+
+  return (
+    <SidebarGroup className="py-0.5">
+      <button
+        type="button"
+        onClick={alternar}
+        aria-expanded={abierto}
+        className="flex h-7 w-full items-center justify-between rounded-md px-2 text-[12px] font-medium text-muted-foreground transition-colors hover:text-foreground group-data-[collapsible=icon]:hidden"
+      >
+        {label}
+        <ChevronDown
+          aria-hidden
+          className={`size-3.5 transition-transform duration-200 ease-salida ${abierto ? "" : "-rotate-90"}`}
+        />
+      </button>
+      <div
+        className={`grid transition-[grid-template-rows] duration-200 ease-salida motion-reduce:transition-none group-data-[collapsible=icon]:grid-rows-[1fr] ${
+          abierto ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+        }`}
+      >
+        <div className="min-h-0 overflow-hidden">
+          <SidebarGroupContent>
+            <SidebarMenu className="gap-px pb-1">{children}</SidebarMenu>
+          </SidebarGroupContent>
+        </div>
+      </div>
+    </SidebarGroup>
   )
 }

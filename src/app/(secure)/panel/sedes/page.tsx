@@ -101,7 +101,7 @@ export default function SedesPage() {
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-14 text-center">
             <ShieldOff className="size-10 text-muted-foreground" />
-            <p className="font-display text-lg text-foreground">Sin acceso</p>
+            <p className="text-[15px] font-semibold text-foreground">Sin acceso</p>
             <p className="max-w-xs text-sm text-muted-foreground">
               No tienes permiso para gestionar sedes. Contacta al administrador
               del sistema.
@@ -150,7 +150,7 @@ export default function SedesPage() {
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-14 text-center">
             <Store className="size-10 text-muted-foreground" />
-            <p className="font-display text-lg text-foreground">
+            <p className="text-[15px] font-semibold text-foreground">
               Aún no hay sedes
             </p>
             <p className="max-w-xs text-sm text-muted-foreground">
@@ -195,11 +195,11 @@ export default function SedesPage() {
                 <CardContent className="flex flex-col gap-3 p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-2.5">
-                      <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                      <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
                         <Store className="size-5" />
                       </span>
                       <div className="min-w-0">
-                        <p className="truncate font-display text-base text-foreground">
+                        <p className="truncate text-sm font-semibold text-foreground">
                           {sede.name}
                         </p>
                         <p className="font-mono text-xs text-muted-foreground">

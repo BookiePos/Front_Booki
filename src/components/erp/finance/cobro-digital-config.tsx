@@ -82,7 +82,7 @@ export function CobroDigitalConfig({ sedeId }: { sedeId: string }) {
     <Card>
       <CardContent className="flex flex-col gap-3 py-4">
         <div>
-          <p className="flex items-center gap-2 font-display text-base">
+          <p className="flex items-center gap-2 text-sm font-semibold">
             <QrCode className="size-4" />
             QR o llave Bre-B para cobrar
           </p>

@@ -35,7 +35,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { cn } from "@/lib/utils"
+import { cn, contar } from "@/lib/utils"
 
 const money = new Intl.NumberFormat("es-CO", {
   style: "currency",
@@ -308,7 +308,7 @@ export function PriceListsDialog({
                 )}
                 {l.items.length > 0 && (
                   <span className="text-xs text-muted-foreground">
-                    {l.items.length} precio(s)
+                    {contar(l.items.length, "precio")}
                   </span>
                 )}
               </button>

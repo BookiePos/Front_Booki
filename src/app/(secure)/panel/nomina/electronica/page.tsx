@@ -75,6 +75,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { contar } from "@/lib/utils"
 
 type Variante = "default" | "secondary" | "outline" | "destructive"
 
@@ -222,7 +223,7 @@ export default function NominaElectronicaPage() {
     const sedeEmitir = sedeId
     const periodoEmitir = periodo
     const ok = await confirm({
-      title: `Emitir ${resumen.listo} documento(s) ante la DIAN`,
+      title: `Emitir ${contar(resumen.listo, "documento")} ante la DIAN`,
       description: (
         <>
           Se firmarán y enviarán a la DIAN las nóminas electrónicas de {periodo} de los
@@ -288,7 +289,7 @@ export default function NominaElectronicaPage() {
         <>
           Úsalo para corregir valores o datos del MISMO trabajador y periodo. Se emite ante la
           DIAN una nota de ajuste que reemplaza el documento: lleva el periodo completo
-          recalculado desde las corridas de nómina actuales, no solo la diferencia. El original
+          recalculado desde las nóminas actuales, no solo la diferencia. El original
           queda superado. Si cambió la identidad del trabajador no se puede reemplazar: elimina
           el documento y emite uno nuevo.
         </>
@@ -322,7 +323,7 @@ export default function NominaElectronicaPage() {
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-14 text-center">
             <ShieldOff className="size-10 text-muted-foreground" aria-hidden />
-            <p className="font-display text-lg text-foreground">Sin acceso</p>
+            <p className="text-[15px] font-semibold text-foreground">Sin acceso</p>
             <p className="max-w-xs text-sm text-muted-foreground">
               Necesitas el permiso <code>payroll.einvoice</code>.
             </p>
@@ -340,7 +341,7 @@ export default function NominaElectronicaPage() {
         description="Revisa el mes, emite la nómina electrónica de tus trabajadores ante la DIAN y corrige lo ya aceptado."
       />
 
-      <Card className="mb-4">
+      <Card data-filtros className="mb-4">
         <CardContent className="flex flex-wrap items-end gap-3 py-3">
           <Field id="ne-sede" label="Sede" className="w-56">
             <NativeSelect

@@ -91,7 +91,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { CatalogoEjemplo } from "@/components/onboarding/catalogo-ejemplo"
 import { useConfirm } from "@/components/ui/confirm-dialog"
 import { toast } from "sonner"
-import { cn } from "@/lib/utils"
+import { cn, contar } from "@/lib/utils"
 import { useLoadEffect } from "@/hooks/use-load-effect"
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -1242,7 +1242,7 @@ export default function ProductosPage() {
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-14 text-center">
             <ShieldOff className="size-10 text-muted-foreground" />
-            <p className="font-display text-lg text-foreground">Sin acceso</p>
+            <p className="text-[15px] font-semibold text-foreground">Sin acceso</p>
             <p className="max-w-xs text-sm text-muted-foreground">
               No tienes permiso para ver los productos. Contacta al
               administrador del sistema.
@@ -1320,7 +1320,7 @@ export default function ProductosPage() {
         <Card>
           <CardContent className="flex flex-col items-center gap-3 px-6 py-14 text-center">
             <Boxes className="size-10 text-muted-foreground" aria-hidden />
-            <p className="font-display text-lg text-foreground">
+            <p className="text-[15px] font-semibold text-foreground">
               Antes de vender, hay que tener
             </p>
             <p className="max-w-lg text-sm leading-relaxed text-muted-foreground">
@@ -1359,7 +1359,7 @@ export default function ProductosPage() {
           <div>
             <CardTitle>Productos</CardTitle>
             <CardDescription>
-              {products.length} producto(s) en el catálogo
+              {contar(products.length, "producto")} en el catálogo
             </CardDescription>
           </div>
           <Input
@@ -1378,7 +1378,7 @@ export default function ProductosPage() {
           ) : filtered.length === 0 ? (
             <div className="flex flex-col items-center gap-2 px-6 py-14 text-center">
               <Package className="size-9 text-muted-foreground" aria-hidden />
-              <p className="font-display text-base text-foreground">
+              <p className="text-sm font-semibold text-foreground">
                 {products.length === 0
                   ? "Tienes inventario, pero nada a la venta"
                   : "Ningún producto coincide con la búsqueda"}
@@ -1462,7 +1462,7 @@ export default function ProductosPage() {
                           <SourceBadge type={p.sourceType} />
                         </TableCell>
                       )}
-                      <TableCell className="max-w-64 text-sm text-muted-foreground">
+                      <TableCell className="max-w-64 truncate text-sm text-muted-foreground">
                         {p.sourceType === "inventory" ? (
                           linked ? (
                             <span className="inline-flex flex-wrap items-center gap-1.5">
@@ -1488,7 +1488,7 @@ export default function ProductosPage() {
                           )
                         ) : (
                           <span>
-                            {p.recipe.length} ingrediente(s):{" "}
+                            {contar(p.recipe.length, "ingrediente")}:{" "}
                             {p.recipe
                               .map((l) =>
                                 typeof l.productId === "object"

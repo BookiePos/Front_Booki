@@ -22,9 +22,16 @@ interface Rect {
   height: number
 }
 
-const PADDING = 8
-const BUBBLE_W = 320
-const GAP = 14
+const PADDING = 6
+const BUBBLE_W = 360
+const GAP = 12
+/**
+ * Cuánto se espera a que aparezca lo que el paso quiere resaltar antes de
+ * saltarlo. Tras el rediseño varios pasos apuntaban a botones que ya no
+ * existían y el recorrido se quedaba mostrando una burbuja que hablaba de algo
+ * invisible: era la "traba". Ahora, si no aparece, se pasa al siguiente.
+ */
+const ESPERA_OBJETIVO_MS = 1600
 
 // ─── Componente ─────────────────────────────────────────────────────────────────
 
@@ -40,14 +47,28 @@ export function ProductTour() {
     return []
   }, [guide, isRetail, hasPermission])
   const [index, setIndex] = React.useState(0)
+  /** Hacia dónde se movió el usuario: un paso que falta se salta en ese sentido. */
+  const direccion = React.useRef<1 | -1>(1)
+  const inicioPaso = React.useRef(0)
   const [rect, setRect] = React.useState<Rect | null>(null)
   const bubbleRef = React.useRef<HTMLDivElement>(null)
   const [bubbleH, setBubbleH] = React.useState(180)
 
   // Al abrir (o cambiar de recorrido), arranca desde el principio.
   useResetOnChange(() => {
-    if (tourOpen) setIndex(0)
+    if (tourOpen) {
+      direccion.current = 1
+      setIndex(0)
+    }
   }, [tourOpen, guide])
+
+  const irA = React.useCallback(
+    (destino: number) => {
+      direccion.current = destino < index ? -1 : 1
+      setIndex(Math.max(0, Math.min(destino, steps.length - 1)))
+    },
+    [index, steps.length],
+  )
 
   const step = steps[index]
   const isLast = index === steps.length - 1
@@ -67,6 +88,7 @@ export function ProductTour() {
   React.useEffect(() => {
     if (!tourOpen || !step) return
     let raf = 0
+    inicioPaso.current = performance.now()
 
     function recalc() {
       if (!step.target) {
@@ -105,6 +127,16 @@ export function ProductTour() {
         }
       }
       recalc()
+      // El objetivo no apareció: se salta el paso en vez de dejar una burbuja
+      // suelta. El último paso nunca se salta (es el cierre).
+      if (
+        step.target &&
+        !document.querySelector(`[data-tour="${step.target}"]`) &&
+        performance.now() - inicioPaso.current > ESPERA_OBJETIVO_MS
+      ) {
+        const siguiente = index + direccion.current
+        if (siguiente >= 0 && siguiente < steps.length) setIndex(siguiente)
+      }
     }
 
     raf = window.requestAnimationFrame(recalc)
@@ -125,6 +157,26 @@ export function ProductTour() {
       setBubbleH(bubbleRef.current.offsetHeight)
     }
   }, [index, rect])
+
+  // Teclado: flecha derecha o Enter avanza, flecha izquierda retrocede. Quien
+  // lee una burbuja no tiene por qué buscar el botón con el ratón.
+  React.useEffect(() => {
+    if (!tourOpen || !step) return
+    const alPulsar = (e: KeyboardEvent) => {
+      const enCampo = (e.target as HTMLElement | null)?.closest("input, textarea, select, [contenteditable]")
+      if (enCampo) return
+      if ((e.key === "ArrowRight" || e.key === "Enter") && !step.interactive) {
+        e.preventDefault()
+        if (index === steps.length - 1) finishTour()
+        else irA(index + 1)
+      } else if (e.key === "ArrowLeft" && index > 0) {
+        e.preventDefault()
+        irA(index - 1)
+      }
+    }
+    document.addEventListener("keydown", alPulsar)
+    return () => document.removeEventListener("keydown", alPulsar)
+  }, [tourOpen, step, index, steps.length, irA, finishTour])
 
   // Escape abandona el recorrido.
   //
@@ -193,7 +245,7 @@ export function ProductTour() {
         className={[
           "absolute inset-0",
           interactive ? "pointer-events-none" : "pointer-events-auto",
-          spotlight ? "" : "bg-brand-950/55 dark:bg-navy-950/75 backdrop-blur-[1px]",
+          spotlight ? "" : "bg-[#16141d]/35 dark:bg-black/55",
         ].join(" ")}
       />
 
@@ -202,8 +254,7 @@ export function ProductTour() {
       {spotlight && (
         <div
           className={[
-            "tour-spotlight pointer-events-none absolute rounded-xl ring-2 transition-all duration-300",
-            interactive ? "ring-primary animate-pulse" : "ring-primary/70",
+            "tour-spotlight pointer-events-none absolute rounded-[8px] ring-2 ring-primary transition-[top,left,width,height] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
           ].join(" ")}
           style={{
             ...spotlight,
@@ -215,12 +266,12 @@ export function ProductTour() {
       {/* Burbuja */}
       <div
         ref={bubbleRef}
-        className="pointer-events-auto absolute w-[320px] max-w-[calc(100vw-16px)] rounded-2xl bg-card p-4 shadow-xl"
+        className="pointer-events-auto absolute w-[360px] max-w-[calc(100vw-16px)] rounded-[8px] border border-border bg-card p-5 text-card-foreground shadow-[0_1px_2px_rgba(20,16,30,0.06),0_16px_40px_-12px_rgba(20,16,30,0.28)] transition-[top,left] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none"
         style={bubbleStyle}
       >
         <div className="flex items-start justify-between gap-2">
-          <span className="text-xs font-semibold uppercase tracking-wider text-primary">
-            Paso {index + 1} de {steps.length}
+          <span className="text-[13px] font-medium tabular-nums text-primary">
+            {index + 1} de {steps.length}
           </span>
           <button
             type="button"
@@ -232,10 +283,14 @@ export function ProductTour() {
           </button>
         </div>
 
-        <h3 className="mt-1.5 font-display text-lg text-foreground">
-          {step.title}
-        </h3>
-        <p className="mt-1 text-sm text-muted-foreground">{step.body}</p>
+        {/* key: el texto entra con un fundido corto al cambiar de paso, para
+            que se note que cambió sin que la burbuja salte. */}
+        <div key={index} className="motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200">
+          <h3 className="mt-1 text-[17px] leading-snug font-semibold tracking-[-0.01em] text-balance">
+            {step.title}
+          </h3>
+          <p className="mt-1.5 text-[15px] leading-relaxed text-pretty text-foreground/80">{step.body}</p>
+        </div>
 
         {/* Aviso de acción en pasos interactivos con objetivo visible. */}
         {interactive && rect && (
@@ -245,16 +300,12 @@ export function ProductTour() {
           </p>
         )}
 
-        {/* Puntos de progreso */}
-        <div className="mt-3 flex items-center gap-1.5">
-          {steps.map((_, i) => (
-            <span
-              key={i}
-              className={`h-1.5 rounded-full transition-all ${
-                i === index ? "w-4 bg-primary" : "w-1.5 bg-muted"
-              }`}
-            />
-          ))}
+        {/* Progreso: una barra fina que se llena, no una fila de puntos. */}
+        <div className="mt-4 h-[3px] overflow-hidden rounded-full bg-border" aria-hidden>
+          <div
+            className="h-full rounded-full bg-primary transition-[width] duration-300 ease-out"
+            style={{ width: `${((index + 1) / steps.length) * 100}%` }}
+          />
         </div>
 
         <div className="mt-4 flex items-center justify-between gap-2">
@@ -264,14 +315,14 @@ export function ProductTour() {
             className="text-muted-foreground"
             onClick={finishTour}
           >
-            Omitir
+            Salir
           </Button>
           <div className="flex items-center gap-2">
             {!isFirst && (
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setIndex((i) => Math.max(0, i - 1))}
+                onClick={() => irA(index - 1)}
               >
                 Atrás
               </Button>
@@ -279,7 +330,7 @@ export function ProductTour() {
             {showNext && (
               <Button
                 size="sm"
-                onClick={() => (isLast ? finishTour() : setIndex((i) => i + 1))}
+                onClick={() => (isLast ? finishTour() : irA(index + 1))}
               >
                 {isLast ? "Entendido" : "Siguiente"}
               </Button>

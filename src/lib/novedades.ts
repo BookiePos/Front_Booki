@@ -5,31 +5,39 @@
  * mostrador. Si una función nueva no se anuncia dentro de la aplicación,
  * sencillamente no existe — se queda ahí sin que nadie la encuentre.
  *
- * Hasta la 1.2.0 esto era una sola lista de cinco párrafos en letra pequeña, y
- * el dueño dijo lo que había que oír: en una sola página todo se veía muy
- * pequeño y no se entendía. Una pared de texto no se lee, se cierra. Así que la
- * novedad ya no es una lista: son páginas. Una idea por página, una frase corta
- * por punto, un dibujo que explique el cambio sin tener que leerlo y un botón
- * que lleve directo a la pantalla donde está esa función.
+ * Hasta la 1.5.0 cada página traía un dibujo esquemático, y el dueño fue claro:
+ * parecía a medio construir. Nadie entiende un cambio por un esquema; lo
+ * entiende viéndolo. Desde la 1.6.0 cada página muestra el sistema DE VERDAD:
  *
- * Para anunciar una versión nueva: cambia `NOVEDADES` por la de esa versión y
- * ya. La tarjeta sale sola al iniciar sesión.
+ * - un **video** corto grabado sobre la aplicación real (con datos de prueba),
+ *   donde se ve la función funcionando, o
+ * - un **antes y ahora** que se arrastra para comparar la misma pantalla.
+ *
+ * Los archivos viven en `public/novedades/<versión>/`. Se graban con el stack
+ * local levantado; el guion de grabación y el armado con ffmpeg están descritos
+ * en `public/novedades/README.md`.
+ *
+ * Para anunciar una versión nueva: cambia `NOVEDADES` por la de esa versión,
+ * graba sus clips y ya. La tarjeta sale sola al iniciar sesión.
  */
 
-/** Icono de la cabecera de cada página. El componente decide cuál pinta. */
-export type IconoNovedad = "cobro" | "inventario" | "cifras"
-
-/**
- * Qué esquema se dibuja en la página.
- *
- * Es una palabra y no un dibujo a propósito: este archivo lo edita quien
- * redacta el anuncio de la versión, y aquí no debe haber nada de pintura. El
- * componente traduce la palabra al SVG que le corresponde.
- */
-export type IlustracionNovedad =
-  | "columnas-cobro"
-  | "orden-inventario"
-  | "cifras-claras"
+/** Lo que se ve en la página: el sistema real, nunca un dibujo. */
+export type MediaNovedad =
+  | {
+      tipo: "video"
+      /** MP4 (H.264): lo reproduce cualquier navegador, también el de un celular viejo. */
+      src: string
+      /** Primer cuadro, mientras carga o si la persona pidió menos movimiento. */
+      poster: string
+      /** Qué se ve en el video, para quien no lo ve. */
+      descripcion: string
+    }
+  | {
+      tipo: "comparar"
+      /** Varias pantallas para comparar; la primera es la que abre. */
+      vistas: { nombre: string; antes: string; ahora: string }[]
+      descripcion: string
+    }
 
 export interface PuntoNovedad {
   /** Dónde está, con el nombre que sale en el menú: "Inventario → Conteo". */
@@ -50,8 +58,7 @@ export interface PaginaNovedad {
   titulo: string
   /** Por qué importa, en una frase. Es lo primero que se lee de la página. */
   gancho: string
-  icono: IconoNovedad
-  ilustracion: IlustracionNovedad
+  media: MediaNovedad
   /** Tres como mucho: con cuatro la página vuelve a ser una lista apretada. */
   puntos: PuntoNovedad[]
 }
@@ -66,100 +73,169 @@ export interface Novedad {
   paginas: PaginaNovedad[]
 }
 
+const R = "/novedades/1.6.0"
+
 export const NOVEDADES: Novedad = {
-  version: "1.5.0",
-  fecha: "15 de septiembre de 2026",
-  titulo: "Los empaques, por fin en su sitio",
+  version: "1.6.0",
+  fecha: "noviembre de 2026",
+  titulo: "BookiPos por dentro, de nuevo",
   resumen:
-    "Las bolsas y los vasos ya no están revueltos entre los insumos: tienen sección propia, foto, y en la caja eliges con cuáles sale cada pedido.",
+    "Pantallas más limpias, una caja que se abre contando billetes, el total del cliente imposible de no ver y la nómina por quincenas.",
   paginas: [
     {
-      titulo: "Una sección solo para tus empaques",
-      gancho:
-        "Con foto, porque nadie reconoce una bolsa leyendo “BOL-KRAFT-22”.",
-      icono: "inventario",
-      ilustracion: "orden-inventario",
+      titulo: "Las mismas pantallas, más fáciles de leer",
+      gancho: "Arrastra la línea y compara: así se veía y así se ve ahora.",
+      media: {
+        tipo: "comparar",
+        vistas: [
+          { nombre: "Inicio", antes: `${R}/inicio-antes.webp`, ahora: `${R}/inicio-ahora.webp` },
+          { nombre: "Nómina", antes: `${R}/nomina-antes.webp`, ahora: `${R}/nomina-ahora.webp` },
+          { nombre: "Punto de venta", antes: `${R}/pos-antes.webp`, ahora: `${R}/pos-ahora.webp` },
+        ],
+        descripcion:
+          "Comparación de la pantalla de Inicio, de Nómina y del punto de venta antes y después del cambio.",
+      },
       puntos: [
         {
-          donde: "Inventario → Empaques",
-          texto:
-            "Bolsas, vasos, cajas y cubiertos viven aquí, cada uno con su foto. Se compran y se cuentan como todo lo demás.",
-          ruta: "/panel/inventario",
-          etiquetaRuta: "Ir a Empaques",
+          donde: "Todas las pantallas",
+          texto: "Menos cajas y sombras, letra más clara y cifras alineadas para leer la plata de un vistazo.",
+          ruta: "/panel",
+          etiquetaRuta: "Ir al Inicio",
         },
         {
-          donde: "Inventario → ficha de cualquier insumo",
-          texto:
-            "Toda ficha admite foto ahora, y una casilla “Es un empaque” que lo mueve a esa sección.",
-          ruta: "/panel/inventario",
-          etiquetaRuta: "Abrir Inventario",
+          donde: "Inicio",
+          texto: "Lo que vendiste hoy, en grande, frente al mismo día de la semana pasada.",
         },
         {
-          donde: "Inventario → Empaques",
-          texto:
-            "Si ya tenías bolsas configuradas en las fichas de tus productos, un botón las trae aquí de una vez.",
-          ruta: "/panel/inventario",
-          etiquetaRuta: "Ver cómo quedó",
+          donde: "Tema oscuro",
+          texto: "Para el turno de noche: un gris suave que no cansa, en el panel y en la caja.",
         },
       ],
     },
     {
-      titulo: "En la caja eliges con qué sale el pedido",
-      gancho:
-        "Y el sistema se va acordando de con qué sueles despachar cada cosa.",
-      icono: "cobro",
-      ilustracion: "columnas-cobro",
+      titulo: "Siempre sabes en qué parte estás",
+      gancho: "El menú marca tu sección en morado y cada sección tiene su propio fondo.",
+      media: {
+        tipo: "video",
+        src: `${R}/fondo.mp4`,
+        poster: `${R}/fondo.jpg`,
+        descripcion:
+          "Se pasa del Inicio a Inventario y a Gastos desde el menú: la opción elegida queda en morado y las manchas suaves del fondo cambian de lugar.",
+      },
       puntos: [
         {
-          donde: "Terminal → Cobrar → Empaques",
-          texto:
-            "Marcas las bolsas con su foto, o dejas el pedido sin ninguna. Lo que quede marcado es lo que baja del inventario.",
-          ruta: "/pos",
-          etiquetaRuta: "Ir al terminal",
+          donde: "Menú de la izquierda",
+          texto: "La opción que eliges queda en morado apenas le das clic, sin esperar a que cargue.",
+          ruta: "/panel",
+          etiquetaRuta: "Probar el menú",
         },
         {
-          donde: "Terminal → Cobrar → Empaques",
-          texto:
-            "Abre con lo que usaste las últimas veces que vendiste eso mismo. Si nunca lo has vendido, con lo que diga la ficha.",
-          ruta: "/pos",
-          etiquetaRuta: "Probarlo en una venta",
+          donde: "El fondo",
+          texto: "Unas manchas moradas muy suaves que se mueven al cambiar de sección. Casi no se notan, y así debe ser.",
         },
+      ],
+    },
+    {
+      titulo: "Abrir la caja ya es contar billetes",
+      gancho: "Escribes cuántos billetes de cada uno tienes y el sistema suma por ti.",
+      media: {
+        tipo: "video",
+        src: `${R}/caja.mp4`,
+        poster: `${R}/caja.jpg`,
+        descripcion:
+          "Se abre la caja de la Sede Norte escribiendo la cantidad de billetes de 100.000, 50.000, 20.000 y 10.000; el total se va sumando solo.",
+      },
+      puntos: [
         {
-          donde: "Terminal → el pedido",
-          texto:
-            "Cada línea del pedido muestra la foto del producto, para revisar de un vistazo lo que se está cobrando.",
-          ruta: "/pos",
+          donde: "Terminal → Caja",
+          texto: "Cuenta por billete y moneda, o escribe solo el total si ya lo contaste.",
+          ruta: "/pos/caja",
           etiquetaRuta: "Abrir la caja",
         },
+        {
+          donde: "Terminal → Caja",
+          texto: "Enter pasa al siguiente billete y las flechas suben o bajan de a uno: no hace falta el ratón.",
+        },
+        {
+          donde: "Terminal → Caja",
+          texto: "Te muestra con cuánto cerró el turno anterior y un botón para usar esa misma base.",
+        },
       ],
     },
     {
-      titulo: "Ya sabes cuánto te cuesta cada receta",
-      gancho:
-        "Ingredientes, empaque y mano de obra sumados donde pones el precio.",
-      icono: "cifras",
-      ilustracion: "cifras-claras",
+      titulo: "El total del cliente, imposible de no ver",
+      gancho: "Grande, en morado y con un brillo suave cada vez que cambia.",
+      media: {
+        tipo: "video",
+        src: `${R}/cobro.mp4`,
+        poster: `${R}/cobro.jpg`,
+        descripcion:
+          "Se agregan una hamburguesa, una gaseosa y unas papas al pedido; el total en morado cambia con cada producto.",
+      },
       puntos: [
         {
-          donde: "Productos → ficha con receta",
-          texto:
-            "Escribe en pesos lo que cuesta el trabajo y el empaque de una unidad. Abajo te dice cuánto te cuesta y cuánto ganas, con su color.",
-          ruta: "/panel/productos",
-          etiquetaRuta: "Ver mis productos",
+          donde: "Terminal → Venta",
+          texto: "Cada producto que agregas hace pasar un brillo por el total: sabes que sumó sin mirar dos veces.",
+          ruta: "/pos",
+          etiquetaRuta: "Ir a vender",
         },
         {
-          donde: "Producción → Recetas",
-          texto:
-            "El empaque del lote va en su propia casilla, aparte de la mano de obra: así ves subir la bolsa sin confundirla con el trabajo.",
-          ruta: "/panel/produccion",
-          etiquetaRuta: "Abrir Producción",
+          donde: "Terminal → Cobrar",
+          texto: "Todos los números tienen el mismo ancho: no bailan al cambiar y se leen desde lejos.",
+        },
+      ],
+    },
+    {
+      titulo: "Ahora puedes pagar la nómina por quincenas",
+      gancho: "El 15 pagas la primera mitad, con sus horas extra; el 30, el resto.",
+      media: {
+        tipo: "video",
+        src: `${R}/quincena.mp4`,
+        poster: `${R}/quincena.jpg`,
+        descripcion:
+          "En Nómina se elige pagar por quincenas y aparece la primera quincena de cada trabajador con sus días, sueldo, horas extra, recargos y descuentos.",
+      },
+      puntos: [
+        {
+          donde: "Nómina → Pagar nómina",
+          texto: "El 15: sueldo de esos días, horas extra y recargos de esos turnos, menos salud y pensión.",
+          ruta: "/panel/nomina",
+          etiquetaRuta: "Ir a Nómina",
         },
         {
-          donde: "Producción → Recetas",
-          texto:
-            "Y por fin se pueden editar: cambiar un gramo o un precio ya no obliga a borrar la receta y escribirla otra vez.",
-          ruta: "/panel/produccion",
-          etiquetaRuta: "Editar una receta",
+          donde: "Nómina → Pagar nómina",
+          texto: "El 30: lo que falta del mes, con la retención y los descuentos. Lo de la primera quincena ya viene restado.",
+        },
+        {
+          donde: "Nómina → Pagar nómina",
+          texto: "Puedes pagarle menos de lo calculado a alguien, nunca más. Si te equivocas, la anulas antes de cerrar el mes.",
+        },
+      ],
+    },
+    {
+      titulo: "Los valores de ley de 2026, ya cargados",
+      gancho: "Salario mínimo, auxilio de transporte y recargos, listos y con su norma.",
+      media: {
+        tipo: "video",
+        src: `${R}/valores.mp4`,
+        poster: `${R}/valores.jpg`,
+        descripcion:
+          "En Nómina → Valores de ley se ven el salario mínimo, el auxilio de transporte y los recargos de 2026; al pulsar Cambiar valores aparece un aviso antes de editarlos.",
+      },
+      puntos: [
+        {
+          donde: "Nómina → Valores de ley",
+          texto: "Salario mínimo de $1.750.905 y auxilio de $249.095: los de 2026, ya puestos.",
+          ruta: "/panel/nomina",
+          etiquetaRuta: "Ver los valores",
+        },
+        {
+          donde: "Nómina → Valores de ley",
+          texto: "Antes de cambiar uno te pregunta si estás seguro y te dice cuál es el de ley.",
+        },
+        {
+          donde: "Nómina → Valores de ley",
+          texto: "Los recargos no te dejan quedar por debajo de la ley; por encima sí, si así lo pactaste.",
         },
       ],
     },

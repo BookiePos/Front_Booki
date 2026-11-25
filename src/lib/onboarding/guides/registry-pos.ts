@@ -84,7 +84,7 @@ export const guidesPos: GuideDescriptor[] = [
       {
         target: null,
         title: "¡Listo!",
-        body: "El resumen del día por sede lo ve el administrador en Operación → Caja. Vuelve cuando quieras desde la pestaña Caja.",
+        body: "El resumen del día por sede lo ve el administrador en Vender → Caja. Vuelve cuando quieras desde la pestaña Caja.",
       },
     ],
   },

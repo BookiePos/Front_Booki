@@ -70,6 +70,7 @@ import { Termino } from "@/components/ui/help-tip"
 import { cn } from "@/lib/utils"
 import { useLoadEffect } from "@/hooks/use-load-effect"
 import { useResetOnChange } from "@/hooks/use-reset-on-change"
+import { KpiCelda } from "@/components/ui/kpi"
 
 const ALL = "all"
 
@@ -171,7 +172,7 @@ export default function ClientesPage() {
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-14 text-center">
             <ShieldOff className="size-10 text-muted-foreground" />
-            <p className="font-display text-lg text-foreground">Sin acceso</p>
+            <p className="text-[15px] font-semibold text-foreground">Sin acceso</p>
             <p className="max-w-xs text-sm text-muted-foreground">
               No tienes permiso para ver las cuentas por cobrar.
             </p>
@@ -269,7 +270,7 @@ export default function ClientesPage() {
         </CardContent>
       </Card>
 
-      <Card className="mb-4">
+      <Card data-filtros className="mb-4">
         <CardContent className="flex flex-wrap items-end gap-3 py-4">
           <Field id="cxc-sede" label="Sede" className="w-48">
             <NativeSelect
@@ -396,17 +397,26 @@ export default function ClientesPage() {
               </TableBody>
               <TableFooter>
                 <TableRow>
+                  {/* Una cuenta anulada no suma en nada, y solo las vivas
+                      tienen saldo: antes el pie sumaba el "saldo" de las
+                      anuladas (monto sin abonos) como si se debiera. */}
                   <TableCell colSpan={5} className="font-semibold">
-                    Total ({rows.length})
+                    Total ({rows.filter((r) => r.status !== "void").length})
                   </TableCell>
                   <TableCell className="text-right font-semibold tabular-nums">
-                    {money.format(rows.reduce((s, r) => s + r.amount, 0))}
+                    {money.format(
+                      rows.filter((r) => r.status !== "void").reduce((s, r) => s + r.amount, 0),
+                    )}
                   </TableCell>
                   <TableCell className="text-right font-semibold tabular-nums">
-                    {money.format(rows.reduce((s, r) => s + r.paidAmount, 0))}
+                    {money.format(
+                      rows
+                        .filter((r) => r.status !== "void")
+                        .reduce((s, r) => s + r.paidAmount, 0),
+                    )}
                   </TableCell>
                   <TableCell className="text-right font-semibold tabular-nums">
-                    {money.format(rows.reduce((s, r) => s + saldoOf(r), 0))}
+                    {money.format(rows.filter(isLive).reduce((s, r) => s + saldoOf(r), 0))}
                   </TableCell>
                   {canManage && <TableCell />}
                 </TableRow>
@@ -944,18 +954,5 @@ function Kpi({
   value: string
   danger?: boolean
 }) {
-  return (
-    <Card>
-      <CardContent className="flex flex-col gap-1 py-4">
-        <span className="text-xs text-muted-foreground">{label}</span>
-        <span
-          className={`font-display text-2xl leading-tight ${
-            danger ? "text-destructive" : "text-foreground"
-          }`}
-        >
-          {value}
-        </span>
-      </CardContent>
-    </Card>
-  )
+  return <KpiCelda label={label} value={value} tone={danger ? "negative" : "default"} />
 }

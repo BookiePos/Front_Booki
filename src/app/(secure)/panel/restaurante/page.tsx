@@ -113,11 +113,11 @@ export default function RestaurantePage() {
   if (isRetail) {
     return (
       <>
-        <PageHeader section="Operación" title="Restaurante" />
+        <PageHeader section="Operación" title="Mesas" />
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-14 text-center">
             <UtensilsCrossed className="size-10 text-muted-foreground opacity-50" />
-            <p className="font-display text-lg text-foreground">
+            <p className="text-[15px] font-semibold text-foreground">
               No disponible para tu tipo de negocio
             </p>
             <p className="max-w-xs text-sm text-muted-foreground">
@@ -134,11 +134,11 @@ export default function RestaurantePage() {
   if (!canOperate) {
     return (
       <>
-        <PageHeader section="Operación" title="Restaurante" />
+        <PageHeader section="Operación" title="Mesas" />
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-14 text-center">
             <ShieldOff className="size-10 text-muted-foreground" />
-            <p className="font-display text-lg text-foreground">Sin acceso</p>
+            <p className="text-[15px] font-semibold text-foreground">Sin acceso</p>
             <p className="max-w-xs text-sm text-muted-foreground">
               Necesitas el permiso <code>restaurant.operate</code>.
             </p>
@@ -171,7 +171,7 @@ export default function RestaurantePage() {
     <>
       <PageHeader
         section="Operación"
-        title="Restaurante"
+        title="Mesas"
         description="Salón, mesas y comandas. Precios con INC incluido y propina sugerida del 10 % (rechazable) sobre el consumo."
         actions={
           <div className="flex items-center gap-2">

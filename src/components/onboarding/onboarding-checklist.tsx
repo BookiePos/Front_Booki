@@ -183,7 +183,7 @@ export function OnboardingChecklist() {
             <PartyPopper className="size-5" />
           </span>
           <div className="min-w-0 flex-1">
-            <p className="font-display text-base text-foreground">
+            <p className="text-sm font-semibold text-foreground">
               ¡Listo! Ya diste tus primeros pasos.
             </p>
             <p className="text-sm text-muted-foreground">
@@ -199,17 +199,22 @@ export function OnboardingChecklist() {
   }
 
   return (
-    <Card data-tour="checklist" className="mb-4 border-primary/25">
-      <CardContent className="flex flex-col gap-4 p-5">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="font-display text-lg text-foreground">
-              Primeros pasos
-            </p>
-            <p className="text-sm text-muted-foreground">
-              Deja tu negocio listo para vender. Puedes hacerlos en cualquier
-              orden.
-            </p>
+    <Card data-tour="checklist" className="mb-7 gap-0 py-0">
+      <CardContent className="flex flex-col gap-0 p-0">
+        {/* Una franja y los pasos que faltan: los hechos ya no ocupan una
+            tarjeta verde cada uno, solo cuentan en el progreso. */}
+        <div className="flex items-center justify-between gap-3 border-b border-border/70 px-4 py-2.5">
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            <p className="text-sm font-semibold text-foreground">Primeros pasos</p>
+            <div className="hidden h-1 w-32 overflow-hidden rounded-full bg-muted sm:block">
+              <div
+                className="h-full rounded-full bg-primary transition-[width] duration-500 ease-salida"
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+            <span className="tnum shrink-0 text-[13px] text-muted-foreground">
+              {doneCount} de {total}
+            </span>
           </div>
           <div className="flex shrink-0 items-center gap-1">
             <Button
@@ -233,44 +238,26 @@ export function OnboardingChecklist() {
           </div>
         </div>
 
-        {/* Progreso */}
-        <div className="flex items-center gap-3">
-          <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
-            <div
-              className="h-full rounded-full bg-primary transition-[width] duration-500"
-              style={{ width: `${pct}%` }}
-            />
-          </div>
-          <span className="tnum shrink-0 text-sm font-medium text-muted-foreground">
-            {doneCount}/{total}
-          </span>
-        </div>
-
-        {/* Pasos */}
-        <ul className="flex flex-col gap-2">
-          {steps.map((step) => {
+        <ul className="flex flex-col divide-y divide-border/60">
+          {steps.filter((s) => !isDone(s)).map((step) => {
             const done = isDone(step)
             return (
               <li key={step.id}>
                 <div
-                  className={`flex items-center gap-3 rounded-xl border p-3 transition-colors ${
-                    done
-                      ? "border-success/30 bg-success/5"
-                      : "border-border hover:border-primary/40"
-                  }`}
+                  className="flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-muted/50"
                 >
                   <span
                     className={
                       done
-                        ? "flex size-9 shrink-0 items-center justify-center rounded-lg bg-success/15 text-success-ink [&_svg]:size-5"
-                        : "flex size-9 shrink-0 items-center justify-center rounded-lg bg-accent text-primary [&_svg]:size-4"
+                        ? "flex size-7 shrink-0 items-center justify-center text-success-ink [&_svg]:size-4"
+                        : "flex size-7 shrink-0 items-center justify-center text-muted-foreground [&_svg]:size-4"
                     }
                   >
                     {done ? <CheckCircle2 /> : <step.icon />}
                   </span>
                   <div className="min-w-0 flex-1">
                     <p
-                      className={`text-sm font-semibold ${
+                      className={`text-sm font-medium ${
                         done
                           ? "text-muted-foreground line-through"
                           : "text-foreground"

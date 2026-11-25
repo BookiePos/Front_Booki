@@ -85,6 +85,8 @@ import {
 import { Segmented } from "@/components/ui/segmented"
 import { Termino } from "@/components/ui/help-tip"
 import { useLoadEffect } from "@/hooks/use-load-effect"
+import { KpiCelda } from "@/components/ui/kpi"
+import { contar } from "@/lib/utils"
 
 /** Id del `<form>`: el botón de guardar vive en el pie, fuera del formulario. */
 const DISCOUNT_FORM_ID = "descuento-form"
@@ -137,30 +139,7 @@ function Kpi({
   hint?: string
   tone?: "default" | "warning"
 }) {
-  return (
-    <Card>
-      <CardContent className="flex items-start gap-3 p-4">
-        <span
-          className={
-            tone === "warning"
-              ? "flex size-9 shrink-0 items-center justify-center rounded-lg bg-warning/15 text-warning-ink"
-              : "flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"
-          }
-        >
-          <Icon className="size-5" />
-        </span>
-        <div className="min-w-0">
-          <p className="text-xs text-muted-foreground">{label}</p>
-          <p className="font-display text-xl leading-tight text-foreground">
-            {value}
-          </p>
-          {hint ? (
-            <p className="text-xs text-muted-foreground">{hint}</p>
-          ) : null}
-        </div>
-      </CardContent>
-    </Card>
-  )
+  return <KpiCelda icon={Icon} label={label} value={value} hint={hint} tone={tone === "warning" ? "warning" : "default"} />
 }
 
 // ─── Sheet asignar empleados ───────────────────────────────────────────────────
@@ -535,7 +514,7 @@ export default function SedeDetailPage() {
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-14 text-center">
             <ShieldOff className="size-10 text-muted-foreground" />
-            <p className="font-display text-lg text-foreground">Sin acceso</p>
+            <p className="text-[15px] font-semibold text-foreground">Sin acceso</p>
             <p className="max-w-xs text-sm text-muted-foreground">
               No tienes permiso para gestionar sedes.
             </p>
@@ -681,7 +660,7 @@ export default function SedeDetailPage() {
             icon={Boxes}
             label="Referencias con stock"
             value={nf.format(skusWithStock)}
-            hint={`${stock.length} referencia(s) en total`}
+            hint={`${contar(stock.length, "referencia")} en total`}
           />
           <Kpi
             icon={AlertTriangle}
@@ -701,7 +680,7 @@ export default function SedeDetailPage() {
       {/* ── Ubicación ─────────────────────────────────────────────────────── */}
       <Card className="mt-6">
         <CardHeader>
-          <CardTitle className="font-display text-lg">Ubicación</CardTitle>
+          <CardTitle className="text-[15px] font-semibold">Ubicación</CardTitle>
           <CardDescription>
             {sede?.address
               ? sede.address
@@ -725,7 +704,7 @@ export default function SedeDetailPage() {
       {/* ── Alertas ───────────────────────────────────────────────────────── */}
       <Card className="mt-6">
         <CardHeader>
-          <CardTitle className="font-display text-lg">Notificaciones</CardTitle>
+          <CardTitle className="text-[15px] font-semibold">Notificaciones</CardTitle>
           <CardDescription>
             Stock bajo el mínimo e ingredientes próximos a vencer o vencidos en
             esta sede.
@@ -848,7 +827,7 @@ export default function SedeDetailPage() {
         <CardHeader>
           <div className="flex items-start justify-between gap-3">
             <div>
-              <CardTitle className="font-display text-lg">Descuentos</CardTitle>
+              <CardTitle className="text-[15px] font-semibold">Descuentos</CardTitle>
               <CardDescription>
                 Descuentos de esta sede. Se aplican por producto al vender en el
                 POS.
@@ -887,7 +866,7 @@ export default function SedeDetailPage() {
                   key={d._id}
                   className="flex items-center gap-3 rounded-lg border border-border px-3 py-2.5"
                 >
-                  <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                  <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
                     <Tag className="size-4" />
                   </span>
                   <div className="min-w-0 flex-1">
@@ -942,7 +921,7 @@ export default function SedeDetailPage() {
           <CardHeader>
             <div className="flex items-start justify-between gap-3">
               <div>
-                <CardTitle className="font-display text-lg">Empleados</CardTitle>
+                <CardTitle className="text-[15px] font-semibold">Empleados</CardTitle>
                 <CardDescription>
                   Personas asignadas a operar en esta sede.
                 </CardDescription>

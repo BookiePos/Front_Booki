@@ -128,7 +128,7 @@ export function HelpTip({
           // El icono mide 14 px para no competir con la etiqueta, pero el área
           // pulsable se agranda con un ::after invisible hasta ~24 px, que es
           // el mínimo táctil (WCAG 2.5.8) — y no ocupa sitio en el layout.
-          "relative inline-flex size-3.5 shrink-0 items-center justify-center rounded-full align-middle text-primary/70 outline-none transition-colors after:absolute after:-inset-[5px] after:content-[''] hover:text-primary focus-visible:text-primary focus-visible:ring-2 focus-visible:ring-ring/50",
+          "relative inline-flex size-3.5 shrink-0 items-center justify-center rounded-full align-middle text-muted-foreground/70 outline-none transition-colors after:absolute after:-inset-[5px] after:content-[''] hover:text-foreground focus-visible:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50",
           className,
         )}
       >

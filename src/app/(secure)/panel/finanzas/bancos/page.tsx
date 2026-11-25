@@ -74,6 +74,8 @@ import {
 import { Termino } from "@/components/ui/help-tip"
 import { useLoadEffect } from "@/hooks/use-load-effect"
 import { useResetOnChange } from "@/hooks/use-reset-on-change"
+import { KpiCelda } from "@/components/ui/kpi"
+import { contar } from "@/lib/utils"
 
 /** Medios que pueden auto-alimentar una cuenta (el efectivo vive en la caja del POS). */
 const AUTO_METHODS: AccountAutoKey[] = [
@@ -152,7 +154,7 @@ export default function BancosPage() {
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-14 text-center">
             <ShieldOff className="size-10 text-muted-foreground" />
-            <p className="font-display text-lg text-foreground">Sin acceso</p>
+            <p className="text-[15px] font-semibold text-foreground">Sin acceso</p>
             <p className="max-w-xs text-sm text-muted-foreground">
               No tienes permiso para ver las cuentas.
             </p>
@@ -226,7 +228,7 @@ export default function BancosPage() {
           icon={Landmark}
           label="Bancos y billeteras"
           value={money.format(accountsBalance)}
-          hint={`${accounts.length} cuenta(s)`}
+          hint={contar(accounts.length, "cuenta")}
         />
       </div>
 
@@ -936,22 +938,5 @@ function Kpi({
   hint?: string
   strong?: boolean
 }) {
-  return (
-    <Card>
-      <CardContent className="flex flex-col gap-1 py-4">
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <Icon className="size-4" />
-          {label}
-        </div>
-        <p
-          className={`font-display leading-tight ${
-            strong ? "text-2xl text-primary" : "text-2xl text-foreground"
-          }`}
-        >
-          {value}
-        </p>
-        {hint && <p className="text-[11px] text-muted-foreground">{hint}</p>}
-      </CardContent>
-    </Card>
-  )
+  return <KpiCelda icon={Icon} label={label} value={value} hint={hint} className={strong ? "[&>span:nth-child(2)]:text-[1.5rem]" : undefined} />
 }

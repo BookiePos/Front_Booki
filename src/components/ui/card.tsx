@@ -34,7 +34,7 @@ function Card({
       data-size={size}
       data-tone={tone}
       className={cn(
-        "group/card flex flex-col gap-(--card-spacing) overflow-hidden rounded-2xl border py-(--card-spacing) text-sm text-card-foreground shadow-sm",
+        "group/card flex flex-col gap-(--card-spacing) overflow-hidden rounded-2xl border py-(--card-spacing) text-sm text-card-foreground",
         "[--card-spacing:--spacing(5)] has-data-[slot=card-footer]:pb-0 has-[>img:first-child]:pt-0",
         "data-[size=sm]:[--card-spacing:--spacing(4)] data-[size=sm]:has-data-[slot=card-footer]:pb-0",
         "*:[img:first-child]:rounded-t-2xl *:[img:last-child]:rounded-b-2xl",
@@ -64,7 +64,7 @@ function CardTitle({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="card-title"
       className={cn(
-        "font-display text-[1.0625rem] leading-snug tracking-[-0.01em] text-foreground group-data-[size=sm]/card:text-[0.9375rem]",
+        "text-[0.9375rem] font-semibold leading-snug tracking-[-0.01em] text-foreground group-data-[size=sm]/card:text-sm",
         className
       )}
       {...props}
@@ -110,7 +110,7 @@ function CardFooter({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="card-footer"
       className={cn(
-        "flex items-center rounded-b-2xl border-t bg-muted/40 p-(--card-spacing)",
+        "flex items-center rounded-b-2xl border-t bg-muted/50 p-(--card-spacing)",
         className
       )}
       {...props}

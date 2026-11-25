@@ -1281,7 +1281,7 @@ function InviteDialog({ open, onOpenChange, roles, actor, onSuccess }: InviteDia
             <span className="flex size-11 items-center justify-center rounded-full bg-success/15 text-success-ink">
               <Check className="size-5" />
             </span>
-            <p className="font-display text-base text-foreground">
+            <p className="text-sm font-semibold text-foreground">
               Invitación creada
             </p>
             <p className="max-w-sm text-sm leading-relaxed text-muted-foreground">
@@ -1515,7 +1515,7 @@ export default function UsuariosPage() {
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-14 text-center">
             <ShieldOff className="size-10 text-muted-foreground" />
-            <p className="font-display text-lg text-foreground">Sin acceso</p>
+            <p className="text-[15px] font-semibold text-foreground">Sin acceso</p>
             <p className="max-w-xs text-sm text-muted-foreground">
               No tienes permiso para gestionar usuarios y roles. Contacta al
               administrador del sistema.
@@ -1630,7 +1630,7 @@ export default function UsuariosPage() {
         <div className="flex flex-col gap-6">
         <Card data-tour="usuarios-lista">
           <CardHeader>
-            <CardTitle className="font-display text-lg">Usuarios</CardTitle>
+            <CardTitle className="text-[15px] font-semibold">Usuarios</CardTitle>
             <CardDescription>Cuentas con acceso al BookiPos.</CardDescription>
           </CardHeader>
           <CardContent className="px-0 sm:px-2">
@@ -1720,7 +1720,7 @@ export default function UsuariosPage() {
         {/* Invitaciones pendientes */}
         <Card data-tour="usuarios-invitaciones">
           <CardHeader>
-            <CardTitle className="font-display text-lg">Invitaciones</CardTitle>
+            <CardTitle className="text-[15px] font-semibold">Invitaciones</CardTitle>
             <CardDescription>
               Personas invitadas que aún no han activado su cuenta.
             </CardDescription>
@@ -1822,7 +1822,7 @@ export default function UsuariosPage() {
       {tab === "roles" && (
         <Card>
           <CardHeader>
-            <CardTitle className="font-display text-lg">Roles</CardTitle>
+            <CardTitle className="text-[15px] font-semibold">Roles</CardTitle>
             <CardDescription>
               Define qué puede hacer cada tipo de usuario en el sistema.
             </CardDescription>
@@ -1849,7 +1849,7 @@ export default function UsuariosPage() {
                   >
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-display text-base font-medium text-foreground">
+                        <span className="text-sm font-semibold font-medium text-foreground">
                           {r.name}
                         </span>
                         {r.isSystem && (

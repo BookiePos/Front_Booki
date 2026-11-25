@@ -1,3 +1,4 @@
+import { contar } from "@/lib/utils"
 import { ShoppingCart, Tag } from "lucide-react"
 import { pendingTotal, type Order, type Discount } from "@/lib/pos/api-sales"
 import { money, qty as fmtQty } from "@/lib/pos/format"
@@ -39,7 +40,7 @@ export function CobroColumnaDetalle({
     <CheckoutColumn
       title="Qué estás cobrando"
       icon={ShoppingCart}
-      hint={`${itemCount} ítem(s)`}
+      hint={contar(itemCount, "producto")}
       className="max-lg:order-2 max-lg:border-t max-lg:border-border"
       footer={
         <div className="flex flex-col gap-1.5">

@@ -1,129 +1,57 @@
 import { cn } from "@/lib/utils"
-import { dashboardItem, navSections } from "@/lib/erp/navigation"
 import { HelpTip, type HelpTipProps } from "@/components/ui/help-tip"
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb"
 
 /**
- * Icono de cada módulo, tomado del propio menú lateral.
+ * Cabecera de página del panel (sistema "Libro").
  *
- * Se saca de `navigation.ts` en vez de pedírselo a cada página por un motivo
- * práctico: así el icono de la cabecera y el del menú NO pueden divergir. Si
- * mañana Inventario cambia de icono, cambia en los dos sitios a la vez, y
- * ninguna de las treinta páginas del panel tiene que enterarse.
+ * Una sola fila: título a la izquierda, acciones a la derecha. Antes eran
+ * cuatro pisos —migas, recuadro con icono, título de 32 px y un párrafo de dos
+ * o tres renglones— que se comían 150 px de cada página antes del primer dato
+ * y repetían lo que ya dice el menú. Ahora la página empieza con su contenido.
  *
- * El mapa guarda ELEMENTOS ya construidos, no componentes. Construirlos aquí,
- * una sola vez al cargar el módulo, evita que el tipo del JSX salga de una
- * búsqueda hecha durante el render —lo que reinicia el estado del componente en
- * cada pintado y que la regla `no-create-components-during-render` marca con
- * razón.
- */
-const ICON_NODES = new Map(
-  [dashboardItem, ...navSections.flatMap((s) => s.items)].map((item) => [
-    item.title.toLowerCase(),
-    <item.icon key={item.title} className="size-5.5" aria-hidden />,
-  ]),
-)
-
-/**
- * Cabecera de página del panel.
+ * La explicación no se pierde: pasa a la interrogación junto al título, que es
+ * donde la busca quien no sabe qué está mirando, y deja de estorbar a quien
+ * entra a diario.
  *
- * Tres niveles de jerarquía y no dos: rastro de migas (dónde estoy), título
- * (qué es esto) y subtítulo (para qué sirve). El subtítulo se lee de verdad
- * —está en el ancho de una columna de texto, no estirado a toda la pantalla—
- * porque en la mitad de los módulos es lo único que explica el modelo mental
- * del sistema.
- *
- * El icono no es adorno: es lo que hace reconocible la pantalla de un vistazo
- * cuando se salta entre Inventario, Producción y Productos, que de otro modo
- * se ven iguales.
- *
- * La botonera envuelve en varias filas en cuanto no cabe. Antes era un `flex`
- * sin `wrap` y en un móvil los seis botones de Inventario se salían de la
- * pantalla por la derecha, sin scroll que los alcanzara.
+ * `section` e `icon` se aceptan por compatibilidad con las ~40 páginas que
+ * los pasan, pero ya no se pintan: el menú lateral ya dice dónde estás.
  */
 export function PageHeader({
   title,
   titleHelp,
   description,
-  section,
-  icon: Icon,
   actions,
   className,
 }: {
   title: string
-  /**
-   * Interrogación junto al título, para el módulo cuyo propio nombre es el
-   * término raro: "Kárdex", "CxP", "P&L". Es el primer sitio donde alguien se
-   * pregunta qué está mirando.
-   */
+  /** Interrogación junto al título para un término raro ("Kárdex", "P&L"). */
   titleHelp?: HelpTipProps
-  /**
-   * Acepta nodos y no solo texto: es lo que permite envolver el vocabulario
-   * difícil del subtítulo en `<Termino>` sin duplicar la cabecera.
-   */
+  /** Se muestra dentro de la interrogación del título, no debajo. */
   description?: React.ReactNode
+  /** @deprecated El menú lateral ya dice la sección. */
   section?: string
-  /** Se toma del menú lateral si no se pasa; `null` lo quita del todo. */
+  /** @deprecated La cabecera ya no lleva icono. */
   icon?: React.ElementType | null
   actions?: React.ReactNode
   className?: string
 }) {
-  const iconNode =
-    Icon === null ? null : Icon ? (
-      <Icon className="size-5.5" aria-hidden />
-    ) : (
-      (ICON_NODES.get(title.trim().toLowerCase()) ?? null)
-    )
+  const help: HelpTipProps | undefined =
+    titleHelp ?? (description ? { title, children: description } : undefined)
 
   return (
     <div
       className={cn(
-        "mb-6 flex flex-col gap-4 border-b border-border/70 pb-5 lg:flex-row lg:items-end lg:justify-between lg:gap-6",
+        "mb-6 flex min-h-9 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6",
         className,
       )}
     >
-      <div className="min-w-0">
-        <Breadcrumb className="mb-2.5">
-          <BreadcrumbList>
-            <BreadcrumbItem>{section ?? "BookiPos"}</BreadcrumbItem>
-            <BreadcrumbSeparator />
-            <BreadcrumbItem>
-              <BreadcrumbPage>{title}</BreadcrumbPage>
-            </BreadcrumbItem>
-          </BreadcrumbList>
-        </Breadcrumb>
-
-        <div className="flex items-center gap-3">
-          {iconNode && (
-            <span className="grid size-11 shrink-0 place-items-center rounded-2xl border border-primary/20 bg-primary/10 text-primary shadow-xs">
-              {iconNode}
-            </span>
-          )}
-          <h1 className="flex items-center gap-2 font-display text-[1.75rem] leading-tight tracking-[-0.02em] text-foreground sm:text-[2rem]">
-            {title}
-            {titleHelp && (
-              <HelpTip {...titleHelp} side="bottom" className="mt-1 size-4" />
-            )}
-          </h1>
-        </div>
-
-        {description ? (
-          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-            {description}
-          </p>
-        ) : null}
-      </div>
+      <h1 className="flex min-w-0 items-center gap-2 text-[1.375rem] leading-tight font-semibold tracking-[-0.02em] text-foreground">
+        <span className="truncate">{title}</span>
+        {help && <HelpTip {...help} side="bottom" className="size-4" />}
+      </h1>
 
       {actions ? (
-        <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-          {actions}
-        </div>
+        <div className="flex flex-wrap items-center gap-2 sm:justify-end">{actions}</div>
       ) : null}
     </div>
   )

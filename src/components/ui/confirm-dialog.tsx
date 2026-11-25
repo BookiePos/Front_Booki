@@ -70,7 +70,7 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
           <DialogPrimitive.Popup
             className={cn(
               "fixed top-1/2 left-1/2 z-50 w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 -translate-y-1/2",
-              "rounded-xl border border-border bg-popover p-5 text-popover-foreground shadow-lg",
+              "rounded-lg border border-border bg-popover p-5 text-popover-foreground shadow-lg",
               "transition duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0",
               "data-ending-style:scale-95 data-starting-style:scale-95",
             )}

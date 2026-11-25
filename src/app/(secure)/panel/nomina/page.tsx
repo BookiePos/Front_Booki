@@ -28,8 +28,9 @@ import { listEmployees, type Employee } from "@/lib/erp/api-employees"
 import {
   getPayrollSettings,
   updatePayrollSettings,
+  getValoresLey,
+  type ValoresLey,
   respuestaExoneracion,
-  exoneracionSiCambio,
   previewPayroll,
   createPayrollRun,
   listPayrollRuns,
@@ -85,6 +86,12 @@ import { FormDialog, FormAlert } from "@/components/ui/form-dialog"
 import { Termino } from "@/components/ui/help-tip"
 import { useLoadEffect } from "@/hooks/use-load-effect"
 import { useResetOnChange } from "@/hooks/use-reset-on-change"
+import { KpiCelda } from "@/components/ui/kpi"
+import { ValoresLeyNomina } from "@/components/nomina/valores-ley"
+import { PrimeraQuincena } from "@/components/nomina/primera-quincena"
+import { Segmented } from "@/components/ui/segmented"
+import { CampoNomina } from "@/components/nomina/campo"
+import { MoneyInput } from "@/components/ui/money-input"
 
 const money = new Intl.NumberFormat("es-CO", {
   style: "currency",
@@ -128,6 +135,7 @@ export default function NominaPage() {
   const [employees, setEmployees] = React.useState<Employee[]>([])
   const [sedes, setSedes] = React.useState<Sede[]>([])
   const [runs, setRuns] = React.useState<PayrollRun[]>([])
+  const [ley, setLey] = React.useState<ValoresLey | null>(null)
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
 
@@ -136,12 +144,14 @@ export default function NominaPage() {
     setLoading(true)
     setError(null)
     try {
-      const [st, emps, sd, rs] = await Promise.all([
+      const [st, emps, sd, rs, vl] = await Promise.all([
         getPayrollSettings(),
         listEmployees(),
         listSedes(),
         listPayrollRuns(),
+        getValoresLey().catch(() => null),
       ])
+      setLey(vl)
       setSettings(st)
       setEmployees(emps)
       setSedes(sd.filter((s) => s.active))
@@ -173,7 +183,7 @@ export default function NominaPage() {
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-14 text-center">
             <ShieldOff className="size-10 text-muted-foreground" />
-            <p className="font-display text-lg text-foreground">Sin acceso</p>
+            <p className="text-[15px] font-semibold text-foreground">Sin acceso</p>
             <p className="max-w-xs text-sm text-muted-foreground">
               No tienes permiso para gestionar la nómina.
             </p>
@@ -184,13 +194,13 @@ export default function NominaPage() {
   }
 
   const tabs: { key: Tab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
-    { key: "correr", label: "Correr nómina", icon: Play },
-    { key: "novedades", label: "Novedades", icon: CalendarClock },
-    { key: "prestaciones", label: "Prestaciones", icon: PiggyBank },
-    { key: "simulador", label: "Simulador", icon: Calculator },
-    { key: "liquidacion", label: "Liquidación", icon: LogOut },
-    { key: "historial", label: "Historial", icon: History },
-    { key: "parametros", label: "Parámetros", icon: SlidersHorizontal },
+    { key: "correr", label: "Pagar nómina", icon: Play },
+    { key: "novedades", label: "Vacaciones e incapacidades", icon: CalendarClock },
+    { key: "prestaciones", label: "Prima y cesantías", icon: PiggyBank },
+    { key: "liquidacion", label: "Liquidación por retiro", icon: LogOut },
+    { key: "simulador", label: "Calculadora", icon: Calculator },
+    { key: "historial", label: "Nóminas anteriores", icon: History },
+    { key: "parametros", label: "Valores de ley", icon: SlidersHorizontal },
   ]
 
   return (
@@ -201,10 +211,9 @@ export default function NominaPage() {
         titleHelp={{ term: "nomina" }}
         description={
           <>
-            El pago del período con todo lo que lo acompaña:{" "}
-            <Termino>devengado</Termino>, <Termino>deducciones</Termino>,{" "}
-            <Termino term="netoPagar">neto a pagar</Termino> y los aportes a la{" "}
-            <Termino>PILA</Termino>, según la normativa laboral colombiana.
+            El pago de tus trabajadores con todo lo que exige la ley colombiana:
+            sueldo, horas extra y recargos, lo que se les descuenta de salud y
+            pensión, y lo que la empresa aporta a la <Termino>PILA</Termino>.
           </>
         }
       />
@@ -215,7 +224,7 @@ export default function NominaPage() {
           return (
             <Button
               key={t.key}
-              variant={tab === t.key ? "default" : "outline"}
+              variant={tab === t.key ? "secondary" : "ghost"}
               size="sm"
               className="gap-1.5"
               onClick={() => setTab(t.key)}
@@ -245,6 +254,9 @@ export default function NominaPage() {
               sedes={sedes}
               employees={employees}
               runs={runs}
+              frecuencia={settings.frecuenciaPago ?? "mensual"}
+              ley={ley}
+              onFrecuencia={(s) => setSettings(s)}
               onRan={() => void refreshRuns()}
             />
           )}
@@ -260,7 +272,7 @@ export default function NominaPage() {
             <Historial runs={runs} onChanged={() => void refreshRuns()} />
           )}
           {tab === "parametros" && (
-            <Parametros settings={settings} onSaved={(s) => setSettings(s)} />
+            <ValoresLeyNomina onSettings={(s) => setSettings(s)} />
           )}
         </>
       ) : null}
@@ -268,19 +280,37 @@ export default function NominaPage() {
   )
 }
 
-// ── Correr nómina ────────────────────────────────────────────────────────────
+// ── Pagar nómina ─────────────────────────────────────────────────────────────
+const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
+function nombreMes(period: string): string {
+  return `${MESES[Number(period.slice(5, 7)) - 1] ?? period} de ${period.slice(0, 4)}`
+}
+
+/**
+ * Pago de la nómina del mes. Con pago quincenal son dos pasos: la primera
+ * quincena (el 15) y la segunda con el cierre del mes (el 30), que liquida todo
+ * el mes y descuenta lo ya pagado. Con pago mensual es solo el segundo.
+ */
 function CorrerNomina({
   sedes,
   employees,
   runs,
+  frecuencia,
+  ley,
+  onFrecuencia,
   onRan,
 }: {
   sedes: Sede[]
   employees: Employee[]
   runs: PayrollRun[]
+  frecuencia: "mensual" | "quincenal"
+  /** Valores de ley vigentes, para avisar de sueldos por debajo del mínimo. */
+  ley?: ValoresLey | null
+  onFrecuencia: (s: PayrollSettings) => void
   onRan: () => void
 }) {
   const { user } = useAuth()
+  const confirm = useConfirm()
   // Quien no ve todas las sedes solo liquida la nómina de una de las suyas: el
   // backend rechaza la consolidada (ítem 3.9).
   const veTodas = user ? actorSeesAllSedes(user) : false
@@ -293,10 +323,12 @@ function CorrerNomina({
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [run, setRun] = React.useState<PayrollRun | null>(null)
-  // Id de la corrida que ya está mostrada (evita recargarla en bucle).
+  const [cambiandoFrecuencia, setCambiandoFrecuencia] = React.useState(false)
+  // Id de la nómina que ya está mostrada (evita recargarla en bucle).
   const shownIdRef = React.useRef<string | null>(null)
+  const quincenal = frecuencia === "quincenal"
 
-  // La corrida más reciente que coincide con lo seleccionado (período +
+  // La nómina más reciente que coincide con lo seleccionado (mes +
   // cobertura + sede). `runs` viene ordenado por fecha desc del backend.
   const targetRun = React.useMemo(
     () =>
@@ -309,19 +341,13 @@ function CorrerNomina({
     [runs, period, coverage, sedeId],
   )
 
-  // Muestra abajo "cómo va" la nómina del período: carga el detalle de la
-  // corrida objetivo (con sus desprendibles) cuando cambia.
+  // Muestra abajo "cómo va" la nómina del mes: carga su detalle (con los
+  // desprendibles) cuando cambia.
   useResetOnChange(() => {
     if (!targetRun) setRun(null)
   }, [targetRun])
 
-  React.useEffect(() => {
-    const id = targetRun?._id ?? null
-    if (id === shownIdRef.current) return
-    if (!id) {
-      shownIdRef.current = null
-      return
-    }
+  const cargarRun = React.useCallback((id: string) => {
     let cancelled = false
     getPayrollRun(id)
       .then((full) => {
@@ -334,7 +360,17 @@ function CorrerNomina({
     return () => {
       cancelled = true
     }
-  }, [targetRun])
+  }, [])
+
+  React.useEffect(() => {
+    const id = targetRun?._id ?? null
+    if (id === shownIdRef.current) return
+    if (!id) {
+      shownIdRef.current = null
+      return
+    }
+    return cargarRun(id)
+  }, [targetRun, cargarRun])
 
   // Empleados que realmente entran a la nómina: activos, con salario y —si la
   // cobertura es por sede— asignados a esa sede. Es lo mismo que exige el backend.
@@ -349,6 +385,31 @@ function CorrerNomina({
     [employees, coverage, sedeId],
   )
   const sedeChosen = coverage === "all" || sedeId !== ""
+  // Sueldos por debajo del mínimo del año: casi siempre es que no se
+  // actualizaron en enero. Se avisa antes de pagar, no después.
+  const smmlv = ley?.enUso.smmlv ?? 0
+  const bajoMinimo = eligible.filter((e) => e.salaryType !== "integral" && (e.salary ?? 0) > 0 && (e.salary ?? 0) < smmlv)
+
+  async function cambiarFrecuencia(v: "mensual" | "quincenal") {
+    if (v === frecuencia) return
+    const ok = await confirm({
+      title: v === "quincenal" ? "¿Pagar por quincenas?" : "¿Pagar una sola vez al mes?",
+      description:
+        v === "quincenal"
+          ? "El 15 pagas la primera quincena: el sueldo de esos días con sus horas extra y recargos, menos salud y pensión. El 30 pagas la segunda, con sus propias horas extra y recargos, la retención y los descuentos del mes. La nómina se sigue liquidando por mes completo, como pide la ley."
+          : "Toda la nómina del mes se paga en un solo pago al final del mes.",
+      confirmLabel: "Sí, cambiar",
+    })
+    if (!ok) return
+    setCambiandoFrecuencia(true)
+    try {
+      onFrecuencia(await updatePayrollSettings({ frecuenciaPago: v }))
+    } catch (err) {
+      setError(errorMessage(err))
+    } finally {
+      setCambiandoFrecuencia(false)
+    }
+  }
 
   async function run_() {
     setBusy(true)
@@ -371,38 +432,42 @@ function CorrerNomina({
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <Card data-tour="nomina-correr">
-        <CardContent className="flex flex-wrap items-end gap-3 py-4">
-          <div className="flex flex-col gap-1">
-            <Label className="text-xs">Período</Label>
+    <div className="flex flex-col gap-6">
+      {/* Qué mes y a quién */}
+      <div className="flex flex-wrap items-end justify-between gap-4" data-tour="nomina-correr">
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="nom-mes" className="text-[13px]">Mes</Label>
             <Input
+              id="nom-mes"
               type="month"
               value={period}
               onChange={(e) => setPeriod(e.target.value)}
               className="w-44"
             />
           </div>
-          <div className="flex flex-col gap-1">
-            <Label className="text-xs">Cobertura</Label>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="nom-quien" className="text-[13px]">¿A quién se le paga?</Label>
             <select
-              className={`${inputClass} w-40`}
+              id="nom-quien"
+              className={`${inputClass} h-9 w-48`}
               value={coverage}
               onChange={(e) => setCoverage(e.target.value as "all" | "sede")}
             >
-              {veTodas && <option value="all">Todos los empleados</option>}
-              <option value="sede">Una sede</option>
+              {veTodas && <option value="all">A toda la empresa</option>}
+              <option value="sede">A una sede</option>
             </select>
           </div>
           {coverage === "sede" && (
-            <div className="flex flex-col gap-1">
-              <Label className="text-xs">Sede</Label>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="nom-sede" className="text-[13px]">Sede</Label>
               <select
-                className={`${inputClass} w-48`}
+                id="nom-sede"
+                className={`${inputClass} h-9 w-48`}
                 value={sedeId}
                 onChange={(e) => setSedeId(e.target.value)}
               >
-                <option value="">Selecciona…</option>
+                <option value="">Elige la sede</option>
                 {sedes.map((s) => (
                   <option key={s._id} value={s._id}>
                     {s.name}
@@ -411,80 +476,164 @@ function CorrerNomina({
               </select>
             </div>
           )}
-          <div className="flex flex-1 flex-col gap-1">
-            <Label className="text-xs">Etiqueta (opcional)</Label>
-            <Input
-              value={label}
-              onChange={(e) => setLabel(e.target.value)}
-              placeholder="Ej. Nómina julio 2026"
-            />
-          </div>
-          <Button
-            className="gap-2"
-            disabled={busy || !sedeChosen || eligible.length === 0}
-            onClick={() => void run_()}
-          >
-            {busy ? <Loader2 className="size-4 animate-spin" /> : <Play className="size-4" />}
-            Generar nómina
-          </Button>
-        </CardContent>
-      </Card>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <span className="text-[13px] font-medium">Se paga</span>
+          <Segmented
+            size="sm"
+            ariaLabel="Cada cuánto se paga"
+            value={frecuencia}
+            onValueChange={(v) => void cambiarFrecuencia(v)}
+            options={[
+              { value: "quincenal", label: "Por quincenas", disabled: cambiandoFrecuencia },
+              { value: "mensual", label: "Una vez al mes", disabled: cambiandoFrecuencia },
+            ]}
+          />
+        </div>
+      </div>
 
-      {/* Aviso: por qué no se puede generar (evita el "no me genera" sin razón). */}
-      {sedeChosen && eligible.length === 0 ? (
-        <div className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/5 px-3 py-2.5 text-sm text-warning-ink">
-          <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+      {bajoMinimo.length > 0 && ley && (
+        <div className="flex items-start gap-2.5 rounded-lg border border-warning/30 bg-warning/[0.07] px-4 py-3 text-sm text-warning-ink">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
           <div>
             <p className="font-medium">
-              No hay empleados para nominar en esta cobertura.
+              {bajoMinimo.length === 1 ? "Un trabajador gana" : `${bajoMinimo.length} trabajadores ganan`} menos que el
+              salario mínimo de {ley.year} ({money.format(smmlv)}).
             </p>
-            <p className="text-warning-ink">
-              Solo se nomina a empleados <span className="font-medium">activos y
-              con salario</span> en su expediente
-              {coverage === "sede" && " y asignados a esta sede"}. Revísalo en{" "}
-              <span className="font-medium">Personal → Empleados</span>.
+            <p className="mt-0.5">
+              {bajoMinimo.map((e) => `${e.firstName} ${e.lastName} (${money.format(e.salary ?? 0)})`).join(", ")}.
+              Si trabajan tiempo completo, súbeles el sueldo en Equipo → Personas antes de pagar: la ley no
+              permite pagar menos del mínimo.
             </p>
           </div>
         </div>
-      ) : (
-        sedeChosen && (
-          <p className="text-sm text-muted-foreground">
-            Se generará la nómina de{" "}
-            <span className="font-medium text-foreground">
-              {eligible.length} empleado{eligible.length !== 1 ? "s" : ""}
-            </span>{" "}
-            (activos y con salario, 30 días).
-          </p>
-        )
       )}
 
-      {error && (
-        <div className="flex items-start gap-2 rounded-lg bg-destructive/10 px-3 py-2.5 text-sm text-destructive">
-          <AlertTriangle className="mt-0.5 size-4 shrink-0" />
-          <span>{error}</span>
-        </div>
+      {quincenal && (
+        <Paso
+          numero={1}
+          titulo="Primera quincena"
+          detalle={`Del 1 al 15 de ${nombreMes(period)} · se paga el 15. Sueldo de esos días, su auxilio de transporte y las horas extra y recargos de esos turnos, menos salud y pensión.`}
+        >
+          <PrimeraQuincena
+            period={period}
+            coverage={coverage}
+            sedeId={coverage === "sede" ? sedeId || undefined : undefined}
+            onCambio={() => {
+              onRan()
+              if (targetRun) cargarRun(targetRun._id)
+            }}
+          />
+        </Paso>
       )}
 
-      <p className="text-xs text-muted-foreground">
-        Para casos con horas extra o novedades usa el{" "}
-        <span className="font-medium">Simulador</span>.
-      </p>
+      <Paso
+        numero={quincenal ? 2 : undefined}
+        titulo={quincenal ? "Segunda quincena y cierre del mes" : `Nómina de ${nombreMes(period)}`}
+        detalle={
+          quincenal
+            ? "Se calcula el mes completo (las horas extra y recargos del 16 en adelante, vacaciones, incapacidades, retención y descuentos) y se resta lo que ya pagaste en la primera quincena. Lo que queda es lo que pagas el 30."
+            : "Se calcula el mes completo: sueldo, horas extra y recargos de los turnos, vacaciones, incapacidades, salud, pensión y retención."
+        }
+      >
+        {!run && (
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="flex min-w-56 flex-1 flex-col gap-1.5">
+              <Label htmlFor="nom-nombre" className="text-[13px]">Nombre (opcional)</Label>
+              <Input
+                id="nom-nombre"
+                value={label}
+                onChange={(e) => setLabel(e.target.value)}
+                placeholder={`Ej.: Nómina de ${nombreMes(period)}`}
+              />
+            </div>
+            <Button
+              className="gap-2"
+              disabled={busy || !sedeChosen || eligible.length === 0}
+              onClick={() => void run_()}
+            >
+              {busy ? <Loader2 className="size-4 animate-spin" /> : <Calculator className="size-4" />}
+              Calcular la nómina del mes
+            </Button>
+          </div>
+        )}
 
-      {run && (
-        <RunDetail
-          run={run}
-          onChanged={(updated) => {
-            shownIdRef.current = updated._id
-            setRun(updated)
-            onRan()
-          }}
-        />
-      )}
+        {/* Por qué no se puede calcular (evita el "no me la calcula" sin razón). */}
+        {!run && sedeChosen && eligible.length === 0 ? (
+          <div className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/5 px-3 py-2.5 text-sm text-warning-ink">
+            <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+            <div>
+              <p className="font-medium">No hay trabajadores para pagar aquí.</p>
+              <p>
+                Solo entran trabajadores <span className="font-medium">activos y
+                con sueldo</span> en su ficha
+                {coverage === "sede" && " y asignados a esta sede"}. Revísalo en{" "}
+                <span className="font-medium">Equipo → Personas</span>.
+              </p>
+            </div>
+          </div>
+        ) : (
+          !run &&
+          sedeChosen && (
+            <p className="text-sm text-muted-foreground">
+              Entran{" "}
+              <span className="font-medium text-foreground">
+                {eligible.length} trabajador{eligible.length !== 1 ? "es" : ""}
+              </span>{" "}
+              activos y con sueldo. Los días se toman de sus turnos.
+            </p>
+          )
+        )}
+
+        {error && (
+          <div className="flex items-start gap-2 rounded-lg bg-destructive/10 px-3 py-2.5 text-sm text-destructive">
+            <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
+
+        {run && (
+          <RunDetail
+            run={run}
+            onChanged={(updated) => {
+              shownIdRef.current = updated._id
+              setRun(updated)
+              onRan()
+            }}
+          />
+        )}
+      </Paso>
     </div>
   )
 }
 
-// ── Detalle de una corrida (totales + tabla + desprendible) ──────────────────
+/** Un paso del pago, con su número y una línea que dice qué se paga en él. */
+function Paso({
+  numero,
+  titulo,
+  detalle,
+  children,
+}: {
+  numero?: number
+  titulo: string
+  detalle: string
+  children: React.ReactNode
+}) {
+  return (
+    <section className="flex flex-col gap-3">
+      <div>
+        <h2 className="flex items-baseline gap-2 text-base font-semibold">
+          {numero !== undefined && <span className="tabular-nums text-muted-foreground">{numero}.</span>}
+          {titulo}
+        </h2>
+        <p className="mt-0.5 max-w-3xl text-sm text-muted-foreground">{detalle}</p>
+      </div>
+      {children}
+    </section>
+  )
+}
+
+// ── Detalle de la nómina del mes (totales + tabla + desprendible) ───────────
 function RunDetail({
   run,
   onChanged,
@@ -502,6 +651,8 @@ function RunDetail({
   const confirm = useConfirm()
 
   const isClosed = run.status === "cerrada"
+  const pagadoQuincena = run.slips.reduce((t, s) => t + (s.pagadoQuincena ?? 0), 0)
+  const hayQuincena = pagadoQuincena > 0
   // Medio y fecha real del pago (nómina electrónica): se declaran al cerrar o después.
   const [medioPago, setMedioPago] = React.useState(run.pago?.medio ?? "")
   const [fechaPago, setFechaPago] = React.useState(run.pago?.fecha ?? "")
@@ -547,10 +698,11 @@ function RunDetail({
   async function handleClose() {
     if (
       !(await confirm({
-        title: `¿Generar el cierre de la nómina de ${run.period}?`,
+        title: `¿Cerrar la nómina de ${nombreMes(run.period)}?`,
         description: pagoCompleto
-          ? "Quedará fija en el historial y no se podrá eliminar."
-          : "Quedará fija en el historial y no se podrá eliminar. No declaraste el medio y la fecha del pago: decláralos después, sin ellos no sale la nómina electrónica del mes.",
+          ? "Queda fija como comprobante del mes y ya no se puede eliminar ni recalcular. Se registra en la contabilidad y la salida de la plata."
+          : "Queda fija como comprobante del mes y ya no se puede eliminar ni recalcular. No dijiste cómo ni qué día pagaste: indícalo después, sin eso no sale la nómina electrónica.",
+        confirmLabel: "Sí, cerrar el mes",
         destructive: true,
       }))
     )
@@ -601,7 +753,7 @@ function RunDetail({
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card px-4 py-3">
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium text-foreground">
-            Nómina {run.period}
+            Nómina de {nombreMes(run.period)}
             {run.label ? ` · ${run.label}` : ""}
           </span>
           <Badge
@@ -611,10 +763,10 @@ function RunDetail({
                 : "bg-warning/10 text-warning-ink"
             }
           >
-            {isClosed ? "Cerrada" : "Borrador"}
+            {isClosed ? "Cerrada" : "Borrador: aún se puede recalcular"}
           </Badge>
           <span className="text-xs text-muted-foreground">
-            {run.slips.length} empleado{run.slips.length !== 1 ? "s" : ""}
+            {run.slips.length} trabajador{run.slips.length !== 1 ? "es" : ""}
           </span>
         </div>
         {isClosed ? (
@@ -632,7 +784,7 @@ function RunDetail({
                 className="gap-2"
                 disabled={recalcing || closing}
                 onClick={() => void handleRecalc()}
-                title="Vuelve a calcular con los consumos aprobados y las horas actuales"
+                title="Vuelve a calcular con los turnos, consumos y ausencias de hoy"
               >
                 {recalcing ? (
                   <Loader2 className="size-4 animate-spin" />
@@ -652,7 +804,7 @@ function RunDetail({
                 ) : (
                   <Lock className="size-4" />
                 )}
-                Generar cierre
+                Cerrar el mes
               </Button>
             </div>
           )
@@ -663,22 +815,24 @@ function RunDetail({
         <Card>
           <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-end">
             <div className="flex-1 space-y-1">
-              <p className="text-sm font-medium">Pago de la nómina</p>
+              <p className="text-sm font-medium">
+                {hayQuincena ? "Pago de la segunda quincena" : "Pago de la nómina"}
+              </p>
               <p className="text-xs text-muted-foreground">
                 {isClosed && run.pago
-                  ? "Declarado. Si ya emitiste la nómina electrónica del mes, al cambiarlo corrígela con una nota de ajuste."
+                  ? "Registrado. Si ya emitiste la nómina electrónica del mes, al cambiarlo corrígela con una nota de ajuste."
                   : "Cómo y qué día pagaste de verdad. Sin estos datos no sale la nómina electrónica del mes."}
               </p>
             </div>
             <div className="space-y-1">
-              <Label htmlFor={`medio-${run._id}`}>Medio</Label>
+              <Label htmlFor={`medio-${run._id}`}>Cómo se pagó</Label>
               <select
                 id={`medio-${run._id}`}
                 className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm sm:w-44"
                 value={medioPago}
                 onChange={(e) => setMedioPago(e.target.value)}
               >
-                <option value="">Sin declarar</option>
+                <option value="">Sin indicar</option>
                 {MEDIOS_PAGO_NOMINA.map((m) => (
                   <option key={m.value} value={m.value}>
                     {m.label}
@@ -687,7 +841,7 @@ function RunDetail({
               </select>
             </div>
             <div className="space-y-1">
-              <Label htmlFor={`fecha-${run._id}`}>Fecha real de pago</Label>
+              <Label htmlFor={`fecha-${run._id}`}>Día del pago</Label>
               <Input
                 id={`fecha-${run._id}`}
                 type="date"
@@ -714,34 +868,43 @@ function RunDetail({
               className={`px-4 pb-3 text-xs ${pagoMsg?.ok ? "text-success-ink" : "text-destructive"}`}
               role="status"
             >
-              {pagoMsg ? pagoMsg.text : "Declara el medio y la fecha, o ninguno de los dos."}
+              {pagoMsg ? pagoMsg.text : "Indica cómo y qué día, o ninguno de los dos."}
             </p>
           )}
         </Card>
       )}
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <Kpi label="Neto a pagar" value={money.format(run.totals.neto)} accent />
-        <Kpi label="Total devengado" value={money.format(run.totals.devengado)} />
-        <Kpi label="Aportes patronales" value={money.format(run.totals.aportes)} />
-        <Kpi label="Costo total" value={money.format(run.totals.costo)} />
+        <Kpi
+          label={hayQuincena ? "Por pagar en la segunda quincena" : "Por pagar a los trabajadores"}
+          value={money.format(run.totals.neto)}
+          accent
+        />
+        {hayQuincena ? (
+          <Kpi label="Ya pagado en la primera quincena" value={money.format(pagadoQuincena)} />
+        ) : (
+          <Kpi label="Lo que ganaron (devengado)" value={money.format(run.totals.devengado)} />
+        )}
+        <Kpi label="Aportes de la empresa" value={money.format(run.totals.aportes)} />
+        <Kpi label="Costo total para la empresa" value={money.format(run.totals.costo)} />
       </div>
 
       <Card>
         <CardContent className="p-0">
           {run.slips.length === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">
-              Sin desprendibles.
+              No hay trabajadores en esta nómina.
             </p>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Empleado</TableHead>
+                  <TableHead>Trabajador</TableHead>
                   <TableHead>Cargo</TableHead>
-                  <TableHead className="text-right">Devengado</TableHead>
-                  <TableHead className="text-right">Deducciones</TableHead>
-                  <TableHead className="text-right">Neto</TableHead>
+                  <TableHead className="text-right">Ganó</TableHead>
+                  <TableHead className="text-right">Descuentos</TableHead>
+                  {hayQuincena && <TableHead className="text-right">1.ª quincena</TableHead>}
+                  <TableHead className="text-right">Por pagar</TableHead>
                   <TableHead className="text-right"></TableHead>
                 </TableRow>
               </TableHeader>
@@ -756,6 +919,11 @@ function RunDetail({
                     <TableCell className="text-right tabular-nums text-muted-foreground">
                       {money.format(s.totalDeducciones)}
                     </TableCell>
+                    {hayQuincena && (
+                      <TableCell className="text-right tabular-nums text-muted-foreground">
+                        {s.pagadoQuincena ? money.format(s.pagadoQuincena) : "—"}
+                      </TableCell>
+                    )}
                     <TableCell className="text-right font-medium tabular-nums">
                       {money.format(s.netoPagar)}
                     </TableCell>
@@ -783,7 +951,7 @@ function RunDetail({
         size="2xl"
         icon={Wallet}
         title={slip?.employeeName ?? "Desprendible"}
-        description={`Desprendible de nómina — período ${run.period}.`}
+        description={`Desprendible de pago de ${nombreMes(run.period)}.`}
         footer={
           <>
             <Button
@@ -816,12 +984,13 @@ function RunDetail({
               breakdown={slip.breakdown}
               otrasDetalle={slip.otrasDeduccionesDetalle}
               alertas={slip.alertas}
+              pagadoQuincena={slip.pagadoQuincena ?? 0}
               header={
                 <div className="invoice-printable mb-2 border-b border-border pb-2 text-sm">
                   <p className="font-semibold">{slip.employeeName}</p>
                   <p className="text-xs text-muted-foreground">
                     {slip.docNumber ? `Doc. ${slip.docNumber} · ` : ""}
-                    {slip.positionName ?? "Sin cargo"} · Salario base{" "}
+                    {slip.positionName ?? "Sin cargo"} · Sueldo{" "}
                     {money.format(slip.salarioBase)}
                   </p>
                 </div>
@@ -935,7 +1104,7 @@ function Simulador({ employees }: { employees: Employee[] }) {
               value={employeeId}
               onChange={(e) => setEmployeeId(e.target.value)}
             >
-              <option value="">— Datos manuales —</option>
+              <option value="">Ningún trabajador: escribo el sueldo</option>
               {withSalary.map((e) => (
                 <option key={e._id} value={e._id}>
                   {e.firstName} {e.lastName} ({money.format(e.salary ?? 0)})
@@ -948,7 +1117,7 @@ function Simulador({ employees }: { employees: Employee[] }) {
             <div className="flex flex-col gap-1 rounded-lg border border-dashed border-border p-2">
               <div className="flex flex-wrap items-end gap-2">
                 <div className="flex flex-col gap-1">
-                  <Label className="text-xs">Período de turnos</Label>
+                  <Label className="text-xs">Mes de los turnos</Label>
                   <Input
                     type="month"
                     value={period}
@@ -968,7 +1137,7 @@ function Simulador({ employees }: { employees: Employee[] }) {
                   ) : (
                     <CalendarClock className="size-4" />
                   )}
-                  Traer horas de Turnos
+                  Traer las horas de sus turnos
                 </Button>
               </div>
               {turnoMsg && (
@@ -980,26 +1149,27 @@ function Simulador({ employees }: { employees: Employee[] }) {
           {!employeeId && (
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
               <div className="col-span-1 flex flex-col gap-1">
-                <Label className="text-xs">Salario base</Label>
-                <Input
-                  type="number"
-                  value={salarioBase}
-                  onChange={(e) => setSalarioBase(e.target.value)}
+                <Label className="text-xs" htmlFor="sim-salario">Sueldo mensual</Label>
+                <MoneyInput
+                  id="sim-salario"
+                  value={salarioBase.trim() === "" ? null : Number(salarioBase)}
+                  onValueChange={(n) => setSalarioBase(n === null ? "" : String(n))}
+                  placeholder="0"
                 />
               </div>
               <div className="flex flex-col gap-1">
-                <Label className="text-xs">Tipo</Label>
+                <Label className="text-xs">Tipo de salario</Label>
                 <select
                   className={inputClass}
                   value={salaryType}
                   onChange={(e) => setSalaryType(e.target.value)}
                 >
-                  <option value="ordinario">Ordinario</option>
-                  <option value="integral">Integral</option>
+                  <option value="ordinario">Normal</option>
+                  <option value="integral">Integral (13 salarios mínimos o más)</option>
                 </select>
               </div>
               <div className="flex flex-col gap-1">
-                <Label className="text-xs">Riesgo ARL</Label>
+                <Label className="text-xs">Nivel de riesgo ARL</Label>
                 <select
                   className={inputClass}
                   value={arl}
@@ -1015,18 +1185,35 @@ function Simulador({ employees }: { employees: Employee[] }) {
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-            <Field label="Días" value={dias} onChange={setDias} />
-            <Field label="H. extra diurna" value={exD} onChange={setExD} />
-            <Field label="H. extra nocturna" value={exN} onChange={setExN} />
-            <Field label="H. recargo nocturno" value={recN} onChange={setRecN} />
-            <Field label="H. dominical/festivo" value={dom} onChange={setDom} />
-            <Field label="H. nocturna dominical" value={ndom} onChange={setNdom} />
-            <Field label="H. extra diurna dom." value={exDdom} onChange={setExDdom} />
-            <Field label="H. extra noct. dom." value={exNdom} onChange={setExNdom} />
-            <Field label="Otras deducciones" value={otras} onChange={setOtras} />
-            <Field label="Bonif. salarial" value={bonoSal} onChange={setBonoSal} />
-            <Field label="Bonif. no salarial" value={bonoNoSal} onChange={setBonoNoSal} />
+          <CampoNomina
+            id="sim-dias"
+            label="Días trabajados en el mes"
+            unidad="dias"
+            value={dias}
+            onChange={setDias}
+            ayuda="El mes de nómina siempre cuenta 30 días, aunque tenga 28 o 31."
+          />
+
+          <div className="flex flex-col gap-3 border-t border-border pt-3">
+            <p className="text-sm font-medium">Horas con recargo en el mes</p>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <CampoNomina id="sim-recn" label="Horas normales de noche" termino="recargoNocturno" unidad="horas" value={recN} onChange={setRecN} ayuda="Dentro de la jornada, de 7 p. m. a 6 a. m." />
+              <CampoNomina id="sim-dom" label="Horas normales en domingo o festivo" termino="dominicales" unidad="horas" value={dom} onChange={setDom} />
+              <CampoNomina id="sim-ndom" label="Horas de noche en domingo o festivo" unidad="horas" value={ndom} onChange={setNdom} />
+              <CampoNomina id="sim-exd" label="Horas extra de día" termino="horasExtra" unidad="horas" value={exD} onChange={setExD} ayuda="Las que pasan de la jornada, de 6 a. m. a 7 p. m." />
+              <CampoNomina id="sim-exn" label="Horas extra de noche" unidad="horas" value={exN} onChange={setExN} />
+              <CampoNomina id="sim-exddom" label="Horas extra de día en domingo o festivo" unidad="horas" value={exDdom} onChange={setExDdom} />
+              <CampoNomina id="sim-exndom" label="Horas extra de noche en domingo o festivo" unidad="horas" value={exNdom} onChange={setExNdom} />
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-3 border-t border-border pt-3">
+            <p className="text-sm font-medium">Otros pagos y descuentos</p>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <CampoNomina id="sim-bonos" label="Bonificación que cuenta como salario" unidad="pesos" value={bonoSal} onChange={setBonoSal} ayuda="Comisiones o bonos habituales. Suman para salud, pensión, prima y cesantías." />
+              <CampoNomina id="sim-bonons" label="Bonificación que no es salario" unidad="pesos" value={bonoNoSal} onChange={setBonoNoSal} ayuda="Un bono ocasional pactado por escrito como no salarial." />
+              <CampoNomina id="sim-otras" label="Otros descuentos" unidad="pesos" value={otras} onChange={setOtras} ayuda="Préstamos, libranzas o consumos que el trabajador autorizó descontar." />
+            </div>
           </div>
 
           <label className="flex items-center gap-2 text-sm">
@@ -1035,13 +1222,13 @@ function Simulador({ employees }: { employees: Employee[] }) {
               checked={dependientes}
               onChange={(e) => setDependientes(e.target.checked)}
             />
-            Deducción por dependientes (retención)
+            Tiene personas a cargo (hijos, padres): baja la retención en la fuente
           </label>
 
           {error && <p className="text-sm text-destructive">{error}</p>}
           <Button className="gap-2" disabled={busy} onClick={() => void calc()}>
             {busy ? <Loader2 className="size-4 animate-spin" /> : <Calculator className="size-4" />}
-            Calcular
+            Calcular el pago
           </Button>
         </CardContent>
       </Card>
@@ -1056,8 +1243,8 @@ function Simulador({ employees }: { employees: Employee[] }) {
                   {result.input.employeeName ?? "Simulación"}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Salario base {money.format(result.input.salarioBase)} ·{" "}
-                  {result.input.salaryType}
+                  Sueldo {money.format(result.input.salarioBase)} ·{" "}
+                  {result.input.salaryType === "integral" ? "salario integral" : "salario normal"}
                 </p>
               </div>
             }
@@ -1067,30 +1254,13 @@ function Simulador({ employees }: { employees: Employee[] }) {
             <CardContent className="flex flex-col items-center gap-2 py-14 text-center">
               <Calculator className="size-9 text-muted-foreground" />
               <p className="max-w-xs text-sm text-muted-foreground">
-                Elige un empleado o ingresa un salario y las novedades, y calcula
-                el desprendible.
+                Calcula cuánto le queda a un trabajador en un mes con horas
+                extra, recargos o bonos, sin guardar nada.
               </p>
             </CardContent>
           </Card>
         )}
       </div>
-    </div>
-  )
-}
-
-function Field({
-  label,
-  value,
-  onChange,
-}: {
-  label: string
-  value: string
-  onChange: (v: string) => void
-}) {
-  return (
-    <div className="flex flex-col gap-1">
-      <Label className="text-xs">{label}</Label>
-      <Input type="number" value={value} onChange={(e) => onChange(e.target.value)} />
     </div>
   )
 }
@@ -1183,7 +1353,7 @@ function Liquidacion({ employees }: { employees: Employee[] }) {
               value={employeeId}
               onChange={(e) => setEmployeeId(e.target.value)}
             >
-              <option value="">— Datos manuales —</option>
+              <option value="">Ningún trabajador: escribo los datos</option>
               {withSalary.map((e) => (
                 <option key={e._id} value={e._id}>
                   {e.firstName} {e.lastName}
@@ -1194,15 +1364,15 @@ function Liquidacion({ employees }: { employees: Employee[] }) {
 
           {!employeeId && (
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-              <Field label="Salario base" value={salarioBase} onChange={setSalarioBase} />
+              <CampoNomina id="liq-salario" label="Sueldo mensual" unidad="pesos" value={salarioBase} onChange={setSalarioBase} />
               <div className="flex flex-col gap-1">
-                <Label className="text-xs">Tipo</Label>
+                <Label className="text-xs">Tipo de salario</Label>
                 <select
                   className={inputClass}
                   value={salaryType}
                   onChange={(e) => setSalaryType(e.target.value)}
                 >
-                  <option value="ordinario">Ordinario</option>
+                  <option value="ordinario">Normal</option>
                   <option value="integral">Integral</option>
                 </select>
               </div>
@@ -1224,7 +1394,7 @@ function Liquidacion({ employees }: { employees: Employee[] }) {
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <div className="flex flex-col gap-1">
               <Label className="text-xs">
-                Inicio {employeeId ? "(vacío = ingreso)" : ""}
+                Fecha de ingreso {employeeId ? "(vacía = la del expediente)" : ""}
               </Label>
               <Input
                 type="date"
@@ -1233,7 +1403,7 @@ function Liquidacion({ employees }: { employees: Employee[] }) {
               />
             </div>
             <div className="flex flex-col gap-1">
-              <Label className="text-xs">Retiro</Label>
+              <Label className="text-xs">Último día de trabajo</Label>
               <Input
                 type="date"
                 value={fechaFin}
@@ -1258,28 +1428,37 @@ function Liquidacion({ employees }: { employees: Employee[] }) {
           </div>
 
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            <Field
-              label="Salarios pendientes"
+            <CampoNomina
+              id="liq-pend"
+              label="Sueldo que se le debe"
+              unidad="pesos"
               value={salariosPend}
               onChange={setSalariosPend}
+              ayuda="Lo trabajado y aún no pagado. Para guardar la liquidación déjalo en 0: el último sueldo va en la nómina del mes."
             />
             {motivo === "sin_justa_causa" && (
-              <Field
-                label="Días faltantes (fijo/obra)"
+              <CampoNomina
+                id="liq-faltantes"
+                label="Días que le faltaban al contrato"
+                unidad="dias"
                 value={diasFaltantes}
                 onChange={setDiasFaltantes}
+                ayuda="Solo para contrato a término fijo u obra: los días entre el despido y la fecha en que terminaba."
               />
             )}
           </div>
 
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            <Field
-              label="Días de vacaciones ya disfrutados (obligatorio para aprobar)"
+            <CampoNomina
+              id="liq-vac"
+              label="Días de vacaciones que ya tomó"
+              unidad="dias"
               value={vacDisfrutadas}
               onChange={setVacDisfrutadas}
+              ayuda="Días hábiles ya disfrutados en todo el contrato. Escribe 0 si nunca tomó. Se necesita para aprobar."
             />
             <div className="flex flex-col gap-1">
-              <Label className="text-xs">Cesantías desde (vacío = 1-ene del año del retiro)</Label>
+              <Label className="text-xs">Cesantías pendientes desde (vacía = 1 de enero de este año)</Label>
               <Input
                 type="date"
                 value={inicioCesantias}
@@ -1330,7 +1509,7 @@ function Liquidacion({ employees }: { employees: Employee[] }) {
               )}
               <div className="mt-2 flex items-baseline justify-between border-t border-border pt-2">
                 <span className="font-semibold">Total a liquidar</span>
-                <span className="font-display text-lg tabular-nums text-primary">
+                <span className="text-[15px] font-semibold tabular-nums text-foreground">
                   {money.format(b.total)}
                 </span>
               </div>
@@ -1352,7 +1531,7 @@ function Liquidacion({ employees }: { employees: Employee[] }) {
                   )}
                   <div className="mt-2 flex items-baseline justify-between rounded-md bg-primary/10 px-3 py-2">
                     <span className="font-semibold">Neto a pagar</span>
-                    <span className="font-display text-xl tabular-nums text-primary">
+                    <span className="text-base font-semibold tabular-nums text-foreground">
                       {money.format(netoLiquidacion(b))}
                     </span>
                   </div>
@@ -1651,7 +1830,7 @@ function Novedades({ employees }: { employees: Employee[] }) {
   }
 
   async function anular(n: PayrollNovedad) {
-    if (!(await confirm({ title: "¿Anular esta novedad?", description: "Si la nómina del mes está en borrador, recalcúlala después.", destructive: true })))
+    if (!(await confirm({ title: "¿Anular este registro?", description: "Si la nómina del mes está en borrador, recalcúlala después.", destructive: true })))
       return
     try {
       const r = await anularNovedad(n._id)
@@ -1670,9 +1849,9 @@ function Novedades({ employees }: { employees: Employee[] }) {
     <div className="grid gap-4 lg:grid-cols-[380px_1fr]">
       <Card>
         <CardContent className="flex flex-col gap-3 py-4">
-          <p className="text-sm font-semibold">Registrar novedad</p>
+          <p className="text-sm font-semibold">Registrar vacaciones, incapacidad o licencia</p>
           <div className="flex flex-col gap-1">
-            <Label className="text-xs" htmlFor="nov-emp">Empleado</Label>
+            <Label className="text-xs" htmlFor="nov-emp">Trabajador</Label>
             <select id="nov-emp" className={inputClass} value={employeeId} onChange={(e) => setEmployeeId(e.target.value)}>
               <option value="">Elige</option>
               {employees.map((e) => (
@@ -1683,7 +1862,7 @@ function Novedades({ employees }: { employees: Employee[] }) {
             </select>
           </div>
           <div className="flex flex-col gap-1">
-            <Label className="text-xs" htmlFor="nov-tipo">Tipo</Label>
+            <Label className="text-xs" htmlFor="nov-tipo">Qué pasó</Label>
             <select id="nov-tipo" className={inputClass} value={tipo} onChange={(e) => setTipo(e.target.value)}>
               {TIPOS_NOVEDAD.map((t) => (
                 <option key={t.value} value={t.value}>
@@ -1698,31 +1877,51 @@ function Novedades({ employees }: { employees: Employee[] }) {
               <Input id="nov-desde" type="date" value={desde} onChange={(e) => setDesde(e.target.value)} />
             </div>
             <div className="flex flex-col gap-1">
-              <Label className="text-xs" htmlFor="nov-hasta">Hasta (incluido)</Label>
+              <Label className="text-xs" htmlFor="nov-hasta">Hasta (ese día incluido)</Label>
               <Input id="nov-hasta" type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} />
             </div>
           </div>
           {tipo === "vacaciones" && (
             <>
-              <Field label="Días hábiles que disfruta" value={diasHabiles} onChange={setDiasHabiles} />
-              <Field
-                label="Salario promedio del último año (opcional, si el salario es variable)"
+              <CampoNomina
+                id="nov-habiles"
+                label="Días hábiles de vacaciones"
+                unidad="dias"
+                value={diasHabiles}
+                onChange={setDiasHabiles}
+                ayuda="Sin contar domingos ni festivos. Por cada año trabajado le tocan 15."
+              />
+              <CampoNomina
+                id="nov-promedio"
+                label="Sueldo promedio del último año"
+                termino="salarioPromedio"
+                unidad="pesos"
                 value={promedio}
                 onChange={setPromedio}
+                placeholder="Vacío si gana un sueldo fijo"
+                ayuda="Solo si su pago cambia mes a mes (comisiones, extras frecuentes): cuánto ganó en promedio cada mes, en pesos. Si gana un sueldo fijo, déjalo vacío y se usa su sueldo actual."
               />
             </>
           )}
           {tipo === "incapacidad_comun" && (
-            <Field label="Días previos si es prórroga (opcional)" value={previos} onChange={setPrevios} />
+            <CampoNomina
+              id="nov-previos"
+              label="Días de la incapacidad anterior"
+              unidad="dias"
+              value={previos}
+              onChange={setPrevios}
+              ayuda="Solo si esta incapacidad es prórroga de otra por la misma causa. Si no, déjalo vacío."
+            />
           )}
           <div className="flex flex-col gap-1">
-            <Label className="text-xs" htmlFor="nov-obs">Observación</Label>
+            <Label className="text-xs" htmlFor="nov-obs">Nota (opcional)</Label>
             <Input id="nov-obs" value={observacion} maxLength={300} onChange={(e) => setObservacion(e.target.value)} />
           </div>
           <p className="text-[11px] text-muted-foreground">
-            La incapacidad común paga 2/3 del salario (nunca menos del mínimo): los 2 primeros días el empleador y luego la
-            EPS. La laboral paga el 100 % (ARL). La licencia no remunerada no se paga, pero cotiza pensión: el trabajador
-            aporta su 4 %. La nómina del mes en borrador se recalcula sola.
+            Incapacidad por enfermedad: se paga 2/3 del sueldo (nunca menos del mínimo). Los 2 primeros días los
+            pagas tú; desde el tercero, la EPS. Accidente de trabajo: el 100 %, lo paga la ARL. Licencia no
+            remunerada: esos días no se pagan, pero el trabajador sigue aportando su 4 % de pensión. Si la nómina
+            del mes ya está calculada, se recalcula sola.
           </p>
           {error && <p className="text-sm text-destructive">{error}</p>}
           {avisos.map((a) => (
@@ -1740,14 +1939,14 @@ function Novedades({ employees }: { employees: Employee[] }) {
       <Card>
         <CardContent className="flex flex-col gap-3 py-4">
           <div className="flex flex-wrap items-end justify-between gap-2">
-            <p className="text-sm font-semibold">Novedades del mes</p>
+            <p className="text-sm font-semibold">Registradas en el mes</p>
             <div className="flex flex-col gap-1">
               <Label className="text-xs" htmlFor="nov-periodo">Mes</Label>
               <Input id="nov-periodo" type="month" value={periodo} onChange={(e) => setPeriodo(e.target.value)} />
             </div>
           </div>
           {filas.length === 0 ? (
-            <p className="py-6 text-center text-sm text-muted-foreground">Sin novedades en este mes.</p>
+            <p className="py-6 text-center text-sm text-muted-foreground">No hay vacaciones, incapacidades ni licencias en este mes.</p>
           ) : (
             filas.map((n) => (
               <div key={n._id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border p-3">
@@ -1756,7 +1955,7 @@ function Novedades({ employees }: { employees: Employee[] }) {
                     {n.employeeName ?? n.employeeId} · {TIPOS_NOVEDAD.find((t) => t.value === n.tipo)?.label ?? n.tipo}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {n.fechaInicio} a {n.fechaFin}
+                    Del {n.fechaInicio} al {n.fechaFin}
                     {n.diasHabiles ? ` · ${n.diasHabiles} días hábiles` : ""}
                     {n.observacion ? ` · ${n.observacion}` : ""}
                   </p>
@@ -1800,7 +1999,7 @@ function Historial({
   }
 
   async function remove(id: string) {
-    if (!(await confirm({ title: "¿Eliminar esta corrida de nómina?", destructive: true }))) return
+    if (!(await confirm({ title: "¿Eliminar esta nómina?", description: "Se puede porque sigue en borrador: aún no se ha cerrado.", destructive: true }))) return
     try {
       await deletePayrollRun(id)
       onChanged()
@@ -1816,7 +2015,7 @@ function Historial({
         <CardContent className="flex flex-col items-center gap-2 py-14 text-center">
           <Users className="size-9 text-muted-foreground" />
           <p className="text-sm text-muted-foreground">
-            Aún no has corrido ninguna nómina.
+            Aún no has calculado ninguna nómina.
           </p>
         </CardContent>
       </Card>
@@ -1830,18 +2029,18 @@ function Historial({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Período</TableHead>
-                <TableHead>Etiqueta</TableHead>
+                <TableHead>Mes</TableHead>
+                <TableHead>Nombre</TableHead>
                 <TableHead>Estado</TableHead>
-                <TableHead className="text-right">Neto</TableHead>
-                <TableHead className="text-right">Costo</TableHead>
+                <TableHead className="text-right">Pagado a trabajadores</TableHead>
+                <TableHead className="text-right">Costo para la empresa</TableHead>
                 <TableHead className="text-right"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {runs.map((r) => (
                 <TableRow key={r._id}>
-                  <TableCell className="font-medium">{r.period}</TableCell>
+                  <TableCell className="font-medium">{nombreMes(r.period)}</TableCell>
                   <TableCell>{r.label ?? "—"}</TableCell>
                   <TableCell>
                     <Badge
@@ -1908,286 +2107,6 @@ function Historial({
   )
 }
 
-// ── Parámetros ───────────────────────────────────────────────────────────────
-const RECARGO_LABELS: { k: keyof PayrollSettings["recargos"]; l: string }[] = [
-  { k: "recargoNocturno", l: "Recargo nocturno" },
-  { k: "dominical", l: "Dominical / festivo" },
-  { k: "nocturnoDominical", l: "Nocturno dominical" },
-  { k: "extraDiurna", l: "Extra diurna" },
-  { k: "extraNocturna", l: "Extra nocturna" },
-  { k: "extraDiurnaDominical", l: "Extra diurna dominical" },
-  { k: "extraNocturnaDominical", l: "Extra nocturna dominical" },
-]
-const ARL_KEYS: (keyof PayrollSettings["arlRates"])[] = ["I", "II", "III", "IV", "V"]
-
-function toPctStr(n: number): string {
-  return String(Math.round(n * 1e6) / 1e4) // decimal → % con hasta 4 decimales
-}
-
-function Parametros({
-  settings,
-  onSaved,
-}: {
-  settings: PayrollSettings
-  onSaved: (s: PayrollSettings) => void
-}) {
-  const [smmlv, setSmmlv] = React.useState(String(settings.smmlv))
-  const [aux, setAux] = React.useState(String(settings.auxilioTransporte))
-  const [uvt, setUvt] = React.useState(String(settings.uvt))
-  const [exonera, setExonera] = React.useState(settings.empresaExoneradaAportes)
-  const [rec, setRec] = React.useState<Record<string, string>>(() =>
-    Object.fromEntries(
-      RECARGO_LABELS.map(({ k }) => [k, toPctStr(settings.recargos[k])]),
-    ),
-  )
-  const [arl, setArl] = React.useState<Record<string, string>>(() =>
-    Object.fromEntries(ARL_KEYS.map((k) => [k, toPctStr(settings.arlRates[k])])),
-  )
-  const [fsp, setFsp] = React.useState(
-    settings.fspTramos.map((t) => ({
-      hasta: t.hastaSmmlv === null ? "" : String(t.hastaSmmlv),
-      rate: toPctStr(t.rate),
-    })),
-  )
-  const [t383, setT383] = React.useState(
-    settings.tabla383.map((t) => ({
-      desdeUvt: String(t.desdeUvt),
-      hastaUvt: t.hastaUvt === null ? "" : String(t.hastaUvt),
-      rate: toPctStr(t.rate),
-      uvtBase: String(t.uvtBase),
-    })),
-  )
-  const [diasLaborables, setDiasLaborables] = React.useState(
-    String(settings.diasLaborablesSemana ?? 6),
-  )
-  const [busy, setBusy] = React.useState(false)
-  const [msg, setMsg] = React.useState<string | null>(null)
-  const [error, setError] = React.useState<string | null>(null)
-
-  async function save() {
-    setBusy(true)
-    setError(null)
-    setMsg(null)
-    try {
-      const s = await updatePayrollSettings({
-        smmlv: numOr(smmlv),
-        auxilioTransporte: numOr(aux),
-        uvt: numOr(uvt),
-        ...exoneracionSiCambio(settings.empresaExoneradaAportes, exonera),
-        diasLaborablesSemana: Number(diasLaborables),
-        recargos: Object.fromEntries(
-          RECARGO_LABELS.map(({ k }) => [k, numOr(rec[k] ?? "0") / 100]),
-        ) as unknown as PayrollSettings["recargos"],
-        arlRates: Object.fromEntries(
-          ARL_KEYS.map((k) => [k, numOr(arl[k] ?? "0") / 100]),
-        ) as unknown as PayrollSettings["arlRates"],
-        fspTramos: fsp.map((t) => ({
-          hastaSmmlv: t.hasta === "" ? null : numOr(t.hasta),
-          rate: numOr(t.rate) / 100,
-        })),
-        tabla383: t383.map((t) => ({
-          desdeUvt: numOr(t.desdeUvt),
-          hastaUvt: t.hastaUvt === "" ? null : numOr(t.hastaUvt),
-          rate: numOr(t.rate) / 100,
-          uvtBase: numOr(t.uvtBase),
-        })),
-      })
-      onSaved(s)
-      setMsg("Parámetros guardados.")
-    } catch (err) {
-      setError(errorMessage(err))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <div className="flex flex-col gap-4">
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <CardContent className="flex flex-col gap-3 py-4">
-            <p className="text-sm font-semibold">Valores del año ({settings.year})</p>
-            <Field label="SMMLV (salario mínimo)" value={smmlv} onChange={setSmmlv} />
-            <Field label="Auxilio de transporte" value={aux} onChange={setAux} />
-            <Field label="UVT" value={uvt} onChange={setUvt} />
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={exonera}
-                onChange={(e) => setExonera(e.target.checked)}
-              />
-              Empresa exonerada de aportes (art. 114-1), salarios &lt; 10 SMMLV
-            </label>
-            <label className="flex flex-col gap-1 text-sm">
-              Días laborables de la semana
-              <select
-                className="h-9 rounded-md border border-input bg-background px-2"
-                value={diasLaborables}
-                onChange={(e) => setDiasLaborables(e.target.value)}
-              >
-                <option value="6">6 (lunes a sábado)</option>
-                <option value="5">5 (lunes a viernes)</option>
-              </select>
-              <span className="text-muted-foreground">
-                Quien trabaja todos esos días gana el domingo remunerado (CST
-                art. 173).
-              </span>
-            </label>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="flex flex-col gap-3 py-4">
-            <p className="text-sm font-semibold">Recargos y horas extra (%)</p>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              {RECARGO_LABELS.map(({ k, l }) => (
-                <Field
-                  key={k}
-                  label={l}
-                  value={rec[k] ?? ""}
-                  onChange={(v) => setRec((p) => ({ ...p, [k]: v }))}
-                />
-              ))}
-            </div>
-            <p className="mt-1 text-sm font-semibold">ARL por nivel (%)</p>
-            <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
-              {ARL_KEYS.map((k) => (
-                <Field
-                  key={k}
-                  label={k}
-                  value={arl[k] ?? ""}
-                  onChange={(v) => setArl((p) => ({ ...p, [k]: v }))}
-                />
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <CardContent className="py-4">
-            <p className="mb-2 text-sm font-semibold">
-              Fondo de Solidaridad Pensional
-            </p>
-            <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
-              <span>Hasta (SMMLV, vacío = ∞)</span>
-              <span>Tarifa (%)</span>
-            </div>
-            {fsp.map((t, i) => (
-              <div key={i} className="mt-1 grid grid-cols-2 gap-2">
-                <input
-                  className={inputClass}
-                  value={t.hasta}
-                  placeholder="∞"
-                  onChange={(e) =>
-                    setFsp((p) =>
-                      p.map((r, idx) =>
-                        idx === i ? { ...r, hasta: e.target.value } : r,
-                      ),
-                    )
-                  }
-                />
-                <input
-                  className={inputClass}
-                  value={t.rate}
-                  onChange={(e) =>
-                    setFsp((p) =>
-                      p.map((r, idx) =>
-                        idx === i ? { ...r, rate: e.target.value } : r,
-                      ),
-                    )
-                  }
-                />
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="py-4">
-            <p className="mb-2 text-sm font-semibold">
-              Retención en la fuente (art. 383, UVT)
-            </p>
-            {/* Mini-tabla de 4 columnas: encabezado y filas comparten rejilla,
-                así que partirla en móvil las desincroniza. Se conserva la
-                rejilla y se le da scroll horizontal propio con un ancho mínimo
-                en el que los campos siguen siendo pulsables. */}
-            <div className="-mx-1 overflow-x-auto px-1">
-            <div className="min-w-[24rem]">
-            <div className="grid grid-cols-4 gap-2 text-xs text-muted-foreground">
-              <span>Desde</span>
-              <span>Hasta</span>
-              <span>Tarifa %</span>
-              <span>UVT base</span>
-            </div>
-            {t383.map((t, i) => (
-              <div key={i} className="mt-1 grid grid-cols-4 gap-2">
-                <input
-                  className={inputClass}
-                  value={t.desdeUvt}
-                  onChange={(e) =>
-                    setT383((p) =>
-                      p.map((r, idx) =>
-                        idx === i ? { ...r, desdeUvt: e.target.value } : r,
-                      ),
-                    )
-                  }
-                />
-                <input
-                  className={inputClass}
-                  value={t.hastaUvt}
-                  placeholder="∞"
-                  onChange={(e) =>
-                    setT383((p) =>
-                      p.map((r, idx) =>
-                        idx === i ? { ...r, hastaUvt: e.target.value } : r,
-                      ),
-                    )
-                  }
-                />
-                <input
-                  className={inputClass}
-                  value={t.rate}
-                  onChange={(e) =>
-                    setT383((p) =>
-                      p.map((r, idx) =>
-                        idx === i ? { ...r, rate: e.target.value } : r,
-                      ),
-                    )
-                  }
-                />
-                <input
-                  className={inputClass}
-                  value={t.uvtBase}
-                  onChange={(e) =>
-                    setT383((p) =>
-                      p.map((r, idx) =>
-                        idx === i ? { ...r, uvtBase: e.target.value } : r,
-                      ),
-                    )
-                  }
-                />
-              </div>
-            ))}
-            </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {error && <p className="text-sm text-destructive">{error}</p>}
-      {msg && <p className="text-sm text-success-ink">{msg}</p>}
-      <div>
-        <Button className="gap-2" disabled={busy} onClick={() => void save()}>
-          {busy && <Loader2 className="size-4 animate-spin" />}
-          Guardar parámetros
-        </Button>
-      </div>
-    </div>
-  )
-}
-
 function Kpi({
   label,
   value,
@@ -2197,20 +2116,8 @@ function Kpi({
   value: string
   accent?: boolean
 }) {
-  return (
-    <Card>
-      <CardContent className="flex flex-col gap-1 py-4">
-        <span className="text-xs text-muted-foreground">{label}</span>
-        <span
-          className={`font-display text-xl leading-tight ${
-            accent ? "text-primary" : "text-foreground"
-          }`}
-        >
-          {value}
-        </span>
-      </CardContent>
-    </Card>
-  )
+  void accent
+  return <KpiCelda label={label} value={value} />
 }
 
 /**

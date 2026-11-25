@@ -36,6 +36,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { useLoadEffect } from "@/hooks/use-load-effect"
+import { KpiCelda } from "@/components/ui/kpi"
 
 const ALL = "all"
 const inputClass =
@@ -163,7 +164,7 @@ export default function FlujoCajaPage() {
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-14 text-center">
             <ShieldOff className="size-10 text-muted-foreground" />
-            <p className="font-display text-lg text-foreground">Sin acceso</p>
+            <p className="text-[15px] font-semibold text-foreground">Sin acceso</p>
             <p className="max-w-xs text-sm text-muted-foreground">
               No tienes permiso para ver el flujo de caja.
             </p>
@@ -216,7 +217,7 @@ export default function FlujoCajaPage() {
         actions={actions}
       />
 
-      <Card data-tour="flujo-filtro" className="mb-4">
+      <Card data-filtros data-tour="flujo-filtro" className="mb-4">
         <CardContent className="flex flex-wrap items-end gap-3 py-4">
           <div className="flex flex-col gap-1">
             <Label className="text-xs">Sede</Label>
@@ -447,7 +448,7 @@ export default function FlujoCajaPage() {
               Estimados prorrateados por día: ventas ≈{" "}
               {money.format(data.assumptions.avgDailySales)}/día (promedio 30
               días) · nómina ≈ {money.format(data.assumptions.monthlyPayroll)}/mes
-              (última corrida, sin provisiones) · gastos recurrentes ≈{" "}
+              (última nómina, sin provisiones) · gastos recurrentes ≈{" "}
               {money.format(data.assumptions.monthlyRecurringExpenses)}/mes. Los
               compromisos ciertos (CxC / CxP) usan su fecha de vencimiento.
             </p>
@@ -473,21 +474,5 @@ function Kpi({
   danger?: boolean
   good?: boolean
 }) {
-  const tone = danger
-    ? "text-destructive"
-    : good
-      ? "text-success-ink"
-      : "text-foreground"
-  return (
-    <Card>
-      <CardContent className="flex flex-col gap-1 py-4">
-        <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          {Icon && <Icon className="size-3.5" />}
-          {label}
-        </span>
-        <span className={`font-display text-xl leading-tight ${tone}`}>{value}</span>
-        {sub && <span className="text-xs text-muted-foreground">{sub}</span>}
-      </CardContent>
-    </Card>
-  )
+  return <KpiCelda icon={Icon} label={label} value={value} hint={sub} tone={danger ? "negative" : good ? "positive" : "default"} />
 }

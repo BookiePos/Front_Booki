@@ -639,7 +639,7 @@ export const GLOSARIO = {
   nomina: {
     titulo: "Nómina",
     texto:
-      "El pago de los sueldos del período y todo lo que lo acompaña: horas extras, descuentos y aportes. Se liquida normalmente cada quincena o cada mes.",
+      "El pago de los sueldos del mes y todo lo que lo acompaña: horas extra, recargos, descuentos y aportes. En Colombia casi siempre se paga por quincenas: una parte el 15 y el resto el 30.",
     alias: ["nomina"],
   },
   smmlv: {
@@ -675,19 +675,19 @@ export const GLOSARIO = {
   horasExtra: {
     titulo: "Horas extra",
     texto:
-      "Las que se trabajan por encima de la jornada legal. Se pagan con recargo: 25 % más si son de día y 75 % más si son de noche.",
+      "Las horas que pasan de la jornada pactada (hoy máximo 42 a la semana). Se pagan con recargo: la hora vale 25 % más si es de día y 75 % más si es de noche. Máximo 2 extras al día y 12 a la semana.",
     alias: ["horas extra", "horas extras", "extras"],
   },
   recargoNocturno: {
     titulo: "Recargo nocturno",
     texto:
-      "El 35 % adicional por trabajar entre las 9 de la noche y las 6 de la mañana, aunque no sea hora extra. Si además es domingo o festivo, los recargos se suman.",
+      "El 35 % adicional por cada hora trabajada entre las 7 de la noche y las 6 de la mañana, aunque no sea hora extra (desde el 25 de diciembre de 2025; antes empezaba a las 9). Si además es domingo o festivo, los recargos se suman.",
     alias: ["recargo nocturno", "nocturno", "recargo"],
   },
   dominicales: {
     titulo: "Dominicales y festivos",
     texto:
-      "Trabajar domingo o festivo se paga con un 75 % de recargo, y además da derecho a un día compensatorio si se hace habitualmente.",
+      "Cada hora trabajada en domingo o festivo lleva recargo: 90 % desde el 1 de julio de 2026 y 100 % desde el 1 de julio de 2027 (Ley 2466 de 2025). Si se trabaja habitualmente, además da derecho a un día de descanso compensatorio.",
     alias: ["dominicales", "festivos", "dominical"],
   },
   prima: {
@@ -783,8 +783,98 @@ export const GLOSARIO = {
   contratoAprendizaje: {
     titulo: "Contrato de aprendizaje",
     texto:
-      "El del aprendiz del SENA. Tiene reglas propias: en la etapa lectiva se paga el 50 % del mínimo y en la práctica el 75 %.",
+      "El del aprendiz del SENA. Tiene reglas propias: en la etapa de estudio se le paga el 75 % del mínimo y en la práctica el 100 % (Ley 2466 de 2025).",
     alias: ["aprendizaje", "aprendiz", "sena"],
+  },
+  quincena: {
+    titulo: "Quincena",
+    texto:
+      "Cada mitad del mes de trabajo: del 1 al 15 y del 16 al 30. Si pagas por quincenas, el 15 entregas la mitad del sueldo con las horas extra y recargos del 1 al 15, y el 30 el resto con las del 16 en adelante.",
+    alias: ["quincena", "quincenas", "quincenal", "primera quincena", "segunda quincena"],
+  },
+  ibc: {
+    titulo: "IBC",
+    texto:
+      "Ingreso base de cotización: la parte del pago del mes sobre la que se calculan salud y pensión. Para un sueldo fijo de $2.000.000 sin extras, el IBC es $2.000.000; nunca baja de un salario mínimo.",
+    alias: ["ibc", "ingreso base de cotizacion", "base de cotizacion"],
+  },
+  fsp: {
+    titulo: "Fondo de Solidaridad Pensional",
+    texto:
+      "Un aporte extra a pensión, de 1 % a 2 %, que solo pagan quienes ganan 4 salarios mínimos o más. Con sueldos de cocina o caja normalmente no aplica.",
+    alias: ["fsp", "solidaridad pensional", "fondo de solidaridad"],
+  },
+  jornadaMaxima: {
+    titulo: "Jornada máxima",
+    texto:
+      "Las horas que se pueden trabajar a la semana sin pagar extras. Baja por ley cada año: 44 horas desde julio de 2025 y 42 desde el 15 de julio de 2026 (Ley 2101 de 2021).",
+    alias: ["jornada", "jornada maxima", "jornada laboral", "horas semanales"],
+  },
+  horaOrdinaria: {
+    titulo: "Valor de la hora",
+    texto:
+      "Lo que vale una hora normal de trabajo: el sueldo del mes dividido entre las horas del mes. Sobre ese valor se calculan los recargos y las horas extra.",
+    alias: ["hora ordinaria", "valor hora", "valor de la hora"],
+  },
+  novedad: {
+    titulo: "Novedad de nómina",
+    texto:
+      "Algo que cambia el pago normal del mes: vacaciones, una incapacidad o una licencia. Se registra con sus fechas y la nómina la calcula sola.",
+    alias: ["novedad", "novedades"],
+  },
+  incapacidad: {
+    titulo: "Incapacidad",
+    texto:
+      "Los días que el médico le da al trabajador para recuperarse. Los dos primeros días los pagas tú; desde el tercero los paga la EPS (o la ARL si fue accidente de trabajo), por lo general a dos tercios del sueldo.",
+    alias: ["incapacidad", "incapacidades", "incapacitado"],
+  },
+  licencia: {
+    titulo: "Licencia",
+    texto:
+      "Un permiso para no trabajar. Puede ser pagada (maternidad, paternidad, luto, calamidad) o no remunerada, cuando el trabajador la pide y esos días no se le pagan.",
+    alias: ["licencia", "licencias", "permiso"],
+  },
+  salarioVariable: {
+    titulo: "Salario variable",
+    texto:
+      "El que cambia de un mes a otro porque incluye comisiones, horas extra o recargos frecuentes. Para vacaciones y liquidación se usa el promedio del último año, no el sueldo de un solo mes.",
+    alias: ["salario variable", "sueldo variable"],
+  },
+  salarioPromedio: {
+    titulo: "Salario promedio del último año",
+    texto:
+      "Cuánto ganó el trabajador en promedio cada mes durante los últimos 12 meses, en pesos. Ejemplo: si ganó $1.900.000 unos meses y $2.100.000 otros, el promedio queda alrededor de $2.000.000. Solo hace falta si el sueldo cambia mes a mes.",
+    alias: ["salario promedio", "promedio"],
+  },
+  exoneracionAportes: {
+    titulo: "Exoneración de aportes",
+    texto:
+      "Un beneficio de ley (art. 114-1 del Estatuto Tributario): las empresas que declaran renta no pagan salud del empleador, SENA ni ICBF por quienes ganan menos de 10 salarios mínimos. Pregúntale a tu contador si aplica.",
+    alias: ["exonerada", "exoneracion", "exoneracion de aportes"],
+  },
+  desprendible: {
+    titulo: "Desprendible de pago",
+    texto:
+      "El papel o PDF que se le entrega al trabajador con el detalle de su pago: lo que ganó, lo que se le descontó y lo que recibe. También le dicen colilla.",
+    alias: ["desprendible", "colilla", "comprobante de pago"],
+  },
+  costoEmpleador: {
+    titulo: "Costo para la empresa",
+    texto:
+      "Lo que de verdad te cuesta un trabajador al mes: su pago, más tus aportes a salud, pensión, ARL y caja, más lo que vas guardando para prima, cesantías y vacaciones. Suele ser cerca de 1,5 veces el sueldo.",
+    alias: ["costo empleador", "costo para la empresa", "costo total"],
+  },
+  provisiones: {
+    titulo: "Provisiones",
+    texto:
+      "La plata que separas cada mes para pagar después la prima, las cesantías, sus intereses y las vacaciones, para que en junio o en diciembre no te coja de sorpresa.",
+    alias: ["provision", "provisiones", "apropiaciones"],
+  },
+  valoresLey: {
+    titulo: "Valores de ley",
+    texto:
+      "Las cifras que fija el Gobierno cada año y que usa la nómina: salario mínimo, auxilio de transporte, UVT, recargos y porcentajes de aportes. BookiPos trae los del año; solo cámbialos si sale un decreto nuevo.",
+    alias: ["valores de ley", "parametros de nomina"],
   },
   consumoEmpleado: {
     titulo: "Consumo de empleado",

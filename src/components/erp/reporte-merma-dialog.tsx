@@ -23,6 +23,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { contar } from "@/lib/utils"
 
 const money = new Intl.NumberFormat("es-CO", {
   style: "currency",
@@ -228,7 +229,7 @@ export function ReporteMermaDialog({
                   </span>
                   <span className="text-sm text-muted-foreground">
                     en {nf.format(data.totalQty)} unidad(es), repartidas en{" "}
-                    {data.movements} baja(s)
+                    {contar(data.movements, "baja")}
                   </span>
                 </div>
 

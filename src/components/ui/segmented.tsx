@@ -49,15 +49,15 @@ export function Segmented<T extends string>({
   const refs = React.useRef<(HTMLButtonElement | null)[]>([])
 
   const box = {
-    sm: "gap-0.5 rounded-xl p-0.5",
-    md: "gap-1 rounded-2xl p-1",
-    lg: "gap-1 rounded-2xl p-1.5",
+    sm: "gap-0.5 rounded-lg p-0.5",
+    md: "gap-0.5 rounded-lg p-[3px]",
+    lg: "gap-1 rounded-xl p-1",
   }[size]
 
   const item = {
-    sm: "h-7 gap-1.5 rounded-lg px-2.5 text-xs",
-    md: "h-9 gap-2 rounded-xl px-3.5 text-sm",
-    lg: "h-11 gap-2 rounded-xl px-5 text-[0.95rem]",
+    sm: "h-7 gap-1.5 rounded-md px-2.5 text-xs",
+    md: "h-8 gap-2 rounded-md px-3 text-[0.8125rem]",
+    lg: "h-10 gap-2 rounded-lg px-4 text-sm",
   }[size]
 
   const glyph = {
@@ -114,20 +114,20 @@ export function Segmented<T extends string>({
               }
             }}
             className={cn(
-              "inline-flex shrink-0 items-center justify-center font-semibold whitespace-nowrap outline-none",
+              "inline-flex shrink-0 items-center justify-center whitespace-nowrap outline-none",
               "transition-[background-color,color,box-shadow] duration-150",
               "focus-visible:ring-3 focus-visible:ring-ring/45",
               "disabled:pointer-events-none disabled:opacity-45",
               item,
               fill && "flex-1",
               active
-                ? "bg-card text-foreground shadow-sm"
-                : "text-muted-foreground hover:bg-card/60 hover:text-foreground",
+                ? "bg-card text-foreground font-medium shadow-[0_1px_2px_rgba(20,16,30,0.08),0_0_0_1px_rgba(20,16,30,0.04)] dark:bg-accent dark:shadow-none"
+                : "text-muted-foreground hover:text-foreground",
             )}
           >
             {Icon && (
               <Icon
-                className={cn(glyph, active && "text-primary")}
+                className={cn(glyph)}
                 aria-hidden
               />
             )}
@@ -135,10 +135,10 @@ export function Segmented<T extends string>({
             {option.badge != null && (
               <span
                 className={cn(
-                  "ml-0.5 rounded-full px-1.5 py-px text-[0.6875rem] font-bold tabular-nums",
+                  "ml-0.5 text-[0.75rem] font-medium tabular-nums",
                   active
-                    ? "bg-primary/12 text-primary"
-                    : "bg-foreground/8 text-muted-foreground",
+                    ? "text-muted-foreground"
+                    : "text-muted-foreground/80",
                 )}
               >
                 {option.badge}

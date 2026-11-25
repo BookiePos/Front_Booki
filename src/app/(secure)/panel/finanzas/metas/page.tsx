@@ -10,8 +10,6 @@ import {
   Save,
   Trash2,
   ArrowLeft,
-  TrendingUp,
-  TrendingDown,
 } from "lucide-react"
 
 import { useAuth } from "@/lib/auth-context"
@@ -27,6 +25,7 @@ import {
   BUDGET_SCENARIO_LABELS,
   CATEGORY_KIND_LABELS,
   MONTHS_SHORT,
+  resumenDeMeta,
   type FinanceBudget,
   type FinanceCategory,
   type BudgetScenario,
@@ -66,6 +65,7 @@ import {
 import { Termino } from "@/components/ui/help-tip"
 import { useLoadEffect } from "@/hooks/use-load-effect"
 import { useResetOnChange } from "@/hooks/use-reset-on-change"
+import { KpiCelda } from "@/components/ui/kpi"
 
 function emptyMonths(): number[] {
   return Array.from({ length: 12 }, () => 0)
@@ -123,7 +123,7 @@ export default function MetasPage() {
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-14 text-center">
             <ShieldOff className="size-10 text-muted-foreground" />
-            <p className="font-display text-lg text-foreground">Sin acceso</p>
+            <p className="text-[15px] font-semibold text-foreground">Sin acceso</p>
             <p className="max-w-xs text-sm text-muted-foreground">
               No tienes permiso para ver las metas.
             </p>
@@ -219,15 +219,14 @@ export default function MetasPage() {
                   <TableHead>Sede</TableHead>
                   <TableHead>Escenario</TableHead>
                   <TableHead>Estado</TableHead>
-                  <TableHead className="text-right">Total</TableHead>
+                  <TableHead className="text-right">Meta del año</TableHead>
                   <TableHead className="text-right"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {budgets.map((b) => {
-                  const total = b.lines.reduce(
-                    (s, l) => s + l.monthly.reduce((x, m) => x + m, 0),
-                    0,
+                  const resumen = resumenDeMeta(b.lines, (l) =>
+                    l.monthly.reduce((x, m) => x + m, 0),
                   )
                   return (
                     <TableRow key={b._id}>
@@ -251,7 +250,10 @@ export default function MetasPage() {
                         )}
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
-                        {money.format(total)}
+                        <span className="mr-2 text-xs text-muted-foreground">
+                          {resumen.etiqueta}
+                        </span>
+                        {money.format(resumen.monto)}
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
@@ -562,10 +564,16 @@ function BudgetEditor({
     }
   }
 
-  const grandTotal = lines.reduce(
-    (s, l) => s + l.monthly.reduce((x, m) => x + m, 0),
-    0,
-  )
+  const anual = (l: { monthly: number[] }) => l.monthly.reduce((x, m) => x + m, 0)
+  const hayVentas = lines.some((l) => l.kind === "income")
+  const hayCostos = lines.some((l) => l.kind !== "income")
+  const ventasMeta = lines
+    .filter((l) => l.kind === "income")
+    .reduce((s, l) => s + anual(l), 0)
+  const costosMeta = lines
+    .filter((l) => l.kind !== "income")
+    .reduce((s, l) => s + anual(l), 0)
+  const utilidadMeta = ventasMeta - costosMeta
 
   return (
     <>
@@ -626,7 +634,7 @@ function BudgetEditor({
       ) : (
         <>
           {canManage && (
-            <Card className="mb-4">
+            <Card data-filtros className="mb-4">
               <CardContent className="flex flex-wrap items-end gap-3 py-4">
                 <Field
                   id="mt-addcat"
@@ -743,14 +751,47 @@ function BudgetEditor({
                     })}
                   </tbody>
                   <tfoot>
-                    <tr className="border-t border-border font-semibold">
-                      <td className="sticky left-0 z-10 bg-card px-3 py-2">Total anual</td>
-                      <td colSpan={12} />
-                      <td className="px-3 py-2 text-right tabular-nums">
-                        {money.format(grandTotal)}
-                      </td>
-                      {canManage && <td />}
-                    </tr>
+                    {/* Ventas y gastos van en renglones aparte: sumarlos
+                        juntos daba una cifra sin sentido. La utilidad solo sale
+                        cuando la meta trae las dos cosas. */}
+                    {hayVentas && (
+                      <tr className="border-t border-border font-semibold">
+                        <td className="sticky left-0 z-10 bg-card px-3 py-2">Ventas del año</td>
+                        <td colSpan={12} />
+                        <td className="px-3 py-2 text-right tabular-nums">
+                          {money.format(ventasMeta)}
+                        </td>
+                        {canManage && <td />}
+                      </tr>
+                    )}
+                    {hayCostos && (
+                      <tr
+                        className={`font-semibold ${hayVentas ? "" : "border-t border-border"}`}
+                      >
+                        <td className="sticky left-0 z-10 bg-card px-3 py-2">
+                          Costos y gastos del año
+                        </td>
+                        <td colSpan={12} />
+                        <td className="px-3 py-2 text-right tabular-nums">
+                          {money.format(costosMeta)}
+                        </td>
+                        {canManage && <td />}
+                      </tr>
+                    )}
+                    {hayVentas && hayCostos && (
+                      <tr className="border-t border-border font-semibold">
+                        <td className="sticky left-0 z-10 bg-card px-3 py-2">Utilidad meta</td>
+                        <td colSpan={12} />
+                        <td
+                          className={`px-3 py-2 text-right tabular-nums ${
+                            utilidadMeta < 0 ? "text-destructive" : ""
+                          }`}
+                        >
+                          {money.format(utilidadMeta)}
+                        </td>
+                        {canManage && <td />}
+                      </tr>
+                    )}
                   </tfoot>
                 </table>
               )}
@@ -795,14 +836,20 @@ function BudgetVsActualView({
 
   useLoadEffect(load)
 
-  const totalBudget = data?.totals.budget ?? 0
-  const totalActual = data?.totals.actual ?? 0
+  // No la suma de todas las filas (`data.totals` del backend mezcla ventas y
+  // gastos): utilidad si la meta trae las dos cosas; si no, ventas o gastos.
+  const meta = resumenDeMeta(data?.lines ?? [], (l) => l.totalBudget)
+  const real = resumenDeMeta(data?.lines ?? [], (l) => l.totalActual)
+  const totalBudget = meta.monto
+  const totalActual = real.monto
   const variance = totalActual - totalBudget
+  // Para gastos, pasarse es malo: la variación se pinta al revés.
+  const varianceGood = meta.masEsMejor ? variance > 0 : variance < 0
   const execPct = totalBudget > 0 ? Math.round((totalActual / totalBudget) * 100) : 0
 
   return (
     <>
-      <Card className="mb-4">
+      <Card data-filtros className="mb-4">
         <CardContent className="flex flex-wrap items-end gap-3 py-4">
           <Field id="mt-vs-sede" label="Sede" className="w-48">
             <NativeSelect
@@ -836,12 +883,13 @@ function BudgetVsActualView({
       ) : (
         <>
           <div className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
-            <VsKpi label="Meta (año)" value={money.format(totalBudget)} />
-            <VsKpi label="Real (año)" value={money.format(totalActual)} />
+            <VsKpi label={`${meta.etiqueta} meta (año)`} value={money.format(totalBudget)} />
+            <VsKpi label={`${meta.etiqueta} real (año)`} value={money.format(totalActual)} />
             <VsKpi
               label="Variación"
               value={`${variance >= 0 ? "+" : ""}${money.format(variance)}`}
               tone={variance > 0 ? "up" : variance < 0 ? "down" : undefined}
+              good={variance === 0 ? undefined : varianceGood}
             />
             <VsKpi label="Ejecución" value={`${execPct}%`} />
           </div>
@@ -903,7 +951,7 @@ function BudgetVsActualView({
                 </tbody>
                 <tfoot>
                   <tr className="border-t border-border font-semibold">
-                    <td className="px-3 py-2">Total</td>
+                    <td className="px-3 py-2">{meta.etiqueta}</td>
                     <td className="px-3 py-2 text-right tabular-nums">
                       {money.format(totalBudget)}
                     </td>
@@ -912,7 +960,7 @@ function BudgetVsActualView({
                     </td>
                     <td
                       className={`px-3 py-2 text-right tabular-nums ${
-                        variance === 0 ? "" : variance > 0 ? "text-success-ink" : "text-destructive"
+                        variance === 0 ? "" : varianceGood ? "text-success-ink" : "text-destructive"
                       }`}
                     >
                       {variance >= 0 ? "+" : ""}
@@ -934,23 +982,14 @@ function VsKpi({
   label,
   value,
   tone,
+  good,
 }: {
   label: string
   value: string
+  /** Dirección de la flecha: subió o bajó. */
   tone?: "up" | "down"
+  /** Si el cambio es bueno. Sin dato, subir es bueno (vale para ventas, no para gastos). */
+  good?: boolean
 }) {
-  const color =
-    tone === "up" ? "text-success-ink" : tone === "down" ? "text-destructive" : "text-foreground"
-  return (
-    <Card>
-      <CardContent className="flex flex-col gap-1 py-4">
-        <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          {tone === "up" && <TrendingUp className="size-3.5" />}
-          {tone === "down" && <TrendingDown className="size-3.5" />}
-          {label}
-        </span>
-        <span className={`font-display text-xl leading-tight ${color}`}>{value}</span>
-      </CardContent>
-    </Card>
-  )
+  return <KpiCelda label={label} value={value} tone={(good ?? (tone === "up" ? true : tone === "down" ? false : undefined)) === true ? "positive" : (good ?? (tone === "up" ? true : tone === "down" ? false : undefined)) === false ? "negative" : "default"} />
 }

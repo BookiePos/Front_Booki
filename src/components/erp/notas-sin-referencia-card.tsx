@@ -29,6 +29,7 @@ import { Input } from "@/components/ui/input"
 import { MoneyInput } from "@/components/ui/money-input"
 import { Field, FieldGrid, NativeSelect } from "@/components/ui/field"
 import { FormAlert, FormDialog } from "@/components/ui/form-dialog"
+import { contar } from "@/lib/utils"
 
 const money = new Intl.NumberFormat("es-CO", {
   style: "currency",
@@ -89,7 +90,7 @@ export function NotasSinReferenciaCard({
       <CardContent className="flex flex-col gap-3 p-4">
         <div className="flex flex-wrap items-center gap-3">
           <div className="min-w-0 flex-1">
-            <h2 className="font-display text-lg">Notas crédito sin referencia</h2>
+            <h2 className="text-[15px] font-semibold">Notas crédito sin referencia</h2>
             <p className="text-xs text-muted-foreground">
               Descuento por volumen o pronto pago sobre las facturas de un
               cliente en un periodo. Solo factura electrónica.
@@ -310,7 +311,7 @@ function NuevaNotaDialog({
             id="nsr-hasta"
             label="Hasta"
             required
-            hint={dias !== null && dias > 0 ? `${dias} día(s) en el periodo.` : undefined}
+            hint={dias !== null && dias > 0 ? `${contar(dias, "día")} en el periodo.` : undefined}
             error={desde || hasta ? campos.hasta : undefined}
           >
             <Input id="nsr-hasta" type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} />

@@ -155,7 +155,7 @@ export function ConciliacionPagosPanel() {
 
   return (
     <div className="flex flex-col gap-4">
-      <Card>
+      <Card data-filtros>
         <CardContent className="flex flex-wrap items-end gap-3 py-4">
           <Field id="cp-sede" label="Sede">
             <NativeSelect

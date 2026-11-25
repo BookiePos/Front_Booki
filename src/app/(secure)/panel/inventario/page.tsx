@@ -98,7 +98,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Segmented } from "@/components/ui/segmented"
 import { useConfirm } from "@/components/ui/confirm-dialog"
-import { cn } from "@/lib/utils"
+import { cn, contar } from "@/lib/utils"
 import { nf, money, dtf, errorMessage } from "@/components/inventario/helpers"
 import {
   productsToCsv,
@@ -346,7 +346,7 @@ export default function InventarioPage() {
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-14 text-center">
             <ShieldOff className="size-10 text-muted-foreground" />
-            <p className="font-display text-lg text-foreground">Sin acceso</p>
+            <p className="text-[15px] font-semibold text-foreground">Sin acceso</p>
             <p className="max-w-xs text-sm text-muted-foreground">
               No tienes permiso para ver el inventario. Contacta al
               administrador del sistema.
@@ -398,7 +398,7 @@ export default function InventarioPage() {
       toast.success(
         marcados === 0
           ? "No se encontró ninguno por marcar"
-          : `${marcados} empaque(s) traídos aquí`,
+          : `${contar(marcados, "empaque traído", "empaques traídos")} aquí`,
         {
           description:
             marcados === 0
@@ -611,7 +611,7 @@ export default function InventarioPage() {
                   Stock bajo
                 </CardTitle>
                 <CardDescription>
-                  {alerts!.lowStock.length} producto(s) en o bajo el mínimo
+                  {contar(alerts!.lowStock.length, "producto")} en o bajo el mínimo
                 </CardDescription>
               </CardHeader>
               <CardContent className="flex flex-col gap-1 text-sm">
@@ -639,7 +639,7 @@ export default function InventarioPage() {
                   Por vencer ({alerts!.days} días)
                 </CardTitle>
                 <CardDescription>
-                  {alerts!.expiringSoon.length} lote(s) próximos a vencer
+                  {contar(alerts!.expiringSoon.length, "lote próximo", "lotes próximos")} a vencer
                 </CardDescription>
               </CardHeader>
               <CardContent className="flex flex-col gap-1 text-sm">
@@ -665,7 +665,7 @@ export default function InventarioPage() {
                   Vencidos
                 </CardTitle>
                 <CardDescription>
-                  {alerts!.expired.length} lote(s) vencidos con existencias
+                  {contar(alerts!.expired.length, "lote vencido", "lotes vencidos")} con existencias
                 </CardDescription>
               </CardHeader>
               <CardContent className="flex flex-col gap-1 text-sm">
@@ -740,7 +740,7 @@ export default function InventarioPage() {
             <div>
               <CardTitle>Insumos y mercancía</CardTitle>
               <CardDescription>
-                {filteredProducts.length} ficha(s) ·{" "}
+                {contar(filteredProducts.length, "ficha")} ·{" "}
                 <Link
                   href="/panel/productos"
                   className="text-primary underline-offset-4 hover:underline"
@@ -931,7 +931,7 @@ export default function InventarioPage() {
             <div>
               <CardTitle>Empaques</CardTitle>
               <CardDescription>
-                {filteredPackaging.length} empaque(s) · se gastan al vender, y
+                {contar(filteredPackaging.length, "empaque")} · se gastan al vender, y
                 en la caja se elige con cuáles sale cada pedido
               </CardDescription>
             </div>
@@ -1369,7 +1369,7 @@ export default function InventarioPage() {
               <CardTitle>Movimientos</CardTitle>
               <CardDescription>
                 {movements
-                  ? `${movements.total} movimiento(s) registrado(s)`
+                  ? contar(movements.total, "movimiento registrado", "movimientos registrados")
                   : "Historial de entradas, salidas y ajustes"}
               </CardDescription>
             </div>

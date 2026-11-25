@@ -44,7 +44,7 @@ export const guidesA: GuideDescriptor[] = [
       {
         target: null,
         title: "¡Listo!",
-        body: "Las cajas se abren y cierran desde el punto de venta; aquí solo consultas el resumen. Vuelve cuando quieras desde Operación → Caja.",
+        body: "Las cajas se abren y cierran desde el punto de venta; aquí solo consultas el resumen. Vuelve cuando quieras desde Vender → Caja.",
       },
     ],
   },
@@ -55,33 +55,33 @@ export const guidesA: GuideDescriptor[] = [
       {
         target: null,
         title: "Tu inventario",
-        body: "Controla el catálogo de productos, las existencias por sede y el historial de movimientos (kardex). Te muestro lo principal.",
+        body: "Aquí está todo lo que compras: insumos y mercancía, cuánto tienes en cada sede y cada entrada y salida. Lo que vendes en la caja se arma en Productos.",
       },
       {
         target: "inv-nuevo",
         navigateTo: "/panel/inventario",
-        title: "Crea un producto",
-        body: "Con “Nuevo producto” agregas ítems al catálogo: define nombre, SKU, unidad y si es perecedero.",
+        title: "Da de alta lo que compras",
+        body: "“Nuevo insumo” crea la ficha: nombre, cómo lo mides (unidades, kilos, litros), cómo te llega del proveedor y si se vence.",
       },
       {
         target: "inv-entrada",
-        title: "Registra entradas y ajustes",
-        body: "“Entrada” recibe mercancía y suma stock; “Ajuste” corrige existencias por conteo, daño o merma. Las salidas descuentan primero los lotes próximos a vencer (FEFO).",
+        title: "Cuando llega mercancía",
+        body: "“Entrada” suma lo que llegó con el precio de la factura. “Ajuste” corrige cuando el conteo no cuadra o algo se dañó. Al vender, sale primero lo que se vence antes.",
       },
       {
         target: "inv-tabs",
-        title: "Tres vistas",
-        body: "Cambia entre “Productos” (el catálogo), “Existencias” (stock por sede, con sus lotes) y “Movimientos” (el kardex completo).",
+        title: "Cinco pestañas",
+        body: "Insumos y mercancía (las fichas), Empaques (bolsas, vasos, cajas), Existencias (cuánto hay por sede), Lotes (con vencimiento) y Movimientos (la historia de cada entrada y salida).",
       },
       {
         target: "inv-buscar",
         title: "Encuentra rápido",
-        body: "Busca por nombre, SKU o código de barras para llegar al producto sin recorrer toda la lista.",
+        body: "Escribe el nombre, el código o pasa el lector de barras para llegar al insumo sin recorrer la lista.",
       },
       {
         target: null,
         title: "¡Listo!",
-        body: "Con esto llevas el control de tu stock. Vuelve cuando quieras desde Operación → Inventario.",
+        body: "Si te pierdes, el botón “Ayuda” de arriba explica cada palabra de esta pantalla y cómo hacer cada tarea.",
       },
     ],
   },
@@ -113,7 +113,7 @@ export const guidesA: GuideDescriptor[] = [
       {
         target: null,
         title: "¡Listo!",
-        body: "Todo lo que crees aquí queda disponible en el POS. Vuelve cuando quieras desde Operación → Productos.",
+        body: "Todo lo que crees aquí queda disponible en el POS. Vuelve cuando quieras desde Operación → Productos y precios.",
       },
     ],
   },
@@ -145,7 +145,7 @@ export const guidesA: GuideDescriptor[] = [
       {
         target: null,
         title: "¡Listo!",
-        body: "Así llevas el servicio de mesa a mesa. Vuelve cuando quieras desde Operación → Restaurante.",
+        body: "Así llevas el servicio de mesa a mesa. Vuelve cuando quieras desde Vender → Mesas.",
       },
     ],
   },
@@ -184,7 +184,7 @@ export const guidesA: GuideDescriptor[] = [
       {
         target: null,
         title: "¡Listo!",
-        body: "Al recibir, tu inventario se actualiza solo. Vuelve cuando quieras desde Comercial → Compras.",
+        body: "Al recibir, tu inventario se actualiza solo. Vuelve cuando quieras desde Compras → Compras.",
       },
     ],
   },
@@ -216,7 +216,7 @@ export const guidesA: GuideDescriptor[] = [
       {
         target: null,
         title: "¡Listo!",
-        body: "Con tus proveedores al día, comprar es más rápido. Vuelve cuando quieras desde Comercial → Proveedores.",
+        body: "Con tus proveedores al día, comprar es más rápido. Vuelve cuando quieras desde Compras → Proveedores.",
       },
     ],
   },
@@ -248,7 +248,7 @@ export const guidesA: GuideDescriptor[] = [
       {
         target: null,
         title: "¡Listo!",
-        body: "Un cliente registrado puede comprar a crédito y recibir factura. Vuelve cuando quieras desde Comercial → Directorio de clientes.",
+        body: "Un cliente registrado puede comprar a crédito y recibir factura. Vuelve cuando quieras desde Clientes → Clientes.",
       },
     ],
   },
@@ -285,7 +285,7 @@ export const guidesA: GuideDescriptor[] = [
       {
         target: null,
         title: "¡Listo!",
-        body: "Así llevas el fiado bajo control. Vuelve cuando quieras desde Comercial → Cuentas por cobrar.",
+        body: "Así llevas el fiado bajo control. Vuelve cuando quieras desde Clientes → Fiado por cobrar.",
       },
     ],
   },
@@ -324,7 +324,7 @@ export const guidesA: GuideDescriptor[] = [
       {
         target: null,
         title: "¡Listo!",
-        body: "Con el expediente completo, la nómina se calcula sola. Vuelve cuando quieras desde Personal → Empleados.",
+        body: "Con el expediente completo, la nómina se calcula sola. Vuelve cuando quieras desde Equipo → Personas.",
       },
     ],
   },
@@ -346,7 +346,7 @@ export const guidesA: GuideDescriptor[] = [
       {
         target: "deducciones-kpis",
         title: "Qué está pendiente",
-        body: "Cuántos consumos faltan por aprobar y cuánto ya está aprobado para descontar en la próxima corrida.",
+        body: "Cuántos consumos faltan por aprobar y cuánto ya está aprobado para descontar en la próxima nómina.",
       },
       {
         target: "deducciones-filtro",
@@ -361,7 +361,7 @@ export const guidesA: GuideDescriptor[] = [
       {
         target: null,
         title: "¡Listo!",
-        body: "Al aprobar, el consumo se descuenta en la siguiente colilla. Vuelve cuando quieras desde Personal → Consumos / deducciones.",
+        body: "Al aprobar, el consumo se descuenta en la siguiente colilla. Vuelve cuando quieras desde Equipo → Consumos y deducciones.",
       },
     ],
   },
@@ -372,23 +372,23 @@ export const guidesA: GuideDescriptor[] = [
       {
         target: null,
         title: "La nómina",
-        body: "Calcula la nómina conforme a la normativa laboral colombiana 2026: devengados, deducciones, aportes y provisiones. Te muestro sus herramientas.",
+        body: "Calcula el pago de tus trabajadores con los valores de ley de Colombia: sueldo, horas extra, recargos, salud, pensión y aportes. Te muestro cómo se usa.",
       },
       {
         target: "nomina-tabs",
         navigateTo: "/panel/nomina",
-        title: "Cinco herramientas",
-        body: "Cambia entre Correr nómina (la corrida del período), Simulador, Liquidación definitiva, Historial y Parámetros del cálculo.",
+        title: "Todo lo de la nómina",
+        body: "Pagar nómina (quincenas y cierre del mes), vacaciones e incapacidades, prima y cesantías, liquidación por retiro, una calculadora, las nóminas anteriores y los valores de ley.",
       },
       {
         target: "nomina-correr",
-        title: "Corre la nómina",
-        body: "Elige el período y la cobertura (todas las sedes o una) y genera la corrida. Se calcula con los empleados activos y con salario del expediente.",
+        title: "Paga la nómina",
+        body: "Elige el mes y a quién le pagas (toda la empresa o una sede). Si pagas por quincenas, el 15 registras la primera y el 30 calculas el mes completo, que descuenta lo ya pagado.",
       },
       {
         target: null,
         title: "¡Listo!",
-        body: "Cada corrida produce los desprendibles que puedes imprimir o enviar por correo. Vuelve cuando quieras desde Personal → Nómina.",
+        body: "Cada nómina deja el desprendible de cada trabajador para imprimir o enviar por correo. Vuelve cuando quieras desde Equipo → Nómina.",
       },
     ],
   },
@@ -425,7 +425,7 @@ export const guidesA: GuideDescriptor[] = [
       {
         target: null,
         title: "¡Listo!",
-        body: "Estas horas alimentan el cálculo de la nómina. Vuelve cuando quieras desde Personal → Turnos.",
+        body: "Estas horas alimentan el cálculo de la nómina. Vuelve cuando quieras desde Equipo → Turnos.",
       },
     ],
   },
